@@ -1,0 +1,445 @@
+name: Build, Deploy and Register Project
+
+on:
+  push:
+    branches:
+      - "main"
+
+env:
+  AWS_REGION:  ${{ secrets.AWS_REGION }}
+  ECS_CLUSTER:  ${{ secrets.ECS_CLUSTER }}
+  CONTAINER_PORT:  ${{ secrets.CONTAINER_PORT }}
+  IMAGE_TAG: "${{ github.sha }}"
+  
+jobs:
+  build_and_deploy:
+    name: Build and Deploy to ECS
+    runs-on: ubuntu-latest
+    
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2 
+ 
+      - name: Extract and lowercase repository name
+        id: get_repo_name
+        run: |
+          # github.event.repository.name returns just the repo name without the organization
+          LOWER_REPO=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+          echo "repo_name=$LOWER_REPO" >> $GITHUB_OUTPUT
+          
+          # Create shortened names for AWS resources with character limits
+          # Target group name has 32 char limit
+          SHORTENED_NAME=$(echo "${LOWER_REPO}" | cut -c 1-24)
+    
+          # Generate unique identifiers for this project based on repo name  
+          echo "task_family=${LOWER_REPO}-task" >> $GITHUB_OUTPUT
+          echo "shortened_name=$SHORTENED_NAME" >> $GITHUB_OUTPUT
+          echo "service_name=${LOWER_REPO}-service" >> $GITHUB_OUTPUT
+          echo "container_name=${LOWER_REPO}-container" >> $GITHUB_OUTPUT
+          echo "target_group_name=${SHORTENED_NAME}-tg" >> $GITHUB_OUTPUT
+          
+        
+      - name: Create ECR repository if it doesn't exist
+        run: aws ecr create-repository --repository-name ${{ steps.get_repo_name.outputs.repo_name }} || true 
+
+      - name: Create .env file
+        run: |
+          cat > .env <<EOF
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          EOF
+
+      - name: Build, tag, and push docker image to Amazon ECR
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ steps.get_repo_name.outputs.repo_name }} 
+          IMAGE_TAG: ${{ github.sha }}
+        run: | 
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -t $REGISTRY/$REPOSITORY:latest .
+          docker push -a $REGISTRY/$REPOSITORY
+          
+      - name: Get VPC information for target group
+        id: vpc-info
+        run: |
+          # Get default VPC ID
+          VPC_ID=$(aws ec2 describe-vpcs --query 'Vpcs[?IsDefault==`true`].VpcId' --output text)
+          echo "vpc_id=$VPC_ID" >> $GITHUB_OUTPUT
+    
+          # Get public subnets for ALB, with proper formatting
+          PUBLIC_SUBNET_IDS=$(aws ec2 describe-subnets \
+          --filters "Name=vpc-id,Values=$VPC_ID" "Name=map-public-ip-on-launch,Values=true" \
+          --query 'Subnets[].SubnetId' --output text)
+    
+          # Convert space-separated subnets to comma-separated for variables
+          SUBNET_CSV=$(echo $PUBLIC_SUBNET_IDS | tr ' ' ',')
+          echo "public_subnets=$SUBNET_CSV" >> $GITHUB_OUTPUT
+ 
+      - name: Lookup or create Load Balancer and Target Group
+        id: load-balancer
+        env:
+          TARGET_GROUP_NAME: ${{ steps.get_repo_name.outputs.target_group_name }}
+          VPC_ID: ${{ steps.vpc-info.outputs.vpc_id }}
+        run: |
+          # Find ALB
+          ALB_ARN=$(aws elbv2 describe-load-balancers \
+            --names "mytecody-web-alb" \
+            --query 'LoadBalancers[0].LoadBalancerArn' \
+            --output text 2>/dev/null || echo "")
+          if [ -z "$ALB_ARN" ] || [ "$ALB_ARN" == "None" ]; then
+            echo "ALB must be created manually with wildcard ACM cert attached."
+            exit 1
+          fi
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --load-balancer-arns $ALB_ARN \
+            --query 'LoadBalancers[0].DNSName' \
+            --output text)
+          echo "alb_dns=$ALB_DNS" >> $GITHUB_OUTPUT
+
+          # Target group
+          TG_ARN=$(aws elbv2 describe-target-groups \
+            --names $TARGET_GROUP_NAME \
+            --query 'TargetGroups[0].TargetGroupArn' \
+            --output text 2>/dev/null || echo "")
+          if [ -z "$TG_ARN" ] || [ "$TG_ARN" == "None" ]; then
+            TG_ARN=$(aws elbv2 create-target-group \
+              --name $TARGET_GROUP_NAME \
+              --protocol HTTP \
+              --port 80 \
+              --vpc-id $VPC_ID \
+              --target-type instance \
+              --health-check-path "/health" \
+              --query 'TargetGroups[0].TargetGroupArn' \
+              --output text)
+          fi
+          echo "target_group_arn=$TG_ARN" >> $GITHUB_OUTPUT
+          echo "alb_arn=$ALB_ARN" >> $GITHUB_OUTPUT
+
+      - name: Add host-based rule to ALB for this project
+        env:
+          ALB_ARN: ${{ steps.load-balancer.outputs.alb_arn }}
+          TARGET_GROUP_ARN: ${{ steps.load-balancer.outputs.target_group_arn }}
+          DNS_SAFE_REPO: ${{ steps.get_repo_name.outputs.repo_name }}
+        run: |
+          HTTPS_LISTENER_ARN=$(aws elbv2 describe-listeners \
+            --load-balancer-arn "$ALB_ARN" \
+            --query 'Listeners[?Port==`443`].ListenerArn' \
+            --output text)
+          if [ -z "$HTTPS_LISTENER_ARN" ] || [ "$HTTPS_LISTENER_ARN" == "None" ]; then
+            echo "ALB must have a permanent HTTPS listener with wildcard ACM cert attached."
+            exit 1
+          fi
+
+          # --- choose a priority that is                                1000-50000 ---
+          # We hash the repo name, take the modulus, and add 1000 so we avoid the
+          # low numbers you might want to keep for hand-crafted rules.
+          HASH=$(printf '%s' "$DNS_SAFE_REPO" | cksum | cut -d' ' -f1)
+          PRIORITY=$(( HASH % 49000 + 1000 ))
+
+          # If this priority is already in use, bump it until we find a free one.
+          while aws elbv2 describe-rules \
+                  --listener-arn "$HTTPS_LISTENER_ARN" \
+                  --query "Rules[?Priority==\`${PRIORITY}\`].RuleArn" \
+                  --output text | grep -q .; do
+              PRIORITY=$(( (PRIORITY % 50000) + 1 ))   # wrap to stay ≤50000
+          done
+          echo "Using ALB rule priority $PRIORITY"
+
+          # ---------------------------------------------------------------------------
+          RULE_ARN=$(aws elbv2 describe-rules \
+            --listener-arn "$HTTPS_LISTENER_ARN" \
+            --query "Rules[?contains(Conditions[].Values[], '$DNS_SAFE_REPO.mytecody.com')].RuleArn" \
+            --output text)
+
+          if [ -z "$RULE_ARN" ] || [ "$RULE_ARN" == "None" ]; then
+            aws elbv2 create-rule \
+              --listener-arn "$HTTPS_LISTENER_ARN" \
+              --priority "$PRIORITY" \
+              --conditions "Field=host-header,Values=$DNS_SAFE_REPO.mytecody.com" \
+              --actions Type=forward,TargetGroupArn="$TARGET_GROUP_ARN"
+          fi
+
+
+      - name: Create task definition JSON with SSL support
+        id: task-def
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ${{ steps.get_repo_name.outputs.repo_name }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          CONTAINER_NAME: ${{ steps.get_repo_name.outputs.container_name }}
+          TASK_FAMILY: ${{ steps.get_repo_name.outputs.task_family }}
+          DNS_SAFE_REPO: ${{ steps.get_repo_name.outputs.repo_name }}
+        run: |
+          # Create a timestamp-based version for the task definition
+          TASK_VERSION=$(date +%Y%m%d%H%M%S)
+          echo "task_version=$TASK_VERSION" >> $GITHUB_OUTPUT
+
+          # Create Task Definition with mount points
+          echo "Creating task definition with EFS volume mount..."
+          cat > task-def.json <<EOF
+          {
+            "family": "${TASK_FAMILY}",
+            "networkMode": "bridge",
+            "requiresCompatibilities": ["EC2"],
+            "containerDefinitions": [
+              {
+                "name": "${CONTAINER_NAME}",
+                "image": "${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}",
+                "memory": 512,
+                "cpu": 256,
+                "essential": true,
+                "portMappings": [
+                  {
+                    "containerPort": 80,
+                    "hostPort": 0,
+                    "protocol": "tcp"
+                  }
+                ],
+                "healthCheck": {
+                  "command": ["CMD-SHELL", "curl -f http://localhost:80/health || exit 1"],
+                  "interval": 60,
+                  "timeout": 10,
+                  "retries": 5,
+                  "startPeriod": 180
+                },
+                "environment": [
+                  {
+                    "name": "NODE_ENV",
+                    "value": "production"
+                  },
+                  {
+                    "name": "REPO_NAME",
+                    "value": "${REPOSITORY}"
+                  },
+                  {
+                    "name": "PORT",
+                    "value": "80"
+                  }
+                ], 
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-create-group": "true",
+                    "awslogs-group": "/ecs/projects",
+                    "awslogs-region": "${{ env.AWS_REGION }}",
+                    "awslogs-stream-prefix": "${CONTAINER_NAME}"
+                  }
+                }
+              }
+            ], 
+            "tags": [
+              {
+                "key": "Project",
+                "value": "${{ steps.get_repo_name.outputs.repo_name }}"
+              },
+              {
+                "key": "Version",
+                "value": "${TASK_VERSION}"
+              }
+            ]
+          }
+          EOF
+      
+
+      - name: Register ECS task definition
+        id: register-task-def
+        run: |
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json file://task-def.json \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
+          echo "TASK_VERSION=${{ steps.task-def.outputs.task_version }}" >> $GITHUB_ENV
+      
+
+      - name: Deploy ECS service with load balancer
+        id: deploy-service
+        env:
+          SERVICE_NAME: ${{ steps.get_repo_name.outputs.service_name }}
+          CONTAINER_NAME: ${{ steps.get_repo_name.outputs.container_name }}
+          TARGET_GROUP_ARN: ${{ steps.load-balancer.outputs.target_group_arn }}
+        run: |
+          SERVICE_EXISTS=$(aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services $SERVICE_NAME \
+            --query 'services[0].status' \
+            --output text 2>/dev/null || echo "MISSING")
+      
+          if [ "$SERVICE_EXISTS" = "ACTIVE" ]; then
+            echo "Service exists, checking if we need to recreate it..."
+            
+            # Get the current target group ARN from the service
+            CURRENT_TG_ARN=$(aws ecs describe-services \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --services $SERVICE_NAME \
+              --query 'services[0].loadBalancers[0].targetGroupArn' \
+              --output text)
+            
+            # Check if the target group exists
+            TG_EXISTS=$(aws elbv2 describe-target-groups \
+              --target-group-arns $CURRENT_TG_ARN \
+              --query 'TargetGroups[0].TargetGroupArn' \
+              --output text 2>/dev/null || echo "MISSING")
+            
+            if [ "$TG_EXISTS" = "MISSING" ]; then
+              echo "Target group no longer exists, deleting and recreating service..."
+              # Delete the service
+              aws ecs delete-service \
+                --cluster ${{ env.ECS_CLUSTER }} \
+                --service $SERVICE_NAME \
+                --force
+              
+              # Wait for the service to be deleted
+              echo "Waiting for service to be deleted..."
+              aws ecs wait services-inactive \
+                --cluster ${{ env.ECS_CLUSTER }} \
+                --services $SERVICE_NAME
+              
+              # Create a new service
+              echo "Creating new ECS service with load balancer..."
+              aws ecs create-service \
+                --cluster ${{ env.ECS_CLUSTER }} \
+                --service-name $SERVICE_NAME \
+                --task-definition ${{ env.TASK_DEF_ARN }} \
+                --desired-count 1 \
+                --deployment-configuration "maximumPercent=200,minimumHealthyPercent=50" \
+                --launch-type EC2 \
+                --placement-strategy "type=binpack,field=memory" \
+                --load-balancers "targetGroupArn=${TARGET_GROUP_ARN},containerName=${CONTAINER_NAME},containerPort=80"
+            else
+              echo "Updating existing ECS service..."
+              aws ecs update-service \
+                --cluster ${{ env.ECS_CLUSTER }} \
+                --service $SERVICE_NAME \
+                --task-definition ${{ env.TASK_DEF_ARN }} \
+                --force-new-deployment
+            fi
+          else
+            echo "Creating new ECS service with load balancer..."
+            aws ecs create-service \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --service-name $SERVICE_NAME \
+              --task-definition ${{ env.TASK_DEF_ARN }} \
+              --desired-count 1 \
+              --deployment-configuration "maximumPercent=200,minimumHealthyPercent=50" \
+              --launch-type EC2 \
+              --placement-strategy "type=binpack,field=memory" \
+              --load-balancers "targetGroupArn=${TARGET_GROUP_ARN},containerName=${CONTAINER_NAME},containerPort=80"
+          fi
+          
+          echo "service_name=$SERVICE_NAME" >> $GITHUB_OUTPUT
+      
+
+      - name: Wait for service to be stable
+        env:
+          SERVICE_NAME: ${{ steps.deploy-service.outputs.service_name }}
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services $SERVICE_NAME
+
+
+      - name: Notify Server of New Deployment
+        run: |
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SERVER_ACCESS_TOKEN }}" \
+            -d '{
+              "project_name": "${{ github.event.repository.name }}",
+              "external_url": "${{ steps.get_repo_name.outputs.repo_name }}.mytecody.com", 
+              "alb_dns": "${{ steps.load-balancer.outputs.alb_dns }}",
+              "repo_type": "api", 
+              "task_version": "${{ env.TASK_VERSION }}",
+              "image_tag": "${{ env.IMAGE_TAG }}"
+            }' \
+            https://api.mytecody.com/api/repositories/project-container
+
+
+
+      - name: Clean up old resources
+        if: success()
+        env:
+          REPOSITORY: ${{ steps.get_repo_name.outputs.repo_name }}
+          TASK_FAMILY: ${{ steps.get_repo_name.outputs.task_family }}
+        run: |
+          # Keep only the latest 5 task definition revisions
+          TASK_REVISIONS=$(aws ecs list-task-definitions \
+            --family-prefix $TASK_FAMILY \
+            --sort DESC \
+            --query 'taskDefinitionArns[5:]' \
+            --output json)
+
+          if [ "$TASK_REVISIONS" != "[]" ] && [ "$TASK_REVISIONS" != "null" ]; then
+            echo "Deregistering old task definition revisions..."
+            for ARN in $(echo $TASK_REVISIONS | jq -r '.[]'); do
+              aws ecs deregister-task-definition \
+                --task-definition $ARN \
+                --query 'taskDefinition.taskDefinitionArn' \
+                --output text
+            done
+          else
+            echo "No old task definitions to clean up"
+          fi
+
+          # Keep only the latest 10 Docker images, but more safely
+          echo "Checking for old Docker images to clean up..."
+
+          # First check if repository exists and has images
+          REPO_CHECK=$(aws ecr describe-repositories \
+            --repository-names $REPOSITORY \
+            --query 'repositories[0].repositoryName' \
+            --output text 2>/dev/null || echo "")
+
+          if [ "$REPO_CHECK" == "" ]; then
+            echo "Repository does not exist or is empty"
+          else
+            # Get all image digests first
+            ALL_DIGESTS=$(aws ecr list-images \
+              --repository-name $REPOSITORY \
+              --query 'imageIds[*].imageDigest' \
+              --output json)
+
+            # Get digests of images with the "latest" tag
+            LATEST_DIGESTS=$(aws ecr list-images \
+              --repository-name $REPOSITORY \
+              --query 'imageIds[?imageTag==`latest`].imageDigest' \
+              --output json)
+
+            # Find digests to delete (all except latest and 10 most recent)
+            # Use jq to do the filtering
+            if [ "$(echo $ALL_DIGESTS | jq 'length')" -gt 10 ]; then
+              echo "More than 10 images found, cleaning up older ones..."
+
+              # Use jq to create image ID objects for deletion, excluding "latest"
+              DELETE_JSON=$(aws ecr list-images \
+                --repository-name $REPOSITORY \
+                --output json | \
+                jq --argjson latest "$LATEST_DIGESTS" \
+                   '{imageIds: .imageIds | sort_by(.imageDigest) | .[0:-(10+($latest|length))] | map(select(.imageTag != "latest"))}')
+
+              # Check if we have any images to delete
+              NUM_TO_DELETE=$(echo $DELETE_JSON | jq '.imageIds | length')
+
+              if [ "$NUM_TO_DELETE" -gt 0 ]; then
+                echo "Deleting $NUM_TO_DELETE old images..."
+                aws ecr batch-delete-image \
+                  --repository-name $REPOSITORY \
+                  --cli-input-json "$DELETE_JSON"
+              else
+                echo "No images to delete after filtering"
+              fi
+            else
+              echo "Less than 10 images found, no cleanup needed"
+            fi
+          fi
