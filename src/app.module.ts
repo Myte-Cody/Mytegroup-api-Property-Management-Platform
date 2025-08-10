@@ -4,6 +4,7 @@ import { AuthModule } from "./features/auth/auth.module";
 import { EmailModule } from "./features/email/email.module";
 import { OrganizationsModule } from "./features/organizations/organizations.module";
 import { UsersModule } from "./features/users/users.module";
+import { PropertiesModule } from "./features/properties/properties.module";
 import { MongooseModule } from "@nestjs/mongoose";
 import { ConfigModule } from "@nestjs/config";
 
@@ -17,6 +18,7 @@ import { ConfigModule } from "@nestjs/config";
     EmailModule,
     OrganizationsModule,
     UsersModule,
+    PropertiesModule,
     MongooseModule.forRoot(process.env.DB_URL),
   ],
 })

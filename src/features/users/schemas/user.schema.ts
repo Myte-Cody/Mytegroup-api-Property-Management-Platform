@@ -30,8 +30,8 @@ export class User extends Document {
   @Prop({ trim: true })
   phone: string;
 
-  // @Prop({ type: MongooseSchema.Types.ObjectId, ref: "Organization" })
-  // organization: Types.ObjectId;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: "Organization" })
+  organization: Types.ObjectId;
 
   @Prop({ default: true })
   isActive: boolean;
