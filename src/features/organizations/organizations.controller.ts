@@ -1,8 +1,34 @@
-import { Controller, Post, Body } from '@nestjs/common';
-import { OrganizationsService } from './organizations.service';
-@Controller('organizations')
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Param,
+  NotFoundException,
+} from "@nestjs/common";
+import { OrganizationsService } from "./organizations.service";
+import { CreateOrganizationDto } from "./dto/create-organization.dto";
+
+@Controller("organizations")
 export class OrganizationsController {
-  constructor(private svc: OrganizationsService) {}
+  constructor(private readonly organizationsService: OrganizationsService) {}
+
   @Post()
-  create(@Body() dto: any) { return this.svc.create(dto); }
+  async create(@Body() createOrganizationDto: CreateOrganizationDto) {
+    return await this.organizationsService.create(createOrganizationDto);
+  }
+
+  @Get()
+  async findAll() {
+    return await this.organizationsService.findAll();
+  }
+
+  @Get(":id")
+  async findOne(@Param("id") id: string) {
+    const organization = await this.organizationsService.findOne(id);
+    if (!organization) {
+      throw new NotFoundException(`Organization with ID ${id} not found`);
+    }
+    return organization;
+  }
 }
