@@ -9,11 +9,12 @@ import * as bcrypt from "bcrypt";
 import { JwtService } from "@nestjs/jwt";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
+import { User } from "../users/schemas/user.schema";
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectModel("User") private readonly userModel: Model<any>,
+    @InjectModel(User.name) private readonly userModel: Model<User>,
     private readonly jwtService: JwtService
   ) {}
 
@@ -39,7 +40,7 @@ export class AuthService {
     const newUser = new this.userModel({
       username,
       email,
-      passwordHash,
+      password: passwordHash,
       role: role || "Tenant",
       phone,
       isActive: true,
@@ -73,7 +74,7 @@ export class AuthService {
     // Find user by email
     const user = await this.userModel
       .findOne({ email })
-      .select("+passwordHash")
+      .select("+password")
       .exec();
 
     if (!user) {
@@ -81,7 +82,7 @@ export class AuthService {
     }
 
     // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    const isPasswordValid = await bcrypt.compare(password, user.password);
 
     if (!isPasswordValid) {
       throw new UnauthorizedException("Invalid credentials");

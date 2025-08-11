@@ -18,14 +18,7 @@ export class User extends Document {
   email: string;
 
   @Prop({ required: true, select: false }) // Do not return by default
-  passwordHash: string;
-
-  @Prop({
-    enum: ["Landlord", "Tenant", "Contractor", "Admin"],
-    required: true,
-    default: "Tenant",
-  })
-  role: string;
+  password: string;
 
   @Prop({ trim: true })
   phone: string;

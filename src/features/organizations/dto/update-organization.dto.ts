@@ -4,59 +4,60 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  Matches,
   MaxLength,
   ValidateNested,
 } from "class-validator";
 import { Type } from "class-transformer";
 import { OrganizationType } from "../../../common/enums/organization.enum";
 
-export class AddressDto {
-  @IsString()
+export class UpdateAddressDto {
   @IsOptional()
+  @IsString()
   street?: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
   city?: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
   state?: string;
 
-  @IsString()
   @IsOptional()
-  postalCode?: string;
+  @IsString()
+  zipCode?: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
   country?: string;
 }
 
-export class CreateOrganizationDto {
+export class UpdateOrganizationDto {
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
   @MaxLength(128)
-  name: string;
+  name?: string;
 
+  @IsOptional()
   @IsEnum(OrganizationType)
-  type: OrganizationType;
+  type?: OrganizationType;
 
   @IsOptional()
   @ValidateNested()
-  @Type(() => AddressDto)
-  address?: AddressDto;
+  @Type(() => UpdateAddressDto)
+  address?: UpdateAddressDto;
 
-  @IsEmail()
   @IsOptional()
-  @Matches(/.+\@.+\..+/)
-  contactEmail?: string;
-
   @IsString()
+  @IsEmail()
+  email?: string;
+
   @IsOptional()
+  @IsString()
   phone?: string;
 
-  @IsString()
   @IsOptional()
-  logoUrl?: string;
+  @IsString()
+  website?: string;
 }

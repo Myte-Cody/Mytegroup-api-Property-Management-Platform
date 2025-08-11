@@ -1,6 +1,5 @@
 import {
   IsEmail,
-  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -26,10 +25,6 @@ export class RegisterDto {
     message: "Password is too weak",
   })
   password: string;
-
-  @IsEnum(["Landlord", "Tenant", "Contractor", "Admin"])
-  @IsOptional()
-  role?: string;
 
   @IsString()
   @IsOptional()
