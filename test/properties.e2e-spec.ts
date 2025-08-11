@@ -34,7 +34,7 @@ describe("Properties Resource (e2e)", () => {
         whitelist: true,
         transform: true,
         forbidNonWhitelisted: true,
-      })
+      }),
     );
     await app.init();
   });

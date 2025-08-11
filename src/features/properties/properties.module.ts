@@ -4,14 +4,14 @@ import { PropertiesController } from "./properties.controller";
 import { UnitsService } from "./units.service";
 import { UnitsController } from "./units.controller";
 import { MongooseModule } from "@nestjs/mongoose";
-import { PropertySchema } from "./schemas/property.schema";
-import { UnitSchema } from "./schemas/unit.schema";
+import { Property, PropertySchema } from "./schemas/property.schema";
+import { Unit, UnitSchema } from "./schemas/unit.schema";
 
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { schema: PropertySchema, name: "Property" },
-      { schema: UnitSchema, name: "Unit" },
+      { schema: PropertySchema, name: Property.name },
+      { schema: UnitSchema, name: Unit.name },
     ]),
   ],
   controllers: [PropertiesController, UnitsController],

@@ -8,7 +8,7 @@ import { Property } from "./schemas/property.schema";
 @Injectable()
 export class PropertiesService {
   constructor(
-    @InjectModel("Property") private readonly propertyModel: Model<Property>
+    @InjectModel(Property.name) private readonly propertyModel: Model<Property>,
   ) {}
   async create(createPropertyDto: CreatePropertyDto) {
     const newProperty = new this.propertyModel(createPropertyDto);

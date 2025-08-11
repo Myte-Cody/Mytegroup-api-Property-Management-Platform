@@ -1,8 +1,8 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { PropertiesController } from "./properties.controller";
-import { PropertiesService } from "./properties.service";
-import { CreatePropertyDto } from "./dto/create-property.dto";
-import { UpdatePropertyDto } from "./dto/update-property.dto";
+import { PropertiesController } from "../properties.controller";
+import { PropertiesService } from "../properties.service";
+import { CreatePropertyDto } from "../dto/create-property.dto";
+import { UpdatePropertyDto } from "../dto/update-property.dto";
 import { Types } from "mongoose";
 
 describe("PropertiesController", () => {
@@ -73,7 +73,7 @@ describe("PropertiesController", () => {
       const result = await controller.create(createPropertyDto);
       expect(result).toEqual(mockProperty);
       expect(mockPropertiesService.create).toHaveBeenCalledWith(
-        createPropertyDto
+        createPropertyDto,
       );
     });
   });
@@ -110,7 +110,7 @@ describe("PropertiesController", () => {
       expect(result).toEqual(updatedProperty);
       expect(mockPropertiesService.update).toHaveBeenCalledWith(
         "a-mock-id",
-        updatePropertyDto
+        updatePropertyDto,
       );
     });
   });

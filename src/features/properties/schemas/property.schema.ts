@@ -45,7 +45,6 @@ export class Property extends Document {
   @Prop({ default: Date.now })
   updatedAt: Date;
 
-  // Optional: Array of unit references (for fast lookup)
   @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: "Unit" }] })
   units: Types.ObjectId[];
 }

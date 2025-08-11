@@ -13,8 +13,8 @@ import { Property } from "./schemas/property.schema";
 @Injectable()
 export class UnitsService {
   constructor(
-    @InjectModel("Unit") private readonly unitModel: Model<Unit>,
-    @InjectModel("Property") private readonly propertyModel: Model<Property>
+    @InjectModel(Unit.name) private readonly unitModel: Model<Unit>,
+    @InjectModel(Property.name) private readonly propertyModel: Model<Property>,
   ) {}
 
   async create(createUnitDto: CreateUnitDto) {
@@ -24,7 +24,7 @@ export class UnitsService {
       .exec();
     if (!property) {
       throw new BadRequestException(
-        `Property with ID ${createUnitDto.property} not found`
+        `Property with ID ${createUnitDto.property} not found`,
       );
     }
 
@@ -37,7 +37,7 @@ export class UnitsService {
       .findByIdAndUpdate(
         createUnitDto.property,
         { $push: { units: savedUnit._id } },
-        { new: true }
+        { new: true },
       )
       .exec();
 

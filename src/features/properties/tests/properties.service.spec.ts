@@ -1,11 +1,11 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { PropertiesService } from "./properties.service";
+import { PropertiesService } from "../properties.service";
 import { getModelToken } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
-import { CreatePropertyDto } from "./dto/create-property.dto";
-import { UpdatePropertyDto } from "./dto/update-property.dto";
+import { CreatePropertyDto } from "../dto/create-property.dto";
+import { UpdatePropertyDto } from "../dto/update-property.dto";
 import { NotFoundException } from "@nestjs/common";
-import { Property } from "./schemas/property.schema";
+import { Property } from "../schemas/property.schema";
 
 describe("PropertiesService", () => {
   let service: PropertiesService;
@@ -29,27 +29,27 @@ describe("PropertiesService", () => {
   };
 
   // Create a proper mock for the Mongoose model
-  const mockPropertyModel = function() {
+  const mockPropertyModel = function () {
     return {
-      save: jest.fn().mockResolvedValue(mockProperty)
+      save: jest.fn().mockResolvedValue(mockProperty),
     };
   } as any;
-  
+
   // Add static methods to the mock model
   mockPropertyModel.find = jest.fn().mockReturnValue({
-    exec: jest.fn().mockResolvedValue([mockProperty])
+    exec: jest.fn().mockResolvedValue([mockProperty]),
   });
-  
+
   mockPropertyModel.findById = jest.fn().mockReturnValue({
-    exec: jest.fn().mockResolvedValue(mockProperty)
+    exec: jest.fn().mockResolvedValue(mockProperty),
   });
-  
+
   mockPropertyModel.findByIdAndUpdate = jest.fn().mockReturnValue({
-    exec: jest.fn().mockResolvedValue(mockProperty)
+    exec: jest.fn().mockResolvedValue(mockProperty),
   });
-  
+
   mockPropertyModel.findByIdAndDelete = jest.fn().mockReturnValue({
-    exec: jest.fn().mockResolvedValue(mockProperty)
+    exec: jest.fn().mockResolvedValue(mockProperty),
   });
 
   beforeEach(async () => {
@@ -119,7 +119,7 @@ describe("PropertiesService", () => {
       });
 
       await expect(service.findOne("non-existent-id")).rejects.toThrow(
-        NotFoundException
+        NotFoundException,
       );
     });
   });
@@ -144,7 +144,7 @@ describe("PropertiesService", () => {
       });
 
       await expect(
-        service.update("non-existent-id", { name: "Updated Property" })
+        service.update("non-existent-id", { name: "Updated Property" }),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -165,7 +165,7 @@ describe("PropertiesService", () => {
       });
 
       await expect(service.remove("non-existent-id")).rejects.toThrow(
-        NotFoundException
+        NotFoundException,
       );
     });
   });
