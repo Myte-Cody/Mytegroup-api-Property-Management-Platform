@@ -28,7 +28,7 @@ services:
     container_name: mytegroup-mongodb
     restart: always
     ports:
-      - "${MONGO_PORT:-27017}:27017"
+      - "${MONGO_PORT:-27018}:27017"
     volumes:
       - mongodb_data:/data/db
     environment:
