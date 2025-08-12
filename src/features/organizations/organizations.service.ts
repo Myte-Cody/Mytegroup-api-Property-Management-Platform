@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { CreateOrganizationDto } from "./dto/create-organization.dto";
@@ -13,6 +13,15 @@ export class OrganizationsService {
   ) {}
 
   async create(createOrganizationDto: CreateOrganizationDto) {
+
+    const existingOrganization = await this.organizationModel.findOne({ 
+      name: createOrganizationDto.name 
+    }).exec();
+    
+    if (existingOrganization) {
+      throw new BadRequestException(`Organization with name '${createOrganizationDto.name}' already exists`);
+    }
+    
     const newOrganization = new this.organizationModel(createOrganizationDto);
     return await newOrganization.save();
   }
@@ -26,13 +35,26 @@ export class OrganizationsService {
   }
 
   async update(id: string, updateOrganizationDto: UpdateOrganizationDto) {
+    if (updateOrganizationDto.name) {
+      const existingOrganization = await this.organizationModel.findOne({ 
+        name: updateOrganizationDto.name,
+        _id: { $ne: id } // Exclude current organization from the check
+      }).exec();
+      
+      if (existingOrganization) {
+        throw new BadRequestException(`Organization with name '${updateOrganizationDto.name}' already exists`);
+      }
+    }
+    
+    // Validate that the organization exists before updating
+    const organization = await this.organizationModel.findById(id).exec();
+    if (!organization) {
+      throw new NotFoundException(`Organization with ID ${id} not found`);
+    }
+    
     const updatedOrganization = await this.organizationModel
       .findByIdAndUpdate(id, updateOrganizationDto, { new: true })
       .exec();
-
-    if (!updatedOrganization) {
-      throw new NotFoundException(`Organization with ID ${id} not found`);
-    }
 
     return updatedOrganization;
   }

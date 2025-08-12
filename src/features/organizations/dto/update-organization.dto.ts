@@ -1,63 +1,33 @@
 import {
-  IsEmail,
   IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
-  ValidateNested,
 } from "class-validator";
-import { Type } from "class-transformer";
 import { OrganizationType } from "../../../common/enums/organization.enum";
+import { ApiProperty } from "@nestjs/swagger";
+import { TransformToLowercase } from "../../../common/decorators/transform-to-lowercase.decorator";
 
-export class UpdateAddressDto {
-  @IsOptional()
-  @IsString()
-  street?: string;
 
-  @IsOptional()
-  @IsString()
-  city?: string;
-
-  @IsOptional()
-  @IsString()
-  state?: string;
-
-  @IsOptional()
-  @IsString()
-  zipCode?: string;
-
-  @IsOptional()
-  @IsString()
-  country?: string;
-}
 
 export class UpdateOrganizationDto {
+  @ApiProperty({ example: 'Acme Property Management', description: 'Organization name (will be stored as lowercase)', maxLength: 128, required: false })
   @IsOptional()
   @IsString()
   @IsNotEmpty()
   @MaxLength(128)
+  @TransformToLowercase()
   name?: string;
 
+  @ApiProperty({ 
+    example: 'PROPERTY_MANAGER', 
+    description: 'Type of organization', 
+    enum: OrganizationType,
+    enumName: 'OrganizationType',
+    required: false
+  })
   @IsOptional()
   @IsEnum(OrganizationType)
   type?: OrganizationType;
-
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => UpdateAddressDto)
-  address?: UpdateAddressDto;
-
-  @IsOptional()
-  @IsString()
-  @IsEmail()
-  email?: string;
-
-  @IsOptional()
-  @IsString()
-  phone?: string;
-
-  @IsOptional()
-  @IsString()
-  website?: string;
 }
