@@ -1,7 +1,7 @@
 import {
   Injectable,
   UnauthorizedException,
-  ConflictException,
+  BadRequestException,
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
@@ -27,9 +27,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException(
-        "User with this email or username already exists"
-      );
+      throw new BadRequestException("User with this email or username already exists");
     }
 
     // Hash the password
@@ -42,13 +40,12 @@ export class AuthService {
       email,
       password: passwordHash,
       phone,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      isActive: true
     });
 
     const savedUser = await newUser.save();
 
+    // todo centeralize this
     // Generate JWT token
     const payload = {
       sub: savedUser._id,
