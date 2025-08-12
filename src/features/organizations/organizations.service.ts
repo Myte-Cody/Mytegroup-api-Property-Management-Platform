@@ -1,15 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
 import { CreateOrganizationDto } from "./dto/create-organization.dto";
 import { UpdateOrganizationDto } from "./dto/update-organization.dto";
 import { Organization } from "./schemas/organization.schema";
+import { SoftDeleteModel } from "../../common/interfaces/soft-delete-model.interface";
 
 @Injectable()
 export class OrganizationsService {
   constructor(
     @InjectModel(Organization.name)
-    private readonly organizationModel: Model<Organization>
+    private readonly organizationModel: SoftDeleteModel<Organization>
   ) {}
 
   async create(createOrganizationDto: CreateOrganizationDto) {
@@ -60,12 +60,15 @@ export class OrganizationsService {
   }
 
   async remove(id: string) {
-    const result = await this.organizationModel.findByIdAndDelete(id).exec();
 
-    if (!result) {
+    const organization = await this.organizationModel.findById(id).exec();
+    if (!organization) {
       throw new NotFoundException(`Organization with ID ${id} not found`);
     }
-
+    
+    // Use soft delete instead of permanent deletion
+    await this.organizationModel.deleteById(id);
+    
     return null;
   }
 }

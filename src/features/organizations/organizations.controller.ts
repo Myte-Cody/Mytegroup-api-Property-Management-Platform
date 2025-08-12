@@ -60,7 +60,9 @@ export class OrganizationsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete organization by ID' })
   @ApiParam({ name: 'id', description: 'Organization ID', type: String })
-  async remove(@Param() params: MongoIdDto) {
+  async remove(
+    @Param() params: MongoIdDto
+  ) {
     return await this.organizationsService.remove(params.id);
   }
 }
