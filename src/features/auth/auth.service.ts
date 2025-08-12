@@ -19,7 +19,7 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto) {
-    const { username, email, password, role, phone } = registerDto;
+    const { username, email, password, phone } = registerDto;
 
     // Check if user already exists
     const existingUser = await this.userModel.findOne({
@@ -41,7 +41,6 @@ export class AuthService {
       username,
       email,
       password: passwordHash,
-      role: role || "Tenant",
       phone,
       isActive: true,
       createdAt: new Date(),
@@ -53,16 +52,14 @@ export class AuthService {
     // Generate JWT token
     const payload = {
       sub: savedUser._id,
-      email: savedUser.email,
-      role: savedUser.role,
+      email: savedUser.email
     };
 
     return {
       user: {
         _id: savedUser._id,
         username: savedUser.username,
-        email: savedUser.email,
-        role: savedUser.role,
+        email: savedUser.email
       },
       accessToken: this.jwtService.sign(payload),
     };
@@ -89,14 +86,13 @@ export class AuthService {
     }
 
     // Generate JWT token
-    const payload = { sub: user._id, email: user.email, role: user.role };
+    const payload = { sub: user._id, email: user.email };
 
     return {
       user: {
         _id: user._id,
         username: user.username,
-        email: user.email,
-        role: user.role,
+        email: user.email
       },
       accessToken: this.jwtService.sign(payload),
     };
