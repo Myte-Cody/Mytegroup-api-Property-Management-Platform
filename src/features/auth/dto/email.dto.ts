@@ -1,1 +1,3 @@
-export class EmailDto { email: string; }
+export class EmailDto {
+  email: string;
+}
