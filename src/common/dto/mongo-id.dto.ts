@@ -1,13 +1,12 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsNotEmpty } from "class-validator";
-import { IsObjectId } from "../decorators/is-object-id.decorator";
+import { ApiProperty } from '@nestjs/swagger';
+import { IsMongoId, IsNotEmpty } from 'class-validator';
 
 export class MongoIdDto {
   @ApiProperty({
-    description: "MongoDB ObjectId",
-    example: "60d21b4667d0d8992e610c85",
+    description: 'MongoDB ObjectId',
+    example: '60d21b4667d0d8992e610c85',
   })
   @IsNotEmpty()
-  @IsObjectId({ message: "Invalid MongoDB ObjectId format" })
+  @IsMongoId()
   id: string;
 }

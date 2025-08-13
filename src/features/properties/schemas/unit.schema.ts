@@ -1,13 +1,15 @@
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { Document, Schema as MongooseSchema } from "mongoose";
-import { Types } from "mongoose";
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Types } from 'mongoose';
+import * as mongooseDelete from 'mongoose-delete';
+import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
 
-@Schema()
-export class Unit extends Document {
+@Schema({ timestamps: true })
+export class Unit extends Document implements SoftDelete {
   // Reference to the property this unit belongs to
   @Prop({
     type: MongooseSchema.Types.ObjectId,
-    ref: "Property",
+    ref: 'Property',
     required: true,
   })
   property: Types.ObjectId;
@@ -22,7 +24,7 @@ export class Unit extends Document {
   sizeSqFt: number;
 
   @Prop({
-    enum: ["Apartment", "Studio", "Office", "Retail", "Room", "Other"],
+    enum: ['Apartment', 'Studio', 'Office', 'Retail', 'Room', 'Other'],
     required: true,
   })
   type: string;
@@ -34,8 +36,8 @@ export class Unit extends Document {
   bathrooms: number;
 
   @Prop({
-    enum: ["Vacant", "Occupied", "Available for Rent"],
-    default: "Vacant",
+    enum: ['Vacant', 'Occupied', 'Available for Rent'],
+    default: 'Vacant',
     required: true,
   })
   availabilityStatus: string;
@@ -46,17 +48,14 @@ export class Unit extends Document {
   @Prop({ maxlength: 1024 })
   description: string;
 
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: "User" }] })
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }] })
   tenants: Types.ObjectId[];
 
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: "Lease" }] })
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Lease' }] })
   leases: Types.ObjectId[];
 
-  @Prop({ default: Date.now, immutable: true })
-  createdAt: Date;
-
-  @Prop({ default: Date.now })
-  updatedAt: Date;
+  deleted: boolean;
+  deletedAt?: Date;
 }
 
 export const UnitSchema = SchemaFactory.createForClass(Unit);
@@ -64,6 +63,6 @@ export const UnitSchema = SchemaFactory.createForClass(Unit);
 // Add mongoose-delete plugin with options
 UnitSchema.plugin(mongooseDelete, {
   deletedAt: true,
-  overrideMethods: "all", // Override all methods including static methods
-  indexFields: ["deleted"],
+  overrideMethods: 'all', // Override all methods including static methods
+  indexFields: ['deleted'],
 });
