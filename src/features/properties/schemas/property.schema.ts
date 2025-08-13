@@ -1,6 +1,8 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { Document, Schema as MongooseSchema } from "mongoose";
 import { Types } from "mongoose";
+import * as mongooseDelete from "mongoose-delete";
+import { SoftDelete } from "../../../common/interfaces/soft-delete.interface";
 
 @Schema()
 export class Address {
@@ -20,9 +22,9 @@ export class Address {
   country: string;
 }
 
-@Schema()
-export class Property extends Document {
-  // Unique identifier (MongoDB will auto-generate _id)
+@Schema({ timestamps: true })
+export class Property extends Document implements SoftDelete {
+
   @Prop({ required: true, trim: true, maxlength: 128 })
   name: string;
 
@@ -32,21 +34,15 @@ export class Property extends Document {
   @Prop({ maxlength: 1024, default: "" })
   description: string;
 
-  // Reference to the landlord/user who owns the property
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: "User", required: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: "Organization", required: true })
   owner: Types.ObjectId;
 
-  @Prop({ enum: ["Active", "Inactive", "Archived"], default: "Active" })
-  status: string;
-
-  @Prop({ default: Date.now, immutable: true })
-  createdAt: Date;
-
-  @Prop({ default: Date.now })
-  updatedAt: Date;
-
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: "Unit" }] })
-  units: Types.ObjectId[];
+  // Properties added by mongoose-delete plugin
+  deleted: boolean;
+  deletedAt?: Date;
 }
 
 export const PropertySchema = SchemaFactory.createForClass(Property);
+
+// Add mongoose-delete plugin with options
+PropertySchema.plugin(mongooseDelete, {deletedAt: true});
