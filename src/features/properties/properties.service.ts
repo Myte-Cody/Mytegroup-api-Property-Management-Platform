@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model } from "mongoose";
 import { CreatePropertyDto } from "./dto/create-property.dto";
@@ -10,13 +14,19 @@ import { Organization } from "../organizations/schemas/organization.schema";
 @Injectable()
 export class PropertiesService {
   constructor(
-    @InjectModel(Property.name) private readonly propertyModel: SoftDeleteModel<Property>,
-    @InjectModel(Organization.name) private readonly organizationModel: Model<Organization>,
+    @InjectModel(Property.name)
+    private readonly propertyModel: SoftDeleteModel<Property>,
+    @InjectModel(Organization.name)
+    private readonly organizationModel: Model<Organization>,
   ) {}
   async create(createPropertyDto: CreatePropertyDto) {
-    const organization = await this.organizationModel.findById(createPropertyDto.owner).exec();
+    const organization = await this.organizationModel
+      .findById(createPropertyDto.owner)
+      .exec();
     if (!organization) {
-      throw new BadRequestException(`Organization with ID ${createPropertyDto.owner} does not exist`);
+      throw new BadRequestException(
+        `Organization with ID ${createPropertyDto.owner} does not exist`,
+      );
     }
 
     const newProperty = new this.propertyModel(createPropertyDto);
@@ -41,12 +51,16 @@ export class PropertiesService {
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
-    
+
     // Validate that the owner organization exists if provided
     if (updatePropertyDto.owner) {
-      const organization = await this.organizationModel.findById(updatePropertyDto.owner).exec();
+      const organization = await this.organizationModel
+        .findById(updatePropertyDto.owner)
+        .exec();
       if (!organization) {
-        throw new BadRequestException(`Organization with ID ${updatePropertyDto.owner} does not exist`);
+        throw new BadRequestException(
+          `Organization with ID ${updatePropertyDto.owner} does not exist`,
+        );
       }
     }
 
@@ -63,10 +77,10 @@ export class PropertiesService {
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
-    
+
     // Use soft delete instead of permanent deletion
     await this.propertyModel.deleteById(id);
-    
+
     return property;
   }
 }

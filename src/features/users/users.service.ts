@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { User } from "./schemas/user.schema";
 import { CreateUserDto } from "./dto/create-user.dto";
@@ -10,7 +14,8 @@ import { Organization } from "../organizations/schemas/organization.schema";
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: SoftDeleteModel<User>,
-    @InjectModel(Organization.name) private organizationModel: SoftDeleteModel<Organization>
+    @InjectModel(Organization.name)
+    private organizationModel: SoftDeleteModel<Organization>,
   ) {}
 
   async create(createUserDto: CreateUserDto) {
@@ -30,9 +35,13 @@ export class UsersService {
 
     // Validate organization exists if provided
     if (organization) {
-      const existingOrganization = await this.organizationModel.findById(organization).exec();
+      const existingOrganization = await this.organizationModel
+        .findById(organization)
+        .exec();
       if (!existingOrganization) {
-        throw new BadRequestException(`Organization with ID ${organization} does not exist`);
+        throw new BadRequestException(
+          `Organization with ID ${organization} does not exist`,
+        );
       }
     }
 
@@ -41,7 +50,7 @@ export class UsersService {
 
     const newUser = new this.userModel({
       ...createUserDto,
-      password: hashedPassword
+      password: hashedPassword,
     });
 
     return await newUser.save();
@@ -64,29 +73,36 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
-    
 
     // Check if username is being updated and is already taken by another user
     if (updateUserDto.username && updateUserDto.username !== user.username) {
-      const existingUsername = await this.userModel.findOne({ 
-        username: updateUserDto.username,
-        _id: { $ne: id }
-      }).exec();
-      
+      const existingUsername = await this.userModel
+        .findOne({
+          username: updateUserDto.username,
+          _id: { $ne: id },
+        })
+        .exec();
+
       if (existingUsername) {
-        throw new BadRequestException(`Username '${updateUserDto.username}' is already taken`);
+        throw new BadRequestException(
+          `Username '${updateUserDto.username}' is already taken`,
+        );
       }
     }
-    
+
     // Check if email is being updated and is already registered by another user
     if (updateUserDto.email && updateUserDto.email !== user.email) {
-      const existingEmail = await this.userModel.findOne({ 
-        email: updateUserDto.email,
-        _id: { $ne: id }
-      }).exec();
-      
+      const existingEmail = await this.userModel
+        .findOne({
+          email: updateUserDto.email,
+          _id: { $ne: id },
+        })
+        .exec();
+
       if (existingEmail) {
-        throw new BadRequestException(`Email '${updateUserDto.email}' is already registered`);
+        throw new BadRequestException(
+          `Email '${updateUserDto.email}' is already registered`,
+        );
       }
     }
 
@@ -107,9 +123,9 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
-    
+
     await this.userModel.deleteById(id);
-    
+
     return null;
   }
 }

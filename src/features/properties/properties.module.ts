@@ -6,7 +6,10 @@ import { UnitsController } from "./units.controller";
 import { MongooseModule } from "@nestjs/mongoose";
 import { Property, PropertySchema } from "./schemas/property.schema";
 import { Unit, UnitSchema } from "./schemas/unit.schema";
-import { Organization, OrganizationSchema } from "../organizations/schemas/organization.schema";
+import {
+  Organization,
+  OrganizationSchema,
+} from "../organizations/schemas/organization.schema";
 
 @Module({
   imports: [

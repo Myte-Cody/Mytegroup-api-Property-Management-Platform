@@ -1,4 +1,4 @@
-import { Model } from 'mongoose';
+import { Model } from "mongoose";
 
 /**
  * Interface for Mongoose models with soft delete functionality
@@ -9,17 +9,17 @@ export interface SoftDeleteModel<T> extends Model<T> {
    * Soft deletes documents matching the given conditions
    */
   delete: (conditions: any) => Promise<any>;
-  
+
   /**
    * Soft deletes a document by its ID
    */
   deleteById: (id: string) => Promise<any>;
-  
+
   /**
    * Restores (undeletes) documents matching the given conditions
    */
   restore: (conditions: any) => Promise<any>;
-  
+
   /**
    * Finds documents that have been soft deleted
    */

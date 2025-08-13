@@ -60,3 +60,10 @@ export class Unit extends Document {
 }
 
 export const UnitSchema = SchemaFactory.createForClass(Unit);
+
+// Add mongoose-delete plugin with options
+UnitSchema.plugin(mongooseDelete, {
+  deletedAt: true,
+  overrideMethods: "all", // Override all methods including static methods
+  indexFields: ["deleted"],
+});

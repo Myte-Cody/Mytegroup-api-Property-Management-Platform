@@ -10,20 +10,27 @@ import {
 import { ApiProperty } from "@nestjs/swagger";
 
 export class CreateUserDto {
-  @ApiProperty({ example: 'johndoe', description: 'Unique username for the user' })
+  @ApiProperty({
+    example: "johndoe",
+    description: "Unique username for the user",
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(64)
   username: string;
 
-  @ApiProperty({ example: 'john.doe@example.com', description: 'Email address of the user' })
+  @ApiProperty({
+    example: "john.doe@example.com",
+    description: "Email address of the user",
+  })
   @IsEmail()
   @IsNotEmpty()
   email: string;
 
-  @ApiProperty({ 
-    example: 'StrongP@ss123', 
-    description: 'Password must contain at least 8 characters, including uppercase, lowercase, and numbers or special characters' 
+  @ApiProperty({
+    example: "StrongP@ss123",
+    description:
+      "Password must contain at least 8 characters, including uppercase, lowercase, and numbers or special characters",
   })
   @IsString()
   @IsNotEmpty()
@@ -33,7 +40,11 @@ export class CreateUserDto {
   })
   password: string;
 
-  @ApiProperty({ example: '60d21b4667d0d8992e610c85', description: 'Organization ID', required: false })
+  @ApiProperty({
+    example: "60d21b4667d0d8992e610c85",
+    description: "Organization ID",
+    required: false,
+  })
   @IsNotEmpty()
   @IsMongoId()
   organization: string;

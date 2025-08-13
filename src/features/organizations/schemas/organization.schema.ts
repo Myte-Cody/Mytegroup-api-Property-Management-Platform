@@ -5,7 +5,7 @@ import * as mongooseDelete from "mongoose-delete";
 import { OrganizationType } from "../../../common/enums/organization.enum";
 import { SoftDelete } from "../../../common/interfaces/soft-delete.interface";
 
-@Schema({timestamps: true})
+@Schema({ timestamps: true })
 export class Organization extends Document implements SoftDelete {
   @Prop({
     required: true,
@@ -31,4 +31,4 @@ export class Organization extends Document implements SoftDelete {
 
 export const OrganizationSchema = SchemaFactory.createForClass(Organization);
 
-OrganizationSchema.plugin(mongooseDelete, {deletedAt: true});
+OrganizationSchema.plugin(mongooseDelete, { deletedAt: true });

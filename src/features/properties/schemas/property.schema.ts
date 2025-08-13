@@ -24,7 +24,6 @@ export class Address {
 
 @Schema({ timestamps: true })
 export class Property extends Document implements SoftDelete {
-
   @Prop({ required: true, trim: true, maxlength: 128 })
   name: string;
 
@@ -34,7 +33,11 @@ export class Property extends Document implements SoftDelete {
   @Prop({ maxlength: 1024, default: "" })
   description: string;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: "Organization", required: true })
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: "Organization",
+    required: true,
+  })
   owner: Types.ObjectId;
 
   // Properties added by mongoose-delete plugin
@@ -45,4 +48,4 @@ export class Property extends Document implements SoftDelete {
 export const PropertySchema = SchemaFactory.createForClass(Property);
 
 // Add mongoose-delete plugin with options
-PropertySchema.plugin(mongooseDelete, {deletedAt: true});
+PropertySchema.plugin(mongooseDelete, { deletedAt: true });
