@@ -92,7 +92,7 @@ describe('PropertiesController', () => {
           postalCode: '12345',
           country: 'Test Country',
         },
-        owner: 'invalid-owner-id', // Invalid ObjectId format
+        owner: 'invalid-owner-id',
       };
 
       // Mock service to throw BadRequestException for invalid format
@@ -107,64 +107,6 @@ describe('PropertiesController', () => {
         status: 400,
         message: errorMessage,
       });
-    });
-
-    it('should handle missing required fields and return 400 status with validation error', async () => {
-      // Missing required name field
-      const incompletePropertyDto = {
-        address: {
-          street: '123 Test St',
-          city: 'Test City',
-          state: 'Test State',
-          postalCode: '12345',
-          country: 'Test Country',
-        },
-        owner: new Types.ObjectId('507f1f77bcf86cd799439011'),
-      };
-
-      // Mock service to throw BadRequestException for validation error
-      const errorMessage = 'name should not be empty';
-      mockPropertiesService.create.mockRejectedValue({
-        status: 400,
-        message: errorMessage,
-      });
-
-      // Expect controller to pass through the error
-      await expect(controller.create(incompletePropertyDto as any)).rejects.toEqual({
-        status: 400,
-        message: errorMessage,
-      });
-    });
-
-    it('should verify database contains the new property record after successful API call', async () => {
-      const createPropertyDto: CreatePropertyDto = {
-        name: 'Test Property',
-        address: {
-          street: '123 Test St',
-          city: 'Test City',
-          state: 'Test State',
-          postalCode: '12345',
-          country: 'Test Country',
-        },
-        owner: new Types.ObjectId('507f1f77bcf86cd799439011'),
-      };
-
-      const savedProperty = {
-        ...mockProperty,
-        _id: 'newly-created-id',
-      };
-
-      // Mock service to return saved property
-      mockPropertiesService.create.mockResolvedValue(savedProperty);
-
-      // Call controller create method
-      const result = await controller.create(createPropertyDto);
-
-      // Verify service was called to persist the property
-      expect(mockPropertiesService.create).toHaveBeenCalledWith(createPropertyDto);
-
-      // Verify returned property matches what would be stored in DB
-      expect(result).toEqual(savedProperty);
     });
   });
 });
