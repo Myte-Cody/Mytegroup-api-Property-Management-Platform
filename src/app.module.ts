@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
 import { CommonModule } from './common/common.module';
 import { AuthModule } from './features/auth/auth.module';
 import { EmailModule } from './features/email/email.module';
 import { OrganizationsModule } from './features/organizations/organizations.module';
-import { UsersModule } from './features/users/users.module';
 import { PropertiesModule } from './features/properties/properties.module';
-import { MongooseModule } from '@nestjs/mongoose';
-import { ConfigModule } from '@nestjs/config';
+import { UsersModule } from './features/users/users.module';
 
 @Module({
   imports: [

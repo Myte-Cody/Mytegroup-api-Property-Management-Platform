@@ -1,20 +1,19 @@
 import {
-  Controller,
-  Post,
   Body,
-  Get,
-  Patch,
+  Controller,
   Delete,
-  Param,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Patch,
+  Post,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
-import { MongoIdDto } from '../../common/dto/mongo-id.dto';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UnitsService } from './units.service';
+import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
+import { UnitsService } from './units.service';
 
 @ApiTags('Units')
 @Controller('units')
@@ -36,22 +35,22 @@ export class UnitsController {
   @Get(':id')
   @ApiOperation({ summary: 'Get unit by ID' })
   @ApiParam({ name: 'id', description: 'Unit ID', type: String })
-  findOne(@Param() params: MongoIdDto) {
-    return this.unitsService.findOne(params.id);
+  findOne(@Param('id', MongoIdValidationPipe) id: string) {
+    return this.unitsService.findOne(id);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update unit by ID' })
   @ApiParam({ name: 'id', description: 'Unit ID', type: String })
-  update(@Param() params: MongoIdDto, @Body() updateUnitDto: UpdateUnitDto) {
-    return this.unitsService.update(params.id, updateUnitDto);
+  update(@Param('id', MongoIdValidationPipe) id: string, @Body() updateUnitDto: UpdateUnitDto) {
+    return this.unitsService.update(id, updateUnitDto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete unit by ID (soft delete)' })
   @ApiParam({ name: 'id', description: 'Unit ID', type: String })
-  remove(@Param() params: MongoIdDto) {
-    return this.unitsService.remove(params.id);
+  remove(@Param('id', MongoIdValidationPipe) id: string) {
+    return this.unitsService.remove(id);
   }
 }

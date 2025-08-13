@@ -1,7 +1,7 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
-import { OrganizationType } from '../../../common/enums/organization.enum';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { TransformToLowercase } from '../../../common/decorators/transform-to-lowercase.decorator';
+import { OrganizationType } from '../../../common/enums/organization.enum';
 
 export class UpdateOrganizationDto {
   @ApiProperty({

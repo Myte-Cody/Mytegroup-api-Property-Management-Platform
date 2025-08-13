@@ -1,10 +1,10 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { PropertiesService } from '../properties.service';
+import { NotFoundException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
+import { Test, TestingModule } from '@nestjs/testing';
 import { Model, Types } from 'mongoose';
 import { CreatePropertyDto } from '../dto/create-property.dto';
 import { UpdatePropertyDto } from '../dto/update-property.dto';
-import { NotFoundException } from '@nestjs/common';
+import { PropertiesService } from '../properties.service';
 import { Property } from '../schemas/property.schema';
 
 describe('PropertiesService', () => {

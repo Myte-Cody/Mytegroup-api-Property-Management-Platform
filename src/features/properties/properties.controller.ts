@@ -1,19 +1,19 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Patch,
+  Post,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiParam, ApiBody } from '@nestjs/swagger';
-import { MongoIdDto } from '../../common/dto/mongo-id.dto';
-import { PropertiesService } from './properties.service';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
+import { PropertiesService } from './properties.service';
 
 @ApiTags('Properties')
 @Controller('properties')
@@ -36,8 +36,8 @@ export class PropertiesController {
   @Get(':id')
   @ApiOperation({ summary: 'Get property by ID' })
   @ApiParam({ name: 'id', description: 'Property ID', type: String })
-  findOne(@Param() params: MongoIdDto) {
-    return this.propertiesService.findOne(params.id);
+  findOne(@Param('id', MongoIdValidationPipe) id: string) {
+    return this.propertiesService.findOne(id);
   }
 
   @Patch(':id')
@@ -47,15 +47,18 @@ export class PropertiesController {
     type: UpdatePropertyDto,
     description: 'Fields to update on the property. All fields are optional.',
   })
-  update(@Param() params: MongoIdDto, @Body() updatePropertyDto: UpdatePropertyDto) {
-    return this.propertiesService.update(params.id, updatePropertyDto);
+  update(
+    @Param('id', MongoIdValidationPipe) id: string,
+    @Body() updatePropertyDto: UpdatePropertyDto,
+  ) {
+    return this.propertiesService.update(id, updatePropertyDto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete property by ID (soft delete)' })
   @ApiParam({ name: 'id', description: 'Property ID', type: String })
-  remove(@Param() params: MongoIdDto) {
-    return this.propertiesService.remove(params.id);
+  remove(@Param('id', MongoIdValidationPipe) id: string) {
+    return this.propertiesService.remove(id);
   }
 }

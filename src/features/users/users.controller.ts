@@ -1,19 +1,19 @@
 import {
-  Controller,
   Body,
-  Post,
-  Get,
-  Param,
-  Patch,
+  Controller,
   Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Patch,
+  Post,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiParam, ApiBody } from '@nestjs/swagger';
-import { MongoIdDto } from '../../common/dto/mongo-id.dto';
-import { UsersService } from './users.service';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UsersService } from './users.service';
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
@@ -35,8 +35,8 @@ export class UsersController {
   @Get(':id')
   @ApiOperation({ summary: 'Get user by ID' })
   @ApiParam({ name: 'id', description: 'User ID', type: String })
-  findOne(@Param() params: MongoIdDto) {
-    return this.userService.findOne(params.id);
+  findOne(@Param('id', MongoIdValidationPipe) id: string) {
+    return this.userService.findOne(id);
   }
 
   @Patch(':id')
@@ -46,15 +46,15 @@ export class UsersController {
     type: UpdateUserDto,
     description: 'Fields to update on the user. All fields are optional.',
   })
-  update(@Param() params: MongoIdDto, @Body() updateUserDto: UpdateUserDto) {
-    return this.userService.update(params.id, updateUserDto);
+  update(@Param('id', MongoIdValidationPipe) id: string, @Body() updateUserDto: UpdateUserDto) {
+    return this.userService.update(id, updateUserDto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete user by ID (soft delete)' })
   @ApiParam({ name: 'id', description: 'User ID', type: String })
-  remove(@Param() params: MongoIdDto) {
-    return this.userService.remove(params.id);
+  remove(@Param('id', MongoIdValidationPipe) id: string) {
+    return this.userService.remove(id);
   }
 }

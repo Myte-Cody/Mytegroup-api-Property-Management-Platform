@@ -1,27 +1,20 @@
 import {
-  Controller,
-  Post,
   Body,
-  Get,
-  Patch,
+  Controller,
   Delete,
-  Param,
-  NotFoundException,
+  Get,
   HttpCode,
   HttpStatus,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
 } from '@nestjs/common';
-import { MongoIdDto } from '../../common/dto/mongo-id.dto';
-import { OrganizationsService } from './organizations.service';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-  ApiBody,
-  ApiProperty,
-} from '@nestjs/swagger';
+import { OrganizationsService } from './organizations.service';
 
 @ApiTags('Organizations')
 @Controller('organizations')
@@ -44,10 +37,10 @@ export class OrganizationsController {
   @Get(':id')
   @ApiOperation({ summary: 'Get organization by ID' })
   @ApiParam({ name: 'id', description: 'Organization ID', type: String })
-  async findOne(@Param() params: MongoIdDto) {
-    const organization = await this.organizationsService.findOne(params.id);
+  async findOne(@Param('id', MongoIdValidationPipe) id: string) {
+    const organization = await this.organizationsService.findOne(id);
     if (!organization) {
-      throw new NotFoundException(`Organization with ID ${params.id} not found`);
+      throw new NotFoundException(`Organization with ID ${id} not found`);
     }
     return organization;
   }
@@ -56,15 +49,18 @@ export class OrganizationsController {
   @ApiOperation({ summary: 'Update organization by ID' })
   @ApiParam({ name: 'id', description: 'Organization ID', type: String })
   @ApiBody({ type: UpdateOrganizationDto })
-  async update(@Param() params: MongoIdDto, @Body() updateOrganizationDto: UpdateOrganizationDto) {
-    return await this.organizationsService.update(params.id, updateOrganizationDto);
+  async update(
+    @Param('id', MongoIdValidationPipe) id: string,
+    @Body() updateOrganizationDto: UpdateOrganizationDto,
+  ) {
+    return await this.organizationsService.update(id, updateOrganizationDto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete organization by ID' })
   @ApiParam({ name: 'id', description: 'Organization ID', type: String })
-  async remove(@Param() params: MongoIdDto) {
-    return await this.organizationsService.remove(params.id);
+  async remove(@Param('id', MongoIdValidationPipe) id: string) {
+    return await this.organizationsService.remove(id);
   }
 }

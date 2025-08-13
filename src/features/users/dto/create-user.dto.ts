@@ -1,13 +1,13 @@
+import { ApiProperty } from '@nestjs/swagger';
 import {
   IsEmail,
+  IsMongoId,
   IsNotEmpty,
   IsString,
-  IsMongoId,
   Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateUserDto {
   @ApiProperty({

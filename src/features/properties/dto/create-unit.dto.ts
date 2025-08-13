@@ -1,13 +1,13 @@
 import {
-  IsString,
-  IsNotEmpty,
-  IsEnum,
-  IsOptional,
-  IsNumber,
-  Min,
-  MaxLength,
-  IsMongoId,
   IsArray,
+  IsEnum,
+  IsMongoId,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
 } from 'class-validator';
 import { Types } from 'mongoose';
 

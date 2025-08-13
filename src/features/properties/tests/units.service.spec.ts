@@ -1,11 +1,11 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { UnitsService } from '../units.service';
+import { BadRequestException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
+import { Test, TestingModule } from '@nestjs/testing';
 import { Model, Types } from 'mongoose';
 import { CreateUnitDto } from '../dto/create-unit.dto';
-import { BadRequestException } from '@nestjs/common';
-import { Unit } from '../schemas/unit.schema';
 import { Property } from '../schemas/property.schema';
+import { Unit } from '../schemas/unit.schema';
+import { UnitsService } from '../units.service';
 
 describe('UnitsService', () => {
   let service: UnitsService;

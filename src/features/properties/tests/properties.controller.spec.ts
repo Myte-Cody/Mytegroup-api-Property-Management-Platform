@@ -1,9 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { PropertiesController } from '../properties.controller';
-import { PropertiesService } from '../properties.service';
+import { Types } from 'mongoose';
 import { CreatePropertyDto } from '../dto/create-property.dto';
 import { UpdatePropertyDto } from '../dto/update-property.dto';
-import { Types } from 'mongoose';
+import { PropertiesController } from '../properties.controller';
+import { PropertiesService } from '../properties.service';
 
 describe('PropertiesController', () => {
   let controller: PropertiesController;

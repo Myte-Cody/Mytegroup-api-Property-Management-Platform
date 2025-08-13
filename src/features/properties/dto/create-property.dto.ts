@@ -1,14 +1,14 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
-  IsString,
+  IsMongoId,
   IsNotEmpty,
   IsOptional,
-  ValidateNested,
+  IsString,
   MaxLength,
-  IsMongoId,
+  ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 import { Types } from 'mongoose';
-import { ApiProperty } from '@nestjs/swagger';
 
 class AddressDto {
   @ApiProperty({ example: '123 Main St', description: 'Street address' })

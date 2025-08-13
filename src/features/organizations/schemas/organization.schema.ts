@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
-import { Types } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { OrganizationType } from '../../../common/enums/organization.enum';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';

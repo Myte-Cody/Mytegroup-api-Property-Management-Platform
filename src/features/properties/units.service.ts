@@ -1,11 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Types } from 'mongoose';
+import { SoftDeleteModel } from '../../common/interfaces/soft-delete-model.interface';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
-import { Unit } from './schemas/unit.schema';
 import { Property } from './schemas/property.schema';
-import { SoftDeleteModel } from '../../common/interfaces/soft-delete-model.interface';
+import { Unit } from './schemas/unit.schema';
 
 @Injectable()
 export class UnitsService {
