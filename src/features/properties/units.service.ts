@@ -14,20 +14,20 @@ export class UnitsService {
     private readonly propertyModel: SoftDeleteModel<Property>,
   ) {}
 
-  async create(createUnitDto: CreateUnitDto) {
-    // Verify that the property exists
-    const property = await this.propertyModel.findById(createUnitDto.property).exec();
+  async create(createUnitDto: CreateUnitDto, propertyId: string) {
+    const property = await this.propertyModel.findById(propertyId).exec();
     if (!property) {
-      throw new BadRequestException(`Property with ID ${createUnitDto.property} not found`);
+      throw new BadRequestException(`Property with ID ${propertyId} not found`);
     }
 
-    // Create the new unit
-    const newUnit = new this.unitModel(createUnitDto);
+    const newUnit = new this.unitModel({
+      ...createUnitDto,
+      property: propertyId,
+    });
     const savedUnit = await newUnit.save();
 
-    // Update the property to include this unit
     await this.propertyModel
-      .findByIdAndUpdate(createUnitDto.property, { $push: { units: savedUnit._id } }, { new: true })
+      .findByIdAndUpdate(propertyId, { $push: { units: savedUnit._id } }, { new: true })
       .exec();
 
     return savedUnit;
@@ -46,34 +46,10 @@ export class UnitsService {
   }
 
   async update(id: string, updateUnitDto: UpdateUnitDto) {
-    // Check if unit exists
     const unit = await this.unitModel.findById(id).exec();
     if (!unit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
-
-    // If property is being changed, verify the new property exists
-    if (updateUnitDto.property) {
-      const property = await this.propertyModel.findById(updateUnitDto.property).exec();
-      if (!property) {
-        throw new BadRequestException(`Property with ID ${updateUnitDto.property} not found`);
-      }
-
-      // If property is changing, update the old and new property's units arrays
-      if (unit.property.toString() !== updateUnitDto.property.toString()) {
-        // Remove unit from old property
-        await this.propertyModel
-          .findByIdAndUpdate(unit.property, { $pull: { units: unit._id } }, { new: true })
-          .exec();
-
-        // Add unit to new property
-        await this.propertyModel
-          .findByIdAndUpdate(updateUnitDto.property, { $push: { units: unit._id } }, { new: true })
-          .exec();
-      }
-    }
-
-    // Update the unit
     const updatedUnit = await this.unitModel
       .findByIdAndUpdate(id, updateUnitDto, { new: true })
       .exec();
@@ -82,18 +58,14 @@ export class UnitsService {
   }
 
   async remove(id: string) {
-    // Check if unit exists
     const unit = await this.unitModel.findById(id).exec();
     if (!unit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
-
-    // Remove unit from property's units array
     await this.propertyModel
       .findByIdAndUpdate(unit.property, { $pull: { units: unit._id } }, { new: true })
       .exec();
 
-    // Use soft delete instead of permanent deletion
     await this.unitModel.deleteById(id);
 
     return null;
