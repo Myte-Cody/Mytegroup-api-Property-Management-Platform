@@ -1,9 +1,9 @@
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { Document, Schema as MongooseSchema } from "mongoose";
-import { Types } from "mongoose";
-import * as mongooseDelete from "mongoose-delete";
-import { OrganizationType } from "../../../common/enums/organization.enum";
-import { SoftDelete } from "../../../common/interfaces/soft-delete.interface";
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Types } from 'mongoose';
+import * as mongooseDelete from 'mongoose-delete';
+import { OrganizationType } from '../../../common/enums/organization.enum';
+import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
 
 @Schema({ timestamps: true })
 export class Organization extends Document implements SoftDelete {
@@ -23,7 +23,7 @@ export class Organization extends Document implements SoftDelete {
   })
   type: OrganizationType;
 
-  @Prop([{ type: MongooseSchema.Types.ObjectId, ref: "User" }])
+  @Prop([{ type: MongooseSchema.Types.ObjectId, ref: 'User' }])
   users: Types.ObjectId[];
   deleted: boolean;
   deletedAt?: Date;

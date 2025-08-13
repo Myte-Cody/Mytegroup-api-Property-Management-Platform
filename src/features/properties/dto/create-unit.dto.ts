@@ -8,8 +8,8 @@ import {
   MaxLength,
   IsMongoId,
   IsArray,
-} from "class-validator";
-import { Types } from "mongoose";
+} from 'class-validator';
+import { Types } from 'mongoose';
 
 export class CreateUnitDto {
   @IsMongoId()
@@ -33,7 +33,7 @@ export class CreateUnitDto {
 
   @IsString()
   @IsNotEmpty()
-  @IsEnum(["Apartment", "Studio", "Office", "Retail", "Room", "Other"])
+  @IsEnum(['Apartment', 'Studio', 'Office', 'Retail', 'Room', 'Other'])
   type: string;
 
   @IsNumber()
@@ -48,7 +48,7 @@ export class CreateUnitDto {
 
   @IsString()
   @IsOptional()
-  @IsEnum(["Vacant", "Occupied", "Available for Rent"])
+  @IsEnum(['Vacant', 'Occupied', 'Available for Rent'])
   availabilityStatus?: string;
 
   @IsNumber()

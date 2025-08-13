@@ -1,15 +1,11 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { User } from "./schemas/user.schema";
-import { CreateUserDto } from "./dto/create-user.dto";
-import { UpdateUserDto } from "./dto/update-user.dto";
-import * as bcrypt from "bcrypt";
-import { SoftDeleteModel } from "../../common/interfaces/soft-delete-model.interface";
-import { Organization } from "../organizations/schemas/organization.schema";
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { User } from './schemas/user.schema';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import * as bcrypt from 'bcrypt';
+import { SoftDeleteModel } from '../../common/interfaces/soft-delete-model.interface';
+import { Organization } from '../organizations/schemas/organization.schema';
 @Injectable()
 export class UsersService {
   constructor(
@@ -35,13 +31,9 @@ export class UsersService {
 
     // Validate organization exists if provided
     if (organization) {
-      const existingOrganization = await this.organizationModel
-        .findById(organization)
-        .exec();
+      const existingOrganization = await this.organizationModel.findById(organization).exec();
       if (!existingOrganization) {
-        throw new BadRequestException(
-          `Organization with ID ${organization} does not exist`,
-        );
+        throw new BadRequestException(`Organization with ID ${organization} does not exist`);
       }
     }
 
@@ -84,9 +76,7 @@ export class UsersService {
         .exec();
 
       if (existingUsername) {
-        throw new BadRequestException(
-          `Username '${updateUserDto.username}' is already taken`,
-        );
+        throw new BadRequestException(`Username '${updateUserDto.username}' is already taken`);
       }
     }
 
@@ -100,14 +90,13 @@ export class UsersService {
         .exec();
 
       if (existingEmail) {
-        throw new BadRequestException(
-          `Email '${updateUserDto.email}' is already registered`,
-        );
+        throw new BadRequestException(`Email '${updateUserDto.email}' is already registered`);
       }
     }
 
     if (updateUserDto.password) {
       const salt = await bcrypt.genSalt();
+
       updateUserDto.password = await bcrypt.hash(updateUserDto.password, salt);
     }
 

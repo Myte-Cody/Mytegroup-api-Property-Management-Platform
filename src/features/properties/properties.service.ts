@@ -1,15 +1,11 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { Model } from "mongoose";
-import { CreatePropertyDto } from "./dto/create-property.dto";
-import { UpdatePropertyDto } from "./dto/update-property.dto";
-import { Property } from "./schemas/property.schema";
-import { SoftDeleteModel } from "../../common/interfaces/soft-delete-model.interface";
-import { Organization } from "../organizations/schemas/organization.schema";
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { CreatePropertyDto } from './dto/create-property.dto';
+import { UpdatePropertyDto } from './dto/update-property.dto';
+import { Property } from './schemas/property.schema';
+import { SoftDeleteModel } from '../../common/interfaces/soft-delete-model.interface';
+import { Organization } from '../organizations/schemas/organization.schema';
 
 @Injectable()
 export class PropertiesService {
@@ -20,9 +16,7 @@ export class PropertiesService {
     private readonly organizationModel: Model<Organization>,
   ) {}
   async create(createPropertyDto: CreatePropertyDto) {
-    const organization = await this.organizationModel
-      .findById(createPropertyDto.owner)
-      .exec();
+    const organization = await this.organizationModel.findById(createPropertyDto.owner).exec();
     if (!organization) {
       throw new BadRequestException(
         `Organization with ID ${createPropertyDto.owner} does not exist`,
@@ -54,9 +48,7 @@ export class PropertiesService {
 
     // Validate that the owner organization exists if provided
     if (updatePropertyDto.owner) {
-      const organization = await this.organizationModel
-        .findById(updatePropertyDto.owner)
-        .exec();
+      const organization = await this.organizationModel.findById(updatePropertyDto.owner).exec();
       if (!organization) {
         throw new BadRequestException(
           `Organization with ID ${updatePropertyDto.owner} does not exist`,

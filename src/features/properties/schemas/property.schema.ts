@@ -1,8 +1,8 @@
-import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { Document, Schema as MongooseSchema } from "mongoose";
-import { Types } from "mongoose";
-import * as mongooseDelete from "mongoose-delete";
-import { SoftDelete } from "../../../common/interfaces/soft-delete.interface";
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Types } from 'mongoose';
+import * as mongooseDelete from 'mongoose-delete';
+import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
 
 @Schema()
 export class Address {
@@ -30,12 +30,12 @@ export class Property extends Document implements SoftDelete {
   @Prop({ type: Address, required: true })
   address: Address;
 
-  @Prop({ maxlength: 1024, default: "" })
+  @Prop({ maxlength: 1024, default: '' })
   description: string;
 
   @Prop({
     type: MongooseSchema.Types.ObjectId,
-    ref: "Organization",
+    ref: 'Organization',
     required: true,
   })
   owner: Types.ObjectId;

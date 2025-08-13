@@ -1,13 +1,9 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from "@nestjs/common";
-import { InjectModel } from "@nestjs/mongoose";
-import { CreateOrganizationDto } from "./dto/create-organization.dto";
-import { UpdateOrganizationDto } from "./dto/update-organization.dto";
-import { Organization } from "./schemas/organization.schema";
-import { SoftDeleteModel } from "../../common/interfaces/soft-delete-model.interface";
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { Organization } from './schemas/organization.schema';
+import { SoftDeleteModel } from '../../common/interfaces/soft-delete-model.interface';
 
 @Injectable()
 export class OrganizationsService {

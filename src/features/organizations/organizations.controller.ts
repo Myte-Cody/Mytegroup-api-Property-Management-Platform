@@ -9,11 +9,11 @@ import {
   NotFoundException,
   HttpCode,
   HttpStatus,
-} from "@nestjs/common";
-import { MongoIdDto } from "../../common/dto/mongo-id.dto";
-import { OrganizationsService } from "./organizations.service";
-import { CreateOrganizationDto } from "./dto/create-organization.dto";
-import { UpdateOrganizationDto } from "./dto/update-organization.dto";
+} from '@nestjs/common';
+import { MongoIdDto } from '../../common/dto/mongo-id.dto';
+import { OrganizationsService } from './organizations.service';
+import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -21,57 +21,49 @@ import {
   ApiParam,
   ApiBody,
   ApiProperty,
-} from "@nestjs/swagger";
+} from '@nestjs/swagger';
 
-@ApiTags("Organizations")
-@Controller("organizations")
+@ApiTags('Organizations')
+@Controller('organizations')
 export class OrganizationsController {
   constructor(private readonly organizationsService: OrganizationsService) {}
 
   @Post()
-  @ApiOperation({ summary: "Create a new organization" })
+  @ApiOperation({ summary: 'Create a new organization' })
   @ApiBody({ type: CreateOrganizationDto })
   async create(@Body() createOrganizationDto: CreateOrganizationDto) {
     return await this.organizationsService.create(createOrganizationDto);
   }
 
   @Get()
-  @ApiOperation({ summary: "Get all organizations" })
+  @ApiOperation({ summary: 'Get all organizations' })
   async findAll() {
     return await this.organizationsService.findAll();
   }
 
-  @Get(":id")
-  @ApiOperation({ summary: "Get organization by ID" })
-  @ApiParam({ name: "id", description: "Organization ID", type: String })
+  @Get(':id')
+  @ApiOperation({ summary: 'Get organization by ID' })
+  @ApiParam({ name: 'id', description: 'Organization ID', type: String })
   async findOne(@Param() params: MongoIdDto) {
     const organization = await this.organizationsService.findOne(params.id);
     if (!organization) {
-      throw new NotFoundException(
-        `Organization with ID ${params.id} not found`,
-      );
+      throw new NotFoundException(`Organization with ID ${params.id} not found`);
     }
     return organization;
   }
 
-  @Patch(":id")
-  @ApiOperation({ summary: "Update organization by ID" })
-  @ApiParam({ name: "id", description: "Organization ID", type: String })
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update organization by ID' })
+  @ApiParam({ name: 'id', description: 'Organization ID', type: String })
   @ApiBody({ type: UpdateOrganizationDto })
-  async update(
-    @Param() params: MongoIdDto,
-    @Body() updateOrganizationDto: UpdateOrganizationDto,
-  ) {
-    return await this.organizationsService.update(
-      params.id,
-      updateOrganizationDto,
-    );
+  async update(@Param() params: MongoIdDto, @Body() updateOrganizationDto: UpdateOrganizationDto) {
+    return await this.organizationsService.update(params.id, updateOrganizationDto);
   }
 
-  @Delete(":id")
+  @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: "Delete organization by ID" })
-  @ApiParam({ name: "id", description: "Organization ID", type: String })
+  @ApiOperation({ summary: 'Delete organization by ID' })
+  @ApiParam({ name: 'id', description: 'Organization ID', type: String })
   async remove(@Param() params: MongoIdDto) {
     return await this.organizationsService.remove(params.id);
   }

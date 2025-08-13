@@ -1,4 +1,4 @@
-import { Model } from "mongoose";
+import { Model } from 'mongoose';
 
 /**
  * Interface for Mongoose models with soft delete functionality
