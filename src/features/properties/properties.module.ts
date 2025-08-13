@@ -5,7 +5,6 @@ import { PropertiesController } from './properties.controller';
 import { PropertiesService } from './properties.service';
 import { Property, PropertySchema } from './schemas/property.schema';
 import { Unit, UnitSchema } from './schemas/unit.schema';
-import { UnitsController } from './units.controller';
 import { UnitsService } from './units.service';
 
 @Module({
@@ -16,7 +15,7 @@ import { UnitsService } from './units.service';
       { schema: OrganizationSchema, name: Organization.name },
     ]),
   ],
-  controllers: [PropertiesController, UnitsController],
+  controllers: [PropertiesController],
   providers: [PropertiesService, UnitsService],
 })
 export class PropertiesModule {}

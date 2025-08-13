@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
+import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enum';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
 
 @Schema({ timestamps: true })
@@ -23,10 +24,11 @@ export class Unit extends Document implements SoftDelete {
   sizeSqFt: number;
 
   @Prop({
-    enum: ['Apartment', 'Studio', 'Office', 'Retail', 'Room', 'Other'],
+    type: String,
+    enum: UnitType,
     required: true,
   })
-  type: string;
+  type: UnitType;
 
   @Prop({ min: 0 })
   bedrooms: number;
@@ -35,11 +37,12 @@ export class Unit extends Document implements SoftDelete {
   bathrooms: number;
 
   @Prop({
-    enum: ['Vacant', 'Occupied', 'Available for Rent'],
-    default: 'Vacant',
+    type: String,
+    enum: UnitAvailabilityStatus,
+    default: UnitAvailabilityStatus.VACANT,
     required: true,
   })
-  availabilityStatus: string;
+  availabilityStatus: UnitAvailabilityStatus;
 
   @Prop({ min: 0 })
   rentAmount: number;
