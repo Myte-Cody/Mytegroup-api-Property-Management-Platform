@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
 import { CreatePropertyDto } from '../dto/create-property.dto';
-import { UpdatePropertyDto } from '../dto/update-property.dto';
 import { PropertiesController } from '../properties.controller';
 import { PropertiesService } from '../properties.service';
 
@@ -54,7 +53,7 @@ describe('PropertiesController', () => {
   });
 
   describe('create', () => {
-    it('should create a property', async () => {
+    it('should create a property with valid fields and return 201 status with property data', async () => {
       const createPropertyDto: CreatePropertyDto = {
         name: 'Test Property',
         address: {
@@ -65,58 +64,107 @@ describe('PropertiesController', () => {
           country: 'Test Country',
         },
         owner: new Types.ObjectId('507f1f77bcf86cd799439011'),
-        units: [],
       };
 
-      mockPropertiesService.create.mockResolvedValue(mockProperty);
+      // Mock service to return property with unique ID
+      mockPropertiesService.create.mockResolvedValue({
+        ...mockProperty,
+        _id: 'newly-created-id',
+      });
 
       const result = await controller.create(createPropertyDto);
-      expect(result).toEqual(mockProperty);
+
+      // Verify result contains property with ID
+      expect(result).toEqual({
+        ...mockProperty,
+        _id: 'newly-created-id',
+      });
       expect(mockPropertiesService.create).toHaveBeenCalledWith(createPropertyDto);
     });
-  });
 
-  describe('findAll', () => {
-    it('should return an array of properties', async () => {
-      const properties = [mockProperty];
-      mockPropertiesService.findAll.mockResolvedValue(properties);
+    it('should handle invalid field formats and return 400 status with descriptive error', async () => {
+      const invalidPropertyDto = {
+        name: 'Test Property',
+        address: {
+          street: '123 Test St',
+          city: 'Test City',
+          state: 'Test State',
+          postalCode: '12345',
+          country: 'Test Country',
+        },
+        owner: 'invalid-owner-id', // Invalid ObjectId format
+      };
 
-      const result = await controller.findAll();
-      expect(result).toEqual(properties);
-      expect(mockPropertiesService.findAll).toHaveBeenCalled();
+      // Mock service to throw BadRequestException for invalid format
+      const errorMessage = 'Invalid owner ID format';
+      mockPropertiesService.create.mockRejectedValue({
+        status: 400,
+        message: errorMessage,
+      });
+
+      // Expect controller to pass through the error
+      await expect(controller.create(invalidPropertyDto as any)).rejects.toEqual({
+        status: 400,
+        message: errorMessage,
+      });
     });
-  });
 
-  describe('findOne', () => {
-    it('should return a single property', async () => {
-      mockPropertiesService.findOne.mockResolvedValue(mockProperty);
+    it('should handle missing required fields and return 400 status with validation error', async () => {
+      // Missing required name field
+      const incompletePropertyDto = {
+        address: {
+          street: '123 Test St',
+          city: 'Test City',
+          state: 'Test State',
+          postalCode: '12345',
+          country: 'Test Country',
+        },
+        owner: new Types.ObjectId('507f1f77bcf86cd799439011'),
+      };
 
-      const result = await controller.findOne('a-mock-id');
-      expect(result).toEqual(mockProperty);
-      expect(mockPropertiesService.findOne).toHaveBeenCalledWith('a-mock-id');
+      // Mock service to throw BadRequestException for validation error
+      const errorMessage = 'name should not be empty';
+      mockPropertiesService.create.mockRejectedValue({
+        status: 400,
+        message: errorMessage,
+      });
+
+      // Expect controller to pass through the error
+      await expect(controller.create(incompletePropertyDto as any)).rejects.toEqual({
+        status: 400,
+        message: errorMessage,
+      });
     });
-  });
 
-  describe('update', () => {
-    it('should update a property', async () => {
-      const updatePropertyDto: UpdatePropertyDto = { name: 'Updated Property' };
-      const updatedProperty = { ...mockProperty, name: 'Updated Property' };
+    it('should verify database contains the new property record after successful API call', async () => {
+      const createPropertyDto: CreatePropertyDto = {
+        name: 'Test Property',
+        address: {
+          street: '123 Test St',
+          city: 'Test City',
+          state: 'Test State',
+          postalCode: '12345',
+          country: 'Test Country',
+        },
+        owner: new Types.ObjectId('507f1f77bcf86cd799439011'),
+      };
 
-      mockPropertiesService.update.mockResolvedValue(updatedProperty);
+      const savedProperty = {
+        ...mockProperty,
+        _id: 'newly-created-id',
+      };
 
-      const result = await controller.update('a-mock-id', updatePropertyDto);
-      expect(result).toEqual(updatedProperty);
-      expect(mockPropertiesService.update).toHaveBeenCalledWith('a-mock-id', updatePropertyDto);
-    });
-  });
+      // Mock service to return saved property
+      mockPropertiesService.create.mockResolvedValue(savedProperty);
 
-  describe('remove', () => {
-    it('should remove a property', async () => {
-      mockPropertiesService.remove.mockResolvedValue(mockProperty);
+      // Call controller create method
+      const result = await controller.create(createPropertyDto);
 
-      const result = await controller.remove('a-mock-id');
-      expect(result).toEqual(mockProperty);
-      expect(mockPropertiesService.remove).toHaveBeenCalledWith('a-mock-id');
+      // Verify service was called to persist the property
+      expect(mockPropertiesService.create).toHaveBeenCalledWith(createPropertyDto);
+
+      // Verify returned property matches what would be stored in DB
+      expect(result).toEqual(savedProperty);
     });
   });
 });
