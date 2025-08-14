@@ -1,11 +1,15 @@
 import { BadRequestException } from '@nestjs/common';
+import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
+import { PropertyOwnerGuard } from '../../../common/authorization/guards/property-owner.guard';
 import { UnitType } from '../../../common/enums/unit.enum';
+import { User } from '../../users/schemas/user.schema';
 import { CreatePropertyDto } from '../dto/create-property.dto';
 import { CreateUnitDto } from '../dto/create-unit.dto';
 import { PropertiesController } from '../properties.controller';
 import { PropertiesService } from '../properties.service';
+import { Property } from '../schemas/property.schema';
 import { UnitsService } from '../units.service';
 
 describe('PropertiesController', () => {
@@ -42,6 +46,15 @@ describe('PropertiesController', () => {
     create: jest.fn(),
   };
 
+  // Mock for Property model needed by PropertyOwnerGuard
+  const mockPropertyModel = {
+    findById: jest.fn().mockImplementation(() => ({
+      exec: jest.fn().mockResolvedValue({
+        owner: new Types.ObjectId('507f1f77bcf86cd799439011'),
+      }),
+    })),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PropertiesController],
@@ -54,6 +67,11 @@ describe('PropertiesController', () => {
           provide: UnitsService,
           useValue: mockUnitsService,
         },
+        {
+          provide: getModelToken(Property.name),
+          useValue: mockPropertyModel,
+        },
+        PropertyOwnerGuard,
       ],
     }).compile();
 
@@ -77,8 +95,13 @@ describe('PropertiesController', () => {
           postalCode: '12345',
           country: 'Test Country',
         },
-        owner: new Types.ObjectId('507f1f77bcf86cd799439011'),
       };
+
+      const mockUser = {
+        organization: {
+          _id: new Types.ObjectId('507f1f77bcf86cd799439011'),
+        },
+      } as User;
 
       // Mock service to return property with unique ID
       mockPropertiesService.create.mockResolvedValue({
@@ -86,14 +109,17 @@ describe('PropertiesController', () => {
         _id: 'newly-created-id',
       });
 
-      const result = await controller.create(createPropertyDto);
+      const result = await controller.create(mockUser, createPropertyDto);
 
       // Verify result contains property with ID
       expect(result).toEqual({
         ...mockProperty,
         _id: 'newly-created-id',
       });
-      expect(mockPropertiesService.create).toHaveBeenCalledWith(createPropertyDto);
+      expect(mockPropertiesService.create).toHaveBeenCalledWith(
+        createPropertyDto,
+        mockUser.organization._id,
+      );
     });
 
     it('should handle invalid field formats and return 400 status with descriptive error', async () => {
@@ -106,8 +132,13 @@ describe('PropertiesController', () => {
           postalCode: '12345',
           country: 'Test Country',
         },
-        owner: 'invalid-owner-id',
       };
+
+      const mockUser = {
+        organization: {
+          _id: 'invalid-owner-id',
+        },
+      } as unknown as User;
 
       // Mock service to throw BadRequestException for invalid format
       const errorMessage = 'Invalid owner ID format';
@@ -117,7 +148,7 @@ describe('PropertiesController', () => {
       });
 
       // Expect controller to pass through the error
-      await expect(controller.create(invalidPropertyDto as any)).rejects.toEqual({
+      await expect(controller.create(mockUser, invalidPropertyDto as any)).rejects.toEqual({
         status: 400,
         message: errorMessage,
       });

@@ -6,9 +6,6 @@ import {
 } from '../../features/organizations/schemas/organization.schema';
 import { Property, PropertySchema } from '../../features/properties/schemas/property.schema';
 import { User, UserSchema } from '../../features/users/schemas/user.schema';
-import { OrganizationService } from './services/organization.service';
-import { PropertyService } from './services/property.service';
-import { UserService } from './services/user.service';
 
 @Module({
   imports: [
@@ -18,7 +15,5 @@ import { UserService } from './services/user.service';
       { name: User.name, schema: UserSchema },
     ]),
   ],
-  providers: [OrganizationService, PropertyService, UserService],
-  exports: [OrganizationService, PropertyService, UserService],
 })
 export class AuthorizationModule {}

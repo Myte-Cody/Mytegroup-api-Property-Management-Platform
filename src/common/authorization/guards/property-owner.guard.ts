@@ -1,42 +1,35 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PROPERTY_OWNER_KEY, PROPERTY_PARAM_KEY } from '../decorators/property-owner.decorator';
-import { PropertyService } from '../services/property.service';
-import { UserService } from '../services/user.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Property } from '../../../features/properties/schemas/property.schema';
+import { User } from '../../../features/users/schemas/user.schema';
+import { PROPERTY_OWNER_KEY } from '../decorators/property-owner.decorator';
 
 @Injectable()
 export class PropertyOwnerGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    private userService: UserService,
-    private propertyService: PropertyService,
+    @InjectModel(Property.name) private readonly propertyModel: Model<Property>,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const checkPropertyOwnership = this.reflector.getAllAndOverride<boolean>(PROPERTY_OWNER_KEY, [
+    const propertyOwnerKey = this.reflector.getAllAndOverride<string>(PROPERTY_OWNER_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
-
     // If property ownership check is not required, allow access
-    if (!checkPropertyOwnership) {
+    if (!propertyOwnerKey) {
       return true;
     }
 
-    const propertyParamKey =
-      this.reflector.getAllAndOverride<string>(PROPERTY_PARAM_KEY, [
-        context.getHandler(),
-        context.getClass(),
-      ]) || 'id';
-
     const request = context.switchToHttp().getRequest();
-    const user = request.user;
-
-    if (!user || !user.userId) {
+    const user: Partial<User> = request.user;
+    if (!user) {
       return false;
     }
 
-    let propertyId = request.params[propertyParamKey];
+    let propertyId = request.params[propertyOwnerKey];
 
     if (!propertyId && request.body && request.body.property) {
       propertyId = request.body.property;
@@ -48,21 +41,16 @@ export class PropertyOwnerGuard implements CanActivate {
     }
 
     // Get the user's organization ID
-    const organizationId = await this.userService.getUserOrganizationId(user.userId);
+    const organizationId = user.organization._id;
 
     // If the user has no organization, deny access
     if (!organizationId) {
       return false;
     }
-
     // Check if the property belongs to the user's organization
-    const isOwner = await this.propertyService.isPropertyOwnedByOrganization(
-      propertyId,
-      organizationId,
-    );
-
-    if (!isOwner) {
-      throw new ForbiddenException('You do not have permission to access this property');
+    const property = await this.propertyModel.findById(propertyId).exec();
+    if (property?.owner?.toString() !== organizationId.toString()) {
+      return false;
     }
 
     return true;

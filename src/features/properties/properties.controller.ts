@@ -11,11 +11,15 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { PropertyOwner } from '../../common/authorization/decorators/property-owner.decorator';
 import { Roles } from '../../common/authorization/decorators/roles.decorator';
+import { PropertyOwnerGuard } from '../../common/authorization/guards/property-owner.guard';
 import { RolesGuard } from '../../common/authorization/guards/roles.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { OrganizationType } from '../../common/enums/organization.enum';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
+import { User } from '../users/schemas/user.schema';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
@@ -36,8 +40,8 @@ export class PropertiesController {
   @Roles(OrganizationType.LANDLORD)
   @ApiOperation({ summary: 'Create a new property' })
   @ApiBody({ type: CreatePropertyDto, description: 'Property data to create' })
-  create(@Body() createPropertyDto: CreatePropertyDto) {
-    return this.propertiesService.create(createPropertyDto);
+  create(@CurrentUser() user: User, @Body() createPropertyDto: CreatePropertyDto) {
+    return this.propertiesService.create(createPropertyDto, user.organization._id);
   }
 
   @Get()
@@ -76,6 +80,8 @@ export class PropertiesController {
   }
 
   @Post(':id/units')
+  @PropertyOwner()
+  @UseGuards(PropertyOwnerGuard)
   @ApiOperation({ summary: 'Add a unit to a property' })
   @ApiParam({ name: 'id', description: 'Property ID', type: String })
   @ApiBody({ type: CreateUnitDto, description: 'Unit data to create' })
