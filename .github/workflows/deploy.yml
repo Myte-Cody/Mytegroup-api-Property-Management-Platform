@@ -219,6 +219,34 @@ jobs:
                     "value": "production"
                   },
                   {
+                    "name": "APP_PORT",
+                    "value": "80"
+                  },
+                  {
+                    "name": "APP_BASE_URL",
+                    "value": "https://${{ steps.get_repo_name.outputs.repo_name }}.mytecody.com"
+                  },
+                  {
+                    "name": "CLIENT_BASE_URL",
+                    "value": "${{ secrets.CLIENT_BASE_URL }}"
+                  },
+                  {
+                    "name": "CORS_ORIGINS_PROD",
+                    "value": "${{ secrets.CORS_ORIGINS_PROD }}"
+                  },
+                  {
+                    "name": "DB_URL",
+                    "value": "${{ secrets.DB_URL }}"
+                  },
+                  {
+                    "name": "MONGO_DB_NAME",
+                    "value": "${{ secrets.MONGO_DB_NAME }}"
+                  },
+                  {
+                    "name": "JWT_SECRET",
+                    "value": "${{ secrets.JWT_SECRET }}"
+                  },
+                  {
                     "name": "REPO_NAME",
                     "value": "${REPOSITORY}"
                   },

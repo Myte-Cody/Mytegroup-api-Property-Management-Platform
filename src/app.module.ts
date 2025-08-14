@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import configuration from './config/configuration';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthorizationModule } from './common/authorization/authorization.module';
 import { CommonModule } from './common/common.module';
@@ -13,6 +14,13 @@ import { UsersModule } from './features/users/users.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      load: [configuration],
+      validate: (env: Record<string, any>) => {
+        if (!env.DB_URL) throw new Error('DB_URL is required');
+        if (!env.MONGO_DB_NAME) throw new Error('MONGO_DB_NAME is required');
+        if (!env.JWT_SECRET) throw new Error('JWT_SECRET is required');
+        return env;
+      },
     }),
     CommonModule,
     AuthModule,
@@ -21,7 +29,9 @@ import { UsersModule } from './features/users/users.module';
     UsersModule,
     PropertiesModule,
     AuthorizationModule,
-    MongooseModule.forRoot(process.env.DB_URL),
+    MongooseModule.forRoot(process.env.DB_URL, {
+      dbName: process.env.MONGO_DB_NAME,
+    }),
   ],
 })
 export class AppModule {}

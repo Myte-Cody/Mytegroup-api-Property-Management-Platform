@@ -11,14 +11,9 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
-    "prepare": "husky"
+    "test:cov": "jest --coverage"
   },
-  "lint-staged": {
-    "*.{ts,js,json,md}": [
-      "prettier --write"
-    ]
-  },
+  
   "dependencies": {
     "@nestjs/common": "^11.1.6",
     "@nestjs/config": "^4.0.2",
@@ -48,9 +43,7 @@
     "@types/passport": "^1.0.17",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^6.0.3",
-    "husky": "^9.1.7",
     "jest": "^30.0.5",
-    "lint-staged": "^15.5.2",
     "mongodb-memory-server": "^10.2.0",
     "prettier": "^3.6.2",
     "prettier-plugin-organize-imports": "^4.2.0",

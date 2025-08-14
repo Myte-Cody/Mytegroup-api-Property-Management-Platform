@@ -1,5 +1,5 @@
 # Build stage
-FROM node:22-alpine AS build
+FROM node:18-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
@@ -8,11 +8,13 @@ COPY . .
 RUN nest build
 
 # Prod stage
-FROM node:22-alpine
+FROM node:18-alpine
 WORKDIR /app
 RUN apk add --no-cache curl
 COPY --from=build /app/dist ./dist
 COPY package*.json ./
+# Disable git hooks to avoid husky prepare during prod install
+ENV HUSKY=0
 RUN npm install --only=production
 EXPOSE 80
 
@@ -21,3 +23,4 @@ LABEL org.opencontainers.image.project_id="mytegroup-api-property-management-pla
 LABEL org.opencontainers.image.organization="Mytegroup" 
 
 CMD ["node", "dist/main.js"]
+

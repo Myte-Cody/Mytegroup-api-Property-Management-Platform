@@ -13,26 +13,17 @@ services:
       - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
-      - DB_URL=mongodb://mongodb:27017/${MONGO_DB_NAME:-mytegroup}
+      - APP_PORT=${APP_PORT}
+      - PORT_DEV=${PORT_DEV}
+      - PORT_PROD=${PORT_PROD}
+      - APP_BASE_URL=${APP_BASE_URL}
+      - CLIENT_BASE_URL=${CLIENT_BASE_URL}
+      - CORS_ORIGINS_DEV=${CORS_ORIGINS_DEV}
+      - CORS_ORIGINS_PROD=${CORS_ORIGINS_PROD}
     volumes:
       - ./src:/app/src
       - ./node_modules:/app/node_modules
     command: npm run start:dev
-    depends_on:
-      - mongodb
-    networks:
-      - mytegroup-network
-
-  mongodb:
-    image: mongo:${MONGO_VERSION:-6.0}
-    container_name: mytegroup-mongodb
-    restart: always
-    ports:
-      - "${MONGO_PORT:-27018}:27017"
-    volumes:
-      - mongodb_data:/data/db
-    environment:
-      - MONGO_INITDB_DATABASE=${MONGO_DB_NAME:-mytegroup}
     networks:
       - mytegroup-network
 
@@ -40,5 +31,4 @@ networks:
   mytegroup-network:
     driver: bridge
 
-volumes:
-  mongodb_data:
+volumes: {}
