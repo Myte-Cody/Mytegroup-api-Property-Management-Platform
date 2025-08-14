@@ -33,5 +33,4 @@ export class User extends Document implements SoftDelete {
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
-// Add mongoose-delete plugin with options
 UserSchema.plugin(mongooseDelete, { deletedAt: true });

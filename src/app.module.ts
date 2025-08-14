@@ -11,7 +11,7 @@ import { UsersModule } from './features/users/users.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true, // makes env variables available everywhere
+      isGlobal: true,
     }),
     CommonModule,
     AuthModule,

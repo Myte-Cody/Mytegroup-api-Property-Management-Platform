@@ -39,15 +39,10 @@ export class Property extends Document implements SoftDelete {
   })
   owner: Types.ObjectId;
 
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Unit' }], default: [] })
-  units: Types.ObjectId[];
-
-  // Properties added by mongoose-delete plugin
   deleted: boolean;
   deletedAt?: Date;
 }
 
 export const PropertySchema = SchemaFactory.createForClass(Property);
 
-// Add mongoose-delete plugin with options
 PropertySchema.plugin(mongooseDelete, { deletedAt: true });

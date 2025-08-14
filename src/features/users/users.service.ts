@@ -17,19 +17,16 @@ export class UsersService {
   async create(createUserDto: CreateUserDto) {
     const { username, email, password, organization } = createUserDto;
 
-    // Check if username is already taken
     const existingUsername = await this.userModel.findOne({ username }).exec();
     if (existingUsername) {
       throw new BadRequestException(`Username '${username}' is already taken`);
     }
 
-    // Check if email is already registered
     const existingEmail = await this.userModel.findOne({ email }).exec();
     if (existingEmail) {
       throw new BadRequestException(`Email '${email}' is already registered`);
     }
 
-    // Validate organization exists if provided
     if (organization) {
       const existingOrganization = await this.organizationModel.findById(organization).exec();
       if (!existingOrganization) {
@@ -66,7 +63,6 @@ export class UsersService {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
 
-    // Check if username is being updated and is already taken by another user
     if (updateUserDto.username && updateUserDto.username !== user.username) {
       const existingUsername = await this.userModel
         .findOne({
@@ -80,7 +76,6 @@ export class UsersService {
       }
     }
 
-    // Check if email is being updated and is already registered by another user
     if (updateUserDto.email && updateUserDto.email !== user.email) {
       const existingEmail = await this.userModel
         .findOne({

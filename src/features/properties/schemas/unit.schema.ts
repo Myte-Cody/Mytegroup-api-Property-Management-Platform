@@ -16,11 +16,8 @@ export class Unit extends Document implements SoftDelete {
   @Prop({ required: true, trim: true, maxlength: 32 })
   unitNumber: string;
 
-  @Prop({ trim: true, maxlength: 16 })
-  floor: string;
-
-  @Prop({ min: 0 })
-  sizeSqFt: number;
+  @Prop({ required: true, min: 0 })
+  size: number;
 
   @Prop({
     type: String,
@@ -28,12 +25,6 @@ export class Unit extends Document implements SoftDelete {
     required: true,
   })
   type: UnitType;
-
-  @Prop({ min: 0 })
-  bedrooms: number;
-
-  @Prop({ min: 0 })
-  bathrooms: number;
 
   @Prop({
     type: String,
@@ -43,23 +34,10 @@ export class Unit extends Document implements SoftDelete {
   })
   availabilityStatus: UnitAvailabilityStatus;
 
-  @Prop({ min: 0 })
-  rentAmount: number;
-
-  @Prop({ maxlength: 1024 })
-  description: string;
-
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }] })
-  tenants: Types.ObjectId[];
-
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Lease' }] })
-  leases: Types.ObjectId[];
-
   deleted: boolean;
   deletedAt?: Date;
 }
 
 export const UnitSchema = SchemaFactory.createForClass(Unit);
 
-// Add mongoose-delete plugin with options
 UnitSchema.plugin(mongooseDelete, { deletedAt: true });

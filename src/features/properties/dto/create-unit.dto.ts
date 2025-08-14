@@ -1,8 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
-  IsArray,
   IsEnum,
-  IsMongoId,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -24,26 +22,15 @@ export class CreateUnitDto {
   unitNumber: string;
 
   @ApiProperty({
-    example: '1',
-    description: 'Floor number or level',
-    maxLength: 16,
-    required: false,
-  })
-  @IsString()
-  @IsOptional()
-  @MaxLength(16)
-  floor?: string;
-
-  @ApiProperty({
     example: 800,
-    description: 'Size of the unit in square feet',
+    description: 'Size of the unit',
     minimum: 0,
-    required: false,
+    required: true,
   })
   @IsNumber()
   @Min(0)
-  @IsOptional()
-  sizeSqFt?: number;
+  @IsNotEmpty()
+  size: number;
 
   @ApiProperty({
     example: UnitType.APARTMENT,
@@ -56,28 +43,6 @@ export class CreateUnitDto {
   type: UnitType;
 
   @ApiProperty({
-    example: 2,
-    description: 'Number of bedrooms',
-    minimum: 0,
-    required: false,
-  })
-  @IsNumber()
-  @Min(0)
-  @IsOptional()
-  bedrooms?: number;
-
-  @ApiProperty({
-    example: 1,
-    description: 'Number of bathrooms',
-    minimum: 0,
-    required: false,
-  })
-  @IsNumber()
-  @Min(0)
-  @IsOptional()
-  bathrooms?: number;
-
-  @ApiProperty({
     example: UnitAvailabilityStatus.VACANT,
     description: 'Current availability status of the unit',
     enum: UnitAvailabilityStatus,
@@ -87,37 +52,4 @@ export class CreateUnitDto {
   @IsOptional()
   @IsEnum(UnitAvailabilityStatus)
   availabilityStatus?: UnitAvailabilityStatus;
-
-  @ApiProperty({
-    example: 1200,
-    description: 'Monthly rent amount',
-    minimum: 0,
-    required: false,
-  })
-  @IsNumber()
-  @Min(0)
-  @IsOptional()
-  rentAmount?: number;
-
-  @ApiProperty({
-    example: 'Spacious apartment with balcony and mountain view',
-    description: 'Description of the unit',
-    maxLength: 1024,
-    required: false,
-  })
-  @IsString()
-  @IsOptional()
-  @MaxLength(1024)
-  description?: string;
-
-  @ApiProperty({
-    example: ['60d21b4667d0d8992e610c85'],
-    description: 'Array of tenant IDs associated with this unit',
-    type: [String],
-    required: false,
-  })
-  @IsArray()
-  @IsMongoId({ each: true })
-  @IsOptional()
-  tenants?: string[];
 }
