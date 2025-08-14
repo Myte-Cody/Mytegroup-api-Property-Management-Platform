@@ -40,13 +40,11 @@ export class PropertiesService {
   }
 
   async update(id: string, updatePropertyDto: UpdatePropertyDto) {
-    // Check if the property exists
     const property = await this.propertyModel.findById(id).exec();
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
 
-    // Validate that the owner organization exists if provided
     if (updatePropertyDto.owner) {
       const organization = await this.organizationModel.findById(updatePropertyDto.owner).exec();
       if (!organization) {
@@ -64,13 +62,11 @@ export class PropertiesService {
   }
 
   async remove(id: string) {
-    // First check if the property exists
     const property = await this.propertyModel.findById(id).exec();
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
 
-    // Use soft delete instead of permanent deletion
     await this.propertyModel.deleteById(id);
 
     return property;

@@ -24,17 +24,13 @@ describe('UnitsService', () => {
       postalCode: '12345',
       country: 'Test Country',
     },
-    units: [],
   };
 
   const mockUnit: Partial<Unit> = {
     _id: new Types.ObjectId('507f1f77bcf86cd799439022'),
     unitNumber: '101',
-    floor: '1',
-    sizeSqFt: 800,
+    size: 800,
     type: UnitType.APARTMENT,
-    bedrooms: 2,
-    bathrooms: 1,
     availabilityStatus: UnitAvailabilityStatus.VACANT,
     property: mockProperty._id as Types.ObjectId,
   };
@@ -83,11 +79,8 @@ describe('UnitsService', () => {
     const propertyId = '507f1f77bcf86cd799439011';
     const validDto: CreateUnitDto = {
       unitNumber: '101',
-      floor: '1',
-      sizeSqFt: 800,
+      size: 800,
       type: UnitType.APARTMENT,
-      bedrooms: 2,
-      bathrooms: 1,
     };
 
     it('should create a unit when property exists', async () => {
@@ -113,11 +106,6 @@ describe('UnitsService', () => {
 
       expect(propertyModel.findById).toHaveBeenCalledWith(propertyId);
       expect(mockInstance.save).toHaveBeenCalled();
-      expect(propertyModel.findByIdAndUpdate).toHaveBeenCalledWith(
-        propertyId,
-        { $push: { units: mockUnit._id } },
-        { new: true },
-      );
       expect(result).toEqual(savedUnit);
     });
 

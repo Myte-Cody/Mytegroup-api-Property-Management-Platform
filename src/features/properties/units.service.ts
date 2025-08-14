@@ -24,13 +24,7 @@ export class UnitsService {
       ...createUnitDto,
       property: propertyId,
     });
-    const savedUnit = await newUnit.save();
-
-    await this.propertyModel
-      .findByIdAndUpdate(propertyId, { $push: { units: savedUnit._id } }, { new: true })
-      .exec();
-
-    return savedUnit;
+    return await newUnit.save();
   }
 
   async findAll() {
@@ -62,12 +56,6 @@ export class UnitsService {
     if (!unit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
-    await this.propertyModel
-      .findByIdAndUpdate(unit.property, { $pull: { units: unit._id } }, { new: true })
-      .exec();
-
-    await this.unitModel.deleteById(id);
-
-    return null;
+    return await this.unitModel.deleteById(id);
   }
 }

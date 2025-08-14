@@ -11,7 +11,7 @@ export class Organization extends Document implements SoftDelete {
     trim: true,
     maxlength: 128,
     unique: true,
-    lowercase: true, // Ensure name is always stored in lowercase
+    lowercase: true,
   })
   name: string;
 

@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
-import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enum';
+import { UnitType } from '../../../common/enums/unit.enum';
 import { CreatePropertyDto } from '../dto/create-property.dto';
 import { CreateUnitDto } from '../dto/create-unit.dto';
 import { PropertiesController } from '../properties.controller';
@@ -128,16 +128,8 @@ describe('PropertiesController', () => {
     const mockUnit = {
       _id: 'mock-unit-id',
       unitNumber: '101',
-      floor: '1',
-      sizeSqFt: 800,
+      size: 800,
       type: UnitType.APARTMENT,
-      bedrooms: 2,
-      bathrooms: 1,
-      availabilityStatus: UnitAvailabilityStatus.VACANT,
-      rentAmount: 1200,
-      description: 'A nice apartment',
-      tenants: [],
-      leases: [],
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -146,14 +138,8 @@ describe('PropertiesController', () => {
       const propertyId = '507f1f77bcf86cd799439011';
       const createUnitDto: CreateUnitDto = {
         unitNumber: '101',
-        floor: '1',
-        sizeSqFt: 800,
+        size: 800,
         type: UnitType.APARTMENT,
-        bedrooms: 2,
-        bathrooms: 1,
-        availabilityStatus: UnitAvailabilityStatus.VACANT,
-        rentAmount: 1200,
-        description: 'A nice apartment',
       };
 
       // Mock service to return unit with unique ID
@@ -182,6 +168,7 @@ describe('PropertiesController', () => {
       const createUnitDto: CreateUnitDto = {
         unitNumber: '101',
         type: UnitType.APARTMENT,
+        size: 800,
       };
 
       // Mock service to throw BadRequestException for non-existent property
