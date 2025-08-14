@@ -19,7 +19,7 @@ RUN npm install --only=production
 EXPOSE 80
 
 # Add labels for project identification
-#
+##
 LABEL org.opencontainers.image.project_id="mytegroup-api-property-management-platform"
 LABEL org.opencontainers.image.organization="Mytegroup" 
 
