@@ -1,7 +1,6 @@
+import { ApiProperty } from '@nestjs/swagger';
 import {
-  IsArray,
   IsEnum,
-  IsMongoId,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -9,60 +8,48 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { Types } from 'mongoose';
+import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enum';
 
 export class CreateUnitDto {
-  @IsMongoId()
-  @IsNotEmpty()
-  property: Types.ObjectId;
-
+  @ApiProperty({
+    example: '101',
+    description: 'Unit number or identifier',
+    maxLength: 32,
+  })
   @IsString()
   @IsNotEmpty()
   @MaxLength(32)
   unitNumber: string;
 
-  @IsString()
-  @IsOptional()
-  @MaxLength(16)
-  floor?: string;
-
+  @ApiProperty({
+    example: 800,
+    description: 'Size of the unit',
+    minimum: 0,
+    required: true,
+  })
   @IsNumber()
   @Min(0)
-  @IsOptional()
-  sizeSqFt?: number;
+  @IsNotEmpty()
+  size: number;
 
+  @ApiProperty({
+    example: UnitType.APARTMENT,
+    description: 'Type of unit',
+    enum: UnitType,
+  })
   @IsString()
   @IsNotEmpty()
-  @IsEnum(['Apartment', 'Studio', 'Office', 'Retail', 'Room', 'Other'])
-  type: string;
+  @IsEnum(UnitType)
+  type: UnitType;
 
-  @IsNumber()
-  @Min(0)
-  @IsOptional()
-  bedrooms?: number;
-
-  @IsNumber()
-  @Min(0)
-  @IsOptional()
-  bathrooms?: number;
-
+  @ApiProperty({
+    example: UnitAvailabilityStatus.VACANT,
+    description: 'Current availability status of the unit',
+    enum: UnitAvailabilityStatus,
+    required: false,
+  })
   @IsString()
   @IsOptional()
-  @IsEnum(['Vacant', 'Occupied', 'Available for Rent'])
-  availabilityStatus?: string;
-
-  @IsNumber()
-  @Min(0)
-  @IsOptional()
-  rentAmount?: number;
-
-  @IsString()
-  @IsOptional()
-  @MaxLength(1024)
-  description?: string;
-
-  @IsArray()
-  @IsMongoId({ each: true })
-  @IsOptional()
-  tenants?: Types.ObjectId[];
+  @IsEnum(UnitAvailabilityStatus)
+  availabilityStatus?: UnitAvailabilityStatus;
 }

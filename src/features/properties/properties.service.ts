@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { SoftDeleteModel } from '../../common/interfaces/soft-delete-model.interface';
 import { Organization } from '../organizations/schemas/organization.schema';
 import { CreatePropertyDto } from './dto/create-property.dto';
@@ -15,15 +15,11 @@ export class PropertiesService {
     @InjectModel(Organization.name)
     private readonly organizationModel: Model<Organization>,
   ) {}
-  async create(createPropertyDto: CreatePropertyDto) {
-    const organization = await this.organizationModel.findById(createPropertyDto.owner).exec();
-    if (!organization) {
-      throw new BadRequestException(
-        `Organization with ID ${createPropertyDto.owner} does not exist`,
-      );
-    }
-
-    const newProperty = new this.propertyModel(createPropertyDto);
+  async create(createPropertyDto: CreatePropertyDto, owner: string | Types.ObjectId) {
+    const newProperty = new this.propertyModel({
+      ...createPropertyDto,
+      owner,
+    });
     return await newProperty.save();
   }
 
@@ -40,13 +36,11 @@ export class PropertiesService {
   }
 
   async update(id: string, updatePropertyDto: UpdatePropertyDto) {
-    // Check if the property exists
     const property = await this.propertyModel.findById(id).exec();
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
 
-    // Validate that the owner organization exists if provided
     if (updatePropertyDto.owner) {
       const organization = await this.organizationModel.findById(updatePropertyDto.owner).exec();
       if (!organization) {
@@ -64,13 +58,11 @@ export class PropertiesService {
   }
 
   async remove(id: string) {
-    // First check if the property exists
     const property = await this.propertyModel.findById(id).exec();
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
 
-    // Use soft delete instead of permanent deletion
     await this.propertyModel.deleteById(id);
 
     return property;

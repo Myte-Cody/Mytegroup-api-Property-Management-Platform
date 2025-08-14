@@ -1,4 +1,3 @@
-import { BadRequestException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
@@ -79,13 +78,12 @@ describe('PropertiesService', () => {
         postalCode: '12345',
         country: 'Test Country',
       },
-      owner: mockOrganization._id as Types.ObjectId,
     };
 
+    const ownerId = mockOrganization._id.toString();
+
     it('should create a property when organization exists', async () => {
-      organizationModel.findById.mockReturnValue({
-        exec: () => Promise.resolve(mockOrganization as Organization),
-      } as any);
+      // Organization check is no longer needed in the service
 
       const savedProperty = { ...mockProperty, _id: new Types.ObjectId() };
 
@@ -94,33 +92,37 @@ describe('PropertiesService', () => {
       };
       propertyModel.mockImplementationOnce(() => mockInstance);
 
-      const result = await service.create(validDto);
+      const result = await service.create(validDto, ownerId);
 
-      expect(organizationModel.findById).toHaveBeenCalledWith(validDto.owner);
+      // No longer checking organization in the service
       expect(mockInstance.save).toHaveBeenCalled();
       expect(result).toEqual(savedProperty);
     });
 
-    it('should throw BadRequestException if organization does not exist', async () => {
-      organizationModel.findById.mockReturnValue({
-        exec: () => Promise.resolve(null),
-      } as any);
+    it('should create a property with the provided owner ID', async () => {
+      const customOwnerId = new Types.ObjectId();
 
-      await expect(service.create(validDto)).rejects.toThrow(BadRequestException);
+      const savedProperty = { ...mockProperty, _id: new Types.ObjectId(), owner: customOwnerId };
+
+      const mockInstance = {
+        save: jest.fn().mockResolvedValue(savedProperty),
+      };
+      propertyModel.mockImplementationOnce(() => mockInstance);
+
+      const result = await service.create(validDto, customOwnerId);
+
+      expect(mockInstance.save).toHaveBeenCalled();
+      expect(result).toEqual(savedProperty);
     });
 
     it('should handle repository save errors', async () => {
-      organizationModel.findById.mockReturnValue({
-        exec: () => Promise.resolve(mockOrganization as Organization),
-      } as any);
-
       // Mock the constructor to return an instance with save method that throws
       const mockInstance = {
         save: jest.fn().mockRejectedValue(new Error('DB error')),
       };
       propertyModel.mockImplementationOnce(() => mockInstance);
 
-      await expect(service.create(validDto)).rejects.toThrow('DB error');
+      await expect(service.create(validDto, ownerId)).rejects.toThrow('DB error');
     });
   });
 });

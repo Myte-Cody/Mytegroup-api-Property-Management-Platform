@@ -9,16 +9,19 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 @ApiTags('Users')
+@ApiBearerAuth('JWT-auth')
 @Controller('users')
 export class UsersController {
   constructor(private readonly userService: UsersService) {}
 
+  @Public()
   @Post()
   @ApiOperation({ summary: 'Create a new user' })
   @ApiBody({ type: CreateUserDto })

@@ -42,7 +42,7 @@ export class OrganizationsService {
       const existingOrganization = await this.organizationModel
         .findOne({
           name: updateOrganizationDto.name,
-          _id: { $ne: id }, // Exclude current organization from the check
+          _id: { $ne: id },
         })
         .exec();
 
@@ -53,7 +53,6 @@ export class OrganizationsService {
       }
     }
 
-    // Validate that the organization exists before updating
     const organization = await this.organizationModel.findById(id).exec();
     if (!organization) {
       throw new NotFoundException(`Organization with ID ${id} not found`);
@@ -72,7 +71,6 @@ export class OrganizationsService {
       throw new NotFoundException(`Organization with ID ${id} not found`);
     }
 
-    // Use soft delete instead of permanent deletion
     await this.organizationModel.deleteById(id);
 
     return null;

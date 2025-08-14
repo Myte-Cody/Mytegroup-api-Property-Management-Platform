@@ -1,10 +1,12 @@
 import { ValidationPipe } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { AppGuard } from './common/guards/app.guard';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -13,16 +15,26 @@ async function bootstrap() {
     }),
   );
 
+  const reflector = app.get(Reflector);
+  app.useGlobalGuards(new AppGuard(reflector));
+
   // Set up Swagger documentation
   const config = new DocumentBuilder()
     .setTitle('Mytegroup Property Management API')
     .setDescription('API documentation for the Mytegroup Property Management Platform')
     .setVersion('1.0')
-    .addTag('auth', 'Authentication endpoints')
-    .addTag('users', 'User management endpoints')
-    .addTag('properties', 'Property management endpoints')
-    .addTag('organizations', 'Organization management endpoints')
-    .addBearerAuth()
+
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Enter JWT token',
+        in: 'header',
+      },
+      'JWT-auth',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

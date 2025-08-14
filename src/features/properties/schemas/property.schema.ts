@@ -39,12 +39,10 @@ export class Property extends Document implements SoftDelete {
   })
   owner: Types.ObjectId;
 
-  // Properties added by mongoose-delete plugin
   deleted: boolean;
   deletedAt?: Date;
 }
 
 export const PropertySchema = SchemaFactory.createForClass(Property);
 
-// Add mongoose-delete plugin with options
 PropertySchema.plugin(mongooseDelete, { deletedAt: true });
