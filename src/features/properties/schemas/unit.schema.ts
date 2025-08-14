@@ -6,7 +6,6 @@ import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
 
 @Schema({ timestamps: true })
 export class Unit extends Document implements SoftDelete {
-  // Reference to the property this unit belongs to
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Property',
@@ -63,8 +62,4 @@ export class Unit extends Document implements SoftDelete {
 export const UnitSchema = SchemaFactory.createForClass(Unit);
 
 // Add mongoose-delete plugin with options
-UnitSchema.plugin(mongooseDelete, {
-  deletedAt: true,
-  overrideMethods: 'all', // Override all methods including static methods
-  indexFields: ['deleted'],
-});
+UnitSchema.plugin(mongooseDelete, { deletedAt: true });
