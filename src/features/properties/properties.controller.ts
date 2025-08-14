@@ -8,20 +8,27 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../../common/authorization/decorators/roles.decorator';
+import { RolesGuard } from '../../common/authorization/guards/roles.guard';
+import { OrganizationType } from '../../common/enums/organization.enum';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { PropertiesService } from './properties.service';
 
 @ApiTags('Properties')
-@ApiBearerAuth('JWT-auth')
+@ApiBearerAuth()
 @Controller('properties')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) {}
 
   @Post()
+  @Roles(OrganizationType.LANDLORD)
   @ApiOperation({ summary: 'Create a new property' })
   @ApiBody({ type: CreatePropertyDto, description: 'Property data to create' })
   create(@Body() createPropertyDto: CreatePropertyDto) {
