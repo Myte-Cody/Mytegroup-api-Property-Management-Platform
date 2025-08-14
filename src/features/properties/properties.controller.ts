@@ -9,13 +9,14 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { PropertiesService } from './properties.service';
 
 @ApiTags('Properties')
+@ApiBearerAuth('JWT-auth')
 @Controller('properties')
 export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) {}

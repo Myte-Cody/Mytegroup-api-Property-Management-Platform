@@ -10,13 +10,14 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { OrganizationsService } from './organizations.service';
 
 @ApiTags('Organizations')
+@ApiBearerAuth('JWT-auth')
 @Controller('organizations')
 export class OrganizationsController {
   constructor(private readonly organizationsService: OrganizationsService) {}
