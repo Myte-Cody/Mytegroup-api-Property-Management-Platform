@@ -23,6 +23,11 @@ export class PropertiesService {
     return await newProperty.save();
   }
 
+  async findByLandlord(landlordId: string) {
+    const query = { owner: landlordId };
+    return await this.propertyModel.find(query).exec();
+  }
+
   async findAll() {
     return await this.propertyModel.find().exec();
   }
