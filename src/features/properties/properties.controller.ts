@@ -55,7 +55,7 @@ export class PropertiesController {
   })
   findByLandlord(
     @CurrentUser() user: User,
-    @Query('landlordId', OptionalMongoIdValidationPipe) landlordId?: string
+    @Query('landlordId', OptionalMongoIdValidationPipe) landlordId?: string,
   ) {
     return this.propertiesService.findByLandlord(landlordId || user.organization._id.toString());
   }
@@ -94,9 +94,6 @@ export class PropertiesController {
   remove(@Param('id', MongoIdValidationPipe) id: string) {
     return this.propertiesService.remove(id);
   }
-
-
-
 
   @Post(':id/units')
   @PropertyOwner()

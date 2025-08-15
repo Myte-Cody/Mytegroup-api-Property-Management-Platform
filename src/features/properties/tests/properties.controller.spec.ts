@@ -177,7 +177,7 @@ describe('PropertiesController', () => {
         owner: new Types.ObjectId('507f1f77bcf86cd799439011'),
       },
     ];
-    
+
     // Reset mocks before each test
     beforeEach(() => {
       jest.clearAllMocks();
@@ -185,18 +185,18 @@ describe('PropertiesController', () => {
 
     it('should correctly pass landlordId parameter to service', async () => {
       const landlordId = '507f1f77bcf86cd799439022';
-      
+
       // Mock the service with a simple return value
       mockPropertiesService.findByLandlord.mockResolvedValue([]);
-      
+
       await controller.findByLandlord(mockUser, landlordId);
-      
+
       // Verify the service was called with the provided landlord ID, not the user's organization ID
       expect(mockPropertiesService.findByLandlord).toHaveBeenCalledWith(landlordId);
       expect(mockPropertiesService.findByLandlord).not.toHaveBeenCalledWith(
-        mockUser.organization._id.toString()
+        mockUser.organization._id.toString(),
       );
-      
+
       // Verify the service was called exactly once
       expect(mockPropertiesService.findByLandlord).toHaveBeenCalledTimes(1);
     });
@@ -204,54 +204,54 @@ describe('PropertiesController', () => {
     it('should use current user organization ID when no landlordId is provided', async () => {
       // Mock the service with a simple return value
       mockPropertiesService.findByLandlord.mockResolvedValue([]);
-      
+
       // Create a spy to track the parameter transformation
       const orgIdSpy = jest.spyOn(mockUser.organization._id, 'toString');
-      
+
       await controller.findByLandlord(mockUser, undefined);
-      
+
       // Verify the toString method was called on the organization ID
       expect(orgIdSpy).toHaveBeenCalled();
-      
+
       // Verify the service was called with the correct parameter
       expect(mockPropertiesService.findByLandlord).toHaveBeenCalledWith(
-        mockUser.organization._id.toString()
+        mockUser.organization._id.toString(),
       );
-      
+
       // Verify the service was NOT called with undefined
       expect(mockPropertiesService.findByLandlord).not.toHaveBeenCalledWith(undefined);
     });
 
     it('should return whatever the service returns', async () => {
       const landlordId = '507f1f77bcf86cd799439033';
-      
+
       // Test with properties
       mockPropertiesService.findByLandlord.mockResolvedValue(mockLandlordProperties);
       let result = await controller.findByLandlord(mockUser, landlordId);
       expect(result).toBe(mockLandlordProperties);
-      
+
       // Clear mocks
       jest.clearAllMocks();
-      
+
       // Test with empty array
       mockPropertiesService.findByLandlord.mockResolvedValue([]);
       result = await controller.findByLandlord(mockUser, landlordId);
-      
+
       // Verify the result is an array (not null or undefined)
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBe(0);
     });
-    
+
     it('should propagate errors from the service', async () => {
       const landlordId = '507f1f77bcf86cd799439033';
       const testError = new Error('Database connection failed');
-      
+
       // Mock the service to throw an error
       mockPropertiesService.findByLandlord.mockRejectedValue(testError);
-      
+
       // Verify that the controller propagates the error
       await expect(controller.findByLandlord(mockUser, landlordId)).rejects.toThrow(testError);
-      
+
       // Verify the service was called with the correct landlord ID
       expect(mockPropertiesService.findByLandlord).toHaveBeenCalledWith(landlordId);
     });

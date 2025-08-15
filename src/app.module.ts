@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import configuration from './config/configuration';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthorizationModule } from './common/authorization/authorization.module';
 import { CommonModule } from './common/common.module';
+import configuration from './config/configuration';
 import { AuthModule } from './features/auth/auth.module';
 import { EmailModule } from './features/email/email.module';
 import { OrganizationsModule } from './features/organizations/organizations.module';

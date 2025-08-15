@@ -132,7 +132,7 @@ describe('PropertiesService', () => {
       { ...mockProperty, _id: new Types.ObjectId() },
       { ...mockProperty, _id: new Types.ObjectId() },
     ];
-    
+
     // Reset mocks before each test
     beforeEach(() => {
       jest.clearAllMocks();
@@ -148,22 +148,22 @@ describe('PropertiesService', () => {
 
       // Verify the query is constructed correctly with the landlord ID
       expect(propertyModel.find).toHaveBeenCalledWith({ owner: landlordId });
-      
+
       // Verify exec() is called to execute the query
       expect(mockExec).toHaveBeenCalled();
       expect(mockExec).toHaveBeenCalledTimes(1);
-      
+
       // Verify the result matches what the database returned
       expect(result).toBe(mockProperties);
-      
+
       // Verify find was called exactly once
       expect(propertyModel.find).toHaveBeenCalledTimes(1);
     });
-    
+
     it('should handle database errors when finding properties by landlord', async () => {
       // Create a database error
       const dbError = new Error('Database connection failed');
-      
+
       // Mock find to throw an error
       const mockExec = jest.fn().mockRejectedValue(dbError);
       const mockFind = jest.fn().mockReturnValue({ exec: mockExec });
@@ -171,7 +171,7 @@ describe('PropertiesService', () => {
 
       // Verify the service propagates the error
       await expect(service.findByLandlord(landlordId)).rejects.toThrow(dbError);
-      
+
       // Verify the query was constructed correctly despite the error
       expect(propertyModel.find).toHaveBeenCalledWith({ owner: landlordId });
       expect(mockExec).toHaveBeenCalled();

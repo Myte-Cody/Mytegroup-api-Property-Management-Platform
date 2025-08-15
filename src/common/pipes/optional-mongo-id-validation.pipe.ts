@@ -1,5 +1,4 @@
-import { Injectable, PipeTransform } from '@nestjs/common';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable, PipeTransform } from '@nestjs/common';
 import { isMongoId } from 'class-validator';
 
 @Injectable()
@@ -11,7 +10,7 @@ export class OptionalMongoIdValidationPipe implements PipeTransform {
     if (!isMongoId(value)) {
       throw new BadRequestException(`Invalid MongoDB ObjectId: ${value}`);
     }
-    
+
     return value;
   }
 }
