@@ -8,17 +8,18 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { PropertyOwner } from '../../common/authorization/decorators/property-owner.decorator';
 import { Roles } from '../../common/authorization/decorators/roles.decorator';
 import { PropertyOwnerGuard } from '../../common/authorization/guards/property-owner.guard';
-import { RolesGuard } from '../../common/authorization/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { OrganizationType } from '../../common/enums/organization.enum';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
+import { OptionalMongoIdValidationPipe } from '../../common/pipes/optional-mongo-id-validation.pipe';
+
 import { User } from '../users/schemas/user.schema';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { CreateUnitDto } from './dto/create-unit.dto';
@@ -29,7 +30,6 @@ import { UnitsService } from './units.service';
 @ApiTags('Properties')
 @ApiBearerAuth()
 @Controller('properties')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class PropertiesController {
   constructor(
     private readonly propertiesService: PropertiesService,
@@ -42,6 +42,22 @@ export class PropertiesController {
   @ApiBody({ type: CreatePropertyDto, description: 'Property data to create' })
   create(@CurrentUser() user: User, @Body() createPropertyDto: CreatePropertyDto) {
     return this.propertiesService.create(createPropertyDto, user.organization._id);
+  }
+
+  @Get('by-landlord')
+  @Roles(OrganizationType.LANDLORD)
+  @ApiOperation({ summary: 'Get properties by landlord' })
+  @ApiQuery({
+    name: 'landlordId',
+    required: false,
+    description: 'Filter properties by landlord/owner ID',
+    type: String,
+  })
+  findByLandlord(
+    @CurrentUser() user: User,
+    @Query('landlordId', OptionalMongoIdValidationPipe) landlordId?: string,
+  ) {
+    return this.propertiesService.findByLandlord(landlordId || user.organization._id.toString());
   }
 
   @Get()
