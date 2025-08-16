@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { SoftDeleteModel } from '../../common/interfaces/soft-delete-model.interface';
@@ -49,7 +49,7 @@ export class PropertiesService {
     if (updatePropertyDto.owner) {
       const organization = await this.organizationModel.findById(updatePropertyDto.owner).exec();
       if (!organization) {
-        throw new BadRequestException(
+        throw new UnprocessableEntityException(
           `Organization with ID ${updatePropertyDto.owner} does not exist`,
         );
       }

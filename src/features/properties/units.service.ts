@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { SoftDeleteModel } from '../../common/interfaces/soft-delete-model.interface';
 import { CreateUnitDto } from './dto/create-unit.dto';
@@ -17,7 +17,7 @@ export class UnitsService {
   async create(createUnitDto: CreateUnitDto, propertyId: string) {
     const property = await this.propertyModel.findById(propertyId).exec();
     if (!property) {
-      throw new BadRequestException(`Property with ID ${propertyId} not found`);
+      throw new UnprocessableEntityException(`Property with ID ${propertyId} not found`);
     }
 
     const newUnit = new this.unitModel({

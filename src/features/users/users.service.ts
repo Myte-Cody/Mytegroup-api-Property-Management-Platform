@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
 import { SoftDeleteModel } from '../../common/interfaces/soft-delete-model.interface';
@@ -19,18 +19,20 @@ export class UsersService {
 
     const existingUsername = await this.userModel.findOne({ username }).exec();
     if (existingUsername) {
-      throw new BadRequestException(`Username '${username}' is already taken`);
+      throw new UnprocessableEntityException(`Username '${username}' is already taken`);
     }
 
     const existingEmail = await this.userModel.findOne({ email }).exec();
     if (existingEmail) {
-      throw new BadRequestException(`Email '${email}' is already registered`);
+      throw new UnprocessableEntityException(`Email '${email}' is already registered`);
     }
 
     if (organization) {
       const existingOrganization = await this.organizationModel.findById(organization).exec();
       if (!existingOrganization) {
-        throw new BadRequestException(`Organization with ID ${organization} does not exist`);
+        throw new UnprocessableEntityException(
+          `Organization with ID ${organization} does not exist`,
+        );
       }
     }
 
@@ -72,7 +74,9 @@ export class UsersService {
         .exec();
 
       if (existingUsername) {
-        throw new BadRequestException(`Username '${updateUserDto.username}' is already taken`);
+        throw new UnprocessableEntityException(
+          `Username '${updateUserDto.username}' is already taken`,
+        );
       }
     }
 
@@ -85,7 +89,9 @@ export class UsersService {
         .exec();
 
       if (existingEmail) {
-        throw new BadRequestException(`Email '${updateUserDto.email}' is already registered`);
+        throw new UnprocessableEntityException(
+          `Email '${updateUserDto.email}' is already registered`,
+        );
       }
     }
 

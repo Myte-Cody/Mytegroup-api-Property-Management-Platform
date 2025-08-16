@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { SoftDeleteModel } from '../../common/interfaces/soft-delete-model.interface';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
@@ -20,7 +20,7 @@ export class OrganizationsService {
       .exec();
 
     if (existingOrganization) {
-      throw new BadRequestException(
+      throw new UnprocessableEntityException(
         `Organization with name '${createOrganizationDto.name}' already exists`,
       );
     }
@@ -47,7 +47,7 @@ export class OrganizationsService {
         .exec();
 
       if (existingOrganization) {
-        throw new BadRequestException(
+        throw new UnprocessableEntityException(
           `Organization with name '${updateOrganizationDto.name}' already exists`,
         );
       }

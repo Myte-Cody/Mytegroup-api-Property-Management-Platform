@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { UnprocessableEntityException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
@@ -109,13 +109,15 @@ describe('UnitsService', () => {
       expect(result).toEqual(savedUnit);
     });
 
-    it('should throw BadRequestException if property does not exist', async () => {
+    it('should throw UnprocessableEntityException if property does not exist', async () => {
       // Mock property doesn't exist
       propertyModel.findById.mockReturnValue({
         exec: () => Promise.resolve(null),
       } as any);
 
-      await expect(service.create(validDto, propertyId)).rejects.toThrow(BadRequestException);
+      await expect(service.create(validDto, propertyId)).rejects.toThrow(
+        UnprocessableEntityException,
+      );
       await expect(service.create(validDto, propertyId)).rejects.toThrow(
         `Property with ID ${propertyId} not found`,
       );
