@@ -40,4 +40,4 @@ export class Unit extends Document implements SoftDelete {
 
 export const UnitSchema = SchemaFactory.createForClass(Unit);
 
-UnitSchema.plugin(mongooseDelete, { deletedAt: true });
+UnitSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });

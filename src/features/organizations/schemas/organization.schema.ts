@@ -30,4 +30,4 @@ export class Organization extends Document implements SoftDelete {
 
 export const OrganizationSchema = SchemaFactory.createForClass(Organization);
 
-OrganizationSchema.plugin(mongooseDelete, { deletedAt: true });
+OrganizationSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });

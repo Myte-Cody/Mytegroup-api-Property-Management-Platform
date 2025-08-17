@@ -45,4 +45,4 @@ export class Property extends Document implements SoftDelete {
 
 export const PropertySchema = SchemaFactory.createForClass(Property);
 
-PropertySchema.plugin(mongooseDelete, { deletedAt: true });
+PropertySchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
