@@ -334,4 +334,98 @@ describe('PropertiesController', () => {
       );
     });
   });
+
+  describe('update', () => {
+    const propertyId = '507f1f77bcf86cd799439011';
+    const updatePropertyDto = {
+      name: 'Updated Property Name',
+      description: 'Updated property description',
+      address: {
+        street: '456 Updated St',
+        city: 'Updated City',
+        state: 'UC',
+        postalCode: '54321',
+        country: 'Updated Country',
+      },
+    };
+
+    const updatedProperty = {
+      _id: propertyId,
+      ...updatePropertyDto,
+      owner: new Types.ObjectId('507f1f77bcf86cd799439011'),
+      createdAt: new Date('2023-01-01'),
+      updatedAt: new Date('2023-01-02'),
+    };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should call service.update with exact parameters and return result unchanged', async () => {
+      // Mock service to return updated property
+      mockPropertiesService.update.mockResolvedValue(updatedProperty);
+
+      const result = await controller.update(propertyId, updatePropertyDto);
+
+      // Test controller's core responsibility: parameter passing
+      expect(mockPropertiesService.update).toHaveBeenCalledWith(propertyId, updatePropertyDto);
+      expect(mockPropertiesService.update).toHaveBeenCalledTimes(1);
+
+      // Test controller's core responsibility: return service result unchanged
+      expect(result).toBe(updatedProperty);
+    });
+
+    it('should propagate NotFoundException from service', async () => {
+      const notFoundError = new Error('Property with ID 507f1f77bcf86cd799439011 not found');
+      notFoundError.name = 'NotFoundException';
+
+      mockPropertiesService.update.mockRejectedValue(notFoundError);
+
+      await expect(controller.update(propertyId, updatePropertyDto)).rejects.toThrow(notFoundError);
+      expect(mockPropertiesService.update).toHaveBeenCalledWith(propertyId, updatePropertyDto);
+    });
+
+    it('should propagate UnprocessableEntityException from service', async () => {
+      const validationError = new Error('Validation failed: name exceeds maximum length');
+      validationError.name = 'UnprocessableEntityException';
+
+      mockPropertiesService.update.mockRejectedValue(validationError);
+
+      await expect(controller.update(propertyId, updatePropertyDto)).rejects.toThrow(
+        validationError,
+      );
+      expect(mockPropertiesService.update).toHaveBeenCalledWith(propertyId, updatePropertyDto);
+    });
+
+    it('should propagate unexpected errors from service', async () => {
+      const unexpectedError = new Error('Database connection lost');
+
+      mockPropertiesService.update.mockRejectedValue(unexpectedError);
+
+      await expect(controller.update(propertyId, updatePropertyDto)).rejects.toThrow(
+        unexpectedError,
+      );
+      expect(mockPropertiesService.update).toHaveBeenCalledWith(propertyId, updatePropertyDto);
+    });
+
+    it('should return exact service response including null/undefined', async () => {
+      // Test different response types to ensure controller doesn't transform
+      const testCases = [
+        null,
+        undefined,
+        { customField: 'custom value', _id: propertyId },
+        [],
+        'string response',
+      ];
+
+      for (const serviceResponse of testCases) {
+        mockPropertiesService.update.mockResolvedValue(serviceResponse);
+
+        const result = await controller.update(propertyId, updatePropertyDto);
+
+        // Controller must return exact service response
+        expect(result).toBe(serviceResponse);
+      }
+    });
+  });
 });
