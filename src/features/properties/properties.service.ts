@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { SoftDeleteModel } from '../../common/interfaces/soft-delete-model.interface';
@@ -6,12 +6,15 @@ import { Organization } from '../organizations/schemas/organization.schema';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { Property } from './schemas/property.schema';
+import { Unit } from './schemas/unit.schema';
 
 @Injectable()
 export class PropertiesService {
   constructor(
     @InjectModel(Property.name)
     private readonly propertyModel: SoftDeleteModel<Property>,
+    @InjectModel(Unit.name)
+    private readonly unitModel: SoftDeleteModel<Unit>,
     @InjectModel(Organization.name)
     private readonly organizationModel: Model<Organization>,
   ) {}
@@ -59,8 +62,19 @@ export class PropertiesService {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
 
+    const activeUnits = await this.unitModel.find({ 
+      property: id,
+      deleted: { $ne: true }
+    }).exec();
+
+    if (activeUnits.length > 0) {
+      throw new ConflictException(
+        `Cannot delete property. It has ${activeUnits.length} active unit(s). Please delete all units first.`
+      );
+    }
+
     await this.propertyModel.deleteById(id);
 
-    return property;
+    return { message: 'Property deleted successfully' };
   }
 }

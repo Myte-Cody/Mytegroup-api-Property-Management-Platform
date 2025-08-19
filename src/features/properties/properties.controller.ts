@@ -88,6 +88,8 @@ export class PropertiesController {
   }
 
   @Delete(':id')
+  @Roles(OrganizationType.LANDLORD)
+  @PropertyOwner()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete property by ID (soft delete)' })
   @ApiParam({ name: 'id', description: 'Property ID', type: String })
