@@ -1,6 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import {
+  IsMongoId,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
 
 class AddressDto {
   @ApiProperty({ example: '123 Main St', description: 'Street address' })
@@ -56,4 +63,12 @@ export class CreatePropertyDto {
   @IsOptional()
   @MaxLength(1024)
   description?: string;
+
+  @ApiProperty({
+    example: '507f1f77bcf86cd799439011',
+    description: 'Owner organization ID',
+  })
+  @IsMongoId()
+  @IsNotEmpty()
+  owner: string;
 }

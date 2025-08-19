@@ -1,3 +1,4 @@
+import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
@@ -46,3 +47,4 @@ export class Property extends Document implements SoftDelete {
 export const PropertySchema = SchemaFactory.createForClass(Property);
 
 PropertySchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
+PropertySchema.plugin(accessibleRecordsPlugin);

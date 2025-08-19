@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
@@ -16,7 +16,11 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
 
-    const user = await this.userModel.findOne({ email }).select('+password').exec();
+    const user = await this.userModel
+      .findOne({ email })
+      .select('+password')
+      .populate('organization', '_id name type')
+      .exec();
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -35,8 +39,30 @@ export class AuthService {
         _id: user._id,
         username: user.username,
         email: user.email,
+        organization: user.organization,
+        isAdmin: user.isAdmin,
       },
       accessToken: this.jwtService.sign(payload),
+    };
+  }
+
+  async getCurrentUser(userId: string) {
+    const user = await this.userModel
+      .findById(userId)
+      .select('_id username email isAdmin')
+      .populate('organization', '_id name type')
+      .exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      organization: user.organization,
+      isAdmin: user.isAdmin,
     };
   }
 }

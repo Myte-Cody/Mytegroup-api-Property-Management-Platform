@@ -1,3 +1,4 @@
+import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
@@ -23,9 +24,12 @@ export class User extends Document implements SoftDelete {
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Organization',
-    required: true,
+    required: false,
   })
-  organization: Types.ObjectId;
+  organization?: Types.ObjectId;
+
+  @Prop({ default: false })
+  isAdmin: boolean;
 
   deleted: boolean;
   deletedAt?: Date;
@@ -34,3 +38,4 @@ export class User extends Document implements SoftDelete {
 export const UserSchema = SchemaFactory.createForClass(User);
 
 UserSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
+UserSchema.plugin(accessibleRecordsPlugin);

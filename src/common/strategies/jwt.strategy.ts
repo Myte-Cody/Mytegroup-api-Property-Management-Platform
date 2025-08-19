@@ -20,7 +20,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: any) {
     const user = await this.userModel
       .findById(payload.sub)
-      .select('id organization')
+      .select('_id username email isAdmin')
       .populate('organization', '_id name type')
       .exec();
     return user;

@@ -1,17 +1,22 @@
 import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
-import { SoftDeleteModel } from '../../common/interfaces/soft-delete-model.interface';
+import { Action } from '../../common/casl/casl-ability.factory';
+import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
+import { AppModel } from '../../common/interfaces/app-model.interface';
+import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { Organization } from '../organizations/schemas/organization.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserQueryDto } from './dto/user-query.dto';
 import { User } from './schemas/user.schema';
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectModel(User.name) private userModel: SoftDeleteModel<User>,
+    @InjectModel(User.name) private userModel: AppModel<User>,
     @InjectModel(Organization.name)
-    private organizationModel: SoftDeleteModel<Organization>,
+    private organizationModel: AppModel<Organization>,
+    private caslAuthorizationService: CaslAuthorizationService,
   ) {}
 
   async create(createUserDto: CreateUserDto) {
@@ -47,8 +52,54 @@ export class UsersService {
     return await newUser.save();
   }
 
-  async findAll() {
-    return await this.userModel.find().exec();
+  async findAllPaginated(queryDto: UserQueryDto, currentUser: User) {
+    const { page, limit, sortBy, sortDirection, search, organizationId } = queryDto;
+
+    const populatedUser = await this.userModel
+      .findById(currentUser._id)
+      .populate('organization')
+      .exec();
+
+    if (!populatedUser) {
+      return createPaginatedResponse<User>([], 0, page, limit);
+    }
+
+    // Create ability for the current user with populated data
+    const ability = this.caslAuthorizationService.createAbilityForUser(
+      populatedUser as unknown as User & { organization: Organization; isAdmin?: boolean },
+    );
+
+    // Build the base query using CASL accessibleBy
+    let query = this.userModel.accessibleBy(ability, Action.Read);
+
+    // Apply search filtering
+    if (search) {
+      query = query.where({
+        $or: [
+          { username: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } },
+        ],
+      });
+    }
+
+    if (organizationId) {
+      query = query.where({ organization: organizationId });
+    }
+
+    const skip = (page - 1) * limit;
+    const sortOrder = sortDirection === 'asc' ? 1 : -1;
+
+    const [users, totalCount] = await Promise.all([
+      query
+        .populate('organization')
+        .sort({ [sortBy]: sortOrder })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      query.clone().countDocuments().exec(),
+    ]);
+
+    return createPaginatedResponse<User>(users, totalCount, page, limit);
   }
 
   async findOne(id: string) {
@@ -59,8 +110,8 @@ export class UsersService {
     return user;
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto) {
-    const user = await this.userModel.findById(id).exec();
+  async update(id: string, updateUserDto: UpdateUserDto, currentUser?: User) {
+    const user = await this.userModel.findById(id).populate('organization').exec();
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
