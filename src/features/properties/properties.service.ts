@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { SoftDeleteModel } from '../../common/interfaces/soft-delete-model.interface';
@@ -62,14 +62,16 @@ export class PropertiesService {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
 
-    const activeUnits = await this.unitModel.find({ 
-      property: id,
-      deleted: { $ne: true }
-    }).exec();
+    const activeUnits = await this.unitModel
+      .find({
+        property: id,
+        deleted: { $ne: true },
+      })
+      .exec();
 
     if (activeUnits.length > 0) {
       throw new ConflictException(
-        `Cannot delete property. It has ${activeUnits.length} active unit(s). Please delete all units first.`
+        `Cannot delete property. It has ${activeUnits.length} active unit(s). Please delete all units first.`,
       );
     }
 

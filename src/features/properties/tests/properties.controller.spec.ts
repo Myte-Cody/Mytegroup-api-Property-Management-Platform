@@ -462,7 +462,9 @@ describe('PropertiesController', () => {
     });
 
     it('should propagate ConflictException from service when property has active units', async () => {
-      const conflictError = new Error('Cannot delete property. It has 2 active unit(s). Please delete all units first.');
+      const conflictError = new Error(
+        'Cannot delete property. It has 2 active unit(s). Please delete all units first.',
+      );
       conflictError.name = 'ConflictException';
 
       mockPropertiesService.remove.mockRejectedValue(conflictError);

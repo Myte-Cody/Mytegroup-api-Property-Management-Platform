@@ -64,7 +64,7 @@ describe('PropertiesService', () => {
     const unitModelMock = jest.fn().mockImplementation(() => ({
       save: jest.fn(),
     }));
-    
+
     const mockUnitModelWithMethods = unitModelMock as jest.Mock & {
       find: jest.Mock;
       findById: jest.Mock;
@@ -76,7 +76,7 @@ describe('PropertiesService', () => {
     mockUnitModelWithMethods.findById = jest.fn().mockReturnValue({
       exec: jest.fn(),
     });
-    
+
     unitModel = mockUnitModelWithMethods;
 
     organizationModel = {
@@ -396,9 +396,9 @@ describe('PropertiesService', () => {
       const result = await service.remove(propertyId);
 
       expect(propertyModel.findById).toHaveBeenCalledWith(propertyId);
-      expect(unitModel.find).toHaveBeenCalledWith({ 
+      expect(unitModel.find).toHaveBeenCalledWith({
         property: propertyId,
-        deleted: { $ne: true }
+        deleted: { $ne: true },
       });
       expect(propertyModel.deleteById).toHaveBeenCalledWith(propertyId);
       expect(result).toEqual({ message: 'Property deleted successfully' });
@@ -436,9 +436,9 @@ describe('PropertiesService', () => {
       );
 
       expect(propertyModel.findById).toHaveBeenCalledWith(propertyId);
-      expect(unitModel.find).toHaveBeenCalledWith({ 
+      expect(unitModel.find).toHaveBeenCalledWith({
         property: propertyId,
-        deleted: { $ne: true }
+        deleted: { $ne: true },
       });
       expect(propertyModel.deleteById).not.toHaveBeenCalled();
     });
