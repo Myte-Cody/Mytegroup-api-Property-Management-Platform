@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { SoftDeleteModel } from '../../common/interfaces/soft-delete-model.interface';
@@ -44,15 +44,6 @@ export class PropertiesService {
     const property = await this.propertyModel.findById(id).exec();
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
-    }
-
-    if (updatePropertyDto.owner) {
-      const organization = await this.organizationModel.findById(updatePropertyDto.owner).exec();
-      if (!organization) {
-        throw new UnprocessableEntityException(
-          `Organization with ID ${updatePropertyDto.owner} does not exist`,
-        );
-      }
     }
 
     const updatedProperty = await this.propertyModel

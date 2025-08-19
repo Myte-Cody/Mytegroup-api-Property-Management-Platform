@@ -9,12 +9,10 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { PropertyOwner } from '../../common/authorization/decorators/property-owner.decorator';
 import { Roles } from '../../common/authorization/decorators/roles.decorator';
-import { PropertyOwnerGuard } from '../../common/authorization/guards/property-owner.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { OrganizationType } from '../../common/enums/organization.enum';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
@@ -74,7 +72,9 @@ export class PropertiesController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update property by ID' })
+  @Roles(OrganizationType.LANDLORD)
+  @PropertyOwner()
+  @ApiOperation({ summary: 'Update property by ID (landlords only)' })
   @ApiParam({ name: 'id', description: 'Property ID', type: String })
   @ApiBody({
     type: UpdatePropertyDto,
@@ -96,8 +96,8 @@ export class PropertiesController {
   }
 
   @Post(':id/units')
+  @Roles(OrganizationType.LANDLORD)
   @PropertyOwner()
-  @UseGuards(PropertyOwnerGuard)
   @ApiOperation({ summary: 'Add a unit to a property' })
   @ApiParam({ name: 'id', description: 'Property ID', type: String })
   @ApiBody({ type: CreateUnitDto, description: 'Unit data to create' })

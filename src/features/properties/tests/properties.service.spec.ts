@@ -41,12 +41,16 @@ describe('PropertiesService', () => {
     const mockModelWithMethods = ModelMock as jest.Mock & {
       findById: jest.Mock;
       find: jest.Mock;
+      findByIdAndUpdate: jest.Mock;
     };
 
     mockModelWithMethods.findById = jest.fn().mockReturnValue({
       exec: jest.fn(),
     });
     mockModelWithMethods.find = jest.fn().mockReturnValue({
+      exec: jest.fn(),
+    });
+    mockModelWithMethods.findByIdAndUpdate = jest.fn().mockReturnValue({
       exec: jest.fn(),
     });
 
@@ -175,6 +179,163 @@ describe('PropertiesService', () => {
       // Verify the query was constructed correctly despite the error
       expect(propertyModel.find).toHaveBeenCalledWith({ owner: landlordId });
       expect(mockExec).toHaveBeenCalled();
+    });
+  });
+
+  describe('update', () => {
+    const propertyId = '507f1f77bcf86cd799439011';
+    const updatePropertyDto = {
+      name: 'Updated Property Name',
+      description: 'Updated property description',
+      address: {
+        street: '456 Updated St',
+        city: 'Updated City',
+        state: 'UC',
+        postalCode: '54321',
+        country: 'Updated Country',
+      },
+    };
+
+    const existingProperty = {
+      _id: new Types.ObjectId(propertyId),
+      name: 'Original Property',
+      address: {
+        street: '123 Original St',
+        city: 'Original City',
+        state: 'OC',
+        postalCode: '12345',
+        country: 'Original Country',
+      },
+      owner: new Types.ObjectId('507f1f77bcf86cd799439011'),
+      createdAt: new Date('2023-01-01'),
+      updatedAt: new Date('2023-01-01'),
+    };
+
+    const updatedProperty = {
+      ...existingProperty,
+      ...updatePropertyDto,
+      updatedAt: new Date('2023-01-02'),
+    };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    describe('Successful Updates', () => {
+      it('should successfully update a property when it exists', async () => {
+        // Mock findById to return existing property
+        const mockFindByIdExec = jest.fn().mockResolvedValue(existingProperty);
+        propertyModel.findById.mockReturnValue({ exec: mockFindByIdExec });
+
+        // Mock findByIdAndUpdate to return updated property
+        const mockUpdateExec = jest.fn().mockResolvedValue(updatedProperty);
+        propertyModel.findByIdAndUpdate = jest.fn().mockReturnValue({ exec: mockUpdateExec });
+
+        const result = await service.update(propertyId, updatePropertyDto);
+
+        // Verify the service logic: check existence first, then update
+        expect(propertyModel.findById).toHaveBeenCalledWith(propertyId);
+        expect(propertyModel.findByIdAndUpdate).toHaveBeenCalledWith(
+          propertyId,
+          updatePropertyDto,
+          { new: true },
+        );
+        expect(result).toBe(updatedProperty);
+      });
+
+      it('should pass any update DTO to findByIdAndUpdate without modification', async () => {
+        // Test that service doesn't modify the DTO - this is the real logic we're testing
+        const complexUpdateDto = {
+          name: 'Complex Name',
+          address: {
+            street: 'Street',
+            city: 'City',
+            state: 'State',
+            postalCode: '12345',
+            country: 'Country',
+          },
+          description: 'Description',
+          customField: 'should pass through',
+        };
+
+        const mockFindByIdExec = jest.fn().mockResolvedValue(existingProperty);
+        propertyModel.findById.mockReturnValue({ exec: mockFindByIdExec });
+
+        const mockUpdateExec = jest.fn().mockResolvedValue(updatedProperty);
+        propertyModel.findByIdAndUpdate = jest.fn().mockReturnValue({ exec: mockUpdateExec });
+
+        await service.update(propertyId, complexUpdateDto);
+
+        // The key assertion: service passes DTO unchanged to database
+        expect(propertyModel.findByIdAndUpdate).toHaveBeenCalledWith(
+          propertyId,
+          complexUpdateDto, // Should be exact same object reference
+          { new: true },
+        );
+      });
+    });
+
+    describe('Property Not Found Scenarios', () => {
+      it('should throw NotFoundException when property does not exist', async () => {
+        // Mock findById to return null (property not found)
+        const mockFindByIdExec = jest.fn().mockResolvedValue(null);
+        propertyModel.findById.mockReturnValue({ exec: mockFindByIdExec });
+
+        await expect(service.update(propertyId, updatePropertyDto)).rejects.toThrow(
+          `Property with ID ${propertyId} not found`,
+        );
+
+        // Verify findById was called
+        expect(propertyModel.findById).toHaveBeenCalledWith(propertyId);
+        expect(mockFindByIdExec).toHaveBeenCalled();
+
+        // Verify findByIdAndUpdate was NOT called since property doesn't exist
+        expect(propertyModel.findByIdAndUpdate).not.toHaveBeenCalled();
+      });
+
+      it('should throw NotFoundException with correct error message format', async () => {
+        const customPropertyId = '60d21b4667d0d8992e610c85';
+        const mockFindByIdExec = jest.fn().mockResolvedValue(null);
+        propertyModel.findById.mockReturnValue({ exec: mockFindByIdExec });
+
+        await expect(service.update(customPropertyId, updatePropertyDto)).rejects.toThrow(
+          `Property with ID ${customPropertyId} not found`,
+        );
+
+        expect(propertyModel.findById).toHaveBeenCalledWith(customPropertyId);
+      });
+    });
+
+    describe('Database Error Scenarios', () => {
+      it('should propagate database errors from findById', async () => {
+        const dbError = new Error('Database connection failed');
+        const mockFindByIdExec = jest.fn().mockRejectedValue(dbError);
+        propertyModel.findById.mockReturnValue({ exec: mockFindByIdExec });
+
+        await expect(service.update(propertyId, updatePropertyDto)).rejects.toThrow(dbError);
+
+        expect(propertyModel.findById).toHaveBeenCalledWith(propertyId);
+        expect(propertyModel.findByIdAndUpdate).not.toHaveBeenCalled();
+      });
+
+      it('should propagate database errors from findByIdAndUpdate', async () => {
+        const dbError = new Error('Update operation failed');
+
+        const mockFindByIdExec = jest.fn().mockResolvedValue(existingProperty);
+        propertyModel.findById.mockReturnValue({ exec: mockFindByIdExec });
+
+        const mockUpdateExec = jest.fn().mockRejectedValue(dbError);
+        propertyModel.findByIdAndUpdate = jest.fn().mockReturnValue({ exec: mockUpdateExec });
+
+        await expect(service.update(propertyId, updatePropertyDto)).rejects.toThrow(dbError);
+
+        expect(propertyModel.findById).toHaveBeenCalledWith(propertyId);
+        expect(propertyModel.findByIdAndUpdate).toHaveBeenCalledWith(
+          propertyId,
+          updatePropertyDto,
+          { new: true },
+        );
+      });
     });
   });
 });
