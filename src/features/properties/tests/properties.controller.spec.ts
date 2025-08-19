@@ -428,4 +428,77 @@ describe('PropertiesController', () => {
       }
     });
   });
+
+  describe('remove', () => {
+    const propertyId = '507f1f77bcf86cd799439011';
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should call service.remove with correct property ID and return success message', async () => {
+      // Mock service to return success message
+      const successResponse = { message: 'Property deleted successfully' };
+      mockPropertiesService.remove.mockResolvedValue(successResponse);
+
+      const result = await controller.remove(propertyId);
+
+      // Verify service was called with correct parameters
+      expect(mockPropertiesService.remove).toHaveBeenCalledWith(propertyId);
+      expect(mockPropertiesService.remove).toHaveBeenCalledTimes(1);
+
+      // Verify controller returns service response unchanged
+      expect(result).toBe(successResponse);
+    });
+
+    it('should propagate NotFoundException from service when property does not exist', async () => {
+      const notFoundError = new Error(`Property with ID ${propertyId} not found`);
+      notFoundError.name = 'NotFoundException';
+
+      mockPropertiesService.remove.mockRejectedValue(notFoundError);
+
+      await expect(controller.remove(propertyId)).rejects.toThrow(notFoundError);
+      expect(mockPropertiesService.remove).toHaveBeenCalledWith(propertyId);
+    });
+
+    it('should propagate ConflictException from service when property has active units', async () => {
+      const conflictError = new Error(
+        'Cannot delete property. It has 2 active unit(s). Please delete all units first.',
+      );
+      conflictError.name = 'ConflictException';
+
+      mockPropertiesService.remove.mockRejectedValue(conflictError);
+
+      await expect(controller.remove(propertyId)).rejects.toThrow(conflictError);
+      expect(mockPropertiesService.remove).toHaveBeenCalledWith(propertyId);
+    });
+
+    it('should propagate database errors from service', async () => {
+      const dbError = new Error('Database connection failed');
+      dbError.name = 'InternalServerErrorException';
+
+      mockPropertiesService.remove.mockRejectedValue(dbError);
+
+      await expect(controller.remove(propertyId)).rejects.toThrow(dbError);
+      expect(mockPropertiesService.remove).toHaveBeenCalledWith(propertyId);
+    });
+
+    it('should return exact service response', async () => {
+      // Test different response types to ensure controller doesn't transform
+      const testCases = [
+        { message: 'Property deleted successfully' },
+        { message: 'Custom deletion message', deletedCount: 1 },
+        { success: true },
+      ];
+
+      for (const serviceResponse of testCases) {
+        mockPropertiesService.remove.mockResolvedValue(serviceResponse);
+
+        const result = await controller.remove(propertyId);
+
+        // Controller must return exact service response
+        expect(result).toBe(serviceResponse);
+      }
+    });
+  });
 });

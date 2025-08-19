@@ -10,6 +10,7 @@ import { Property } from '../schemas/property.schema';
 describe('PropertiesService', () => {
   let service: PropertiesService;
   let propertyModel: any; // Using any to avoid TypeScript issues
+  let unitModel: any;
   let organizationModel: jest.Mocked<SoftDeleteModel<Organization>>;
 
   const mockProperty: Partial<Property> = {
@@ -42,6 +43,7 @@ describe('PropertiesService', () => {
       findById: jest.Mock;
       find: jest.Mock;
       findByIdAndUpdate: jest.Mock;
+      deleteById: jest.Mock;
     };
 
     mockModelWithMethods.findById = jest.fn().mockReturnValue({
@@ -53,9 +55,29 @@ describe('PropertiesService', () => {
     mockModelWithMethods.findByIdAndUpdate = jest.fn().mockReturnValue({
       exec: jest.fn(),
     });
+    mockModelWithMethods.deleteById = jest.fn();
 
     // Assign the mock to propertyModel
     propertyModel = mockModelWithMethods;
+
+    // Create unit model mock
+    const unitModelMock = jest.fn().mockImplementation(() => ({
+      save: jest.fn(),
+    }));
+
+    const mockUnitModelWithMethods = unitModelMock as jest.Mock & {
+      find: jest.Mock;
+      findById: jest.Mock;
+    };
+
+    mockUnitModelWithMethods.find = jest.fn().mockReturnValue({
+      exec: jest.fn(),
+    });
+    mockUnitModelWithMethods.findById = jest.fn().mockReturnValue({
+      exec: jest.fn(),
+    });
+
+    unitModel = mockUnitModelWithMethods;
 
     organizationModel = {
       findById: jest.fn(),
@@ -65,6 +87,7 @@ describe('PropertiesService', () => {
       providers: [
         PropertiesService,
         { provide: getModelToken('Property'), useValue: propertyModel },
+        { provide: getModelToken('Unit'), useValue: unitModel },
         { provide: getModelToken('Organization'), useValue: organizationModel },
       ],
     }).compile();
@@ -336,6 +359,88 @@ describe('PropertiesService', () => {
           { new: true },
         );
       });
+    });
+  });
+
+  describe('remove', () => {
+    const propertyId = '507f1f77bcf86cd799439011';
+    const existingProperty = {
+      _id: new Types.ObjectId(propertyId),
+      name: 'Test Property',
+      address: {
+        street: '123 Test St',
+        city: 'Test City',
+        state: 'Test State',
+        postalCode: '12345',
+        country: 'Test Country',
+      },
+      owner: new Types.ObjectId('507f1f77bcf86cd799439011'),
+    };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should successfully delete a property when it exists and has no active units', async () => {
+      // Mock findById to return existing property
+      const mockFindByIdExec = jest.fn().mockResolvedValue(existingProperty);
+      propertyModel.findById.mockReturnValue({ exec: mockFindByIdExec });
+
+      // Mock unit find to return empty array (no active units)
+      const mockUnitFindExec = jest.fn().mockResolvedValue([]);
+      unitModel.find.mockReturnValue({ exec: mockUnitFindExec });
+
+      // Mock deleteById method
+      propertyModel.deleteById = jest.fn().mockResolvedValue(undefined);
+
+      const result = await service.remove(propertyId);
+
+      expect(propertyModel.findById).toHaveBeenCalledWith(propertyId);
+      expect(unitModel.find).toHaveBeenCalledWith({
+        property: propertyId,
+        deleted: { $ne: true },
+      });
+      expect(propertyModel.deleteById).toHaveBeenCalledWith(propertyId);
+      expect(result).toEqual({ message: 'Property deleted successfully' });
+    });
+
+    it('should throw NotFoundException when property does not exist', async () => {
+      // Mock findById to return null
+      const mockFindByIdExec = jest.fn().mockResolvedValue(null);
+      propertyModel.findById.mockReturnValue({ exec: mockFindByIdExec });
+
+      await expect(service.remove(propertyId)).rejects.toThrow(
+        `Property with ID ${propertyId} not found`,
+      );
+
+      expect(propertyModel.findById).toHaveBeenCalledWith(propertyId);
+      expect(unitModel.find).not.toHaveBeenCalled();
+      expect(propertyModel.deleteById).not.toHaveBeenCalled();
+    });
+
+    it('should throw ConflictException when property has active units', async () => {
+      // Mock findById to return existing property
+      const mockFindByIdExec = jest.fn().mockResolvedValue(existingProperty);
+      propertyModel.findById.mockReturnValue({ exec: mockFindByIdExec });
+
+      // Mock unit find to return active units
+      const activeUnits = [
+        { _id: new Types.ObjectId(), unitNumber: '101', property: propertyId },
+        { _id: new Types.ObjectId(), unitNumber: '102', property: propertyId },
+      ];
+      const mockUnitFindExec = jest.fn().mockResolvedValue(activeUnits);
+      unitModel.find.mockReturnValue({ exec: mockUnitFindExec });
+
+      await expect(service.remove(propertyId)).rejects.toThrow(
+        'Cannot delete property. It has 2 active unit(s). Please delete all units first.',
+      );
+
+      expect(propertyModel.findById).toHaveBeenCalledWith(propertyId);
+      expect(unitModel.find).toHaveBeenCalledWith({
+        property: propertyId,
+        deleted: { $ne: true },
+      });
+      expect(propertyModel.deleteById).not.toHaveBeenCalled();
     });
   });
 });
