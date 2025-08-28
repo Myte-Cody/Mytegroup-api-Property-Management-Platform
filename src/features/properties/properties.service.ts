@@ -74,17 +74,16 @@ export class PropertiesService {
       populatedUser as unknown as User & { organization: Organization; isAdmin?: boolean },
     );
 
-    // Build the base query using CASL accessibleBy
-    let query = this.propertyModel.accessibleBy(ability, Action.Read);
+    let baseQuery = (this.propertyModel.find() as any).accessibleBy(ability, Action.Read);
 
     // Add landlord filter if specified
     if (landlordId) {
-      query = query.where({ owner: landlordId });
+      baseQuery = baseQuery.where({ owner: landlordId });
     }
 
     // Add search functionality
     if (search) {
-      query = query.where({
+      baseQuery = baseQuery.where({
         $or: [
           { name: { $regex: search, $options: 'i' } },
           { description: { $regex: search, $options: 'i' } },
@@ -101,11 +100,11 @@ export class PropertiesService {
     const stateFilters = queryDto['filters[state]'];
 
     if (cityFilters && cityFilters.length > 0) {
-      query = query.where({ 'address.city': { $in: cityFilters } });
+      baseQuery = baseQuery.where({ 'address.city': { $in: cityFilters } });
     }
 
     if (stateFilters && stateFilters.length > 0) {
-      query = query.where({ 'address.state': { $in: stateFilters } });
+      baseQuery = baseQuery.where({ 'address.state': { $in: stateFilters } });
     }
 
     // Build sort object
@@ -115,10 +114,14 @@ export class PropertiesService {
     // Calculate pagination
     const skip = (page - 1) * limit;
 
+    // Create separate queries for data and count to avoid interference
+    const dataQuery = baseQuery.clone().sort(sortObj).skip(skip).limit(limit);
+    const countQuery = baseQuery.clone().countDocuments();
+
     // Execute queries
     const [properties, total] = await Promise.all([
-      query.sort(sortObj).skip(skip).limit(limit).exec(),
-      query.clone().countDocuments().exec(),
+      dataQuery.exec(),
+      countQuery.exec(),
     ]);
 
     return createPaginatedResponse<Property>(properties, total, page, limit);

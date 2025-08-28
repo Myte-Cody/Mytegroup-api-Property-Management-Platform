@@ -41,7 +41,7 @@ export class OrganizationsService {
   }
 
   async findAllPaginated(queryDto: OrganizationQueryDto, currentUser: User) {
-    const { page, limit, sortBy, sortDirection, search, type } = queryDto;
+    const { page, limit, sortBy, sortOrder, search, type } = queryDto;
 
     const populatedUser = await this.userModel
       .findById(currentUser._id)
@@ -56,26 +56,30 @@ export class OrganizationsService {
       populatedUser as unknown as User & { organization: Organization; isAdmin?: boolean },
     );
 
-    let query = this.organizationModel.accessibleBy(ability, Action.Read);
+    let baseQuery = (this.organizationModel.find() as any).accessibleBy(ability, Action.Read);
 
     if (search) {
-      query = query.where({ name: { $regex: search, $options: 'i' } });
+      baseQuery = baseQuery.where({ name: { $regex: search, $options: 'i' } });
     }
 
     if (type) {
-      query = query.where({ type });
+      baseQuery = baseQuery.where({ type });
     }
 
     const skip = (page - 1) * limit;
-    const sortOrder = sortDirection === 'asc' ? 1 : -1;
+
+    // Create separate queries for data and count to avoid interference
+    const dataQuery = baseQuery
+      .clone()
+      .sort({ [sortBy]: sortOrder === 'asc' ? 1 : -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const countQuery = baseQuery.clone().countDocuments();
 
     const [organizations, totalCount] = await Promise.all([
-      query
-        .sort({ [sortBy]: sortOrder })
-        .skip(skip)
-        .limit(limit)
-        .exec(),
-      query.clone().countDocuments().exec(),
+      dataQuery.exec(),
+      countQuery.exec(),
     ]);
 
     return createPaginatedResponse<Organization>(organizations, totalCount, page, limit);

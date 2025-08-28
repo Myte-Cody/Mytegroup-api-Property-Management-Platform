@@ -53,7 +53,7 @@ export class UsersService {
   }
 
   async findAllPaginated(queryDto: UserQueryDto, currentUser: User) {
-    const { page, limit, sortBy, sortDirection, search, organizationId } = queryDto;
+    const { page, limit, sortBy, sortOrder, search, organizationId } = queryDto;
 
     const populatedUser = await this.userModel
       .findById(currentUser._id)
@@ -69,12 +69,11 @@ export class UsersService {
       populatedUser as unknown as User & { organization: Organization; isAdmin?: boolean },
     );
 
-    // Build the base query using CASL accessibleBy
-    let query = this.userModel.accessibleBy(ability, Action.Read);
+    let baseQuery = (this.userModel.find() as any).accessibleBy(ability, Action.Read);
 
     // Apply search filtering
     if (search) {
-      query = query.where({
+      baseQuery = baseQuery.where({
         $or: [
           { username: { $regex: search, $options: 'i' } },
           { email: { $regex: search, $options: 'i' } },
@@ -83,20 +82,24 @@ export class UsersService {
     }
 
     if (organizationId) {
-      query = query.where({ organization: organizationId });
+      baseQuery = baseQuery.where({ organization: organizationId });
     }
 
     const skip = (page - 1) * limit;
-    const sortOrder = sortDirection === 'asc' ? 1 : -1;
+
+    // Create separate queries for data and count to avoid interference
+    const dataQuery = baseQuery
+      .clone()
+      .populate('organization')
+      .sort({ [sortBy]: sortOrder === 'asc' ? 1 : -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const countQuery = baseQuery.clone().countDocuments();
 
     const [users, totalCount] = await Promise.all([
-      query
-        .populate('organization')
-        .sort({ [sortBy]: sortOrder })
-        .skip(skip)
-        .limit(limit)
-        .exec(),
-      query.clone().countDocuments().exec(),
+      dataQuery.exec(),
+      countQuery.exec(),
     ]);
 
     return createPaginatedResponse<User>(users, totalCount, page, limit);

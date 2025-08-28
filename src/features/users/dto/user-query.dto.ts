@@ -25,7 +25,7 @@ export class UserQueryDto {
   @ApiPropertyOptional({ description: 'Sort direction', enum: ['asc', 'desc'], default: 'desc' })
   @IsOptional()
   @IsString()
-  sortDirection?: 'asc' | 'desc' = 'desc';
+  sortOrder?: 'asc' | 'desc' = 'desc';
 
   @ApiPropertyOptional({ description: 'Search term for username or email' })
   @IsOptional()

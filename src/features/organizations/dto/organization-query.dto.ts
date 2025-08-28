@@ -26,7 +26,7 @@ export class OrganizationQueryDto {
   @ApiPropertyOptional({ description: 'Sort direction', enum: ['asc', 'desc'], default: 'desc' })
   @IsOptional()
   @IsEnum(['asc', 'desc'])
-  sortDirection?: 'asc' | 'desc' = 'desc';
+  sortOrder?: 'asc' | 'desc' = 'desc';
 
   @ApiPropertyOptional({ description: 'Search term for organization name' })
   @IsOptional()

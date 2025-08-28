@@ -80,21 +80,21 @@ export class UnitsService {
       currentUser as User & { organization: Organization; isAdmin?: boolean },
     );
 
-    let query = this.unitModel.accessibleBy(ability, Action.Read);
+    let baseQuery = (this.unitModel.find() as any).accessibleBy(ability, Action.Read);
 
     if (queryDto.landlordId) {
       const landlordPropertyIds = await this.getLandlordPropertyIds(queryDto.landlordId);
       if (landlordPropertyIds.length === 0) {
         return createEmptyPaginatedResponse<Unit>(page, limit);
       }
-      query = query.where({ property: { $in: landlordPropertyIds } });
+      baseQuery = baseQuery.where({ property: { $in: landlordPropertyIds } });
     }
     if (propertyId) {
-      query = query.where({ property: propertyId });
+      baseQuery = baseQuery.where({ property: propertyId });
     }
 
     if (search) {
-      query = query.where({ unitNumber: { $regex: search, $options: 'i' } });
+      baseQuery = baseQuery.where({ unitNumber: { $regex: search, $options: 'i' } });
     }
 
     // Add filters
@@ -102,11 +102,11 @@ export class UnitsService {
     const statusFilters = queryDto['filters[availabilityStatus]'];
 
     if (typeFilters && typeFilters.length > 0) {
-      query = query.where({ type: { $in: typeFilters } });
+      baseQuery = baseQuery.where({ type: { $in: typeFilters } });
     }
 
     if (statusFilters && statusFilters.length > 0) {
-      query = query.where({ availabilityStatus: { $in: statusFilters } });
+      baseQuery = baseQuery.where({ availabilityStatus: { $in: statusFilters } });
     }
 
     // Add size range filtering
@@ -118,7 +118,7 @@ export class UnitsService {
       if (maxSize !== undefined) {
         sizeQuery.$lte = maxSize;
       }
-      query = query.where({ size: sizeQuery });
+      baseQuery = baseQuery.where({ size: sizeQuery });
     }
 
     // Build sort object
@@ -127,9 +127,13 @@ export class UnitsService {
 
     const skip = (page - 1) * limit;
 
+    // Create separate queries for data and count to avoid interference
+    const dataQuery = baseQuery.clone().sort(sortObj).skip(skip).limit(limit).populate('property');
+    const countQuery = baseQuery.clone().countDocuments();
+
     const [units, total] = await Promise.all([
-      query.clone().sort(sortObj).skip(skip).limit(limit).populate('property').exec(),
-      query.clone().countDocuments().exec(),
+      dataQuery.exec(),
+      countQuery.exec(),
     ]);
 
     return createPaginatedResponse<Unit>(units, total, page, limit);
@@ -202,10 +206,10 @@ export class UnitsService {
 
     // Apply additional role-based access control for creation
     if (currentUser.organization) {
-      switch (currentUser.organization.type) {
+      switch ((currentUser.organization as unknown as Organization).type) {
         case OrganizationType.LANDLORD:
           // Landlords can only create units in properties they own
-          if (property.owner?.toString() !== currentUser.organization._id.toString()) {
+          if (property.owner?.toString() !== (currentUser.organization as unknown as Organization)._id.toString()) {
             throw new ForbiddenException(`You can only create units in properties you own`);
           }
           break;
@@ -233,9 +237,9 @@ export class UnitsService {
     }
 
     if (currentUser.organization) {
-      switch (currentUser.organization.type) {
+      switch ((currentUser.organization as unknown as Organization).type) {
         case OrganizationType.LANDLORD:
-          if (unit.property?.owner?.toString() !== currentUser.organization._id.toString()) {
+          if (unit.property?.owner?.toString() !== (currentUser.organization as unknown as Organization)._id.toString()) {
             throw new ForbiddenException(`Forbidden resources`);
           }
           break;
@@ -278,9 +282,9 @@ export class UnitsService {
     }
 
     if (currentUser.organization) {
-      switch (currentUser.organization.type) {
+      switch ((currentUser.organization as unknown as Organization).type) {
         case OrganizationType.LANDLORD:
-          if (unit.property?.owner?.toString() !== currentUser.organization._id.toString()) {
+          if (unit.property?.owner?.toString() !== (currentUser.organization as unknown as Organization)._id.toString()) {
             throw new ForbiddenException(`Forbidden resources`);
           }
           break;
@@ -324,9 +328,9 @@ export class UnitsService {
     }
 
     if (currentUser.organization) {
-      switch (currentUser.organization.type) {
+      switch ((currentUser.organization as unknown as Organization).type) {
         case OrganizationType.LANDLORD:
-          if (unit.property?.owner?.toString() !== currentUser.organization._id.toString()) {
+          if (unit.property?.owner?.toString() !== (currentUser.organization as unknown as Organization)._id.toString()) {
             throw new ForbiddenException(`Forbidden resources`);
           }
           break;
@@ -349,10 +353,10 @@ export class UnitsService {
       return;
     }
 
-    switch (currentUser.organization.type) {
+    switch ((currentUser.organization as unknown as Organization).type) {
       case OrganizationType.LANDLORD:
         // Landlords can only see units in their own properties
-        queryDto.landlordId = currentUser.organization._id.toString();
+        queryDto.landlordId = (currentUser.organization as unknown as Organization)._id.toString();
         break;
 
       case OrganizationType.PROPERTY_MANAGER:
