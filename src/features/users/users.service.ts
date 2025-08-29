@@ -113,6 +113,10 @@ export class UsersService {
     return user;
   }
 
+  async findByEmail(email: string) {
+    return await this.userModel.findOne({ email }).exec();
+  }
+
   async update(id: string, updateUserDto: UpdateUserDto, currentUser?: User) {
     const user = await this.userModel.findById(id).populate('organization').exec();
     if (!user) {
