@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { RolesGuard } from './common/authorization/guards/roles.guard';
 import { AppGuard } from './common/guards/app.guard';
 
 async function bootstrap() {
@@ -18,7 +17,7 @@ async function bootstrap() {
   );
 
   const reflector = app.get(Reflector);
-  app.useGlobalGuards(new AppGuard(reflector), new RolesGuard(reflector));
+  app.useGlobalGuards(new AppGuard(reflector));
 
   // Set up Swagger documentation
   const config = new DocumentBuilder()

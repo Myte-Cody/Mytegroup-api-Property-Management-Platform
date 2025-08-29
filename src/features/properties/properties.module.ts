@@ -1,13 +1,15 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { AuthorizationModule } from '../../common/authorization/authorization.module';
+import { CaslModule } from '../../common/casl/casl.module';
 import { Organization, OrganizationSchema } from '../organizations/schemas/organization.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { PropertiesController } from './properties.controller';
 import { PropertiesService } from './properties.service';
 import { Property, PropertySchema } from './schemas/property.schema';
 import { Unit, UnitSchema } from './schemas/unit.schema';
+import { UnitsController } from './units.controller';
 import { UnitsService } from './units.service';
+import { UnitBusinessValidator } from './validators/unit-business-validator';
 
 @Module({
   imports: [
@@ -17,9 +19,9 @@ import { UnitsService } from './units.service';
       { schema: OrganizationSchema, name: Organization.name },
       { schema: UserSchema, name: User.name },
     ]),
-    AuthorizationModule,
+    CaslModule,
   ],
-  controllers: [PropertiesController],
-  providers: [PropertiesService, UnitsService],
+  controllers: [PropertiesController, UnitsController],
+  providers: [PropertiesService, UnitsService, UnitBusinessValidator],
 })
 export class PropertiesModule {}

@@ -1,12 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsEmail,
   IsMongoId,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Matches,
   MaxLength,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateUserDto {
@@ -42,10 +45,21 @@ export class CreateUserDto {
 
   @ApiProperty({
     example: '60d21b4667d0d8992e610c85',
-    description: 'Organization ID',
+    description: 'Organization ID - required for non-admin users, optional for admin users',
     required: false,
   })
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'Organization is required for non-admin users' })
+  @ValidateIf((obj) => !obj.isAdmin)
   @IsMongoId()
-  organization: string;
+  organization?: string;
+
+  @ApiProperty({
+    example: false,
+    description: 'Whether the user is a system administrator',
+    required: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isAdmin?: boolean;
 }
