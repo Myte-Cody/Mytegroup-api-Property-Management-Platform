@@ -128,7 +128,7 @@ export class OrganizationsService {
 
     if (usersInOrganization.length > 0) {
       throw new UnprocessableEntityException(
-        `Cannot delete organization. It has ${usersInOrganization.length} user(s). Please remove or reassign all users first.`,
+        `Cannot delete organization. It has ${usersInOrganization.length} user(s).`,
       );
     }
 
