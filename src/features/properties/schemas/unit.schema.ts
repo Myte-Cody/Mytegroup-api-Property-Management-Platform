@@ -4,6 +4,8 @@ import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enum';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
+const mongoTenant = require('mongo-tenant');
+
 
 @Schema({ timestamps: true })
 export class Unit extends Document implements SoftDelete {
@@ -43,3 +45,4 @@ export const UnitSchema = SchemaFactory.createForClass(Unit);
 
 UnitSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 UnitSchema.plugin(accessibleRecordsPlugin);
+UnitSchema.plugin(mongoTenant);

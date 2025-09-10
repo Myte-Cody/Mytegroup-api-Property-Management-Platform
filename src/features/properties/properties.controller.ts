@@ -48,7 +48,7 @@ export class PropertiesController {
   @ApiOperation({ summary: 'Create a new property' })
   @ApiBody({ type: CreatePropertyDto, description: 'Property data to create' })
   create(@CurrentUser() user: User, @Body() createPropertyDto: CreatePropertyDto) {
-    return this.propertiesService.create(createPropertyDto);
+    return this.propertiesService.create(createPropertyDto, user);
   }
 
   @Get()
@@ -75,8 +75,11 @@ export class PropertiesController {
   @CheckPolicies(new ReadPropertyPolicyHandler())
   @ApiOperation({ summary: 'Get property by ID' })
   @ApiParam({ name: 'id', description: 'Property ID', type: String })
-  findOne(@Param('id', MongoIdValidationPipe) id: string) {
-    return this.propertiesService.findOne(id);
+  findOne(
+    @Param('id', MongoIdValidationPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.propertiesService.findOne(id, user);
   }
 
   @Patch(':id')
@@ -89,9 +92,10 @@ export class PropertiesController {
   })
   update(
     @Param('id', MongoIdValidationPipe) id: string,
+    @CurrentUser() user: User,
     @Body() updatePropertyDto: UpdatePropertyDto,
   ) {
-    return this.propertiesService.update(id, updatePropertyDto);
+    return this.propertiesService.update(id, updatePropertyDto, user);
   }
 
   @Delete(':id')
@@ -99,8 +103,11 @@ export class PropertiesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete property by ID (soft delete)' })
   @ApiParam({ name: 'id', description: 'Property ID', type: String })
-  remove(@Param('id', MongoIdValidationPipe) id: string) {
-    return this.propertiesService.remove(id);
+  remove(
+    @Param('id', MongoIdValidationPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.propertiesService.remove(id, user);
   }
 
   @Post(':id/units')

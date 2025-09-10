@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CaslModule } from '../../common/casl/casl.module';
-import { Organization, OrganizationSchema } from '../organizations/schemas/organization.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { PropertiesController } from './properties.controller';
 import { PropertiesService } from './properties.service';
@@ -16,7 +15,6 @@ import { UnitBusinessValidator } from './validators/unit-business-validator';
     MongooseModule.forFeature([
       { schema: PropertySchema, name: Property.name },
       { schema: UnitSchema, name: Unit.name },
-      { schema: OrganizationSchema, name: Organization.name },
       { schema: UserSchema, name: User.name },
     ]),
     CaslModule,

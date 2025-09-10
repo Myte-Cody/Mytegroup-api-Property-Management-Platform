@@ -74,8 +74,6 @@ export class CaslAbilityFactory {
       });
     }
 
-    console.log('✅ CASL Debug - User type:', user.user_type);
-
     switch (user.user_type) {
       case UserType.LANDLORD:
         this.defineLandlordPermissions(can, cannot, user);

@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -9,7 +10,6 @@ import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
-import { Organization } from '../organizations/schemas/organization.schema';
 import { User } from '../users/schemas/user.schema';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { PaginatedPropertiesResponse, PropertyQueryDto } from './dto/property-query.dto';
@@ -24,27 +24,10 @@ export class PropertiesService {
     private readonly propertyModel: AppModel<Property>,
     @InjectModel(Unit.name)
     private readonly unitModel: AppModel<Unit>,
-    @InjectModel(Organization.name)
-    private readonly organizationModel: AppModel<Organization>,
     @InjectModel(User.name)
     private readonly userModel: AppModel<User>,
     private caslAuthorizationService: CaslAuthorizationService,
   ) {}
-  async create(createPropertyDto: CreatePropertyDto) {
-    if (createPropertyDto.owner) {
-      const existingOwner = await this.organizationModel.findById(createPropertyDto.owner).exec();
-      if (!existingOwner) {
-        throw new UnprocessableEntityException(
-          `Organization with ID ${createPropertyDto.owner} does not exist`,
-        );
-      }
-    }
-
-    const newProperty = new this.propertyModel({
-      ...createPropertyDto,
-    });
-    return await newProperty.save();
-  }
 
   async findAllPaginated(
     queryDto: PropertyQueryDto,
@@ -56,30 +39,27 @@ export class PropertiesService {
       search,
       sortBy = 'createdAt',
       sortOrder = 'desc',
-      landlordId,
     } = queryDto;
 
-    // Ensure currentUser has populated organization data
-    const populatedUser = await this.userModel
-      .findById(currentUser._id)
-      .populate('organization')
-      .exec();
+    // STEP 1: CASL - Check if user can read properties
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
-    if (!populatedUser) {
+    if (!ability.can(Action.Read, Property)) {
+      throw new ForbiddenException('You do not have permission to view properties');
+    }
+
+    // STEP 2: mongo-tenant - Apply tenant isolation (mandatory for all users)
+    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
+      ? (currentUser.landlord_id as any)._id 
+      : currentUser.landlord_id;
+
+    if (!landlordId) {
+      // Users without landlord_id cannot access any properties
       return createPaginatedResponse<Property>([], 0, page, limit);
     }
 
-    // Create ability for the current user
-    const ability = this.caslAuthorizationService.createAbilityForUser(
-      populatedUser as unknown as User & { organization: Organization; isAdmin?: boolean },
-    );
-
-    let baseQuery = (this.propertyModel.find() as any).accessibleBy(ability, Action.Read);
-
-    // Add landlord filter if specified
-    if (landlordId) {
-      baseQuery = baseQuery.where({ owner: landlordId });
-    }
+    let baseQuery = this.propertyModel.byTenant(landlordId).find();    // STEP 3: Apply CASL field-level filtering
+    baseQuery = (baseQuery as any).accessibleBy(ability, Action.Read);
 
     // Add search functionality
     if (search) {
@@ -114,56 +94,132 @@ export class PropertiesService {
     // Calculate pagination
     const skip = (page - 1) * limit;
 
-    // Create separate queries for data and count to avoid interference
-    const dataQuery = baseQuery.clone().sort(sortObj).skip(skip).limit(limit);
-    const countQuery = baseQuery.clone().countDocuments();
-
     // Execute queries
     const [properties, total] = await Promise.all([
-      dataQuery.exec(),
-      countQuery.exec(),
+      baseQuery.clone().sort(sortObj).skip(skip).limit(limit).exec(),
+      baseQuery.clone().countDocuments().exec(),
     ]);
 
     return createPaginatedResponse<Property>(properties, total, page, limit);
   }
 
-  async findOne(id: string) {
-    const property = await this.propertyModel.findById(id).exec();
+  async findOne(id: string, currentUser: User) {
+    // CASL: Check read permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    if (!ability.can(Action.Read, Property)) {
+      throw new ForbiddenException('You do not have permission to view properties');
+    }
+
+    // mongo-tenant: Apply tenant filtering (mandatory)
+    if (!currentUser.landlord_id) {
+      throw new ForbiddenException('Access denied: No tenant context');
+    }
+
+    const property = await this.propertyModel
+      .byTenant(currentUser.landlord_id)
+      .findById(id)
+      .exec();
+
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
+
+    // CASL: Final permission check on the specific record
+    if (!ability.can(Action.Read, property)) {
+      throw new ForbiddenException('You do not have permission to view this property');
+    }
+
     return property;
   }
 
-  async update(id: string, updatePropertyDto: UpdatePropertyDto) {
-    const property = await this.propertyModel.findById(id).exec();
+  async create(createPropertyDto: CreatePropertyDto, currentUser: User) {
+    // CASL: Check create permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    if (!ability.can(Action.Create, Property)) {
+      throw new ForbiddenException('You do not have permission to create properties');
+    }
+
+    // Ensure user has tenant context
+    if (!currentUser.landlord_id) {
+      throw new ForbiddenException('Cannot create property: No tenant context');
+    }
+
+    // Ensure the property is created within the user's tenant context
+    const propertyData = {
+      ...createPropertyDto,
+      landlord_id: currentUser.landlord_id, // Enforce tenant boundary
+    };
+
+    // mongo-tenant: Create within tenant context
+    const PropertyWithTenant = this.propertyModel.byTenant(currentUser.landlord_id);
+    const newProperty = new PropertyWithTenant(propertyData);
+
+    return await newProperty.save();
+  }
+
+  async update(id: string, updatePropertyDto: UpdatePropertyDto, currentUser: User) {
+    // CASL: Check update permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    // Ensure user has tenant context
+    if (!currentUser.landlord_id) {
+      throw new ForbiddenException('Access denied: No tenant context');
+    }
+
+    // mongo-tenant: Find within tenant context
+    const property = await this.propertyModel
+      .byTenant(currentUser.landlord_id)
+      .findById(id)
+      .exec();
+
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
 
-    if (updatePropertyDto.owner) {
-      const existingOwner = await this.organizationModel.findById(updatePropertyDto.owner).exec();
-      if (!existingOwner) {
-        throw new UnprocessableEntityException(
-          `Organization with ID ${updatePropertyDto.owner} does not exist`,
-        );
-      }
+    // CASL: Check if user can update this specific property
+    if (!ability.can(Action.Update, property)) {
+      throw new ForbiddenException('You do not have permission to update this property');
     }
 
+    // Filter allowed fields based on user role
+    const filteredUpdateDto = this.filterUpdateFields(updatePropertyDto, currentUser);
+
     const updatedProperty = await this.propertyModel
-      .findByIdAndUpdate(id, updatePropertyDto, { new: true })
+      .findByIdAndUpdate(id, filteredUpdateDto, { new: true })
       .exec();
 
     return updatedProperty;
   }
 
-  async remove(id: string) {
-    const property = await this.propertyModel.findById(id).exec();
+  async remove(id: string, currentUser: User) {
+    // CASL: Check delete permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    // Ensure user has tenant context
+    if (!currentUser.landlord_id) {
+      throw new ForbiddenException('Access denied: No tenant context');
+    }
+
+    // mongo-tenant: Find within tenant context
+    const property = await this.propertyModel
+      .byTenant(currentUser.landlord_id)
+      .findById(id)
+      .exec();
+
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
 
-    const activeUnits = await this.unitModel
+    // CASL: Check if user can delete this property
+    if (!ability.can(Action.Delete, property)) {
+      throw new ForbiddenException('You do not have permission to delete this property');
+    }
+
+    // Check for active units using tenant-aware query
+    const activeUnits = await (this.unitModel as any)
+      .byTenant(currentUser.landlord_id)
       .find({
         property: id,
         deleted: { $ne: true },
@@ -177,7 +233,33 @@ export class PropertiesService {
     }
 
     await this.propertyModel.deleteById(id);
-
     return { message: 'Property deleted successfully' };
+  }
+
+  // Helper method to filter update fields based on user role
+  private filterUpdateFields(updatePropertyDto: UpdatePropertyDto, currentUser: User): UpdatePropertyDto {
+    const allowedFields = this.getAllowedUpdateFields(currentUser);
+    const filteredDto: any = {};
+
+    for (const field of allowedFields) {
+      if (updatePropertyDto[field] !== undefined) {
+        filteredDto[field] = updatePropertyDto[field];
+      }
+    }
+
+    return filteredDto;
+  }
+
+  private getAllowedUpdateFields(currentUser: User): string[] {
+    switch (currentUser.user_type) {
+      case 'Landlord':
+        return ['name', 'description', 'address']; // Landlords can update property details
+      case 'Tenant':
+        return []; // Tenants cannot update properties
+      case 'Contractor':
+        return []; // Contractors cannot update properties
+      default:
+        return [];
+    }
   }
 }
