@@ -24,7 +24,7 @@ async function bootstrap() {
     .setTitle('Mytegroup Property Management API')
     .setDescription('API documentation for the Mytegroup Property Management Platform')
     .setVersion('1.0')
-
+    .setExternalDoc('Download Swagger JSON', '/api-json')
     .addBearerAuth(
       {
         type: 'http',

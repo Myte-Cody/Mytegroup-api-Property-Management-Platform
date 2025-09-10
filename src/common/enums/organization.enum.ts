@@ -1,6 +1,0 @@
-export enum OrganizationType {
-  LANDLORD = 'LANDLORD',
-  TENANT = 'TENANT',
-  CONTRACTOR = 'CONTRACTOR',
-  PROPERTY_MANAGER = 'PROPERTY_MANAGER',
-}

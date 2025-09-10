@@ -2,7 +2,6 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { Reflector } from '@nestjs/core';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Organization } from '../../../features/organizations/schemas/organization.schema';
 import { Property } from '../../../features/properties/schemas/property.schema';
 import { Unit } from '../../../features/properties/schemas/unit.schema';
 import { User } from '../../../features/users/schemas/user.schema';
@@ -23,7 +22,6 @@ export class CaslGuard implements CanActivate {
     private reflector: Reflector,
     private caslAbilityFactory: CaslAbilityFactory,
     @InjectModel(User.name) private userModel: Model<User>,
-    @InjectModel(Organization.name) private organizationModel: Model<Organization>,
     @InjectModel(Property.name) private propertyModel: Model<Property>,
     @InjectModel(Unit.name) private unitModel: Model<Unit>,
   ) {}
@@ -43,10 +41,14 @@ export class CaslGuard implements CanActivate {
       return false;
     }
 
-    if (!user.isAdmin && !user.organization) {
+    // Check if user has proper tenant context
+    const landlordId = user.landlord_id && typeof user.landlord_id === 'object' 
+      ? (user.landlord_id as any)._id 
+      : user.landlord_id;
+
+    if (!landlordId) {
       return false;
     }
-
     const ability = this.caslAbilityFactory.createForUser(user);
 
     const resource = await this.getResource(request, context);
@@ -104,15 +106,10 @@ export class CaslGuard implements CanActivate {
       }
     }
 
-    if (routePath.includes('organization')) {
-      if (params.id && isValidObjectId(params.id)) {
-        return await this.organizationModel.findById(params.id).exec();
-      }
-    }
 
     if (routePath.includes('user')) {
       if (params.id && isValidObjectId(params.id)) {
-        return await this.userModel.findById(params.id).populate('organization').exec();
+        return await this.userModel.findById(params.id).exec();
       }
       if (body) return body;
     }
