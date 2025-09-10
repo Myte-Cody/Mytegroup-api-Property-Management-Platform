@@ -3,20 +3,20 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { CaslModule } from '../../common/casl/casl.module';
 import { Property, PropertySchema } from '../properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../properties/schemas/unit.schema';
-import { User, UserSchema } from './schemas/user.schema';
-import { UsersController } from './users.controller';
-import { UsersService } from './users.service';
+import { Landlord, LandlordSchema } from './schema/landlord.schema';
+
+
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: User.name, schema: UserSchema },
+      { name: Landlord.name, schema: LandlordSchema },
       { name: Property.name, schema: PropertySchema },
       { name: Unit.name, schema: UnitSchema },
     ]),
     CaslModule,
   ],
-  controllers: [UsersController],
-  providers: [UsersService],
-  exports: [UsersService],
+  controllers: [],
+  providers: [],
+  exports: [],
 })
-export class UsersModule {}
+export class LandlordModule {}

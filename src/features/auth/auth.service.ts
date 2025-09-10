@@ -19,7 +19,8 @@ export class AuthService {
     const user = await this.userModel
       .findOne({ email })
       .select('+password')
-      .populate('organization', '_id name type')
+      .populate('party_id') // Populate the party reference (Landlord/Tenant/Contractor)
+      .populate('landlord_id', 'company_name') // Populate landlord info
       .exec();
 
     if (!user) {
@@ -32,15 +33,28 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const payload = { sub: user._id, email: user.email };
+    // Ensure user has required tenant context
+    if (!user.landlord_id) {
+      throw new UnauthorizedException('User account is not properly configured - missing tenant context');
+    }
+
+    const payload = { 
+      sub: user._id, 
+      email: user.email,
+      user_type: user.user_type,
+      landlord_id: user.landlord_id,
+      party_id: user.party_id
+    };
 
     return {
       user: {
         _id: user._id,
         username: user.username,
         email: user.email,
-        organization: user.organization,
-        isAdmin: user.isAdmin,
+        user_type: user.user_type,
+        landlord_id: user.landlord_id,
+        party_info: user.party_id, // This will contain the populated party data
+        landlord_info: user.landlord_id, // This will contain the populated landlord data
       },
       accessToken: this.jwtService.sign(payload),
     };
@@ -49,20 +63,61 @@ export class AuthService {
   async getCurrentUser(userId: string) {
     const user = await this.userModel
       .findById(userId)
-      .select('_id username email isAdmin')
-      .populate('organization', '_id name type')
+      .select('_id username email user_type landlord_id party_id')
+      .populate('party_id') // Populate the party reference
+      .populate('landlord_id', 'company_name') // Populate landlord info
       .exec();
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
+    // Ensure user has tenant context
+    if (!user.landlord_id) {
+      throw new UnauthorizedException('User account is missing tenant context');
+    }
+
     return {
       _id: user._id,
       username: user.username,
       email: user.email,
-      organization: user.organization,
-      isAdmin: user.isAdmin,
+      user_type: user.user_type,
+      landlord_id: user.landlord_id,
+      party_id: user.party_id,
+      party_info: user.party_id, // Populated party data
+      landlord_info: user.landlord_id, // Populated landlord data
     };
+  }
+
+  /**
+   * Validate that user has proper tenant context and permissions
+   */
+  async validateUserContext(userId: string): Promise<User> {
+    const user = await this.userModel
+      .findById(userId)
+      .populate('party_id')
+      .populate('landlord_id')
+      .exec();
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!user.landlord_id) {
+      throw new UnauthorizedException('User missing tenant context');
+    }
+
+    if (!user.user_type || !['Landlord', 'Tenant', 'Contractor'].includes(user.user_type)) {
+      throw new UnauthorizedException('Invalid user type');
+    }
+
+    return user;
+  }
+
+  /**
+   * Check if user belongs to a specific tenant
+   */
+  validateTenantAccess(user: User, requiredLandlordId: string): boolean {
+    return user.landlord_id?.toString() === requiredLandlordId;
   }
 }

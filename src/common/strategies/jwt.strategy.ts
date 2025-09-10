@@ -20,9 +20,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: any) {
     const user = await this.userModel
       .findById(payload.sub)
-      .select('_id username email isAdmin')
-      .populate('organization', '_id name type')
+      .select('_id username email user_type landlord_id party_id')
+      .populate('party_id') // Populate the party reference
+      .populate('landlord_id', 'company_name') // Populate landlord info
       .exec();
+
+    // Ensure user exists and has tenant context
+    if (!user) {
+      return null;
+    }
+
+    if (!user.landlord_id) {
+      return null; // Reject users without tenant context
+    }
+
     return user;
   }
 }

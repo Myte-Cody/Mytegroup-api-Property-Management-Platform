@@ -5,7 +5,6 @@ import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
-import { Organization } from '../organizations/schemas/organization.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
@@ -14,13 +13,11 @@ import { User } from './schemas/user.schema';
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: AppModel<User>,
-    @InjectModel(Organization.name)
-    private organizationModel: AppModel<Organization>,
     private caslAuthorizationService: CaslAuthorizationService,
   ) {}
 
   async create(createUserDto: CreateUserDto) {
-    const { username, email, password, organization } = createUserDto;
+    const { username, email, password } = createUserDto;
 
     const existingUsername = await this.userModel.findOne({ username }).exec();
     if (existingUsername) {
@@ -32,14 +29,14 @@ export class UsersService {
       throw new UnprocessableEntityException(`Email '${email}' is already registered`);
     }
 
-    if (organization) {
-      const existingOrganization = await this.organizationModel.findById(organization).exec();
-      if (!existingOrganization) {
-        throw new UnprocessableEntityException(
-          `Organization with ID ${organization} does not exist`,
-        );
-      }
-    }
+    // if (organization) {
+    //   const existingOrganization = await this.organizationModel.findById(organization).exec();
+    //   if (!existingOrganization) {
+    //     throw new UnprocessableEntityException(
+    //       `Organization with ID ${organization} does not exist`,
+    //     );
+    //   }
+    // }
 
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -53,11 +50,11 @@ export class UsersService {
   }
 
   async findAllPaginated(queryDto: UserQueryDto, currentUser: User) {
-    const { page, limit, sortBy, sortOrder, search, organizationId } = queryDto;
+    const { page, limit, sortBy, sortOrder, search } = queryDto;
 
     const populatedUser = await this.userModel
       .findById(currentUser._id)
-      .populate('organization')
+      // .populate('organization')
       .exec();
 
     if (!populatedUser) {
@@ -66,7 +63,7 @@ export class UsersService {
 
     // Create ability for the current user with populated data
     const ability = this.caslAuthorizationService.createAbilityForUser(
-      populatedUser as unknown as User & { organization: Organization; isAdmin?: boolean },
+      populatedUser as unknown as User & { isAdmin?: boolean },
     );
 
     let baseQuery = (this.userModel.find() as any).accessibleBy(ability, Action.Read);
@@ -81,16 +78,16 @@ export class UsersService {
       });
     }
 
-    if (organizationId) {
-      baseQuery = baseQuery.where({ organization: organizationId });
-    }
+    // if (organizationId) {
+    //   baseQuery = baseQuery.where({ organization: organizationId });
+    // }
 
     const skip = (page - 1) * limit;
 
     // Create separate queries for data and count to avoid interference
     const dataQuery = baseQuery
       .clone()
-      .populate('organization')
+      // .populate('organization')
       .sort({ [sortBy]: sortOrder === 'asc' ? 1 : -1 })
       .skip(skip)
       .limit(limit);
@@ -118,7 +115,10 @@ export class UsersService {
   }
 
   async update(id: string, updateUserDto: UpdateUserDto, currentUser?: User) {
-    const user = await this.userModel.findById(id).populate('organization').exec();
+    const user = await this.userModel
+    .findById(id)
+    // .populate('organization')
+    .exec();
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
