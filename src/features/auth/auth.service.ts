@@ -3,13 +3,14 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
 import { Model } from 'mongoose';
-import { User } from '../users/schemas/user.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 import { LoginDto } from './dto/login.dto';
+import { AppModel } from '../../common/interfaces/app-model.interface';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectModel(User.name) private readonly userModel: Model<User>,
+    @InjectModel(User.name) private readonly userModel: AppModel<UserDocument>,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -117,7 +118,7 @@ export class AuthService {
   /**
    * Check if user belongs to a specific tenant
    */
-  validateTenantAccess(user: User, requiredLandlordId: string): boolean {
+  validateTenantAccess(user: UserDocument, requiredLandlordId: string): boolean {
     return user.landlord_id?.toString() === requiredLandlordId;
   }
 }

@@ -9,7 +9,7 @@ import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
-import { User } from '../users/schemas/user.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { PaginatedTenantsResponse, TenantQueryDto } from './dto/tenant-query.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
@@ -27,7 +27,7 @@ export class TenantsService {
 
   async findAllPaginated(
     queryDto: TenantQueryDto,
-    currentUser: User,
+    currentUser: UserDocument,
   ): Promise<PaginatedTenantsResponse<Tenant>> {
     // Tenant users should not be able to list other tenants - only access their own profile
     if (currentUser.user_type === 'Tenant') {
@@ -87,7 +87,7 @@ export class TenantsService {
     return createPaginatedResponse<Tenant>(tenants, total, page, limit);
   }
 
-  async findOne(id: string, currentUser: User) {
+  async findOne(id: string, currentUser: UserDocument) {
     // Tenant users should only access their own profile via /tenants/me
     if (currentUser.user_type === 'Tenant') {
       throw new ForbiddenException('Tenant users cannot access other tenant records. Use /tenants/me to access your own profile.');
@@ -126,7 +126,7 @@ export class TenantsService {
     return tenant;
   }
 
-  async findMyProfile(currentUser: User) {
+  async findMyProfile(currentUser: UserDocument) {
     // Only tenant users can access their own profile
     if (currentUser.user_type !== 'Tenant') {
       throw new ForbiddenException('Only tenant users can access this endpoint');
@@ -170,7 +170,7 @@ export class TenantsService {
     return tenant;
   }
 
-  async create(createTenantDto: CreateTenantDto, currentUser: User) {
+  async create(createTenantDto: CreateTenantDto, currentUser: UserDocument) {
     // CASL: Check create permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
@@ -223,7 +223,7 @@ export class TenantsService {
     return savedTenant;
   }
 
-  async update(id: string, updateTenantDto: UpdateTenantDto, currentUser: User) {
+  async update(id: string, updateTenantDto: UpdateTenantDto, currentUser: UserDocument) {
     // CASL: Check update permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
@@ -261,7 +261,7 @@ export class TenantsService {
     return updatedTenant;
   }
 
-  async remove(id: string, currentUser: User) {
+  async remove(id: string, currentUser: UserDocument) {
     // CASL: Check delete permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
@@ -294,7 +294,7 @@ export class TenantsService {
   }
 
   // Helper method to filter update fields based on user role
-  private filterUpdateFields(updateTenantDto: UpdateTenantDto, currentUser: User): UpdateTenantDto {
+  private filterUpdateFields(updateTenantDto: UpdateTenantDto, currentUser: UserDocument): UpdateTenantDto {
     const allowedFields = this.getAllowedUpdateFields(currentUser);
     const filteredDto: any = {};
 
@@ -307,7 +307,7 @@ export class TenantsService {
     return filteredDto;
   }
 
-  private getAllowedUpdateFields(currentUser: User): string[] {
+  private getAllowedUpdateFields(currentUser: UserDocument): string[] {
     switch (currentUser.user_type) {
       case 'Landlord':
         return ['name']; // Landlords can update tenant details

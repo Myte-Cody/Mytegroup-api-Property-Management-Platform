@@ -9,7 +9,7 @@ import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
-import { User } from '../users/schemas/user.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateContractorDto } from './dto/create-contractor.dto';
 import { PaginatedContractorsResponse, ContractorQueryDto } from './dto/contractor-query.dto';
 import { UpdateContractorDto } from './dto/update-contractor.dto';
@@ -27,7 +27,7 @@ export class ContractorsService {
 
   async findAllPaginated(
     queryDto: ContractorQueryDto,
-    currentUser: User,
+    currentUser: UserDocument,
   ): Promise<PaginatedContractorsResponse<Contractor>> {
     // Contractor users should not be able to list other contractors - only access their own profile
     if (currentUser.user_type === 'Contractor') {
@@ -89,7 +89,7 @@ export class ContractorsService {
     return createPaginatedResponse<Contractor>(contractors, total, page, limit);
   }
 
-  async findOne(id: string, currentUser: User) {
+  async findOne(id: string, currentUser: UserDocument) {
     // Contractor users should only access their own profile via /contractors/me
     if (currentUser.user_type === 'Contractor') {
       throw new ForbiddenException('Contractor users cannot access other contractor records. Use /contractors/me to access your own profile.');
@@ -128,7 +128,7 @@ export class ContractorsService {
     return contractor;
   }
 
-  async findMyProfile(currentUser: User) {
+  async findMyProfile(currentUser: UserDocument) {
     // Only contractor users can access their own profile
     if (currentUser.user_type !== 'Contractor') {
       throw new ForbiddenException('Only contractor users can access this endpoint');
@@ -172,7 +172,7 @@ export class ContractorsService {
     return contractor;
   }
 
-  async create(createContractorDto: CreateContractorDto, currentUser: User) {
+  async create(createContractorDto: CreateContractorDto, currentUser: UserDocument) {
     // CASL: Check create permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
@@ -225,7 +225,7 @@ export class ContractorsService {
     return savedContractor;
   }
 
-  async update(id: string, updateContractorDto: UpdateContractorDto, currentUser: User) {
+  async update(id: string, updateContractorDto: UpdateContractorDto, currentUser: UserDocument) {
     // CASL: Check update permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
@@ -269,7 +269,7 @@ export class ContractorsService {
     return updatedContractor;
   }
 
-  async remove(id: string, currentUser: User) {
+  async remove(id: string, currentUser: UserDocument) {
     // CASL: Check delete permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 

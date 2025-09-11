@@ -9,6 +9,7 @@ import { Unit, UnitSchema } from './schemas/unit.schema';
 import { UnitsController } from './units.controller';
 import { UnitsService } from './units.service';
 import { UnitBusinessValidator } from './validators/unit-business-validator';
+import { MediaModule } from '../media/media.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { UnitBusinessValidator } from './validators/unit-business-validator';
       { schema: UserSchema, name: User.name },
     ]),
     CaslModule,
+    MediaModule,
   ],
   controllers: [PropertiesController, UnitsController],
   providers: [PropertiesService, UnitsService, UnitBusinessValidator],

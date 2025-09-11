@@ -10,6 +10,7 @@ import { UsersModule } from './features/users/users.module';
 import { TenantsModule } from './features/tenants/tenant.module';
 import { ContractorModule } from './features/contractors/contractor.module';
 import { LandlordModule } from './features/landlords/landlord.module';
+import { MediaModule } from './features/media/media.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { LandlordModule } from './features/landlords/landlord.module';
     TenantsModule,
     ContractorModule,
     PropertiesModule,
+    MediaModule,
     MongooseModule.forRoot(process.env.DB_URL, {
       dbName: process.env.MONGO_DB_NAME,
     }),

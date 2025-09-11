@@ -8,11 +8,11 @@ import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
-import { User } from './schemas/user.schema';
+import { User, UserDocument } from './schemas/user.schema';
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectModel(User.name) private userModel: AppModel<User>,
+    @InjectModel(User.name) private userModel: AppModel<UserDocument>,
     private caslAuthorizationService: CaslAuthorizationService,
   ) {}
 

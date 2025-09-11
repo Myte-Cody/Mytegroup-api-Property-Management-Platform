@@ -12,6 +12,15 @@ import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enu
 
 export class CreateUnitDto {
   @ApiProperty({
+    example: '673d8b8f123456789abcdef0',
+    description: 'ID of the property this unit belongs to',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  propertyId?: string;
+
+  @ApiProperty({
     example: '101',
     description: 'Unit number or identifier',
     maxLength: 32,

@@ -4,18 +4,20 @@ import {
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
-import { User } from '../users/schemas/user.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { PaginatedPropertiesResponse, PropertyQueryDto } from './dto/property-query.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { Property } from './schemas/property.schema';
 import { Unit } from './schemas/unit.schema';
+import { MediaService } from '../media/services/media.service';
 
 @Injectable()
 export class PropertiesService {
@@ -25,13 +27,14 @@ export class PropertiesService {
     @InjectModel(Unit.name)
     private readonly unitModel: AppModel<Unit>,
     @InjectModel(User.name)
-    private readonly userModel: AppModel<User>,
+    private readonly userModel: AppModel<UserDocument>,
     private caslAuthorizationService: CaslAuthorizationService,
+    private readonly mediaService: MediaService,
   ) {}
 
   async findAllPaginated(
     queryDto: PropertyQueryDto,
-    currentUser: User,
+    currentUser: UserDocument,
   ): Promise<PaginatedPropertiesResponse<Property>> {
     const {
       page = 1,
@@ -100,10 +103,27 @@ export class PropertiesService {
       baseQuery.clone().countDocuments().exec(),
     ]);
 
-    return createPaginatedResponse<Property>(properties, total, page, limit);
+    // Fetch media for each property
+    const propertiesWithMedia = await Promise.all(
+      properties.map(async (property) => {
+        const media = await this.mediaService.getMediaForEntity(
+          'Property',
+          property._id.toString(),
+          currentUser,
+          undefined, // collection_name (get all collections)
+          {} // filters (get all media)
+        );
+        return {
+          ...property.toObject(),
+          media,
+        };
+      })
+    );
+
+    return createPaginatedResponse<any>(propertiesWithMedia, total, page, limit);
   }
 
-  async findOne(id: string, currentUser: User) {
+  async findOne(id: string, currentUser: UserDocument) {
     // CASL: Check read permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
@@ -130,11 +150,30 @@ export class PropertiesService {
       throw new ForbiddenException('You do not have permission to view this property');
     }
 
-    return property;
+    // Fetch media for the property
+    const media = await this.mediaService.getMediaForEntity(
+      'Property',
+      property._id.toString(),
+      currentUser,
+      undefined, // collection_name (get all collections)
+      {} // filters (get all media)
+    );
+
+    return {
+      ...property.toObject(),
+      media,
+    };
   }
 
-  async create(createPropertyDto: CreatePropertyDto, currentUser: User) {
-    // CASL: Check create permission
+
+  async create(formData: any, mediaFiles: any[], currentUser: UserDocument) {
+    // Parse form data into proper DTO structure
+    const createPropertyDto: CreatePropertyDto = this.parseFormData(formData);
+
+    // Validate required fields
+    this.validatePropertyData(createPropertyDto);
+
+    // Create the property first
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     if (!ability.can(Action.Create, Property)) {
@@ -156,10 +195,69 @@ export class PropertiesService {
     const PropertyWithTenant = this.propertyModel.byTenant(currentUser.landlord_id);
     const newProperty = new PropertyWithTenant(propertyData);
 
-    return await newProperty.save();
+    const property = await newProperty.save();
+
+    // If media files are provided, upload them
+    if (mediaFiles && mediaFiles.length > 0) {
+      const uploadPromises = mediaFiles.map(async (file) => {
+        return this.mediaService.upload(
+          file,
+          property,
+          currentUser,
+          'property_photos'
+        );
+      });
+
+      const uploadedMedia = await Promise.all(uploadPromises);
+
+      return {
+        success: true,
+        data: {
+          property,
+          media: uploadedMedia,
+        },
+        message: `Property created successfully with ${uploadedMedia.length} media file(s)`,
+      };
+    }
+
+    return {
+      success: true,
+      data: { property },
+      message: 'Property created successfully',
+    };
   }
 
-  async update(id: string, updatePropertyDto: UpdatePropertyDto, currentUser: User) {
+  private parseFormData(formData: any): CreatePropertyDto {
+    return {
+      name: formData.name,
+      description: formData.description,
+      owner: formData.owner,
+      address: {
+        street: formData['address[street]'] || formData.address?.street,
+        city: formData['address[city]'] || formData.address?.city,
+        state: formData['address[state]'] || formData.address?.state,
+        postalCode: formData['address[postalCode]'] || formData.address?.postalCode,
+        country: formData['address[country]'] || formData.address?.country,
+      },
+    };
+  }
+
+  private validatePropertyData(createPropertyDto: CreatePropertyDto): void {
+    const missingFields = [];
+    if (!createPropertyDto.name) missingFields.push('name');
+    if (!createPropertyDto.owner) missingFields.push('owner');
+    if (!createPropertyDto.address.street) missingFields.push('address.street');
+    if (!createPropertyDto.address.city) missingFields.push('address.city');
+    if (!createPropertyDto.address.state) missingFields.push('address.state');
+    if (!createPropertyDto.address.postalCode) missingFields.push('address.postalCode');
+    if (!createPropertyDto.address.country) missingFields.push('address.country');
+
+    if (missingFields.length > 0) {
+      throw new BadRequestException(`Missing required fields: ${missingFields.join(', ')}`);
+    }
+  }
+
+  async update(id: string, updatePropertyDto: UpdatePropertyDto, currentUser: UserDocument) {
     // CASL: Check update permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
@@ -193,7 +291,7 @@ export class PropertiesService {
     return updatedProperty;
   }
 
-  async remove(id: string, currentUser: User) {
+  async remove(id: string, currentUser: UserDocument) {
     // CASL: Check delete permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
@@ -237,7 +335,7 @@ export class PropertiesService {
   }
 
   // Helper method to filter update fields based on user role
-  private filterUpdateFields(updatePropertyDto: UpdatePropertyDto, currentUser: User): UpdatePropertyDto {
+  private filterUpdateFields(updatePropertyDto: UpdatePropertyDto, currentUser: UserDocument): UpdatePropertyDto {
     const allowedFields = this.getAllowedUpdateFields(currentUser);
     const filteredDto: any = {};
 
@@ -250,7 +348,7 @@ export class PropertiesService {
     return filteredDto;
   }
 
-  private getAllowedUpdateFields(currentUser: User): string[] {
+  private getAllowedUpdateFields(currentUser: UserDocument): string[] {
     switch (currentUser.user_type) {
       case 'Landlord':
         return ['name', 'description', 'address']; // Landlords can update property details

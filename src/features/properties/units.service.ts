@@ -13,13 +13,14 @@ import {
   createEmptyPaginatedResponse,
   createPaginatedResponse,
 } from '../../common/utils/pagination.utils';
-import { User } from '../users/schemas/user.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { PaginatedUnitsResponse, UnitQueryDto } from './dto/unit-query.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { Property } from './schemas/property.schema';
 import { Unit } from './schemas/unit.schema';
 import { UnitBusinessValidator } from './validators/unit-business-validator';
+import { MediaService } from '../media/services/media.service';
 
 @Injectable()
 export class UnitsService {
@@ -28,13 +29,20 @@ export class UnitsService {
     @InjectModel(Property.name)
     private readonly propertyModel: AppModel<Property>,
     @InjectModel(User.name)
-    private readonly userModel: AppModel<User>,
+    private readonly userModel: AppModel<UserDocument>,
     private readonly unitBusinessValidator: UnitBusinessValidator,
     private caslAuthorizationService: CaslAuthorizationService,
+    private readonly mediaService: MediaService,
   ) {}
 
-  async create(createUnitDto: CreateUnitDto, propertyId: string, currentUser: User) {
-    // CASL: Check create permission
+
+  async create(formData: any, mediaFiles: any[], propertyId: string, currentUser: UserDocument) {
+    // Parse form data into proper DTO structure
+    const createUnitDto: CreateUnitDto = this.parseFormData(formData);
+
+    this.validateUnitData(createUnitDto);
+
+    // Create the unit first
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     if (!ability.can(Action.Create, Unit)) {
@@ -73,13 +81,41 @@ export class UnitsService {
       property: propertyId,
     });
 
-    const savedUnit = await newUnit.save();
-    return savedUnit;
+    const unit = await newUnit.save();
+
+    // If media files are provided, upload them
+    if (mediaFiles && mediaFiles.length > 0) {
+      const uploadPromises = mediaFiles.map(async (file) => {
+        return this.mediaService.upload(
+          file,
+          unit,
+          currentUser,
+          'unit_photos'
+        );
+      });
+
+      const uploadedMedia = await Promise.all(uploadPromises);
+
+      return {
+        success: true,
+        data: {
+          unit,
+          media: uploadedMedia,
+        },
+        message: `Unit created successfully with ${uploadedMedia.length} media file(s)`,
+      };
+    }
+
+    return {
+      success: true,
+      data: { unit },
+      message: 'Unit created successfully',
+    };
   }
 
   async findAllPaginated(
     queryDto: UnitQueryDto,
-    currentUser: User,
+    currentUser: UserDocument,
   ): Promise<PaginatedUnitsResponse<Unit>> {
     const {
       page = 1,
@@ -162,10 +198,27 @@ export class UnitsService {
       countQuery.exec(),
     ]);
 
-    return createPaginatedResponse<Unit>(units, total, page, limit);
+    // Fetch media for each unit
+    const unitsWithMedia = await Promise.all(
+      units.map(async (unit) => {
+        const media = await this.mediaService.getMediaForEntity(
+          'Unit',
+          unit._id.toString(),
+          currentUser,
+          undefined, // collection_name (get all collections)
+          {} // filters (get all media)
+        );
+        return {
+          ...unit.toObject(),
+          media,
+        };
+      })
+    );
+
+    return createPaginatedResponse<any>(unitsWithMedia, total, page, limit);
   }
 
-  async findOne(id: string, currentUser: User) {
+  async findOne(id: string, currentUser: UserDocument) {
     // CASL: Check read permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
@@ -197,10 +250,22 @@ export class UnitsService {
       throw new ForbiddenException('You do not have permission to view this unit');
     }
 
-    return unit;
+    // Fetch media for the unit
+    const media = await this.mediaService.getMediaForEntity(
+      'Unit',
+      unit._id.toString(),
+      currentUser,
+      undefined, // collection_name (get all collections)
+      {} // filters (get all media)
+    );
+
+    return {
+      ...unit.toObject(),
+      media,
+    };
   }
 
-  async update(id: string, updateUnitDto: UpdateUnitDto, currentUser: User) {
+  async update(id: string, updateUnitDto: UpdateUnitDto, currentUser: UserDocument) {
     if (!updateUnitDto || Object.keys(updateUnitDto).length === 0) {
       throw new BadRequestException('Update data cannot be empty');
     }
@@ -248,7 +313,7 @@ export class UnitsService {
     return updatedUnit;
   }
 
-  async remove(id: string, currentUser: User) {
+  async remove(id: string, currentUser: UserDocument) {
     // CASL: Check delete permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
@@ -282,5 +347,26 @@ export class UnitsService {
     });
     await this.unitModel.deleteById(id);
     return { message: 'Unit deleted successfully' };
+  }
+
+  private parseFormData(formData: any): CreateUnitDto {
+    return {
+      propertyId: formData.propertyId || formData.property,
+      unitNumber: formData.unitNumber,
+      size: formData.size ? parseFloat(formData.size) : undefined,
+      type: formData.type,
+      availabilityStatus: formData.availabilityStatus,
+    };
+  }
+
+  private validateUnitData(createUnitDto: CreateUnitDto): void {
+    const missingFields = [];
+    if (!createUnitDto.unitNumber) missingFields.push('unitNumber');
+    if (!createUnitDto.size) missingFields.push('size');
+    if (!createUnitDto.type) missingFields.push('type');
+
+    if (missingFields.length > 0) {
+      throw new BadRequestException(`Missing required fields: ${missingFields.join(', ')}`);
+    }
   }
 }
