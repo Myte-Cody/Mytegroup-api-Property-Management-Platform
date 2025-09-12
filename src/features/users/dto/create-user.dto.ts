@@ -43,15 +43,6 @@ export class CreateUserDto {
   })
   password: string;
 
-  @ApiProperty({
-    example: '60d21b4667d0d8992e610c85',
-    description: 'Organization ID - required for non-admin users, optional for admin users',
-    required: false,
-  })
-  @IsNotEmpty({ message: 'Organization is required for non-admin users' })
-  @ValidateIf((obj) => !obj.isAdmin)
-  @IsMongoId()
-  organization?: string;
 
   @ApiProperty({
     example: false,

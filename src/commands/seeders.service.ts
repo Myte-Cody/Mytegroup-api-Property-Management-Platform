@@ -1,24 +1,24 @@
 import { Injectable } from '@nestjs/common';
-import { SeedAdminCommand } from './seed-admin.command';
+import { SeedDevDataCommand } from './seed-dev-data.command';
+
 
 @Injectable()
 export class SeedersService {
   constructor(
-    private readonly seedAdminCommand: SeedAdminCommand,
+    private readonly seedDevDataCommand: SeedDevDataCommand,
   ) {}
 
   async runAll(): Promise<void> {
     console.log('🌱 Starting all seeders...\n');
 
     const seeders = [
-      { name: 'Admin User Seeder', command: this.seedAdminCommand },
-      // Add future seeders here
+      { name: 'Dev Data Seeder', command: this.seedDevDataCommand },
     ];
 
     for (const seeder of seeders) {
       try {
         console.log(`📦 Running ${seeder.name}...`);
-        await seeder.command.run();
+        await seeder.command.run([]);
         console.log(`✅ ${seeder.name} completed\n`);
       } catch (error) {
         console.error(`❌ ${seeder.name} failed:`, error.message);
@@ -31,8 +31,7 @@ export class SeedersService {
 
   async runSpecific(seederName: string): Promise<void> {
     const seederMap = {
-      admin: this.seedAdminCommand,
-      // Add future seeders here
+      dev: this.seedDevDataCommand,
     };
 
     const seeder = seederMap[seederName];
@@ -41,6 +40,6 @@ export class SeedersService {
     }
 
     console.log(`🌱 Running ${seederName} seeder...`);
-    await seeder.run();
+    await seeder.run([]);
   }
 }

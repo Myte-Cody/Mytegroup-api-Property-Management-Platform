@@ -11,7 +11,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { CheckPolicies } from '../../common/casl/decorators/check-policies.decorator';
 import { CaslGuard } from '../../common/casl/guards/casl.guard';
 import {
@@ -23,6 +23,7 @@ import {
 import { CreateUnitPolicyHandler } from '../../common/casl/policies/unit.policies';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
+import { FormDataRequest } from 'nestjs-form-data';
 
 import { User } from '../users/schemas/user.schema';
 import { CreatePropertyDto } from './dto/create-property.dto';
@@ -32,6 +33,8 @@ import { UnitQueryDto } from './dto/unit-query.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { PropertiesService } from './properties.service';
 import { UnitsService } from './units.service';
+import { MediaService } from '../media/services/media.service';
+import { MediaType } from '../media/schemas/media.schema';
 
 @ApiTags('Properties')
 @ApiBearerAuth()
@@ -41,14 +44,19 @@ export class PropertiesController {
   constructor(
     private readonly propertiesService: PropertiesService,
     private readonly unitsService: UnitsService,
+    private readonly mediaService: MediaService,
   ) {}
 
   @Post()
   @CheckPolicies(new CreatePropertyPolicyHandler())
-  @ApiOperation({ summary: 'Create a new property' })
-  @ApiBody({ type: CreatePropertyDto, description: 'Property data to create' })
-  create(@CurrentUser() user: User, @Body() createPropertyDto: CreatePropertyDto) {
-    return this.propertiesService.create(createPropertyDto);
+  @FormDataRequest()
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Create a new property with optional media files' })
+  async create(
+    @CurrentUser() user: User,
+    @Body() createPropertyDto: CreatePropertyDto,
+  ) {
+    return this.propertiesService.create(createPropertyDto, user);
   }
 
   @Get()
@@ -75,8 +83,11 @@ export class PropertiesController {
   @CheckPolicies(new ReadPropertyPolicyHandler())
   @ApiOperation({ summary: 'Get property by ID' })
   @ApiParam({ name: 'id', description: 'Property ID', type: String })
-  findOne(@Param('id', MongoIdValidationPipe) id: string) {
-    return this.propertiesService.findOne(id);
+  findOne(
+    @Param('id', MongoIdValidationPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.propertiesService.findOne(id, user);
   }
 
   @Patch(':id')
@@ -89,9 +100,10 @@ export class PropertiesController {
   })
   update(
     @Param('id', MongoIdValidationPipe) id: string,
+    @CurrentUser() user: User,
     @Body() updatePropertyDto: UpdatePropertyDto,
   ) {
-    return this.propertiesService.update(id, updatePropertyDto);
+    return this.propertiesService.update(id, updatePropertyDto, user);
   }
 
   @Delete(':id')
@@ -99,20 +111,51 @@ export class PropertiesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete property by ID (soft delete)' })
   @ApiParam({ name: 'id', description: 'Property ID', type: String })
-  remove(@Param('id', MongoIdValidationPipe) id: string) {
-    return this.propertiesService.remove(id);
+  remove(
+    @Param('id', MongoIdValidationPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.propertiesService.remove(id, user);
   }
 
   @Post(':id/units')
   @CheckPolicies(new CreateUnitPolicyHandler())
-  @ApiOperation({ summary: 'Add a unit to a property' })
+  @FormDataRequest()
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Add a unit to a property with optional media files' })
   @ApiParam({ name: 'id', description: 'Property ID', type: String })
-  @ApiBody({ type: CreateUnitDto, description: 'Unit data to create' })
   addUnitToProperty(
     @Param('id', MongoIdValidationPipe) id: string,
     @Body() createUnitDto: CreateUnitDto,
     @CurrentUser() user: User,
   ) {
     return this.unitsService.create(createUnitDto, id, user);
+  }
+
+  @Get(':id/media')
+  @CheckPolicies(new ReadPropertyPolicyHandler())
+  @ApiOperation({ summary: 'Get all media for a property' })
+  @ApiParam({ name: 'id', description: 'Property ID', type: String })
+  async getPropertyMedia(
+    @Param('id', MongoIdValidationPipe) propertyId: string,
+    @CurrentUser() user: User,
+    @Query('media_type') mediaType?: MediaType,
+    @Query('collection_name') collectionName?: string,
+  ) {
+    // First verify the property exists and user has access
+    await this.propertiesService.findOne(propertyId, user);
+    
+    const media = await this.mediaService.getMediaForEntity(
+      'Property',
+      propertyId,
+      user,
+      collectionName,
+      { media_type: mediaType },
+    );
+
+    return {
+      success: true,
+      data: media,
+    };
   }
 }

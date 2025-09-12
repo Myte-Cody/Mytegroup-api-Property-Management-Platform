@@ -5,9 +5,12 @@ import { CommonModule } from './common/common.module';
 import configuration from './config/configuration';
 import { AuthModule } from './features/auth/auth.module';
 import { EmailModule } from './features/email/email.module';
-import { OrganizationsModule } from './features/organizations/organizations.module';
 import { PropertiesModule } from './features/properties/properties.module';
 import { UsersModule } from './features/users/users.module';
+import { TenantsModule } from './features/tenants/tenant.module';
+import { ContractorModule } from './features/contractors/contractor.module';
+import { LandlordModule } from './features/landlords/landlord.module';
+import { MediaModule } from './features/media/media.module';
 
 @Module({
   imports: [
@@ -24,9 +27,12 @@ import { UsersModule } from './features/users/users.module';
     CommonModule,
     AuthModule,
     EmailModule,
-    OrganizationsModule,
     UsersModule,
+    LandlordModule,
+    TenantsModule,
+    ContractorModule,
     PropertiesModule,
+    MediaModule,
     MongooseModule.forRoot(process.env.DB_URL, {
       dbName: process.env.MONGO_DB_NAME,
     }),

@@ -9,8 +9,19 @@ import {
   Min,
 } from 'class-validator';
 import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enum';
+import { IsFile, HasMimeType, MaxFileSize, MemoryStoredFile } from 'nestjs-form-data';
+import { Type } from 'class-transformer';
 
 export class CreateUnitDto {
+  @ApiProperty({
+    example: '673d8b8f123456789abcdef0',
+    description: 'ID of the property this unit belongs to',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  propertyId?: string;
+
   @ApiProperty({
     example: '101',
     description: 'Unit number or identifier',
@@ -27,6 +38,7 @@ export class CreateUnitDto {
     minimum: 0,
     required: true,
   })
+  @Type(() => Number)
   @IsNumber()
   @Min(0)
   @IsNotEmpty()
@@ -52,4 +64,16 @@ export class CreateUnitDto {
   @IsOptional()
   @IsEnum(UnitAvailabilityStatus)
   availabilityStatus?: UnitAvailabilityStatus;
+
+  @ApiProperty({
+    type: 'array',
+    items: { type: 'string', format: 'binary' },
+    description: 'Media files for the unit',
+    required: false,
+  })
+  @IsOptional()
+  @IsFile({ each: true })
+  @MaxFileSize(10 * 1024 * 1024, { each: true })
+  @HasMimeType(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'video/mp4', 'video/avi'], { each: true })
+  media_files?: MemoryStoredFile[];
 }

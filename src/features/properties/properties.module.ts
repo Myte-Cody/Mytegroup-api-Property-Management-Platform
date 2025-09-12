@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
+import { NestjsFormDataModule } from 'nestjs-form-data';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CaslModule } from '../../common/casl/casl.module';
-import { Organization, OrganizationSchema } from '../organizations/schemas/organization.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { PropertiesController } from './properties.controller';
 import { PropertiesService } from './properties.service';
@@ -10,16 +10,18 @@ import { Unit, UnitSchema } from './schemas/unit.schema';
 import { UnitsController } from './units.controller';
 import { UnitsService } from './units.service';
 import { UnitBusinessValidator } from './validators/unit-business-validator';
+import { MediaModule } from '../media/media.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { schema: PropertySchema, name: Property.name },
       { schema: UnitSchema, name: Unit.name },
-      { schema: OrganizationSchema, name: Organization.name },
       { schema: UserSchema, name: User.name },
     ]),
+    NestjsFormDataModule.config({ isGlobal: true }),
     CaslModule,
+    MediaModule,
   ],
   controllers: [PropertiesController, UnitsController],
   providers: [PropertiesService, UnitsService, UnitBusinessValidator],

@@ -5,23 +5,14 @@ import { CaslGuard } from './guards/casl.guard';
 import { CaslAuthorizationService } from './services/casl-authorization.service';
 
 // Import schemas
-import {
-  Organization,
-  OrganizationSchema,
-} from '../../features/organizations/schemas/organization.schema';
 import { Property, PropertySchema } from '../../features/properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../../features/properties/schemas/unit.schema';
 import { User, UserSchema } from '../../features/users/schemas/user.schema';
+import { Tenant, TenantSchema } from '../../features/tenants/schema/tenant.schema';
+import { Contractor, ContractorSchema } from '../../features/contractors/schema/contractor.schema';
+
 
 // Import policy handlers
-import {
-  CreateOrganizationPolicyHandler,
-  DeleteOrganizationPolicyHandler,
-  ManageOrganizationPolicyHandler,
-  ReadOrganizationPolicyHandler,
-  UpdateOrganizationPolicyHandler,
-} from './policies/organization.policies';
-
 import {
   CreatePropertyPolicyHandler,
   DeletePropertyPolicyHandler,
@@ -46,13 +37,21 @@ import {
   UpdateUserPolicyHandler,
 } from './policies/user.policies';
 
+import {
+  CreateTenantPolicyHandler,
+  DeleteTenantPolicyHandler,
+  ReadTenantPolicyHandler,
+  UpdateTenantPolicyHandler,
+} from './policies/tenant.policies'
+
+import {
+  CreateContractorPolicyHandler,
+  DeleteContractorPolicyHandler,
+  ReadContractorPolicyHandler,
+  UpdateContractorPolicyHandler,
+} from './policies/contractor.policies';
+
 const policyHandlers = [
-  // Organization policies
-  ReadOrganizationPolicyHandler,
-  ManageOrganizationPolicyHandler,
-  UpdateOrganizationPolicyHandler,
-  DeleteOrganizationPolicyHandler,
-  CreateOrganizationPolicyHandler,
 
   // Property policies
   ReadPropertyPolicyHandler,
@@ -74,13 +73,26 @@ const policyHandlers = [
   CreateUserPolicyHandler,
   UpdateUserPolicyHandler,
   DeleteUserPolicyHandler,
+
+  // Tenant policies
+  ReadTenantPolicyHandler,
+  CreateTenantPolicyHandler,
+  UpdateTenantPolicyHandler,
+  DeleteTenantPolicyHandler,
+
+  // Contractor policies
+  ReadContractorPolicyHandler,
+  CreateContractorPolicyHandler,
+  UpdateContractorPolicyHandler,
+  DeleteContractorPolicyHandler,
 ];
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
-      { name: Organization.name, schema: OrganizationSchema },
+      { name: Tenant.name, schema: TenantSchema },
+      { name: Contractor.name, schema: ContractorSchema },
       { name: Property.name, schema: PropertySchema },
       { name: Unit.name, schema: UnitSchema },
     ]),

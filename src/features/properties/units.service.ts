@@ -8,20 +8,19 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
-import { OrganizationType } from '../../common/enums/organization.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import {
   createEmptyPaginatedResponse,
   createPaginatedResponse,
 } from '../../common/utils/pagination.utils';
-import { Organization } from '../organizations/schemas/organization.schema';
-import { User } from '../users/schemas/user.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { PaginatedUnitsResponse, UnitQueryDto } from './dto/unit-query.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { Property } from './schemas/property.schema';
 import { Unit } from './schemas/unit.schema';
 import { UnitBusinessValidator } from './validators/unit-business-validator';
+import { MediaService } from '../media/services/media.service';
 
 @Injectable()
 export class UnitsService {
@@ -30,37 +29,89 @@ export class UnitsService {
     @InjectModel(Property.name)
     private readonly propertyModel: AppModel<Property>,
     @InjectModel(User.name)
-    private readonly userModel: AppModel<User>,
+    private readonly userModel: AppModel<UserDocument>,
     private readonly unitBusinessValidator: UnitBusinessValidator,
     private caslAuthorizationService: CaslAuthorizationService,
+    private readonly mediaService: MediaService,
   ) {}
 
-  async create(createUnitDto: CreateUnitDto, propertyId: string, currentUser: User) {
-    // Validate property exists
-    const property = await this.propertyModel.findById(propertyId).exec();
+
+  async create(createUnitDto: CreateUnitDto, propertyId: string, currentUser: UserDocument) {
+
+    // Create the unit first
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    if (!ability.can(Action.Create, Unit)) {
+      throw new ForbiddenException('You do not have permission to create units');
+    }
+
+    // Ensure user has tenant context
+    if (!currentUser.landlord_id) {
+      throw new ForbiddenException('Cannot create unit: No tenant context');
+    }
+
+    // Extract landlord ID for tenant filtering
+    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
+      ? (currentUser.landlord_id as any)._id 
+      : currentUser.landlord_id;
+
+    // mongo-tenant: Validate property exists within tenant context
+    const property = await this.propertyModel
+      .byTenant(landlordId)
+      .findById(propertyId)
+      .exec();
+
     if (!property) {
       throw new UnprocessableEntityException(`Property with ID ${propertyId} not found`);
     }
-
-    this.validateUnitCreateAccess(property, currentUser);
 
     await this.unitBusinessValidator.validateCreate({
       createDto: createUnitDto,
       propertyId,
     });
 
-    const newUnit = new this.unitModel({
+    // mongo-tenant: Create unit within tenant context
+    const UnitWithTenant = this.unitModel.byTenant(landlordId);
+    const newUnit = new UnitWithTenant({
       ...createUnitDto,
       property: propertyId,
     });
 
-    const savedUnit = await newUnit.save();
-    return savedUnit;
+    const unit = await newUnit.save();
+
+    // If media files are provided, upload them
+    if (createUnitDto.media_files && createUnitDto.media_files.length > 0) {
+      const uploadPromises = createUnitDto.media_files.map(async (file) => {
+        return this.mediaService.upload(
+          file,
+          unit,
+          currentUser,
+          'unit_photos'
+        );
+      });
+
+      const uploadedMedia = await Promise.all(uploadPromises);
+
+      return {
+        success: true,
+        data: {
+          unit,
+          media: uploadedMedia,
+        },
+        message: `Unit created successfully with ${uploadedMedia.length} media file(s)`,
+      };
+    }
+
+    return {
+      success: true,
+      data: { unit },
+      message: 'Unit created successfully',
+    };
   }
 
   async findAllPaginated(
     queryDto: UnitQueryDto,
-    currentUser: User,
+    currentUser: UserDocument,
   ): Promise<PaginatedUnitsResponse<Unit>> {
     const {
       page = 1,
@@ -73,22 +124,29 @@ export class UnitsService {
       maxSize,
     } = queryDto;
 
-    // Apply role-based filtering logic
-    this.applyRoleBasedFiltering(queryDto, currentUser);
+    // STEP 1: CASL - Check if user can read units
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
-    const ability = this.caslAuthorizationService.createAbilityForUser(
-      currentUser as User & { organization: Organization; isAdmin?: boolean },
-    );
-
-    let baseQuery = (this.unitModel.find() as any).accessibleBy(ability, Action.Read);
-
-    if (queryDto.landlordId) {
-      const landlordPropertyIds = await this.getLandlordPropertyIds(queryDto.landlordId);
-      if (landlordPropertyIds.length === 0) {
-        return createEmptyPaginatedResponse<Unit>(page, limit);
-      }
-      baseQuery = baseQuery.where({ property: { $in: landlordPropertyIds } });
+    if (!ability.can(Action.Read, Unit)) {
+      throw new ForbiddenException('You do not have permission to view units');
     }
+
+    // STEP 2: mongo-tenant - Apply tenant isolation (mandatory for all users)
+    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
+      ? (currentUser.landlord_id as any)._id 
+      : currentUser.landlord_id;
+
+    if (!landlordId) {
+      // Users without landlord_id cannot access any units
+      return createEmptyPaginatedResponse<Unit>(page, limit);
+    }
+
+    let baseQuery = this.unitModel.byTenant(landlordId).find();
+
+    // STEP 3: Apply CASL field-level filtering
+    baseQuery = (baseQuery as any).accessibleBy(ability, Action.Read);
+
+    // Filter by specific property if provided
     if (propertyId) {
       baseQuery = baseQuery.where({ property: propertyId });
     }
@@ -136,31 +194,105 @@ export class UnitsService {
       countQuery.exec(),
     ]);
 
-    return createPaginatedResponse<Unit>(units, total, page, limit);
+    // Fetch media for each unit
+    const unitsWithMedia = await Promise.all(
+      units.map(async (unit) => {
+        const media = await this.mediaService.getMediaForEntity(
+          'Unit',
+          unit._id.toString(),
+          currentUser,
+          undefined, // collection_name (get all collections)
+          {} // filters (get all media)
+        );
+        return {
+          ...unit.toObject(),
+          media,
+        };
+      })
+    );
+
+    return createPaginatedResponse<any>(unitsWithMedia, total, page, limit);
   }
 
-  async findOne(id: string, currentUser: User) {
-    const unit = await this.unitModel.findById(id).populate('property').exec();
+  async findOne(id: string, currentUser: UserDocument) {
+    // CASL: Check read permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    if (!ability.can(Action.Read, Unit)) {
+      throw new ForbiddenException('You do not have permission to view units');
+    }
+
+    // mongo-tenant: Apply tenant filtering (mandatory)
+    if (!currentUser.landlord_id) {
+      throw new ForbiddenException('Access denied: No tenant context');
+    }
+
+    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
+      ? (currentUser.landlord_id as any)._id 
+      : currentUser.landlord_id;
+
+    const unit = await this.unitModel
+      .byTenant(landlordId)
+      .findById(id)
+      .populate('property')
+      .exec();
+
     if (!unit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
 
-    this.validateUnitAccess(unit, currentUser);
+    // CASL: Final permission check on the specific record
+    if (!ability.can(Action.Read, unit)) {
+      throw new ForbiddenException('You do not have permission to view this unit');
+    }
 
-    return unit;
+    // Fetch media for the unit
+    const media = await this.mediaService.getMediaForEntity(
+      'Unit',
+      unit._id.toString(),
+      currentUser,
+      undefined, // collection_name (get all collections)
+      {} // filters (get all media)
+    );
+
+    return {
+      ...unit.toObject(),
+      media,
+    };
   }
 
-  async update(id: string, updateUnitDto: UpdateUnitDto, currentUser: User) {
+  async update(id: string, updateUnitDto: UpdateUnitDto, currentUser: UserDocument) {
     if (!updateUnitDto || Object.keys(updateUnitDto).length === 0) {
       throw new BadRequestException('Update data cannot be empty');
     }
 
-    const existingUnit = await this.unitModel.findById(id).populate('property').exec();
+    // CASL: Check update permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    // Ensure user has tenant context
+    if (!currentUser.landlord_id) {
+      throw new ForbiddenException('Access denied: No tenant context');
+    }
+
+    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
+      ? (currentUser.landlord_id as any)._id 
+      : currentUser.landlord_id;
+
+    // mongo-tenant: Find within tenant context
+    const existingUnit = await this.unitModel
+      .byTenant(landlordId)
+      .findById(id)
+      .populate('property')
+      .exec();
+
     if (!existingUnit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
 
-    this.validateUnitUpdateAccess(existingUnit, currentUser, updateUnitDto);
+    // CASL: Check if user can update this specific unit
+    if (!ability.can(Action.Update, existingUnit)) {
+      throw new ForbiddenException('You do not have permission to update this unit');
+    }
 
     // Business logic validation
     await this.unitBusinessValidator.validateUpdate({
@@ -177,13 +309,34 @@ export class UnitsService {
     return updatedUnit;
   }
 
-  async remove(id: string, currentUser: User) {
-    const unit = await this.unitModel.findById(id).populate('property').exec();
+  async remove(id: string, currentUser: UserDocument) {
+    // CASL: Check delete permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    // Ensure user has tenant context
+    if (!currentUser.landlord_id) {
+      throw new ForbiddenException('Access denied: No tenant context');
+    }
+
+    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
+      ? (currentUser.landlord_id as any)._id 
+      : currentUser.landlord_id;
+
+    // mongo-tenant: Find within tenant context
+    const unit = await this.unitModel
+      .byTenant(landlordId)
+      .findById(id)
+      .populate('property')
+      .exec();
+
     if (!unit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
 
-    this.validateUnitDeleteAccess(unit, currentUser);
+    // CASL: Check if user can delete this unit
+    if (!ability.can(Action.Delete, unit)) {
+      throw new ForbiddenException('You do not have permission to delete this unit');
+    }
 
     await this.unitBusinessValidator.validateDelete({
       unit,
@@ -192,198 +345,24 @@ export class UnitsService {
     return { message: 'Unit deleted successfully' };
   }
 
-  /**
-   * Validate if the current user has access to create a unit in the specified property
-   */
-  private validateUnitCreateAccess(property: Property, currentUser: User): void {
-    const ability = this.caslAuthorizationService.createAbilityForUser(
-      currentUser as User & { organization: Organization; isAdmin?: boolean },
-    );
-
-    if (!ability.can(Action.Create, Unit)) {
-      throw new ForbiddenException(`Forbidden resources`);
-    }
-
-    // Apply additional role-based access control for creation
-    if (currentUser.organization) {
-      switch ((currentUser.organization as unknown as Organization).type) {
-        case OrganizationType.LANDLORD:
-          // Landlords can only create units in properties they own
-          if (property.owner?.toString() !== (currentUser.organization as unknown as Organization)._id.toString()) {
-            throw new ForbiddenException(`You can only create units in properties you own`);
-          }
-          break;
-
-        case OrganizationType.PROPERTY_MANAGER:
-          // TODO: Implement property manager access validation
-          break;
-
-        default:
-          break;
-      }
-    }
+  private parseFormData(formData: any): CreateUnitDto {
+    return {
+      propertyId: formData.propertyId || formData.property,
+      unitNumber: formData.unitNumber,
+      size: formData.size ? parseFloat(formData.size) : undefined,
+      type: formData.type,
+      availabilityStatus: formData.availabilityStatus,
+    };
   }
 
-  /**
-   * Validate if the current user has access to view the specific unit
-   */
-  private validateUnitAccess(unit: Unit & { property: any }, currentUser: User): void {
-    const ability = this.caslAuthorizationService.createAbilityForUser(
-      currentUser as User & { organization: Organization; isAdmin?: boolean },
-    );
+  private validateUnitData(createUnitDto: CreateUnitDto): void {
+    const missingFields = [];
+    if (!createUnitDto.unitNumber) missingFields.push('unitNumber');
+    if (!createUnitDto.size) missingFields.push('size');
+    if (!createUnitDto.type) missingFields.push('type');
 
-    if (!ability.can(Action.Read, unit)) {
-      throw new ForbiddenException(`Forbidden resources`);
+    if (missingFields.length > 0) {
+      throw new BadRequestException(`Missing required fields: ${missingFields.join(', ')}`);
     }
-
-    if (currentUser.organization) {
-      switch ((currentUser.organization as unknown as Organization).type) {
-        case OrganizationType.LANDLORD:
-          if (unit.property?.owner?.toString() !== (currentUser.organization as unknown as Organization)._id.toString()) {
-            throw new ForbiddenException(`Forbidden resources`);
-          }
-          break;
-
-        case OrganizationType.PROPERTY_MANAGER:
-          // TODO: Implement property manager access validation
-          // Should check if they manage the property this unit belongs to
-          break;
-
-        case OrganizationType.TENANT:
-          // TODO: Implement tenant access validation
-          // Should check if they have tenancy/access rights to this unit
-          break;
-
-        case OrganizationType.CONTRACTOR:
-          // TODO: Implement contractor access validation
-          // Should check if they have active work orders for this unit
-          break;
-
-        default:
-          break;
-      }
-    }
-  }
-
-  /**
-   * Validate if the current user has access to update the specific unit and filter allowed fields
-   */
-  private validateUnitUpdateAccess(
-    unit: Unit & { property: any },
-    currentUser: User,
-    updateDto: UpdateUnitDto,
-  ): void {
-    const ability = this.caslAuthorizationService.createAbilityForUser(
-      currentUser as User & { organization: Organization; isAdmin?: boolean },
-    );
-
-    if (!ability.can(Action.Update, unit)) {
-      throw new ForbiddenException(`Forbidden resources`);
-    }
-
-    if (currentUser.organization) {
-      switch ((currentUser.organization as unknown as Organization).type) {
-        case OrganizationType.LANDLORD:
-          if (unit.property?.owner?.toString() !== (currentUser.organization as unknown as Organization)._id.toString()) {
-            throw new ForbiddenException(`Forbidden resources`);
-          }
-          break;
-
-        case OrganizationType.PROPERTY_MANAGER:
-          // TODO: Implement property manager access validation
-          // Should check if they manage the property this unit belongs to
-          break;
-
-        default:
-          // No field restrictions for unknown organization types
-          break;
-      }
-    }
-  }
-
-  /**
-   * Validate that only allowed fields are being updated for the current user's role
-   */
-  private validateAllowedFields(updateDto: UpdateUnitDto, allowedFields: string[]): void {
-    const updateFields = Object.keys(updateDto);
-    const disallowedFields = updateFields.filter((field) => !allowedFields.includes(field));
-
-    if (disallowedFields.length > 0) {
-      throw new ForbiddenException(
-        `You are not allowed to update the following fields: ${disallowedFields.join(', ')}`,
-      );
-    }
-  }
-
-  /**
-   * Validate if the current user has access to delete the specific unit
-   */
-  private validateUnitDeleteAccess(unit: Unit & { property: any }, currentUser: User): void {
-    const ability = this.caslAuthorizationService.createAbilityForUser(
-      currentUser as User & { organization: Organization; isAdmin?: boolean },
-    );
-
-    if (!ability.can(Action.Delete, unit)) {
-      throw new ForbiddenException(`Forbidden resources`);
-    }
-
-    if (currentUser.organization) {
-      switch ((currentUser.organization as unknown as Organization).type) {
-        case OrganizationType.LANDLORD:
-          if (unit.property?.owner?.toString() !== (currentUser.organization as unknown as Organization)._id.toString()) {
-            throw new ForbiddenException(`Forbidden resources`);
-          }
-          break;
-
-        case OrganizationType.PROPERTY_MANAGER:
-          // TODO: Implement property manager access validation
-          throw new ForbiddenException(`Property managers are not allowed to delete units`);
-
-        default:
-          break;
-      }
-    }
-  }
-
-  /**
-   * Apply role-based filtering to the query DTO based on the current user's organization type
-   */
-  private applyRoleBasedFiltering(queryDto: UnitQueryDto, currentUser: User): void {
-    if (!currentUser.organization) {
-      return;
-    }
-
-    switch ((currentUser.organization as unknown as Organization).type) {
-      case OrganizationType.LANDLORD:
-        // Landlords can only see units in their own properties
-        queryDto.landlordId = (currentUser.organization as unknown as Organization)._id.toString();
-        break;
-
-      case OrganizationType.PROPERTY_MANAGER:
-        // TODO: Implement property manager filtering
-        // Should filter by properties they manage (requires management relationship data)
-        break;
-
-      case OrganizationType.TENANT:
-        // TODO: Implement tenant filtering
-        // Should filter by units they rent or have access to (requires tenancy data)
-        break;
-
-      case OrganizationType.CONTRACTOR:
-        // TODO: Implement contractor filtering
-        // Should filter by units they have work orders for (requires work order data)
-        break;
-
-      default:
-        break;
-    }
-  }
-
-  async getLandlordPropertyIds(landlordId: string): Promise<string[]> {
-    const landlordProperties = await this.propertyModel
-      .find({ owner: landlordId })
-      .select('_id')
-      .exec();
-    return landlordProperties.map((prop) => prop._id.toString());
   }
 }

@@ -32,8 +32,4 @@ export class UserQueryDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by organization ID' })
-  @IsOptional()
-  @IsString()
-  organizationId?: string;
 }

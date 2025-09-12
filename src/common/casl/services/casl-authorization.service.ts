@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Organization } from '../../../features/organizations/schemas/organization.schema';
 import { User } from '../../../features/users/schemas/user.schema';
 import { AppAbility, CaslAbilityFactory } from '../casl-ability.factory';
 
@@ -10,7 +9,7 @@ export class CaslAuthorizationService {
   /**
    * Create ability instance for a user
    */
-  createAbilityForUser(user: User & { organization: Organization; isAdmin?: boolean }): AppAbility {
+  createAbilityForUser(user: User): AppAbility {
     return this.caslAbilityFactory.createForUser(user);
   }
 }
