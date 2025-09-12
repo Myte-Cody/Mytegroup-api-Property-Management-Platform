@@ -48,7 +48,20 @@ export class MediaController {
     @Body() uploadDto: UploadMediaDto,
     @CurrentUser() user: User,
   ) {
-    const media = await this.mediaService.upload(file, uploadDto, user);
+    // Create a mock entity object with the required properties for direct media upload
+    const mockEntity = {
+      _id: uploadDto.model_id,
+      constructor: { name: uploadDto.model_type }
+    };
+
+    const media = await this.mediaService.upload(
+      file, 
+      mockEntity, 
+      user, 
+      uploadDto.collection_name || 'default',
+      uploadDto.disk
+    );
+    
     return {
       success: true,
       data: media,

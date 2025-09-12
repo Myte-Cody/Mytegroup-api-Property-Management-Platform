@@ -38,8 +38,8 @@ export class UsersController {
   @CheckPolicies(new CreateUserPolicyHandler())
   @ApiOperation({ summary: 'Create a new user' })
   @ApiBody({ type: CreateUserDto })
-  async create(@Body() createUserDto: CreateUserDto) {
-    return await this.userService.create(createUserDto);
+  async create(@CurrentUser() currentUser: User, @Body() createUserDto: CreateUserDto) {
+    return await this.userService.create(createUserDto, currentUser);
   }
 
   @Get()

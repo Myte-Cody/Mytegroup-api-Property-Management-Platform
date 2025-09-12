@@ -9,12 +9,6 @@ import * as mongooseDelete from 'mongoose-delete';
 
 @Schema({ timestamps: true })
 export class Contractor extends Document implements SoftDelete {
-    @Prop({
-        type: MongooseSchema.Types.ObjectId,
-        ref: 'Landlord',
-        required: true
-    })
-    landlord_id: Types.ObjectId; 
 
     @Prop({ required: true})
     name: string;
@@ -25,6 +19,9 @@ export class Contractor extends Document implements SoftDelete {
 
 // plugin
 export const ContractorSchema = SchemaFactory.createForClass(Contractor);
+
+// Add compound unique index for multi-tenant uniqueness
+ContractorSchema.index({ name: 1, tenant_id: 1 }, { unique: true, name: 'contractor_name_tenant_unique' });
 
 ContractorSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 ContractorSchema.plugin(accessibleRecordsPlugin);

@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
@@ -50,12 +51,12 @@ export class PropertiesService {
     }
 
     // STEP 2: mongo-tenant - Apply tenant isolation (mandatory for all users)
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
+      ? (currentUser.tenantId as any)._id 
+      : currentUser.tenantId;
 
     if (!landlordId) {
-      // Users without landlord_id cannot access any properties
+      // Users without tenantId cannot access any properties
       return createPaginatedResponse<Property>([], 0, page, limit);
     }
 
@@ -130,12 +131,12 @@ export class PropertiesService {
     }
 
     // mongo-tenant: Apply tenant filtering (mandatory)
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
     const property = await this.propertyModel
-      .byTenant(currentUser.landlord_id)
+      .byTenant(currentUser.tenantId)
       .findById(id)
       .exec();
 
@@ -173,19 +174,35 @@ export class PropertiesService {
     }
 
     // Ensure user has tenant context
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Cannot create property: No tenant context');
+    }
+
+    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
+      ? (currentUser.tenantId as any)._id 
+      : currentUser.tenantId;
+
+    // Check property name uniqueness within the same landlord
+    const existingProperty = await this.propertyModel
+      .byTenant(landlordId)
+      .findOne({ name: createPropertyDto.name })
+      .exec();
+    
+    if (existingProperty) {
+      throw new UnprocessableEntityException(
+        `Property name '${createPropertyDto.name}' already exists in this organization`
+      );
     }
 
     // Ensure the property is created within the user's tenant context
     const propertyData = {
       ...createPropertyDto,
       address: createPropertyDto.address,
-      landlord_id: currentUser.landlord_id, // Enforce tenant boundary
+      tenantId: currentUser.tenantId, // Enforce tenant boundary
     };
 
     // mongo-tenant: Create within tenant context
-    const PropertyWithTenant = this.propertyModel.byTenant(currentUser.landlord_id);
+    const PropertyWithTenant = this.propertyModel.byTenant(currentUser.tenantId);
     const newProperty = new PropertyWithTenant(propertyData);
 
     const property = await newProperty.save();
@@ -225,13 +242,17 @@ export class PropertiesService {
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     // Ensure user has tenant context
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
+    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
+      ? (currentUser.tenantId as any)._id 
+      : currentUser.tenantId;
+
     // mongo-tenant: Find within tenant context
     const property = await this.propertyModel
-      .byTenant(currentUser.landlord_id)
+      .byTenant(landlordId)
       .findById(id)
       .exec();
 
@@ -242,6 +263,23 @@ export class PropertiesService {
     // CASL: Check if user can update this specific property
     if (!ability.can(Action.Update, property)) {
       throw new ForbiddenException('You do not have permission to update this property');
+    }
+
+    // Check for name uniqueness if name is being updated
+    if (updatePropertyDto.name && updatePropertyDto.name !== property.name) {
+      const existingProperty = await this.propertyModel
+        .byTenant(landlordId)
+        .findOne({ 
+          name: updatePropertyDto.name,
+          _id: { $ne: id } // Exclude current property from the check
+        })
+        .exec();
+      
+      if (existingProperty) {
+        throw new UnprocessableEntityException(
+          `Property name '${updatePropertyDto.name}' already exists in this organization`
+        );
+      }
     }
 
     // Filter allowed fields based on user role
@@ -259,13 +297,13 @@ export class PropertiesService {
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     // Ensure user has tenant context
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
     // mongo-tenant: Find within tenant context
     const property = await this.propertyModel
-      .byTenant(currentUser.landlord_id)
+      .byTenant(currentUser.tenantId)
       .findById(id)
       .exec();
 
@@ -280,7 +318,7 @@ export class PropertiesService {
 
     // Check for active units using tenant-aware query
     const activeUnits = await (this.unitModel as any)
-      .byTenant(currentUser.landlord_id)
+      .byTenant(currentUser.tenantId)
       .find({
         property: id,
         deleted: { $ne: true },
@@ -314,7 +352,7 @@ export class PropertiesService {
   private getAllowedUpdateFields(currentUser: UserDocument): string[] {
     switch (currentUser.user_type) {
       case 'Landlord':
-        return ['name', 'description', 'address']; // Landlords can update property details
+        return ['name', 'description', 'street', 'city', 'state', 'postalCode', 'country'];
       case 'Tenant':
         return []; // Tenants cannot update properties
       case 'Contractor':

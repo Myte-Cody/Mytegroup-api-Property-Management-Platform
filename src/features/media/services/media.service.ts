@@ -58,36 +58,37 @@ export class MediaService implements MediaServiceInterface {
     }
 
     // Ensure user has tenant context
-    if (!(currentUser as any).landlord_id) {
+    if (!(currentUser as any).tenantId) {
       throw new ForbiddenException('Cannot upload media: No tenant context');
     }
 
-    const landlordId = (currentUser as any).landlord_id && typeof (currentUser as any).landlord_id === 'object' 
-      ? ((currentUser as any).landlord_id as any)._id 
-      : (currentUser as any).landlord_id;
+    const landlordId = (currentUser as any).tenantId && typeof (currentUser as any).tenantId === 'object' 
+      ? ((currentUser as any).tenantId as any)._id 
+      : (currentUser as any).tenantId;
 
-    // Generate unique filename and path
-    const uniqueFilename = MediaUtils.generateUniqueFilename(file.originalName);
-    
-    // Determine entity type more reliably for mongo-tenant models
-    let entityType = entity.constructor.name;
+    // Generate unique filename and path - handle different file object structures
+    const originalName = file.originalname || file.originalName || file.name || 'unknown.jpg';
+    const uniqueFilename = MediaUtils.generateUniqueFilename(originalName);
+
+    // Determine entity type
+    let entityType = entity?.constructor?.name || entity.model_type || 'UnknownModel';
     if (entityType === 'MongoTenantModel' || entityType === 'model') {
       // For mongo-tenant models, try to determine type from schema or properties
-      if (entity.address && entity.name && !entity.property) {
+      if (entity?.address && entity?.name && !entity?.property) {
         entityType = 'Property';
-      } else if (entity.property && entity.unitNumber !== undefined) {
+      } else if (entity?.property && entity?.unitNumber !== undefined) {
         entityType = 'Unit';
-      } else if (entity.email && entity.user_type) {
+      } else if (entity?.email && entity?.user_type) {
         entityType = 'User';
       } else {
         // Fallback to a more generic approach
-        entityType = entity.schema?.modelName || 'UnknownModel';
+        entityType = entity?.schema?.modelName || 'UnknownModel';
       }
     }
     
     const storagePath = MediaUtils.generateStoragePath(
       entityType,
-      entity._id.toString(),
+      entity?._id?.toString() || 'unknown',
       uniqueFilename,
       collection
     );
@@ -96,19 +97,24 @@ export class MediaService implements MediaServiceInterface {
     const storageDriver = this.storageManager.getDriver(disk);
     const actualPath = await storageDriver.store(file, storagePath);
 
-    // Create media record
+    // Create media record - handle different file object structures
+    const selectedDisk = disk || this.storageManager.getDefaultDisk();
+    const mimeType = file.mimetype || file.type || 'application/octet-stream';
+    const fileSize = file.size || file.length || 0;
+    
     const mediaData = {
       model_type: entityType,
-      model_id: entity._id,
-      landlord_id: landlordId,
-      name: file.originalName,
+      model_id: entity?._id,
+      tenantId: landlordId,
+      name: originalName,
       file_name: uniqueFilename,
-      mime_type: file.mimetype,
-      size: file.size,
-      type: MediaUtils.getMediaTypeFromMime(file.mimetype),
-      disk: disk || this.storageManager.getDefaultDisk(),
+      mime_type: mimeType,
+      size: fileSize,
+      type: MediaUtils.getMediaTypeFromMime(mimeType),
+      disk: selectedDisk,
       path: actualPath,
-      url: storageDriver.getUrl(actualPath),
+      // Only store URL for non-local storage (S3, CDN, etc.)
+      ...(selectedDisk !== 'local' && { url: storageDriver.getUrl(actualPath) }),
       collection_name: collection,
       metadata: this.extractMetadata(file),
     };
@@ -126,7 +132,7 @@ export class MediaService implements MediaServiceInterface {
     user: User,
     collection_name?: string,
     filters?: { media_type?: MediaType }
-  ): Promise<Media[]> {
+  ): Promise<(Media & { url: string })[]> {
     const query: any = {
       model_type,
       model_id,
@@ -140,11 +146,12 @@ export class MediaService implements MediaServiceInterface {
       query.media_type = filters.media_type;
     }
 
-    return this.mediaModel.byTenant((user as any).landlord_id).find(query).exec();
+    const media = await this.mediaModel.byTenant((user as any).tenantId).find(query).exec();
+    return this.enrichMediaArrayWithUrls(media);
   }
 
-  async findOne(id: string, user: User): Promise<Media> {
-    const media = await this.mediaModel.byTenant((user as any).landlord_id).findById(id).exec();
+  async findOne(id: string, user: User): Promise<Media & { url: string }> {
+    const media = await this.mediaModel.byTenant((user as any).tenantId).findById(id).exec();
     
     if (!media) {
       throw new NotFoundException('Media not found');
@@ -156,15 +163,20 @@ export class MediaService implements MediaServiceInterface {
       throw new ForbiddenException('You do not have permission to access this media');
     }
 
-    return media;
+    return this.enrichMediaWithUrl(media);
   }
 
   async deleteMedia(id: string, user: User): Promise<void> {
-    const media = await this.findOne(id, user);
+    // Get media without URL enrichment for deletion (more efficient)
+    const media = await this.mediaModel.byTenant((user as any).tenantId).findById(id).exec();
     
-    // Check if user can delete this media
+    if (!media) {
+      throw new NotFoundException('Media not found');
+    }
+
+    // Check if user can read and delete this media
     const ability = this.caslAbilityFactory.createForUser(user);
-    if (!ability.can(Action.Delete, media)) {
+    if (!ability.can(Action.Read, media) || !ability.can(Action.Delete, media)) {
       throw new ForbiddenException('You do not have permission to delete this media');
     }
 
@@ -173,12 +185,28 @@ export class MediaService implements MediaServiceInterface {
     await driver.delete(media.path);
 
     // Delete from database
-    await this.mediaModel.byTenant((user as any).landlord_id).findByIdAndDelete(id);
+    await this.mediaModel.byTenant((user as any).tenantId).findByIdAndDelete(id);
   }
 
   async getMediaUrl(media: Media): Promise<string> {
+    // Use stored URL if available, otherwise calculate it
+    if (media.url) {
+      return media.url;
+    }
+    
     const driver = this.storageManager.getDriver(media.disk);
     return driver.getUrl(media.path);
+  }
+
+  async enrichMediaWithUrl(media: Media): Promise<Media & { url: string }> {
+    const url = await this.getMediaUrl(media);
+    return { ...media.toObject(), url };
+  }
+
+  async enrichMediaArrayWithUrls(mediaArray: Media[]): Promise<(Media & { url: string })[]> {
+    return Promise.all(
+      mediaArray.map(media => this.enrichMediaWithUrl(media))
+    );
   }
 
   private validateFile(file: MemoryStoredFile): void {

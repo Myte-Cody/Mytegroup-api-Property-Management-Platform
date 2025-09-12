@@ -43,15 +43,7 @@ export class Media extends Document implements SoftDelete {
     required: true,
     index: true 
   })
-  model_id: Types.ObjectId; 
-  
-  @Prop({
-    type: MongooseSchema.Types.ObjectId,
-    ref: 'Landlord',
-    required: true,
-    index: true
-  })
-  landlord_id: Types.ObjectId;
+  model_id: Types.ObjectId;
   
   @Prop({ required: true, trim: true })
   name: string; 
@@ -85,7 +77,7 @@ export class Media extends Document implements SoftDelete {
   path: string; // Storage path
   
   @Prop()
-  url?: string; // Public URL (for S3 or CDN)
+  url?: string; // Public URL (stored for S3/CDN, calculated for local)
   
   // Collection/category for organization
   @Prop({ default: 'default', trim: true })
@@ -107,4 +99,4 @@ MediaSchema.plugin(accessibleRecordsPlugin);
 MediaSchema.plugin(mongoTenant);
 
 MediaSchema.index({ model_type: 1, model_id: 1, collection_name: 1 });
-MediaSchema.index({ landlord_id: 1, model_type: 1 });
+MediaSchema.index({ tenant_id: 1, model_type: 1 });

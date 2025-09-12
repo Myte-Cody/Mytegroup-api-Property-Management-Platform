@@ -46,14 +46,14 @@ export class UnitsService {
     }
 
     // Ensure user has tenant context
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Cannot create unit: No tenant context');
     }
 
     // Extract landlord ID for tenant filtering
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
+      ? (currentUser.tenantId as any)._id 
+      : currentUser.tenantId;
 
     // mongo-tenant: Validate property exists within tenant context
     const property = await this.propertyModel
@@ -68,6 +68,7 @@ export class UnitsService {
     await this.unitBusinessValidator.validateCreate({
       createDto: createUnitDto,
       propertyId,
+      currentUser,
     });
 
     // mongo-tenant: Create unit within tenant context
@@ -132,12 +133,12 @@ export class UnitsService {
     }
 
     // STEP 2: mongo-tenant - Apply tenant isolation (mandatory for all users)
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
+      ? (currentUser.tenantId as any)._id 
+      : currentUser.tenantId;
 
     if (!landlordId) {
-      // Users without landlord_id cannot access any units
+      // Users without tenantId cannot access any units
       return createEmptyPaginatedResponse<Unit>(page, limit);
     }
 
@@ -223,13 +224,13 @@ export class UnitsService {
     }
 
     // mongo-tenant: Apply tenant filtering (mandatory)
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
+      ? (currentUser.tenantId as any)._id 
+      : currentUser.tenantId;
 
     const unit = await this.unitModel
       .byTenant(landlordId)
@@ -270,13 +271,13 @@ export class UnitsService {
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     // Ensure user has tenant context
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
+      ? (currentUser.tenantId as any)._id 
+      : currentUser.tenantId;
 
     // mongo-tenant: Find within tenant context
     const existingUnit = await this.unitModel
@@ -299,6 +300,7 @@ export class UnitsService {
       existingUnit,
       updateDto: updateUnitDto,
       userId: currentUser._id?.toString(),
+      currentUser,
     });
 
     // Perform the update
@@ -314,13 +316,13 @@ export class UnitsService {
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     // Ensure user has tenant context
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
+      ? (currentUser.tenantId as any)._id 
+      : currentUser.tenantId;
 
     // mongo-tenant: Find within tenant context
     const unit = await this.unitModel

@@ -25,14 +25,6 @@ export class Address {
 
 @Schema({ timestamps: true })
 export class Property extends Document implements SoftDelete {
-  @Prop({
-    type: MongooseSchema.Types.ObjectId,
-    ref: 'Landlord',
-    required: true,
-    index: true
-  })
-  landlord_id: Types.ObjectId; 
-
   @Prop({ required: true, trim: true, maxlength: 128 })
   name: string;
 
@@ -42,12 +34,14 @@ export class Property extends Document implements SoftDelete {
   @Prop({ maxlength: 1024, default: '' })
   description: string;
 
-
   deleted: boolean;
   deletedAt?: Date;
 }
 
 export const PropertySchema = SchemaFactory.createForClass(Property);
+
+// Add compound unique index for multi-tenant uniqueness
+PropertySchema.index({ name: 1, tenantId: 1 }, { unique: true, name: 'property_name_tenant_unique' });
 
 PropertySchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 PropertySchema.plugin(accessibleRecordsPlugin);

@@ -7,11 +7,8 @@ import { accessibleRecordsPlugin } from '@casl/mongoose';
 @Schema({ timestamps: true })
 export class Landlord extends Document implements SoftDelete {
 
-    @Prop({ required: true})
-    company_name: string;
-
-    @Prop()
-    business_number?: string;
+    @Prop({ required: true, unique: true})
+    name: string;
 
     deleted: boolean;
     deletedAt?: Date;

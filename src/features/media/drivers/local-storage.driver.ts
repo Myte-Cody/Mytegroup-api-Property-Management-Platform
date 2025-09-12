@@ -9,6 +9,7 @@ const writeFile = promisify(fs.writeFile);
 const unlink = promisify(fs.unlink);
 const access = promisify(fs.access);
 const mkdir = promisify(fs.mkdir);
+const copyFile = promisify(fs.copyFile);
 
 @Injectable()
 export class LocalStorageDriver implements StorageDriverInterface {
@@ -30,8 +31,22 @@ export class LocalStorageDriver implements StorageDriverInterface {
     // Ensure directory exists
     await mkdir(directory, { recursive: true });
     
-    // Write file
-    await writeFile(fullPath, file.buffer);
+    // Handle different file object structures
+    if (file.buffer) {
+      // Memory storage - file has buffer property
+      await writeFile(fullPath, file.buffer);
+    } else if (file.path) {
+      // Disk storage - file is already stored, need to move it
+      await copyFile(file.path, fullPath);
+      // Clean up temp file
+      try {
+        await unlink(file.path);
+      } catch (error) {
+        console.warn('Failed to clean up temp file:', file.path);
+      }
+    } else {
+      throw new Error('File object must have either buffer or path property');
+    }
     
     return relativePath;
   }

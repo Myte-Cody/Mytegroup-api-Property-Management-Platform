@@ -43,6 +43,9 @@ export class Unit extends Document implements SoftDelete {
 
 export const UnitSchema = SchemaFactory.createForClass(Unit);
 
+// Add compound unique index for unit number per property within landlordd
+UnitSchema.index({ unitNumber: 1, property: 1, tenantId: 1 }, { unique: true, name: 'unit_number_property_tenant_unique' });
+
 UnitSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 UnitSchema.plugin(accessibleRecordsPlugin);
 UnitSchema.plugin(mongoTenant);

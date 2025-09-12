@@ -55,10 +55,10 @@ export class CaslAbilityFactory {
   createForUser(user: UserDocument): AppAbility {
     const { can, cannot, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
 
-    // Handle both populated and unpopulated landlord_id
-    const landlordId = user.landlord_id && typeof user.landlord_id === 'object' 
-      ? (user.landlord_id as any)._id 
-      : user.landlord_id;
+    // Handle both populated and unpopulated tenantId
+    const landlordId = user.tenantId && typeof user.tenantId === 'object' 
+      ? (user.tenantId as any)._id 
+      : user.tenantId;
 
     // All users must have a tenant context
     if (!landlordId) {
@@ -109,19 +109,32 @@ export class CaslAbilityFactory {
     });
   }
 
-  private defineLandlordPermissions(can: any, cannot: any, user: User) {
-    // Landlords can manage all resources within their tenant
+  private defineLandlordPermissions(can: any, cannot: any, user: UserDocument) {
+    // Get the tenantId for scoping permissions
+    const landlordId = user.tenantId && typeof user.tenantId === 'object' 
+      ? (user.tenantId as any)._id 
+      : user.tenantId;
+
+    // Landlords can manage all resources within their tenant context
     can(Action.Manage, Property);
     can(Action.Manage, Unit);
     can(Action.Manage, Tenant);
     can(Action.Manage, Contractor);
     can(Action.Manage, Media);
 
-    // But they cannot change landlord_id (tenant boundary)
-    cannot(Action.Update, Property, ['landlord_id']);
+    // Landlords can manage all types of users within their context
+    if (landlordId) {
+      can(Action.Manage, User, { tenantId: landlordId });
+    }
+
   }
 
-  private defineTenantPermissions(can: any, cannot: any, user: User) {
+  private defineTenantPermissions(can: any, cannot: any, user: UserDocument) {
+    // Get the tenantId for scoping permissions
+    const landlordId = user.tenantId && typeof user.tenantId === 'object' 
+      ? (user.tenantId as any)._id 
+      : user.tenantId;
+
     // Tenants can only read properties and units
     can(Action.Read, Property);
     can(Action.Read, Unit);
@@ -136,7 +149,15 @@ export class CaslAbilityFactory {
       can(Action.Read, Tenant, { _id: tenantId });
     }
 
-    // Cannot create, update, or delete
+    // Tenants can manage tenant users within their landlord's context
+    if (landlordId) {
+      can(Action.Manage, User, { 
+        tenantId: landlordId,
+        user_type: UserType.TENANT 
+      });
+    }
+
+    // Cannot create, update, or delete properties, units, and other entities
     cannot(Action.Create, Property);
     cannot(Action.Update, Property);
     cannot(Action.Delete, Property);
@@ -149,9 +170,14 @@ export class CaslAbilityFactory {
     cannot(Action.Create, Media);
     cannot(Action.Update, Media);
     cannot(Action.Delete, Media);
+
+    // Tenants cannot manage non-tenant users
+    cannot(Action.Manage, User, { user_type: UserType.LANDLORD });
+    cannot(Action.Manage, User, { user_type: UserType.CONTRACTOR });
+    cannot(Action.Manage, User, { user_type: UserType.ADMIN });
   }
 
-  private defineContractorPermissions(can: any, cannot: any, user: User) {
+  private defineContractorPermissions(can: any, cannot: any, user: UserDocument) {
     // Contractors can read properties and units for work purposes
     can(Action.Read, Property);
     can(Action.Read, Unit);

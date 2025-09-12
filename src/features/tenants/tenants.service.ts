@@ -50,12 +50,12 @@ export class TenantsService {
     }
 
     // STEP 2: mongo-tenant - Apply tenant isolation (mandatory for all users)
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
+      ? (currentUser.tenantId as any)._id 
+      : currentUser.tenantId;
 
     if (!landlordId) {
-      // Users without landlord_id cannot access any tenants
+      // Users without tenantId cannot access any tenants
       return createPaginatedResponse<Tenant>([], 0, page, limit);
     }
 
@@ -101,13 +101,13 @@ export class TenantsService {
     }
 
     // mongo-tenant: Apply tenant filtering (mandatory)
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
+      ? (currentUser.tenantId as any)._id 
+      : currentUser.tenantId;
 
     const tenant = await this.tenantModel
       .byTenant(landlordId)
@@ -140,13 +140,13 @@ export class TenantsService {
     }
 
     // mongo-tenant: Apply tenant filtering (mandatory)
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
+      ? (currentUser.tenantId as any)._id 
+      : currentUser.tenantId;
 
     const tenantId = currentUser.party_id;
     if (!tenantId) {
@@ -179,13 +179,13 @@ export class TenantsService {
     }
 
     // Ensure user has tenant context
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Cannot create tenant: No tenant context');
     }
 
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
+      ? (currentUser.tenantId as any)._id 
+      : currentUser.tenantId;
 
     // Extract user data from DTO
     const { email, password, name } = createTenantDto;
@@ -197,7 +197,7 @@ export class TenantsService {
     // Create the tenant first
     const tenantData = {
       name,
-      landlord_id: landlordId, // Enforce tenant boundary
+      tenantId: landlordId, // Enforce tenant boundary
     };
 
     // mongo-tenant: Create within tenant context
@@ -212,7 +212,7 @@ export class TenantsService {
       password: hashedPassword,
       user_type: 'Tenant',
       party_id: savedTenant._id, // Link to the tenant
-      landlord_id: landlordId, // Set tenant context
+      tenantId: landlordId, // Set tenant context
     };
 
     // mongo-tenant: Create user within tenant context
@@ -228,13 +228,13 @@ export class TenantsService {
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     // Ensure user has tenant context
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
+      ? (currentUser.tenantId as any)._id 
+      : currentUser.tenantId;
 
     // mongo-tenant: Find within tenant context
     const tenant = await this.tenantModel
@@ -267,13 +267,13 @@ export class TenantsService {
 
     // todo do we need this verifiatio each time
     // Ensure user has tenant context
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
+      ? (currentUser.tenantId as any)._id 
+      : currentUser.tenantId;
 
     // mongo-tenant: Find within tenant context
     const tenant = await this.tenantModel
