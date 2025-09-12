@@ -47,13 +47,13 @@ export class UnitsController {
 
   @Post()
   @CheckPolicies(new CreateUnitPolicyHandler())
-  @UseInterceptors(FilesInterceptor('media_files', 10)) // Allow up to 10 files
+  @UseInterceptors(FilesInterceptor('media_files', 10))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create a new unit with optional media files' })
   @ApiBody({ type: CreateUnitDto })
   async create(
     @CurrentUser() user: User,
-    @Body() formData: any, // Raw form data (includes propertyId)
+    @Body() formData: any,
     @UploadedFiles() mediaFiles?: any[],
   ) {
     const propertyId = formData.propertyId || formData.property;

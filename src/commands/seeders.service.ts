@@ -1,12 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { SeedAdminCommand } from './seed-admin.command';
 import { SeedDevDataCommand } from './seed-dev-data.command';
 
 
 @Injectable()
 export class SeedersService {
   constructor(
-    // private readonly seedAdminCommand: SeedAdminCommand,
     private readonly seedDevDataCommand: SeedDevDataCommand,
   ) {}
 

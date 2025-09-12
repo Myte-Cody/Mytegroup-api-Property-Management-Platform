@@ -29,15 +29,6 @@ export class UsersService {
       throw new UnprocessableEntityException(`Email '${email}' is already registered`);
     }
 
-    // if (organization) {
-    //   const existingOrganization = await this.organizationModel.findById(organization).exec();
-    //   if (!existingOrganization) {
-    //     throw new UnprocessableEntityException(
-    //       `Organization with ID ${organization} does not exist`,
-    //     );
-    //   }
-    // }
-
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -54,7 +45,6 @@ export class UsersService {
 
     const populatedUser = await this.userModel
       .findById(currentUser._id)
-      // .populate('organization')
       .exec();
 
     if (!populatedUser) {
@@ -78,16 +68,12 @@ export class UsersService {
       });
     }
 
-    // if (organizationId) {
-    //   baseQuery = baseQuery.where({ organization: organizationId });
-    // }
 
     const skip = (page - 1) * limit;
 
     // Create separate queries for data and count to avoid interference
     const dataQuery = baseQuery
       .clone()
-      // .populate('organization')
       .sort({ [sortBy]: sortOrder === 'asc' ? 1 : -1 })
       .skip(skip)
       .limit(limit);
@@ -117,7 +103,6 @@ export class UsersService {
   async update(id: string, updateUserDto: UpdateUserDto, currentUser?: User) {
     const user = await this.userModel
     .findById(id)
-    // .populate('organization')
     .exec();
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);

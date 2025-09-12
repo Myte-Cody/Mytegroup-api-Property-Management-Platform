@@ -265,6 +265,7 @@ export class TenantsService {
     // CASL: Check delete permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
+    // todo do we need this verifiatio each time
     // Ensure user has tenant context
     if (!currentUser.landlord_id) {
       throw new ForbiddenException('Access denied: No tenant context');

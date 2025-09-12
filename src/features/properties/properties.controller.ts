@@ -52,13 +52,13 @@ export class PropertiesController {
 
   @Post()
   @CheckPolicies(new CreatePropertyPolicyHandler())
-  @UseInterceptors(FilesInterceptor('media_files', 10)) // Allow up to 10 files
+  @UseInterceptors(FilesInterceptor('media_files', 10))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create a new property with optional media files' })
   @ApiBody({ type: CreatePropertyDto })
   async create(
     @CurrentUser() user: User,
-    @Body() formData: any, // Raw form data
+    @Body() formData: any,
     @UploadedFiles() mediaFiles?: any[],
   ) {
     return this.propertiesService.create(formData, mediaFiles || [], user);
@@ -125,14 +125,14 @@ export class PropertiesController {
 
   @Post(':id/units')
   @CheckPolicies(new CreateUnitPolicyHandler())
-  @UseInterceptors(FilesInterceptor('media_files', 10)) // Allow up to 10 files
+  @UseInterceptors(FilesInterceptor('media_files', 10))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Add a unit to a property with optional media files' })
   @ApiParam({ name: 'id', description: 'Property ID', type: String })
   @ApiBody({ type: CreateUnitDto, description: 'Unit data to create' })
   addUnitToProperty(
     @Param('id', MongoIdValidationPipe) id: string,
-    @Body() formData: any, 
+    @Body() formData: any,
     @UploadedFiles() mediaFiles: any[],
     @CurrentUser() user: User,
   ) {

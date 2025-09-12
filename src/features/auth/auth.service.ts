@@ -54,8 +54,8 @@ export class AuthService {
         email: user.email,
         user_type: user.user_type,
         landlord_id: user.landlord_id,
-        party_info: user.party_id, // This will contain the populated party data
-        landlord_info: user.landlord_id, // This will contain the populated landlord data
+        party_info: user.party_id,
+        landlord_info: user.landlord_id,
       },
       accessToken: this.jwtService.sign(payload),
     };
@@ -65,8 +65,8 @@ export class AuthService {
     const user = await this.userModel
       .findById(userId)
       .select('_id username email user_type landlord_id party_id')
-      .populate('party_id') // Populate the party reference
-      .populate('landlord_id', 'company_name') // Populate landlord info
+      .populate('party_id')
+      .populate('landlord_id', 'company_name')
       .exec();
 
     if (!user) {
@@ -88,37 +88,5 @@ export class AuthService {
       party_info: user.party_id, // Populated party data
       landlord_info: user.landlord_id, // Populated landlord data
     };
-  }
-
-  /**
-   * Validate that user has proper tenant context and permissions
-   */
-  async validateUserContext(userId: string): Promise<User> {
-    const user = await this.userModel
-      .findById(userId)
-      .populate('party_id')
-      .populate('landlord_id')
-      .exec();
-
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    if (!user.landlord_id) {
-      throw new UnauthorizedException('User missing tenant context');
-    }
-
-    if (!user.user_type || !['Landlord', 'Tenant', 'Contractor'].includes(user.user_type)) {
-      throw new UnauthorizedException('Invalid user type');
-    }
-
-    return user;
-  }
-
-  /**
-   * Check if user belongs to a specific tenant
-   */
-  validateTenantAccess(user: UserDocument, requiredLandlordId: string): boolean {
-    return user.landlord_id?.toString() === requiredLandlordId;
   }
 }
