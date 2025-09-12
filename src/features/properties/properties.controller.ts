@@ -10,11 +10,7 @@ import {
   Post,
   Query,
   UseGuards,
-  UseInterceptors,
-  UploadedFile,
-  UploadedFiles,
 } from '@nestjs/common';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { CheckPolicies } from '../../common/casl/decorators/check-policies.decorator';
 import { CaslGuard } from '../../common/casl/guards/casl.guard';
@@ -27,6 +23,7 @@ import {
 import { CreateUnitPolicyHandler } from '../../common/casl/policies/unit.policies';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
+import { FormDataRequest } from 'nestjs-form-data';
 
 import { User } from '../users/schemas/user.schema';
 import { CreatePropertyDto } from './dto/create-property.dto';
@@ -52,16 +49,14 @@ export class PropertiesController {
 
   @Post()
   @CheckPolicies(new CreatePropertyPolicyHandler())
-  @UseInterceptors(FilesInterceptor('media_files', 10))
+  @FormDataRequest()
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create a new property with optional media files' })
-  @ApiBody({ type: CreatePropertyDto })
   async create(
     @CurrentUser() user: User,
-    @Body() formData: any,
-    @UploadedFiles() mediaFiles?: any[],
+    @Body() createPropertyDto: CreatePropertyDto,
   ) {
-    return this.propertiesService.create(formData, mediaFiles || [], user);
+    return this.propertiesService.create(createPropertyDto, user);
   }
 
   @Get()
@@ -125,18 +120,16 @@ export class PropertiesController {
 
   @Post(':id/units')
   @CheckPolicies(new CreateUnitPolicyHandler())
-  @UseInterceptors(FilesInterceptor('media_files', 10))
+  @FormDataRequest()
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Add a unit to a property with optional media files' })
   @ApiParam({ name: 'id', description: 'Property ID', type: String })
-  @ApiBody({ type: CreateUnitDto, description: 'Unit data to create' })
   addUnitToProperty(
     @Param('id', MongoIdValidationPipe) id: string,
-    @Body() formData: any,
-    @UploadedFiles() mediaFiles: any[],
+    @Body() createUnitDto: CreateUnitDto,
     @CurrentUser() user: User,
   ) {
-    return this.unitsService.create(formData, mediaFiles || [], id, user);
+    return this.unitsService.create(createUnitDto, id, user);
   }
 
   @Get(':id/media')

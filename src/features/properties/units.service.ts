@@ -36,11 +36,7 @@ export class UnitsService {
   ) {}
 
 
-  async create(formData: any, mediaFiles: any[], propertyId: string, currentUser: UserDocument) {
-    // Parse form data into proper DTO structure
-    const createUnitDto: CreateUnitDto = this.parseFormData(formData);
-
-    this.validateUnitData(createUnitDto);
+  async create(createUnitDto: CreateUnitDto, propertyId: string, currentUser: UserDocument) {
 
     // Create the unit first
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
@@ -84,8 +80,8 @@ export class UnitsService {
     const unit = await newUnit.save();
 
     // If media files are provided, upload them
-    if (mediaFiles && mediaFiles.length > 0) {
-      const uploadPromises = mediaFiles.map(async (file) => {
+    if (createUnitDto.media_files && createUnitDto.media_files.length > 0) {
+      const uploadPromises = createUnitDto.media_files.map(async (file) => {
         return this.mediaService.upload(
           file,
           unit,

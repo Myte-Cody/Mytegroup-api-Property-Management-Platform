@@ -15,7 +15,6 @@ import {
   UploadedFile,
   UploadedFiles,
 } from '@nestjs/common';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { CheckPolicies } from '../../common/casl/decorators/check-policies.decorator';
 import { CaslGuard } from '../../common/casl/guards/casl.guard';
@@ -44,24 +43,6 @@ export class UnitsController {
     private readonly unitsService: UnitsService,
     private readonly mediaService: MediaService,
   ) {}
-
-  @Post()
-  @CheckPolicies(new CreateUnitPolicyHandler())
-  @UseInterceptors(FilesInterceptor('media_files', 10))
-  @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Create a new unit with optional media files' })
-  @ApiBody({ type: CreateUnitDto })
-  async create(
-    @CurrentUser() user: User,
-    @Body() formData: any,
-    @UploadedFiles() mediaFiles?: any[],
-  ) {
-    const propertyId = formData.propertyId || formData.property;
-    if (!propertyId) {
-      throw new BadRequestException('Property ID is required');
-    }
-    return this.unitsService.create(formData, mediaFiles || [], propertyId, user);
-  }
 
   @Get()
   @CheckPolicies(new ReadUnitPolicyHandler())

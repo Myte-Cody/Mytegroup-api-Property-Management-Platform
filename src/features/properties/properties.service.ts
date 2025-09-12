@@ -3,8 +3,6 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  UnprocessableEntityException,
-  BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
@@ -166,13 +164,7 @@ export class PropertiesService {
   }
 
 
-  async create(formData: any, mediaFiles: any[], currentUser: UserDocument) {
-    // Parse form data into proper DTO structure
-    const createPropertyDto: CreatePropertyDto = this.parseFormData(formData);
-
-    // Validate required fields
-    this.validatePropertyData(createPropertyDto);
-
+  async create(createPropertyDto: CreatePropertyDto, currentUser: UserDocument) {
     // Create the property first
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
@@ -188,6 +180,7 @@ export class PropertiesService {
     // Ensure the property is created within the user's tenant context
     const propertyData = {
       ...createPropertyDto,
+      address: createPropertyDto.address,
       landlord_id: currentUser.landlord_id, // Enforce tenant boundary
     };
 
@@ -198,8 +191,8 @@ export class PropertiesService {
     const property = await newProperty.save();
 
     // If media files are provided, upload them
-    if (mediaFiles && mediaFiles.length > 0) {
-      const uploadPromises = mediaFiles.map(async (file) => {
+    if (createPropertyDto.media_files && createPropertyDto.media_files.length > 0) {
+      const uploadPromises = createPropertyDto.media_files.map(async (file) => {
         return this.mediaService.upload(
           file,
           property,
@@ -225,36 +218,6 @@ export class PropertiesService {
       data: { property },
       message: 'Property created successfully',
     };
-  }
-
-  private parseFormData(formData: any): CreatePropertyDto {
-    return {
-      name: formData.name,
-      description: formData.description,
-      owner: formData.owner,
-      address: {
-        street: formData['address[street]'] || formData.address?.street,
-        city: formData['address[city]'] || formData.address?.city,
-        state: formData['address[state]'] || formData.address?.state,
-        postalCode: formData['address[postalCode]'] || formData.address?.postalCode,
-        country: formData['address[country]'] || formData.address?.country,
-      },
-    };
-  }
-
-  private validatePropertyData(createPropertyDto: CreatePropertyDto): void {
-    const missingFields = [];
-    if (!createPropertyDto.name) missingFields.push('name');
-    if (!createPropertyDto.owner) missingFields.push('owner');
-    if (!createPropertyDto.address.street) missingFields.push('address.street');
-    if (!createPropertyDto.address.city) missingFields.push('address.city');
-    if (!createPropertyDto.address.state) missingFields.push('address.state');
-    if (!createPropertyDto.address.postalCode) missingFields.push('address.postalCode');
-    if (!createPropertyDto.address.country) missingFields.push('address.country');
-
-    if (missingFields.length > 0) {
-      throw new BadRequestException(`Missing required fields: ${missingFields.join(', ')}`);
-    }
   }
 
   async update(id: string, updatePropertyDto: UpdatePropertyDto, currentUser: UserDocument) {

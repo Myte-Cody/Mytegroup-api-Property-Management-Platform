@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
+import { MemoryStoredFile } from 'nestjs-form-data';
 import { Action, CaslAbilityFactory } from '../../../common/casl/casl-ability.factory';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { User } from '../../users/schemas/user.schema';
@@ -66,7 +67,7 @@ export class MediaService implements MediaServiceInterface {
       : (currentUser as any).landlord_id;
 
     // Generate unique filename and path
-    const uniqueFilename = MediaUtils.generateUniqueFilename(file.originalname);
+    const uniqueFilename = MediaUtils.generateUniqueFilename(file.originalName);
     
     // Determine entity type more reliably for mongo-tenant models
     let entityType = entity.constructor.name;
@@ -100,7 +101,7 @@ export class MediaService implements MediaServiceInterface {
       model_type: entityType,
       model_id: entity._id,
       landlord_id: landlordId,
-      name: file.originalname,
+      name: file.originalName,
       file_name: uniqueFilename,
       mime_type: file.mimetype,
       size: file.size,
@@ -180,7 +181,7 @@ export class MediaService implements MediaServiceInterface {
     return driver.getUrl(media.path);
   }
 
-  private validateFile(file: any): void {
+  private validateFile(file: MemoryStoredFile): void {
     if (!file) {
       throw new BadRequestException('No file provided');
     }
@@ -198,7 +199,7 @@ export class MediaService implements MediaServiceInterface {
     }
   }
 
-  private extractMetadata(file: any): any {
+  private extractMetadata(file: MemoryStoredFile): any {
     const metadata: any = {};
 
     // Extract basic metadata

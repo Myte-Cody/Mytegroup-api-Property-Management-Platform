@@ -1,15 +1,24 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 import {
   IsMongoId,
   IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
-  ValidateNested,
 } from 'class-validator';
+import { IsFile, HasMimeType, MaxFileSize, MemoryStoredFile } from 'nestjs-form-data';
 
-class AddressDto {
+export class CreatePropertyDto {
+  @ApiProperty({
+    example: 'Sunset Apartments',
+    description: 'Name of the property',
+    maxLength: 128,
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(128)
+  name: string;
+
   @ApiProperty({ example: '123 Main St', description: 'Street address' })
   @IsString()
   @IsNotEmpty()
@@ -34,24 +43,6 @@ class AddressDto {
   @IsString()
   @IsNotEmpty()
   country: string;
-}
-
-export class CreatePropertyDto {
-  @ApiProperty({
-    example: 'Sunset Apartments',
-    description: 'Name of the property',
-    maxLength: 128,
-  })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(128)
-  name: string;
-
-  @ApiProperty({ type: AddressDto, description: 'Property address details' })
-  @IsNotEmpty()
-  @ValidateNested()
-  @Type(() => AddressDto)
-  address: AddressDto;
 
   @ApiProperty({
     example: 'A beautiful property with mountain views',
@@ -65,10 +56,25 @@ export class CreatePropertyDto {
   description?: string;
 
   @ApiProperty({
-    example: '507f1f77bcf86cd799439011',
-    description: 'Owner organization ID',
+    type: 'array',
+    items: { type: 'string', format: 'binary' },
+    description: 'Media files for the property',
+    required: false,
   })
-  @IsMongoId()
-  @IsNotEmpty()
-  owner: string;
+  @IsOptional()
+  @IsFile({ each: true })
+  @MaxFileSize(10 * 1024 * 1024, { each: true })
+  @HasMimeType(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'video/mp4', 'video/avi'], { each: true })
+  media_files?: MemoryStoredFile[];
+
+  // Getter for backward compatibility with existing code that expects nested address
+  get address() {
+    return {
+      street: this.street,
+      city: this.city,
+      state: this.state,
+      postalCode: this.postalCode,
+      country: this.country
+    };
+  }
 }

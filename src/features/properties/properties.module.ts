@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { NestjsFormDataModule } from 'nestjs-form-data';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CaslModule } from '../../common/casl/casl.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
@@ -18,6 +19,7 @@ import { MediaModule } from '../media/media.module';
       { schema: UnitSchema, name: Unit.name },
       { schema: UserSchema, name: User.name },
     ]),
+    NestjsFormDataModule.config({ isGlobal: true }),
     CaslModule,
     MediaModule,
   ],
