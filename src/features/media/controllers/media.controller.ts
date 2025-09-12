@@ -36,7 +36,7 @@ interface UploadMediaDto {
 }
 
 @Controller('media')
-@UseGuards(JwtAuthGuard, CaslGuard)
+@UseGuards(CaslGuard)
 export class MediaController {
   constructor(private readonly mediaService: MediaService) {}
 
