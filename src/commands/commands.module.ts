@@ -3,7 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { UsersModule } from '../features/users/users.module';
 import { SeedAllCommand } from './seed-all.command';
 import { SeedersService } from './seeders.service';
-import { SeedMultiTenantCommand } from './seed-multi-tenant.command'; 
+import { SeedDevDataCommand } from './seed-dev-data.command'; 
 
 import { User, UserSchema } from '../features/users/schemas/user.schema';
 import { Landlord, LandlordSchema } from '../features/landlords/schema/landlord.schema';
@@ -24,6 +24,6 @@ import { Unit, UnitSchema } from '../features/properties/schemas/unit.schema';
       { name: Unit.name, schema: UnitSchema },
     ]),
   ],
-  providers: [SeedAllCommand, SeedMultiTenantCommand, SeedersService],
+  providers: [SeedAllCommand, SeedDevDataCommand, SeedersService],
 })
 export class CommandsModule {}

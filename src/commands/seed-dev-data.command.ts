@@ -12,16 +12,16 @@ import { Unit } from '../features/properties/schemas/unit.schema';
 import { UserType } from '../common/enums/user-type.enum';
 import { UnitType, UnitAvailabilityStatus } from '../common/enums/unit.enum';
 
-interface MultiTenantSeedOptions {
+interface DevDataSeedOptions {
   clean?: boolean;
 }
 
 @Injectable()
 @Command({ 
-  name: 'seed:multi-tenant', 
-  description: 'Seed comprehensive multi-tenant test data' 
+  name: 'seed:dev-data', 
+  description: 'Seed comprehensive development test data' 
 })
-export class SeedMultiTenantCommand extends CommandRunner {
+export class SeedDevDataCommand extends CommandRunner {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<User>,
     @InjectModel(Landlord.name) private readonly landlordModel: Model<Landlord>,
@@ -33,9 +33,9 @@ export class SeedMultiTenantCommand extends CommandRunner {
     super();
   }
 
-  async run(passedParam: string[], options?: MultiTenantSeedOptions): Promise<void> {
+  async run(passedParam: string[], options?: DevDataSeedOptions): Promise<void> {
     try {
-      console.log('🌱 Starting multi-tenant seeding...\n');
+      console.log('🌱 Starting dev data seeding...\n');
 
       const numLandlords = 2; // Fixed to 2 landlords
       const shouldClean = options?.clean || true; // Default to cleaning
@@ -73,10 +73,10 @@ export class SeedMultiTenantCommand extends CommandRunner {
 
       await this.printSummary(landlords);
       
-      console.log('🎉 Multi-tenant seeding completed successfully!');
+      console.log('🎉 Dev data seeding completed successfully!');
       
     } catch (error) {
-      console.error('❌ Multi-tenant seeding failed:', error.message);
+      console.error('❌ Dev data seeding failed:', error.message);
       if (error.stack) console.error(error.stack);
       process.exit(1);
     }
@@ -138,16 +138,6 @@ export class SeedMultiTenantCommand extends CommandRunner {
     const users = [];
     const hashedPassword = await bcrypt.hash('password123', 10);
 
-    // // Create admin user
-    // const adminUser = new this.userModel({
-    //   username: 'admin',
-    //   email: 'admin@example.com',
-    //   password: hashedPassword,
-    //   user_type: UserType.ADMIN,
-    //   isAdmin: true
-    // });
-    // const savedAdmin = await adminUser.save();
-    // users.push(savedAdmin);
     if (verbose) console.log('  ✅ Created admin user');
 
     // Create landlord users
