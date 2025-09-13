@@ -33,13 +33,12 @@ export class UserQueryDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ 
-    description: 'Filter by user type', 
+  @ApiPropertyOptional({
+    description: 'Filter by user type',
     enum: UserType,
-    enumName: 'UserType' 
+    enumName: 'UserType',
   })
   @IsOptional()
   @IsEnum(UserType)
   user_type?: UserType;
-
 }

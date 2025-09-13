@@ -19,7 +19,7 @@ export class LocalStorageDriver implements StorageDriverInterface {
   constructor(private configService: ConfigService) {
     this.uploadPath = this.configService.get('MEDIA_UPLOAD_PATH', 'uploads');
     this.baseUrl = this.configService.get('APP_BASE_URL', 'http://localhost:3000');
-    
+
     // Ensure upload directory exists
     this.ensureUploadDirectory();
   }
@@ -27,10 +27,10 @@ export class LocalStorageDriver implements StorageDriverInterface {
   async store(file: any, relativePath: string): Promise<string> {
     const fullPath = path.join(this.uploadPath, relativePath);
     const directory = path.dirname(fullPath);
-    
+
     // Ensure directory exists
     await mkdir(directory, { recursive: true });
-    
+
     // Handle different file object structures
     if (file.buffer) {
       // Memory storage - file has buffer property
@@ -47,13 +47,13 @@ export class LocalStorageDriver implements StorageDriverInterface {
     } else {
       throw new Error('File object must have either buffer or path property');
     }
-    
+
     return relativePath;
   }
 
   async delete(relativePath: string): Promise<void> {
     const fullPath = path.join(this.uploadPath, relativePath);
-    
+
     try {
       await unlink(fullPath);
     } catch (error) {
@@ -70,7 +70,7 @@ export class LocalStorageDriver implements StorageDriverInterface {
 
   async exists(relativePath: string): Promise<boolean> {
     const fullPath = path.join(this.uploadPath, relativePath);
-    
+
     try {
       await access(fullPath);
       return true;

@@ -61,10 +61,7 @@ export class TenantsController {
   @CheckPolicies(new ReadTenantPolicyHandler())
   @ApiOperation({ summary: 'Get tenant by ID' })
   @ApiParam({ name: 'id', description: 'Tenant ID', type: String })
-  findOne(
-    @Param('id', MongoIdValidationPipe) id: string,
-    @CurrentUser() user: User,
-  ) {
+  findOne(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
     return this.tenantsService.findOne(id, user);
   }
 
@@ -89,10 +86,7 @@ export class TenantsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete tenant by ID (soft delete)' })
   @ApiParam({ name: 'id', description: 'Tenant ID', type: String })
-  remove(
-    @Param('id', MongoIdValidationPipe) id: string,
-    @CurrentUser() user: User,
-  ) {
+  remove(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
     return this.tenantsService.remove(id, user);
   }
 }

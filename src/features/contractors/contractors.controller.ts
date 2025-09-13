@@ -23,10 +23,10 @@ import {
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 import { User } from '../users/schemas/user.schema';
-import { CreateContractorDto } from './dto/create-contractor.dto';
-import { ContractorQueryDto } from './dto/contractor-query.dto';
-import { UpdateContractorDto } from './dto/update-contractor.dto';
 import { ContractorsService } from './contractors.service';
+import { ContractorQueryDto } from './dto/contractor-query.dto';
+import { CreateContractorDto } from './dto/create-contractor.dto';
+import { UpdateContractorDto } from './dto/update-contractor.dto';
 
 @ApiTags('Contractors')
 @ApiBearerAuth()
@@ -61,10 +61,7 @@ export class ContractorsController {
   @CheckPolicies(new ReadContractorPolicyHandler())
   @ApiOperation({ summary: 'Get contractor by ID' })
   @ApiParam({ name: 'id', description: 'Contractor ID', type: String })
-  findOne(
-    @Param('id', MongoIdValidationPipe) id: string,
-    @CurrentUser() user: User,
-  ) {
+  findOne(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
     return this.contractorsService.findOne(id, user);
   }
 
@@ -89,10 +86,7 @@ export class ContractorsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete contractor by ID (soft delete)' })
   @ApiParam({ name: 'id', description: 'Contractor ID', type: String })
-  remove(
-    @Param('id', MongoIdValidationPipe) id: string,
-    @CurrentUser() user: User,
-  ) {
+  remove(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
     return this.contractorsService.remove(id, user);
   }
 }

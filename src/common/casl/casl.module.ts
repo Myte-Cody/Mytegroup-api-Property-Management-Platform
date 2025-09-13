@@ -5,12 +5,11 @@ import { CaslGuard } from './guards/casl.guard';
 import { CaslAuthorizationService } from './services/casl-authorization.service';
 
 // Import schemas
+import { Contractor, ContractorSchema } from '../../features/contractors/schema/contractor.schema';
 import { Property, PropertySchema } from '../../features/properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../../features/properties/schemas/unit.schema';
-import { User, UserSchema } from '../../features/users/schemas/user.schema';
 import { Tenant, TenantSchema } from '../../features/tenants/schema/tenant.schema';
-import { Contractor, ContractorSchema } from '../../features/contractors/schema/contractor.schema';
-
+import { User, UserSchema } from '../../features/users/schemas/user.schema';
 
 // Import policy handlers
 import {
@@ -42,7 +41,7 @@ import {
   DeleteTenantPolicyHandler,
   ReadTenantPolicyHandler,
   UpdateTenantPolicyHandler,
-} from './policies/tenant.policies'
+} from './policies/tenant.policies';
 
 import {
   CreateContractorPolicyHandler,
@@ -52,7 +51,6 @@ import {
 } from './policies/contractor.policies';
 
 const policyHandlers = [
-
   // Property policies
   ReadPropertyPolicyHandler,
   ManagePropertyPolicyHandler,

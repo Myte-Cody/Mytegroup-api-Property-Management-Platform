@@ -10,13 +10,13 @@ import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
+import { MediaService } from '../media/services/media.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { PaginatedPropertiesResponse, PropertyQueryDto } from './dto/property-query.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { Property } from './schemas/property.schema';
 import { Unit } from './schemas/unit.schema';
-import { MediaService } from '../media/services/media.service';
 
 @Injectable()
 export class PropertiesService {
@@ -35,13 +35,7 @@ export class PropertiesService {
     queryDto: PropertyQueryDto,
     currentUser: UserDocument,
   ): Promise<PaginatedPropertiesResponse<Property>> {
-    const {
-      page = 1,
-      limit = 10,
-      search,
-      sortBy = 'createdAt',
-      sortOrder = 'desc',
-    } = queryDto;
+    const { page = 1, limit = 10, search, sortBy = 'createdAt', sortOrder = 'desc' } = queryDto;
 
     // STEP 1: CASL - Check if user can read properties
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
@@ -51,16 +45,17 @@ export class PropertiesService {
     }
 
     // STEP 2: mongo-tenant - Apply tenant isolation (mandatory for all users)
-    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
-      ? (currentUser.tenantId as any)._id 
-      : currentUser.tenantId;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     if (!landlordId) {
       // Users without tenantId cannot access any properties
       return createPaginatedResponse<Property>([], 0, page, limit);
     }
 
-    let baseQuery = this.propertyModel.byTenant(landlordId).find();    // STEP 3: Apply CASL field-level filtering
+    let baseQuery = this.propertyModel.byTenant(landlordId).find(); // STEP 3: Apply CASL field-level filtering
     baseQuery = (baseQuery as any).accessibleBy(ability, Action.Read);
 
     // Add search functionality
@@ -110,13 +105,13 @@ export class PropertiesService {
           property._id.toString(),
           currentUser,
           undefined, // collection_name (get all collections)
-          {} // filters (get all media)
+          {}, // filters (get all media)
         );
         return {
           ...property.toObject(),
           media,
         };
-      })
+      }),
     );
 
     return createPaginatedResponse<any>(propertiesWithMedia, total, page, limit);
@@ -135,10 +130,7 @@ export class PropertiesService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const property = await this.propertyModel
-      .byTenant(currentUser.tenantId)
-      .findById(id)
-      .exec();
+    const property = await this.propertyModel.byTenant(currentUser.tenantId).findById(id).exec();
 
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
@@ -155,7 +147,7 @@ export class PropertiesService {
       property._id.toString(),
       currentUser,
       undefined, // collection_name (get all collections)
-      {} // filters (get all media)
+      {}, // filters (get all media)
     );
 
     return {
@@ -163,7 +155,6 @@ export class PropertiesService {
       media,
     };
   }
-
 
   async create(createPropertyDto: CreatePropertyDto, currentUser: UserDocument) {
     // Create the property first
@@ -178,19 +169,20 @@ export class PropertiesService {
       throw new ForbiddenException('Cannot create property: No tenant context');
     }
 
-    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
-      ? (currentUser.tenantId as any)._id 
-      : currentUser.tenantId;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     // Check property name uniqueness within the same landlord
     const existingProperty = await this.propertyModel
       .byTenant(landlordId)
       .findOne({ name: createPropertyDto.name })
       .exec();
-    
+
     if (existingProperty) {
       throw new UnprocessableEntityException(
-        `Property name '${createPropertyDto.name}' already exists in this organization`
+        `Property name '${createPropertyDto.name}' already exists in this organization`,
       );
     }
 
@@ -210,12 +202,7 @@ export class PropertiesService {
     // If media files are provided, upload them
     if (createPropertyDto.media_files && createPropertyDto.media_files.length > 0) {
       const uploadPromises = createPropertyDto.media_files.map(async (file) => {
-        return this.mediaService.upload(
-          file,
-          property,
-          currentUser,
-          'property_photos'
-        );
+        return this.mediaService.upload(file, property, currentUser, 'property_photos');
       });
 
       const uploadedMedia = await Promise.all(uploadPromises);
@@ -246,15 +233,13 @@ export class PropertiesService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
-      ? (currentUser.tenantId as any)._id 
-      : currentUser.tenantId;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     // mongo-tenant: Find within tenant context
-    const property = await this.propertyModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const property = await this.propertyModel.byTenant(landlordId).findById(id).exec();
 
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
@@ -269,15 +254,15 @@ export class PropertiesService {
     if (updatePropertyDto.name && updatePropertyDto.name !== property.name) {
       const existingProperty = await this.propertyModel
         .byTenant(landlordId)
-        .findOne({ 
+        .findOne({
           name: updatePropertyDto.name,
-          _id: { $ne: id } // Exclude current property from the check
+          _id: { $ne: id }, // Exclude current property from the check
         })
         .exec();
-      
+
       if (existingProperty) {
         throw new UnprocessableEntityException(
-          `Property name '${updatePropertyDto.name}' already exists in this organization`
+          `Property name '${updatePropertyDto.name}' already exists in this organization`,
         );
       }
     }
@@ -302,10 +287,7 @@ export class PropertiesService {
     }
 
     // mongo-tenant: Find within tenant context
-    const property = await this.propertyModel
-      .byTenant(currentUser.tenantId)
-      .findById(id)
-      .exec();
+    const property = await this.propertyModel.byTenant(currentUser.tenantId).findById(id).exec();
 
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
@@ -336,7 +318,10 @@ export class PropertiesService {
   }
 
   // Helper method to filter update fields based on user role
-  private filterUpdateFields(updatePropertyDto: UpdatePropertyDto, currentUser: UserDocument): UpdatePropertyDto {
+  private filterUpdateFields(
+    updatePropertyDto: UpdatePropertyDto,
+    currentUser: UserDocument,
+  ): UpdatePropertyDto {
     const allowedFields = this.getAllowedUpdateFields(currentUser);
     const filteredDto: any = {};
 

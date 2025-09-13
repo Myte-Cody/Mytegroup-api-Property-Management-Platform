@@ -5,6 +5,7 @@ A robust NestJS-based REST API for property management with role-based access co
 ## 🏢 Project Overview
 
 Enterprise-grade property management platform built with modern technologies:
+
 - **Backend**: NestJS (Node.js framework)
 - **Database**: MongoDB with Mongoose ODM
 - **Authentication**: JWT with role-based access control
@@ -73,15 +74,18 @@ npm run build
 ### Authentication
 
 All protected endpoints require JWT token in Authorization header:
+
 ```
 Authorization: Bearer <your-jwt-token>
 ```
 
 ### Base URL
+
 - Development: `http://localhost:3000`
 - Production: Your configured `APP_BASE_URL`
 
 ### Swagger Documentation
+
 Visit `/api/docs` when the server is running for interactive API documentation.
 
 ## 🗄️ Database
@@ -131,6 +135,7 @@ npm run format:check      # Check code formatting
 ### Development Workflow
 
 1. Start the development server:
+
    ```bash
    npm run start:dev
    ```
@@ -140,7 +145,5 @@ npm run format:check      # Check code formatting
 3. Access Swagger documentation at `http://localhost:3000/api/docs`
 
 4. Use the seeded admin account to get started:
-    - Email: From `ADMIN_EMAIL` env variable
-    - Password: From `ADMIN_PASSWORD` env variable
-
-
+   - Email: From `ADMIN_EMAIL` env variable
+   - Password: From `ADMIN_PASSWORD` env variable

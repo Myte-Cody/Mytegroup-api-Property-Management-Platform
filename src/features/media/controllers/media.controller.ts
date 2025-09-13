@@ -1,30 +1,29 @@
 import {
-  Controller,
-  Post,
-  Get,
-  Delete,
-  Param,
-  UseInterceptors,
-  UploadedFile,
   Body,
-  UseGuards,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
   Query,
   Res,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
-import { MediaService } from '../services/media.service';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
-import { CaslGuard } from '../../../common/casl/guards/casl.guard';
 import { CheckPolicies } from '../../../common/casl/decorators/check-policies.decorator';
+import { CaslGuard } from '../../../common/casl/guards/casl.guard';
 import {
   CreateMediaPolicyHandler,
-  ReadMediaPolicyHandler,
   DeleteMediaPolicyHandler,
+  ReadMediaPolicyHandler,
 } from '../../../common/casl/policies/media.policies';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { User } from '../../users/schemas/user.schema';
 import { MediaType, StorageDisk } from '../schemas/media.schema';
+import { MediaService } from '../services/media.service';
 
 interface UploadMediaDto {
   model_type: string;
@@ -51,17 +50,17 @@ export class MediaController {
     // Create a mock entity object with the required properties for direct media upload
     const mockEntity = {
       _id: uploadDto.model_id,
-      constructor: { name: uploadDto.model_type }
+      constructor: { name: uploadDto.model_type },
     };
 
     const media = await this.mediaService.upload(
-      file, 
-      mockEntity, 
-      user, 
+      file,
+      mockEntity,
+      user,
       uploadDto.collection_name || 'default',
-      uploadDto.disk
+      uploadDto.disk,
     );
-    
+
     return {
       success: true,
       data: media,
@@ -114,14 +113,10 @@ export class MediaController {
 
   @Get(':id/download')
   @CheckPolicies(new ReadMediaPolicyHandler())
-  async downloadMedia(
-    @Param('id') id: string,
-    @CurrentUser() user: User,
-    @Res() res: Response,
-  ) {
+  async downloadMedia(@Param('id') id: string, @CurrentUser() user: User, @Res() res: Response) {
     const media = await this.mediaService.findOne(id, user);
     const url = await this.mediaService.getMediaUrl(media);
-    
+
     // For local storage, serve the file directly
     if (media.disk === StorageDisk.LOCAL) {
       res.sendFile(media.path, { root: '' });

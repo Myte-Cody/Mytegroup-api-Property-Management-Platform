@@ -13,6 +13,7 @@ import {
   createEmptyPaginatedResponse,
   createPaginatedResponse,
 } from '../../common/utils/pagination.utils';
+import { MediaService } from '../media/services/media.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { PaginatedUnitsResponse, UnitQueryDto } from './dto/unit-query.dto';
@@ -20,7 +21,6 @@ import { UpdateUnitDto } from './dto/update-unit.dto';
 import { Property } from './schemas/property.schema';
 import { Unit } from './schemas/unit.schema';
 import { UnitBusinessValidator } from './validators/unit-business-validator';
-import { MediaService } from '../media/services/media.service';
 
 @Injectable()
 export class UnitsService {
@@ -35,9 +35,7 @@ export class UnitsService {
     private readonly mediaService: MediaService,
   ) {}
 
-
   async create(createUnitDto: CreateUnitDto, propertyId: string, currentUser: UserDocument) {
-
     // Create the unit first
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
@@ -51,15 +49,13 @@ export class UnitsService {
     }
 
     // Extract landlord ID for tenant filtering
-    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
-      ? (currentUser.tenantId as any)._id 
-      : currentUser.tenantId;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     // mongo-tenant: Validate property exists within tenant context
-    const property = await this.propertyModel
-      .byTenant(landlordId)
-      .findById(propertyId)
-      .exec();
+    const property = await this.propertyModel.byTenant(landlordId).findById(propertyId).exec();
 
     if (!property) {
       throw new UnprocessableEntityException(`Property with ID ${propertyId} not found`);
@@ -83,12 +79,7 @@ export class UnitsService {
     // If media files are provided, upload them
     if (createUnitDto.media_files && createUnitDto.media_files.length > 0) {
       const uploadPromises = createUnitDto.media_files.map(async (file) => {
-        return this.mediaService.upload(
-          file,
-          unit,
-          currentUser,
-          'unit_photos'
-        );
+        return this.mediaService.upload(file, unit, currentUser, 'unit_photos');
       });
 
       const uploadedMedia = await Promise.all(uploadPromises);
@@ -133,9 +124,10 @@ export class UnitsService {
     }
 
     // STEP 2: mongo-tenant - Apply tenant isolation (mandatory for all users)
-    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
-      ? (currentUser.tenantId as any)._id 
-      : currentUser.tenantId;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     if (!landlordId) {
       // Users without tenantId cannot access any units
@@ -190,10 +182,7 @@ export class UnitsService {
     const dataQuery = baseQuery.clone().sort(sortObj).skip(skip).limit(limit).populate('property');
     const countQuery = baseQuery.clone().countDocuments();
 
-    const [units, total] = await Promise.all([
-      dataQuery.exec(),
-      countQuery.exec(),
-    ]);
+    const [units, total] = await Promise.all([dataQuery.exec(), countQuery.exec()]);
 
     // Fetch media for each unit
     const unitsWithMedia = await Promise.all(
@@ -203,13 +192,13 @@ export class UnitsService {
           unit._id.toString(),
           currentUser,
           undefined, // collection_name (get all collections)
-          {} // filters (get all media)
+          {}, // filters (get all media)
         );
         return {
           ...unit.toObject(),
           media,
         };
-      })
+      }),
     );
 
     return createPaginatedResponse<any>(unitsWithMedia, total, page, limit);
@@ -228,15 +217,12 @@ export class UnitsService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
-      ? (currentUser.tenantId as any)._id 
-      : currentUser.tenantId;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
-    const unit = await this.unitModel
-      .byTenant(landlordId)
-      .findById(id)
-      .populate('property')
-      .exec();
+    const unit = await this.unitModel.byTenant(landlordId).findById(id).populate('property').exec();
 
     if (!unit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
@@ -253,7 +239,7 @@ export class UnitsService {
       unit._id.toString(),
       currentUser,
       undefined, // collection_name (get all collections)
-      {} // filters (get all media)
+      {}, // filters (get all media)
     );
 
     return {
@@ -275,9 +261,10 @@ export class UnitsService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
-      ? (currentUser.tenantId as any)._id 
-      : currentUser.tenantId;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     // mongo-tenant: Find within tenant context
     const existingUnit = await this.unitModel
@@ -320,16 +307,13 @@ export class UnitsService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
-      ? (currentUser.tenantId as any)._id 
-      : currentUser.tenantId;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     // mongo-tenant: Find within tenant context
-    const unit = await this.unitModel
-      .byTenant(landlordId)
-      .findById(id)
-      .populate('property')
-      .exec();
+    const unit = await this.unitModel.byTenant(landlordId).findById(id).populate('property').exec();
 
     if (!unit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);

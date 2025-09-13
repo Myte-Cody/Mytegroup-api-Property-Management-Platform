@@ -12,8 +12,8 @@ import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { User } from '../../users/schemas/user.schema';
 import { MediaServiceInterface } from '../interfaces/media.interfaces';
 import { Media, MediaType, StorageDisk } from '../schemas/media.schema';
-import { StorageManager } from './storage-manager.service';
 import { MediaUtils } from '../utils/media.utils';
+import { StorageManager } from './storage-manager.service';
 
 @Injectable()
 export class MediaService implements MediaServiceInterface {
@@ -46,7 +46,7 @@ export class MediaService implements MediaServiceInterface {
     entity: any,
     currentUser: User,
     collection: string = 'default',
-    disk?: StorageDisk
+    disk?: StorageDisk,
   ): Promise<Media> {
     // Validate file
     this.validateFile(file);
@@ -62,9 +62,10 @@ export class MediaService implements MediaServiceInterface {
       throw new ForbiddenException('Cannot upload media: No tenant context');
     }
 
-    const landlordId = (currentUser as any).tenantId && typeof (currentUser as any).tenantId === 'object' 
-      ? ((currentUser as any).tenantId as any)._id 
-      : (currentUser as any).tenantId;
+    const landlordId =
+      (currentUser as any).tenantId && typeof (currentUser as any).tenantId === 'object'
+        ? ((currentUser as any).tenantId as any)._id
+        : (currentUser as any).tenantId;
 
     // Generate unique filename and path - handle different file object structures
     const originalName = file.originalname || file.originalName || file.name || 'unknown.jpg';
@@ -85,12 +86,12 @@ export class MediaService implements MediaServiceInterface {
         entityType = entity?.schema?.modelName || 'UnknownModel';
       }
     }
-    
+
     const storagePath = MediaUtils.generateStoragePath(
       entityType,
       entity?._id?.toString() || 'unknown',
       uniqueFilename,
-      collection
+      collection,
     );
 
     // Get storage driver and store file
@@ -101,7 +102,7 @@ export class MediaService implements MediaServiceInterface {
     const selectedDisk = disk || this.storageManager.getDefaultDisk();
     const mimeType = file.mimetype || file.type || 'application/octet-stream';
     const fileSize = file.size || file.length || 0;
-    
+
     const mediaData = {
       model_type: entityType,
       model_id: entity?._id,
@@ -122,7 +123,7 @@ export class MediaService implements MediaServiceInterface {
     // Create within tenant context
     const MediaWithTenant = this.mediaModel.byTenant(landlordId);
     const newMedia = new MediaWithTenant(mediaData);
-    
+
     return await newMedia.save();
   }
 
@@ -131,7 +132,7 @@ export class MediaService implements MediaServiceInterface {
     model_id: string,
     user: User,
     collection_name?: string,
-    filters?: { media_type?: MediaType }
+    filters?: { media_type?: MediaType },
   ): Promise<(Media & { url: string })[]> {
     const query: any = {
       model_type,
@@ -146,13 +147,19 @@ export class MediaService implements MediaServiceInterface {
       query.media_type = filters.media_type;
     }
 
-    const media = await this.mediaModel.byTenant((user as any).tenantId).find(query).exec();
+    const media = await this.mediaModel
+      .byTenant((user as any).tenantId)
+      .find(query)
+      .exec();
     return this.enrichMediaArrayWithUrls(media);
   }
 
   async findOne(id: string, user: User): Promise<Media & { url: string }> {
-    const media = await this.mediaModel.byTenant((user as any).tenantId).findById(id).exec();
-    
+    const media = await this.mediaModel
+      .byTenant((user as any).tenantId)
+      .findById(id)
+      .exec();
+
     if (!media) {
       throw new NotFoundException('Media not found');
     }
@@ -168,8 +175,11 @@ export class MediaService implements MediaServiceInterface {
 
   async deleteMedia(id: string, user: User): Promise<void> {
     // Get media without URL enrichment for deletion (more efficient)
-    const media = await this.mediaModel.byTenant((user as any).tenantId).findById(id).exec();
-    
+    const media = await this.mediaModel
+      .byTenant((user as any).tenantId)
+      .findById(id)
+      .exec();
+
     if (!media) {
       throw new NotFoundException('Media not found');
     }
@@ -193,7 +203,7 @@ export class MediaService implements MediaServiceInterface {
     if (media.url) {
       return media.url;
     }
-    
+
     const driver = this.storageManager.getDriver(media.disk);
     return driver.getUrl(media.path);
   }
@@ -204,9 +214,7 @@ export class MediaService implements MediaServiceInterface {
   }
 
   async enrichMediaArrayWithUrls(mediaArray: Media[]): Promise<(Media & { url: string })[]> {
-    return Promise.all(
-      mediaArray.map(media => this.enrichMediaWithUrl(media))
-    );
+    return Promise.all(mediaArray.map((media) => this.enrichMediaWithUrl(media)));
   }
 
   private validateFile(file: MemoryStoredFile): void {
@@ -216,13 +224,13 @@ export class MediaService implements MediaServiceInterface {
 
     if (!MediaUtils.isValidFileSize(file.size, this.maxFileSize)) {
       throw new BadRequestException(
-        `File size too large. Maximum allowed: ${MediaUtils.formatFileSize(this.maxFileSize)}`
+        `File size too large. Maximum allowed: ${MediaUtils.formatFileSize(this.maxFileSize)}`,
       );
     }
 
     if (!MediaUtils.isAllowedMimeType(file.mimetype, this.allowedMimeTypes)) {
       throw new BadRequestException(
-        `File type not allowed. Allowed types: ${this.allowedMimeTypes.join(', ')}`
+        `File type not allowed. Allowed types: ${this.allowedMimeTypes.join(', ')}`,
       );
     }
   }

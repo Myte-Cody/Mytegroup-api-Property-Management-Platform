@@ -1,6 +1,6 @@
-import { IPolicyHandler } from '../guards/casl.guard';
-import { Action } from '../casl-ability.factory';
 import { Tenant } from '../../../features/tenants/schema/tenant.schema';
+import { Action } from '../casl-ability.factory';
+import { IPolicyHandler } from '../guards/casl.guard';
 
 export class CreateTenantPolicyHandler implements IPolicyHandler {
   handle(ability: any): boolean {

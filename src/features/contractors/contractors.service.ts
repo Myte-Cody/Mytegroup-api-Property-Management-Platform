@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -12,8 +11,8 @@ import { CaslAuthorizationService } from '../../common/casl/services/casl-author
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { User, UserDocument } from '../users/schemas/user.schema';
+import { ContractorQueryDto, PaginatedContractorsResponse } from './dto/contractor-query.dto';
 import { CreateContractorDto } from './dto/create-contractor.dto';
-import { PaginatedContractorsResponse, ContractorQueryDto } from './dto/contractor-query.dto';
 import { UpdateContractorDto } from './dto/update-contractor.dto';
 import { Contractor } from './schema/contractor.schema';
 
@@ -33,16 +32,12 @@ export class ContractorsService {
   ): Promise<PaginatedContractorsResponse<Contractor>> {
     // Contractor users should not be able to list other contractors - only access their own profile
     if (currentUser.user_type === 'Contractor') {
-      throw new ForbiddenException('Contractor users cannot access the contractor list. Use /contractors/me to access your own profile.');
+      throw new ForbiddenException(
+        'Contractor users cannot access the contractor list. Use /contractors/me to access your own profile.',
+      );
     }
 
-    const {
-      page = 1,
-      limit = 10,
-      search,
-      sortBy = 'createdAt',
-      sortOrder = 'desc',
-    } = queryDto;
+    const { page = 1, limit = 10, search, sortBy = 'createdAt', sortOrder = 'desc' } = queryDto;
 
     // STEP 1: CASL - Check if user can read contractors
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
@@ -52,9 +47,10 @@ export class ContractorsService {
     }
 
     // STEP 2: mongo-tenant - Apply tenant isolation (mandatory for all users)
-    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
-      ? (currentUser.tenantId as any)._id 
-      : currentUser.tenantId;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     if (!landlordId) {
       // Users without tenantId cannot access any contractors
@@ -82,10 +78,7 @@ export class ContractorsService {
         .skip(skip)
         .limit(limit)
         .exec(),
-      this.contractorModel
-        .byTenant(landlordId)
-        .countDocuments(query)
-        .exec(),
+      this.contractorModel.byTenant(landlordId).countDocuments(query).exec(),
     ]);
 
     return createPaginatedResponse<Contractor>(contractors, total, page, limit);
@@ -94,7 +87,9 @@ export class ContractorsService {
   async findOne(id: string, currentUser: UserDocument) {
     // Contractor users should only access their own profile via /contractors/me
     if (currentUser.user_type === 'Contractor') {
-      throw new ForbiddenException('Contractor users cannot access other contractor records. Use /contractors/me to access your own profile.');
+      throw new ForbiddenException(
+        'Contractor users cannot access other contractor records. Use /contractors/me to access your own profile.',
+      );
     }
 
     // CASL: Check read permission
@@ -109,14 +104,12 @@ export class ContractorsService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
-      ? (currentUser.tenantId as any)._id 
-      : currentUser.tenantId;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
-    const contractor = await this.contractorModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const contractor = await this.contractorModel.byTenant(landlordId).findById(id).exec();
 
     if (!contractor) {
       throw new NotFoundException(`Contractor with ID ${id} not found`);
@@ -148,9 +141,10 @@ export class ContractorsService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
-      ? (currentUser.tenantId as any)._id 
-      : currentUser.tenantId;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     const contractorId = currentUser.party_id;
     if (!contractorId) {
@@ -187,9 +181,10 @@ export class ContractorsService {
       throw new ForbiddenException('Cannot create contractor: No tenant context');
     }
 
-    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
-      ? (currentUser.tenantId as any)._id 
-      : currentUser.tenantId;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     // Extract user data from DTO
     const { email, password, name } = createContractorDto;
@@ -199,10 +194,10 @@ export class ContractorsService {
       .byTenant(landlordId)
       .findOne({ name })
       .exec();
-    
+
     if (existingContractor) {
       throw new UnprocessableEntityException(
-        `Contractor name '${name}' already exists in this organization`
+        `Contractor name '${name}' already exists in this organization`,
       );
     }
 
@@ -248,15 +243,13 @@ export class ContractorsService {
       throw new ForbiddenException('Cannot update contractor: No tenant context');
     }
 
-    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
-      ? (currentUser.tenantId as any)._id 
-      : currentUser.tenantId;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     // First, get the contractor to check permissions
-    const contractor = await this.contractorModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const contractor = await this.contractorModel.byTenant(landlordId).findById(id).exec();
 
     if (!contractor) {
       throw new NotFoundException(`Contractor with ID ${id} not found`);
@@ -276,13 +269,13 @@ export class ContractorsService {
         .byTenant(landlordId)
         .findOne({
           name: allowedUpdates.name,
-          _id: { $ne: id } // Exclude current contractor
+          _id: { $ne: id }, // Exclude current contractor
         })
         .exec();
-      
+
       if (existingContractor) {
         throw new UnprocessableEntityException(
-          `Contractor name '${allowedUpdates.name}' already exists in this organization`
+          `Contractor name '${allowedUpdates.name}' already exists in this organization`,
         );
       }
     }
@@ -309,15 +302,13 @@ export class ContractorsService {
       throw new ForbiddenException('Cannot delete contractor: No tenant context');
     }
 
-    const landlordId = currentUser.tenantId && typeof currentUser.tenantId === 'object' 
-      ? (currentUser.tenantId as any)._id 
-      : currentUser.tenantId;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     // First, get the contractor to check permissions
-    const contractor = await this.contractorModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const contractor = await this.contractorModel.byTenant(landlordId).findById(id).exec();
 
     if (!contractor) {
       throw new NotFoundException(`Contractor with ID ${id} not found`);

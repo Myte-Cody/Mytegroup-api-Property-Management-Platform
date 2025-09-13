@@ -4,13 +4,13 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { CommonModule } from './common/common.module';
 import configuration from './config/configuration';
 import { AuthModule } from './features/auth/auth.module';
-import { EmailModule } from './features/email/email.module';
-import { PropertiesModule } from './features/properties/properties.module';
-import { UsersModule } from './features/users/users.module';
-import { TenantsModule } from './features/tenants/tenant.module';
 import { ContractorModule } from './features/contractors/contractor.module';
+import { EmailModule } from './features/email/email.module';
 import { LandlordModule } from './features/landlords/landlord.module';
 import { MediaModule } from './features/media/media.module';
+import { PropertiesModule } from './features/properties/properties.module';
+import { TenantsModule } from './features/tenants/tenant.module';
+import { UsersModule } from './features/users/users.module';
 
 @Module({
   imports: [

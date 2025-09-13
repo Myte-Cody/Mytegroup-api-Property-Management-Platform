@@ -15,13 +15,16 @@ export class S3StorageDriver implements StorageDriverInterface {
     this.region = this.configService.get('AWS_S3_REGION', 'us-east-1');
     this.accessKeyId = this.configService.get('AWS_ACCESS_KEY_ID', '');
     this.secretAccessKey = this.configService.get('AWS_SECRET_ACCESS_KEY', '');
-    this.baseUrl = this.configService.get('AWS_S3_BASE_URL', `https://${this.bucket}.s3.${this.region}.amazonaws.com`);
+    this.baseUrl = this.configService.get(
+      'AWS_S3_BASE_URL',
+      `https://${this.bucket}.s3.${this.region}.amazonaws.com`,
+    );
   }
 
   async store(file: any, path: string): Promise<string> {
     // TODO: install @aws-sdk/client-s3
     throw new Error('S3 storage not yet implemented.');
-    
+
     /*    
     const s3Client = new S3Client({
       region: this.region,

@@ -42,9 +42,10 @@ export class CaslGuard implements CanActivate {
     }
 
     // Check if user has proper tenant context
-    const landlordId = user.tenantId && typeof user.tenantId === 'object' 
-      ? (user.tenantId as any)._id 
-      : user.tenantId;
+    const landlordId =
+      user.tenantId && typeof user.tenantId === 'object'
+        ? (user.tenantId as any)._id
+        : user.tenantId;
 
     if (!landlordId) {
       return false;
@@ -105,7 +106,6 @@ export class CaslGuard implements CanActivate {
         return await this.unitModel.findById(body.unit).populate('property').exec();
       }
     }
-
 
     if (routePath.includes('user')) {
       if (params.id && isValidObjectId(params.id)) {

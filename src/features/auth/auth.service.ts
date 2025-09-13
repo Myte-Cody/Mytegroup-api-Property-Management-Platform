@@ -2,10 +2,9 @@ import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/co
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
-import { Model } from 'mongoose';
+import { AppModel } from '../../common/interfaces/app-model.interface';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { LoginDto } from './dto/login.dto';
-import { AppModel } from '../../common/interfaces/app-model.interface';
 
 @Injectable()
 export class AuthService {
@@ -36,15 +35,17 @@ export class AuthService {
 
     // Ensure user has required tenant context
     if (!user.tenantId) {
-      throw new UnauthorizedException('User account is not properly configured - missing tenant context');
+      throw new UnauthorizedException(
+        'User account is not properly configured - missing tenant context',
+      );
     }
 
-    const payload = { 
-      sub: user._id, 
+    const payload = {
+      sub: user._id,
       email: user.email,
       user_type: user.user_type,
       tenantId: user.tenantId,
-      party_id: user.party_id
+      party_id: user.party_id,
     };
 
     return {

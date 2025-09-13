@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,29 +9,23 @@ import {
   Patch,
   Query,
   UseGuards,
-  Post,
-  UseInterceptors,
-  UploadedFile,
-  UploadedFiles,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { CheckPolicies } from '../../common/casl/decorators/check-policies.decorator';
 import { CaslGuard } from '../../common/casl/guards/casl.guard';
 import {
-  CreateUnitPolicyHandler,
   DeleteUnitPolicyHandler,
   ReadUnitPolicyHandler,
   UpdateUnitPolicyHandler,
 } from '../../common/casl/policies/unit.policies';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
+import { MediaType } from '../media/schemas/media.schema';
+import { MediaService } from '../media/services/media.service';
 import { User } from '../users/schemas/user.schema';
-import { CreateUnitDto } from './dto/create-unit.dto';
 import { UnitQueryDto } from './dto/unit-query.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { UnitsService } from './units.service';
-import { MediaService } from '../media/services/media.service';
-import { MediaType } from '../media/schemas/media.schema';
 
 @ApiTags('Units')
 @ApiBearerAuth()
@@ -93,14 +86,10 @@ export class UnitsController {
   ) {
     // First verify the unit exists and user has access
     await this.unitsService.findOne(unitId, user);
-    
-    const media = await this.mediaService.getMediaForEntity(
-      'Unit',
-      unitId,
-      user,
-      collectionName,
-      { media_type: mediaType },
-    );
+
+    const media = await this.mediaService.getMediaForEntity('Unit', unitId, user, collectionName, {
+      media_type: mediaType,
+    });
 
     return {
       success: true,
