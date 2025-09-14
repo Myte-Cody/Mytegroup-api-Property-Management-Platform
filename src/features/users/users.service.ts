@@ -30,10 +30,12 @@ export class UsersService {
     }
 
     // Check username uniqueness within the same landlord
-    const existingUsername = await this.userModel.findOne({
-      username,
-      tenantId: landlordId,
-    }).exec();
+    const existingUsername = await this.userModel
+      .findOne({
+        username,
+        tenantId: landlordId,
+      })
+      .exec();
     if (existingUsername) {
       throw new UnprocessableEntityException(
         `Username '${username}' is already taken within this organization`,
@@ -41,10 +43,12 @@ export class UsersService {
     }
 
     // Check email uniqueness within the same landlord
-    const existingEmail = await this.userModel.findOne({
-      email,
-      tenantId: landlordId,
-    }).exec();
+    const existingEmail = await this.userModel
+      .findOne({
+        email,
+        tenantId: landlordId,
+      })
+      .exec();
     if (existingEmail) {
       throw new UnprocessableEntityException(
         `Email '${email}' is already registered within this organization`,
