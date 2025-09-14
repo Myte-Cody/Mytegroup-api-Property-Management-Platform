@@ -28,7 +28,7 @@ export class NotificationService {
       to: 'user@example.com',
       subject: 'Hello World',
       html: '<h1>Welcome!</h1>',
-      text: 'Welcome!'
+      text: 'Welcome!',
     });
   }
 }
@@ -50,9 +50,9 @@ export class UserService {
   async registerUser(userData: CreateUserDto) {
     const user = await this.createUser(userData);
     await this.welcomeEmailService.sendWelcomeEmail(
-      user.email, 
+      user.email,
       user.name,
-      'https://app.example.com/dashboard'
+      'https://app.example.com/dashboard',
     );
   }
 
@@ -78,14 +78,14 @@ export class NotificationService {
   async sendCustomEmail() {
     const { html, subject, text } = await this.templateService.compileTemplate('welcome', {
       userName: 'John Doe',
-      dashboardUrl: 'https://app.example.com/dashboard'
+      dashboardUrl: 'https://app.example.com/dashboard',
     });
 
     await this.emailService.sendMail({
       to: 'user@example.com',
       subject,
       html,
-      text
+      text,
     });
   }
 }
@@ -99,6 +99,7 @@ export class NotificationService {
 ### Template Context Variables
 
 **Welcome Template:**
+
 ```typescript
 {
   userName: string;
@@ -107,6 +108,7 @@ export class NotificationService {
 ```
 
 **Password Reset:**
+
 ```typescript
 {
   resetUrl: string;
@@ -128,42 +130,42 @@ export class UserService {
   // Send immediate welcome email
   async registerUser(userData: CreateUserDto) {
     const user = await this.createUser(userData);
-    
+
     // Send welcome email immediately
     await this.welcomeEmailService.sendWelcomeEmail(
       user.email,
       user.name,
-      'https://app.example.com/dashboard'
+      'https://app.example.com/dashboard',
     );
-    
+
     return user;
   }
 
   // Queue welcome email for background processing (recommended)
   async registerUserWithQueuedEmail(userData: CreateUserDto) {
     const user = await this.createUser(userData);
-    
+
     // Queue welcome email (non-blocking)
     await this.welcomeEmailService.sendWelcomeEmail(
       user.email,
       user.name,
       'https://app.example.com/dashboard',
-      { queue: true }
+      { queue: true },
     );
-    
+
     return user;
   }
 
   // Send bulk welcome emails
   async onboardUsers(userList: CreateUserDto[]) {
     const users = await this.createUsers(userList);
-    
-    const welcomeData = users.map(user => ({
+
+    const welcomeData = users.map((user) => ({
       email: user.email,
       name: user.name,
-      dashboardUrl: 'https://app.example.com/dashboard'
+      dashboardUrl: 'https://app.example.com/dashboard',
     }));
-    
+
     await this.welcomeEmailService.sendBulkWelcomeEmails(welcomeData);
   }
 }
@@ -182,9 +184,9 @@ export class AuthService {
   async requestPasswordReset(email: string) {
     const user = await this.findUserByEmail(email);
     if (!user) return; // Don't reveal if email exists
-    
+
     const resetToken = await this.generateResetToken(user.id);
-    
+
     // Send immediately for security
     await this.authEmailService.sendPasswordResetEmail(email, resetToken);
   }
@@ -193,14 +195,14 @@ export class AuthService {
   async sendEmailVerification(userId: string) {
     const user = await this.findUserById(userId);
     const verificationToken = await this.generateVerificationToken(userId);
-    
+
     await this.authEmailService.sendEmailVerification(user.email, verificationToken);
   }
 
   // Login notification (optional - can be queued)
   async notifyLogin(userId: string, loginDetails: any) {
     const user = await this.findUserById(userId);
-    
+
     await this.authEmailService.sendLoginNotification(user.email, loginDetails);
   }
 }
@@ -214,21 +216,19 @@ The email system automatically handles background processing through BullMQ. Tem
 
 ```typescript
 const options: EmailQueueOptions = {
-  delay: 5000,        // Delay 5 seconds
-  attempts: 3,        // Retry 3 times
+  delay: 5000, // Delay 5 seconds
+  attempts: 3, // Retry 3 times
   backoff: {
     type: 'exponential',
-    delay: 2000
-  }
+    delay: 2000,
+  },
 };
 
 // Use options with any email service
-await this.welcomeEmailService.sendWelcomeEmail(
-  'user@example.com', 
-  'John Doe', 
-  dashboardUrl,
-  { queue: true, ...options }
-);
+await this.welcomeEmailService.sendWelcomeEmail('user@example.com', 'John Doe', dashboardUrl, {
+  queue: true,
+  ...options,
+});
 ```
 
 ### Direct Queue Service Usage (Advanced)
@@ -246,7 +246,7 @@ export class CustomEmailService {
       to: 'user@example.com',
       subject: 'Custom Email',
       html: '<p>Pre-compiled email content</p>',
-      text: 'Pre-compiled email content'
+      text: 'Pre-compiled email content',
     });
   }
 
@@ -264,14 +264,13 @@ export class CustomEmailService {
 Create `src/features/email/templates/invoice.hbs`:
 
 ```handlebars
-<!DOCTYPE html>
 <html>
-<body>
-  <h1>Invoice {{invoiceNumber}}</h1>
-  <p>Dear {{capitalize customerName}},</p>
-  <p>Amount: {{formatCurrency amount}}</p>
-  <p>Due: {{formatDate dueDate}}</p>
-</body>
+  <body>
+    <h1>Invoice {{invoiceNumber}}</h1>
+    <p>Dear {{capitalize customerName}},</p>
+    <p>Amount: {{formatCurrency amount}}</p>
+    <p>Due: {{formatDate dueDate}}</p>
+  </body>
 </html>
 ```
 
@@ -293,7 +292,7 @@ const { html, subject, text } = await this.templateService.compileTemplate('invo
   invoiceNumber: 'INV-001',
   customerName: 'john doe',
   amount: 299.99,
-  dueDate: new Date('2025-10-01')
+  dueDate: new Date('2025-10-01'),
 });
 ```
 
@@ -343,14 +342,10 @@ export class UserService {
 
   async registerUser(userData: CreateUserDto) {
     const user = await this.userRepository.create(userData);
-    
+
     // Send welcome email (queued for background processing)
-    await this.welcomeEmailService.queueWelcomeEmail(
-      user.email, 
-      user.name,
-      this.getDashboardUrl()
-    );
-    
+    await this.welcomeEmailService.queueWelcomeEmail(user.email, user.name, this.getDashboardUrl());
+
     return user;
   }
 }
@@ -366,9 +361,9 @@ export class AuthService {
   async requestPasswordReset(email: string) {
     const user = await this.findUserByEmail(email);
     if (!user) return; // Don't reveal if email exists
-    
+
     const resetToken = await this.generateResetToken(user.id);
-    
+
     // Send password reset email
     await this.authEmailService.sendPasswordResetEmail(email, resetToken);
   }
@@ -384,14 +379,14 @@ export class BulkUserService {
 
   async onboardUsers(userList: CreateUserDto[]) {
     const createdUsers = await this.userRepository.createMany(userList);
-    
+
     // Send bulk welcome emails efficiently
-    const welcomeData = createdUsers.map(user => ({
+    const welcomeData = createdUsers.map((user) => ({
       email: user.email,
       name: user.name,
-      dashboardUrl: this.getDashboardUrl()
+      dashboardUrl: this.getDashboardUrl(),
     }));
-    
+
     await this.welcomeEmailService.sendBulkWelcomeEmails(welcomeData);
   }
 }
@@ -400,13 +395,15 @@ export class BulkUserService {
 ## Email Debugging with Ethereal
 
 For development debugging, the email service supports Ethereal Email, which provides:
-- **Test email accounts** - Auto-generated credentials  
+
+- **Test email accounts** - Auto-generated credentials
 - **Web preview** - View sent emails in browser
 - **No real delivery** - Safe for testing
 
 ### Setup Ethereal Debugging
 
 1. **Enable in Environment**
+
    ```bash
    NODE_ENV=development
    EMAIL_USE_ETHEREAL=true
@@ -418,6 +415,7 @@ For development debugging, the email service supports Ethereal Email, which prov
    - Falls back to configured SMTP if Ethereal fails
 
 3. **Preview Emails**
+
    ```
    [EmailService] Using Ethereal Email for development debugging
    [EmailService] Ethereal credentials - User: test@ethereal.email, Pass: abc123
@@ -433,27 +431,30 @@ For development debugging, the email service supports Ethereal Email, which prov
 ## Best Practices
 
 1. **Use Specialized Services** - Import only the email services you need
+
    ```typescript
    // ✅ Good - Import specific services
    constructor(
      private welcomeEmailService: WelcomeEmailService,
      private authEmailService: AuthEmailService,
    ) {}
-   
+
    // ❌ Avoid - Don't import everything
    constructor(private emailService: EmailService) {}
    ```
 
 2. **Queue Background Operations** - Use queue methods for non-critical emails
+
    ```typescript
    // ✅ For user registration (can be delayed)
    await this.welcomeEmailService.sendWelcomeEmail(email, name, url, { queue: true });
-   
+
    // ✅ For critical security emails (immediate)
    await this.authEmailService.sendPasswordResetEmail(email, token);
    ```
 
 3. **Development Debugging** - Use Ethereal for testing
+
    ```typescript
    // Set EMAIL_USE_ETHEREAL=true in development
    // View emails at preview URLs instead of real inboxes

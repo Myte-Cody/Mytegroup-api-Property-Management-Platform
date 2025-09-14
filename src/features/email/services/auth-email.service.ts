@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../email.service';
-import { TemplateService } from './template.service';
 import { EmailQueueService } from './email-queue.service';
+import { TemplateService } from './template.service';
 
 @Injectable()
 export class AuthEmailService {
@@ -16,18 +16,21 @@ export class AuthEmailService {
   ) {}
 
   async sendPasswordResetEmail(
-    to: string, 
-    resetToken: string, 
-    expirationTime: number = 1, 
-    options?: { queue?: boolean }
+    to: string,
+    resetToken: string,
+    expirationTime: number = 1,
+    options?: { queue?: boolean },
   ): Promise<void> {
     try {
       const clientBaseUrl = this.configService.get<string>('app.clientBaseUrl');
       const resetUrl = `${clientBaseUrl}/reset-password?token=${resetToken}`;
-      
+
       // Always compile template first
       const context = { resetUrl, expirationTime };
-      const { html, subject, text } = await this.templateService.compileTemplate('password-reset', context);
+      const { html, subject, text } = await this.templateService.compileTemplate(
+        'password-reset',
+        context,
+      );
       const emailOptions = { to, subject, html, text };
 
       if (options?.queue) {
@@ -40,7 +43,10 @@ export class AuthEmailService {
         this.logger.log(`Password reset email sent successfully to ${to}`);
       }
     } catch (error) {
-      this.logger.error(`Failed to ${options?.queue ? 'queue' : 'send'} password reset email to ${to}`, error);
+      this.logger.error(
+        `Failed to ${options?.queue ? 'queue' : 'send'} password reset email to ${to}`,
+        error,
+      );
       throw error;
     }
   }
@@ -49,7 +55,7 @@ export class AuthEmailService {
     try {
       const clientBaseUrl = this.configService.get<string>('app.clientBaseUrl');
       const verificationUrl = `${clientBaseUrl}/verify-email?token=${verificationToken}`;
-      
+
       const context = {
         verificationUrl,
         expirationTime: 24, // 24 hours for email verification

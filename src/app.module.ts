@@ -1,7 +1,7 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-import { BullModule } from '@nestjs/bullmq';
 import { CommonModule } from './common/common.module';
 import configuration from './config/configuration';
 import renewalConfig from './config/renewal.config';

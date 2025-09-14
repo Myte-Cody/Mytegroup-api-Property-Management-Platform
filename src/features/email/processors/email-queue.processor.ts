@@ -2,8 +2,8 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { EmailService } from '../email.service';
-import { TemplateService } from '../services/template.service';
 import { QueueEmailData } from '../services/email-queue.service';
+import { TemplateService } from '../services/template.service';
 
 @Processor('email')
 export class EmailQueueProcessor extends WorkerHost {
@@ -27,14 +27,16 @@ export class EmailQueueProcessor extends WorkerHost {
 
   async handleEmail(job: Job<QueueEmailData>): Promise<void> {
     this.logger.log(`Processing email job ${job.id} to ${job.data.emailOptions.to}`);
-    
+
     try {
       await this.emailService.sendMail(job.data.emailOptions);
       this.logger.log(`Email sent successfully to ${job.data.emailOptions.to}`);
     } catch (error) {
-      this.logger.error(`Failed to send email (job ${job.id}) to ${job.data.emailOptions.to}`, error);
+      this.logger.error(
+        `Failed to send email (job ${job.id}) to ${job.data.emailOptions.to}`,
+        error,
+      );
       throw error;
     }
   }
-
 }

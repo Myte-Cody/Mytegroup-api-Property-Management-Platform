@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
+import { Injectable, Logger } from '@nestjs/common';
 import { Queue } from 'bullmq';
-import { SendEmailOptions, EmailQueueOptions } from '../interfaces/email.interface';
+import { EmailQueueOptions, SendEmailOptions } from '../interfaces/email.interface';
 
 export interface QueueEmailData {
   emailOptions: SendEmailOptions;
@@ -11,20 +11,22 @@ export interface QueueEmailData {
 export class EmailQueueService {
   private readonly logger = new Logger(EmailQueueService.name);
 
-  constructor(
-    @InjectQueue('email') private emailQueue: Queue,
-  ) {}
+  constructor(@InjectQueue('email') private emailQueue: Queue) {}
 
   /**
    * Queue a compiled email for sending
    */
   async queueEmail(emailOptions: SendEmailOptions, options?: EmailQueueOptions): Promise<void> {
     try {
-      const job = await this.emailQueue.add('send-email', { emailOptions }, {
-        delay: options?.delay,
-        attempts: options?.attempts || 3,
-        backoff: options?.backoff || { type: 'exponential', delay: 2000 },
-      });
+      const job = await this.emailQueue.add(
+        'send-email',
+        { emailOptions },
+        {
+          delay: options?.delay,
+          attempts: options?.attempts || 3,
+          backoff: options?.backoff || { type: 'exponential', delay: 2000 },
+        },
+      );
 
       this.logger.log(`Added email job ${job.id} to queue for ${emailOptions.to}`);
     } catch (error) {
@@ -32,7 +34,6 @@ export class EmailQueueService {
       throw error;
     }
   }
-
 
   /**
    * Queue multiple compiled emails efficiently
@@ -43,7 +44,7 @@ export class EmailQueueService {
         name: 'send-email',
         data: { emailOptions },
         opts: {
-          delay: (options?.delay || 0) + (index * 100), // Slight delay between emails
+          delay: (options?.delay || 0) + index * 100, // Slight delay between emails
           attempts: options?.attempts || 3,
           backoff: options?.backoff || { type: 'exponential', delay: 2000 },
         },
@@ -96,7 +97,7 @@ export class EmailQueueService {
 
   async retryFailedJobs(): Promise<void> {
     const failedJobs = await this.emailQueue.getFailed();
-    
+
     for (const job of failedJobs) {
       await job.retry();
     }

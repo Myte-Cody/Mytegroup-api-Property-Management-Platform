@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EmailService } from '../email.service';
-import { TemplateService } from './template.service';
 import { EmailQueueService } from './email-queue.service';
+import { TemplateService } from './template.service';
 
 @Injectable()
 export class WelcomeEmailService {
@@ -14,15 +14,18 @@ export class WelcomeEmailService {
   ) {}
 
   async sendWelcomeEmail(
-    to: string, 
-    userName: string, 
-    dashboardUrl?: string, 
-    options?: { queue?: boolean }
+    to: string,
+    userName: string,
+    dashboardUrl?: string,
+    options?: { queue?: boolean },
   ): Promise<void> {
     try {
       // Always compile template first
       const context = { userName, dashboardUrl };
-      const { html, subject, text } = await this.templateService.compileTemplate('welcome', context);
+      const { html, subject, text } = await this.templateService.compileTemplate(
+        'welcome',
+        context,
+      );
       const emailOptions = { to, subject, html, text };
 
       if (options?.queue) {
@@ -35,20 +38,28 @@ export class WelcomeEmailService {
         this.logger.log(`Welcome email sent successfully to ${to}`);
       }
     } catch (error) {
-      this.logger.error(`Failed to ${options?.queue ? 'queue' : 'send'} welcome email to ${to}`, error);
+      this.logger.error(
+        `Failed to ${options?.queue ? 'queue' : 'send'} welcome email to ${to}`,
+        error,
+      );
       throw error;
     }
   }
 
-  async sendBulkWelcomeEmails(users: Array<{ email: string; name: string; dashboardUrl?: string }>): Promise<void> {
+  async sendBulkWelcomeEmails(
+    users: Array<{ email: string; name: string; dashboardUrl?: string }>,
+  ): Promise<void> {
     try {
       // Compile all templates first
       const emailOptions = await Promise.all(
         users.map(async (user) => {
           const context = { userName: user.name, dashboardUrl: user.dashboardUrl };
-          const { html, subject, text } = await this.templateService.compileTemplate('welcome', context);
+          const { html, subject, text } = await this.templateService.compileTemplate(
+            'welcome',
+            context,
+          );
           return { to: user.email, subject, html, text };
-        })
+        }),
       );
 
       await this.emailQueueService.queueBulkEmails(emailOptions);

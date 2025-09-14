@@ -16,7 +16,7 @@ export class EmailService {
   private async initializeTransporter() {
     const emailConfig: EmailConfig = this.configService.get<EmailConfig>('email');
     const isDevelopment = this.configService.get<string>('NODE_ENV') === 'development';
-    
+
     // Use Ethereal for development debugging
     if (isDevelopment && emailConfig.useEthereal) {
       try {
@@ -31,9 +31,14 @@ export class EmailService {
           },
         });
         this.logger.log('Using Ethereal Email for development debugging');
-        this.logger.log(`Ethereal credentials - User: ${testAccount.user}, Pass: ${testAccount.pass}`);
+        this.logger.log(
+          `Ethereal credentials - User: ${testAccount.user}, Pass: ${testAccount.pass}`,
+        );
       } catch (error) {
-        this.logger.error('Failed to create Ethereal test account, falling back to configured SMTP', error);
+        this.logger.error(
+          'Failed to create Ethereal test account, falling back to configured SMTP',
+          error,
+        );
         this.createConfiguredTransporter(emailConfig);
       }
     } else {
@@ -68,21 +73,29 @@ export class EmailService {
     try {
       const emailConfig: EmailConfig = this.configService.get<EmailConfig>('email');
       const isDevelopment = this.configService.get<string>('NODE_ENV') === 'development';
-      
+
       const mailOptions = {
         from: emailConfig.from,
         to: Array.isArray(options.to) ? options.to.join(', ') : options.to,
         subject: options.subject,
         text: options.text,
         html: options.html,
-        cc: options.cc ? (Array.isArray(options.cc) ? options.cc.join(', ') : options.cc) : undefined,
-        bcc: options.bcc ? (Array.isArray(options.bcc) ? options.bcc.join(', ') : options.bcc) : undefined,
+        cc: options.cc
+          ? Array.isArray(options.cc)
+            ? options.cc.join(', ')
+            : options.cc
+          : undefined,
+        bcc: options.bcc
+          ? Array.isArray(options.bcc)
+            ? options.bcc.join(', ')
+            : options.bcc
+          : undefined,
         attachments: options.attachments,
       };
 
       const result = await this.transporter.sendMail(mailOptions);
       this.logger.log(`Email sent successfully to ${options.to}. Message ID: ${result.messageId}`);
-      
+
       // Log Ethereal preview URL in development
       if (isDevelopment && emailConfig.useEthereal) {
         const previewUrl = nodemailer.getTestMessageUrl(result);
@@ -95,5 +108,4 @@ export class EmailService {
       throw error;
     }
   }
-
 }

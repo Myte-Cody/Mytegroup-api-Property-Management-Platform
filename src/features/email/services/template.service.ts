@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as handlebars from 'handlebars';
 import * as fs from 'fs';
+import * as handlebars from 'handlebars';
 import * as path from 'path';
 import { EmailTemplate, TemplateContext } from '../interfaces/email.interface';
 
@@ -40,7 +40,10 @@ export class TemplateService {
     });
   }
 
-  async compileTemplate(templateName: string, context: TemplateContext): Promise<{ html: string; subject: string; text?: string }> {
+  async compileTemplate(
+    templateName: string,
+    context: TemplateContext,
+  ): Promise<{ html: string; subject: string; text?: string }> {
     try {
       const template = await this.getTemplate(templateName);
       const compiledHtml = template.html(context);
@@ -58,9 +61,11 @@ export class TemplateService {
     }
   }
 
-  private async getTemplate(templateName: string): Promise<{ html: handlebars.TemplateDelegate; subject: string; text?: string }> {
+  private async getTemplate(
+    templateName: string,
+  ): Promise<{ html: handlebars.TemplateDelegate; subject: string; text?: string }> {
     const cacheKey = templateName;
-    
+
     if (!this.templatesCache.has(cacheKey)) {
       await this.loadTemplate(templateName);
     }
@@ -72,7 +77,7 @@ export class TemplateService {
 
     const configPath = path.join(this.templatesDir, `${templateName}.json`);
     let config = { subject: templateName, text: undefined };
-    
+
     if (fs.existsSync(configPath)) {
       const configContent = fs.readFileSync(configPath, 'utf-8');
       config = JSON.parse(configContent);
@@ -87,14 +92,14 @@ export class TemplateService {
 
   private async loadTemplate(templateName: string): Promise<void> {
     const templatePath = path.join(this.templatesDir, `${templateName}.hbs`);
-    
+
     if (!fs.existsSync(templatePath)) {
       throw new Error(`Template file not found: ${templatePath}`);
     }
 
     const templateContent = fs.readFileSync(templatePath, 'utf-8');
     const compiledTemplate = handlebars.compile(templateContent);
-    
+
     this.templatesCache.set(templateName, compiledTemplate);
     this.logger.log(`Loaded template: ${templateName}`);
   }
@@ -104,10 +109,17 @@ export class TemplateService {
     const configPath = path.join(this.templatesDir, `${templateName}.json`);
 
     fs.writeFileSync(templatePath, template.html);
-    fs.writeFileSync(configPath, JSON.stringify({
-      subject: template.subject,
-      text: template.text,
-    }, null, 2));
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          subject: template.subject,
+          text: template.text,
+        },
+        null,
+        2,
+      ),
+    );
 
     this.templatesCache.delete(templateName);
     this.logger.log(`Created template: ${templateName}`);
@@ -118,9 +130,10 @@ export class TemplateService {
       return [];
     }
 
-    return fs.readdirSync(this.templatesDir)
-      .filter(file => file.endsWith('.hbs'))
-      .map(file => file.replace('.hbs', ''));
+    return fs
+      .readdirSync(this.templatesDir)
+      .filter((file) => file.endsWith('.hbs'))
+      .map((file) => file.replace('.hbs', ''));
   }
 
   deleteTemplate(templateName: string): void {
