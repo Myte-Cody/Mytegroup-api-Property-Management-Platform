@@ -17,7 +17,7 @@ export class UsersService {
   ) {}
 
   async create(createUserDto: CreateUserDto, currentUser: UserDocument) {
-    const { username, email, password, user_type } = createUserDto;
+    const { username, email, password, user_type, party_id } = createUserDto;
 
     // Get tenantId from current user
     const landlordId =
@@ -30,12 +30,10 @@ export class UsersService {
     }
 
     // Check username uniqueness within the same landlord
-    const existingUsername = await this.userModel
-      .findOne({
-        username,
-        tenantId: landlordId,
-      })
-      .exec();
+    const existingUsername = await this.userModel.findOne({
+      username,
+      tenantId: landlordId,
+    }).exec();
     if (existingUsername) {
       throw new UnprocessableEntityException(
         `Username '${username}' is already taken within this organization`,
@@ -43,12 +41,10 @@ export class UsersService {
     }
 
     // Check email uniqueness within the same landlord
-    const existingEmail = await this.userModel
-      .findOne({
-        email,
-        tenantId: landlordId,
-      })
-      .exec();
+    const existingEmail = await this.userModel.findOne({
+      email,
+      tenantId: landlordId,
+    }).exec();
     if (existingEmail) {
       throw new UnprocessableEntityException(
         `Email '${email}' is already registered within this organization`,
@@ -63,6 +59,7 @@ export class UsersService {
       email,
       password: hashedPassword,
       user_type,
+      party_id, // Optional, can be set during creation
       tenantId: landlordId, // Set from current user
     });
 

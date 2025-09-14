@@ -1,15 +1,20 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import * as bcrypt from 'bcrypt';
-import { Action } from '../../common/casl/casl-ability.factory';
-import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
-import { AppModel } from '../../common/interfaces/app-model.interface';
-import { createPaginatedResponse } from '../../common/utils/pagination.utils';
-import { User, UserDocument } from '../users/schemas/user.schema';
-import { CreateTenantDto } from './dto/create-tenant.dto';
-import { PaginatedTenantsResponse, TenantQueryDto } from './dto/tenant-query.dto';
-import { UpdateTenantDto } from './dto/update-tenant.dto';
-import { Tenant } from './schema/tenant.schema';
+import {ForbiddenException, Injectable, NotFoundException, UnprocessableEntityException} from '@nestjs/common';
+import {InjectModel} from '@nestjs/mongoose';
+import {Action} from '../../common/casl/casl-ability.factory';
+import {CaslAuthorizationService} from '../../common/casl/services/casl-authorization.service';
+import {AppModel} from '../../common/interfaces/app-model.interface';
+import {createPaginatedResponse, PaginatedResponse} from '../../common/utils/pagination.utils';
+import {User, UserDocument} from '../users/schemas/user.schema';
+import {CreateUserDto} from '../users/dto/create-user.dto';
+import {UpdateUserDto} from '../users/dto/update-user.dto';
+import {UserQueryDto} from '../users/dto/user-query.dto';
+import {CreateTenantUserDto} from './dto/create-tenant-user.dto';
+import {UserType} from '../../common/enums/user-type.enum';
+import {UsersService} from '../users/users.service';
+import {CreateTenantDto} from './dto/create-tenant.dto';
+import {PaginatedTenantsResponse, TenantQueryDto} from './dto/tenant-query.dto';
+import {UpdateTenantDto} from './dto/update-tenant.dto';
+import {Tenant} from './schema/tenant.schema';
 
 @Injectable()
 export class TenantsService {
@@ -19,6 +24,7 @@ export class TenantsService {
     @InjectModel(User.name)
     private readonly userModel: AppModel<User>,
     private caslAuthorizationService: CaslAuthorizationService,
+    private usersService: UsersService,
   ) {}
 
   async findAllPaginated(
@@ -163,6 +169,7 @@ export class TenantsService {
 
   async create(createTenantDto: CreateTenantDto, currentUser: UserDocument) {
     // CASL: Check create permission
+
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     if (!ability.can(Action.Create, Tenant)) {
@@ -180,38 +187,33 @@ export class TenantsService {
         : currentUser.tenantId;
 
     // Extract user data from DTO
-    const { email, password, name } = createTenantDto;
+    const { email, password, name, username } = createTenantDto;
 
-    // Hash the password for the user account
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    // Validate tenant creation data
+    await this.validateTenantCreationData(name, email, username, landlordId);
 
-    // Create the tenant first
+    // Create tenant
+    // todo start transaction
     const tenantData = {
       name,
-      tenantId: landlordId, // Enforce tenant boundary
+      tenantId: landlordId,
     };
 
-    // mongo-tenant: Create within tenant context
     const TenantWithTenant = this.tenantModel.byTenant(landlordId);
     const newTenant = new TenantWithTenant(tenantData);
     const savedTenant = await newTenant.save();
 
-    // Create the user account for the tenant
+    // Create user account
     const userData = {
-      username: email, // Use email as username
+      username,
       email,
-      password: hashedPassword,
-      user_type: 'Tenant',
-      party_id: savedTenant._id, // Link to the tenant
-      tenantId: landlordId, // Set tenant context
+      password,
+      user_type: UserType.TENANT,
+      party_id: savedTenant._id.toString(),
     };
 
-    // mongo-tenant: Create user within tenant context
-    const UserWithTenant = this.userModel.byTenant(landlordId);
-    const newUser = new UserWithTenant(userData);
-    await newUser.save();
-
+    await this.usersService.create(userData, currentUser);
+    
     return savedTenant;
   }
 
@@ -244,6 +246,11 @@ export class TenantsService {
     // Filter allowed fields based on user role
     const filteredUpdateDto = this.filterUpdateFields(updateTenantDto, currentUser);
 
+    // Validate tenant name uniqueness if name is being updated
+    if (filteredUpdateDto.name && filteredUpdateDto.name !== tenant.name) {
+      await this.validateTenantNameUniqueness(filteredUpdateDto.name, landlordId, id);
+    }
+
     const updatedTenant = await this.tenantModel
       .findByIdAndUpdate(id, filteredUpdateDto, { new: true })
       .exec();
@@ -255,7 +262,7 @@ export class TenantsService {
     // CASL: Check delete permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
-    // todo do we need this verifiatio each time
+    // todo do we need this verification each time
     // Ensure user has tenant context
     if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
@@ -280,6 +287,145 @@ export class TenantsService {
 
     await this.tenantModel.deleteById(id);
     return { message: 'Tenant deleted successfully' };
+  }
+
+  async findTenantUsers(
+    tenantId: string,
+    queryDto: UserQueryDto,
+    currentUser: UserDocument,
+  ): Promise<PaginatedResponse<User>> {
+    // Validate tenant exists and user has access
+    await this.validateTenantAccess(tenantId, currentUser, Action.Read);
+
+    // Create a modified query that filters for this tenant's users
+    const tenantUserQuery: UserQueryDto = {
+      ...queryDto,
+      user_type: UserType.TENANT,
+    };
+
+    // Use UserService for consistent business logic and CASL authorization
+    return  await this.usersService.findAllPaginated(tenantUserQuery, currentUser)
+  }
+
+  async createTenantUser(
+    tenantId: string,
+    createTenantUserDto: CreateTenantUserDto,
+    currentUser: UserDocument,
+  ) {
+    // Validate tenant exists and user has access
+    await this.validateTenantAccess(tenantId, currentUser, Action.Create);
+
+    // Create user using UsersService with tenant-specific data
+    const userData: CreateUserDto = {
+      username: createTenantUserDto.username,
+      email: createTenantUserDto.email,
+      password: createTenantUserDto.password,
+      user_type: UserType.TENANT,
+      party_id: tenantId,
+    };
+
+    return await this.usersService.create(userData, currentUser);
+  }
+
+  async updateTenantUser(
+    tenantId: string,
+    userId: string,
+    updateUserDto: UpdateUserDto,
+    currentUser: UserDocument,
+  ) {
+    // Validate tenant exists and user has access
+    await this.validateTenantAccess(tenantId, currentUser, Action.Update);
+    
+    await this.validateUserBelongsToTenant(userId, tenantId, currentUser);
+
+    return await this.usersService.update(userId, updateUserDto, currentUser);
+  }
+
+  async removeTenantUser(
+    tenantId: string,
+    userId: string,
+    currentUser: UserDocument,
+  ) {
+    await this.validateTenantAccess(tenantId, currentUser, Action.Delete);
+    
+    await this.validateUserBelongsToTenant(userId, tenantId, currentUser);
+
+    return await this.usersService.remove(userId);
+  }
+
+  // Helper method to validate tenant access
+  private async validateTenantAccess(
+    tenantId: string,
+    currentUser: UserDocument,
+    action: Action,
+  ) {
+
+    // Check CASL permissions
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+    
+    if (!ability.can(action, Tenant)) {
+      throw new ForbiddenException(`You do not have permission to ${action.toLowerCase()} tenant users`);
+    }
+
+    // Ensure user has tenant context
+    if (!currentUser.tenantId) {
+      throw new ForbiddenException('Access denied: No tenant context');
+    }
+
+    const landlordId = this.getLandlordId(currentUser);
+
+    // Verify the tenant exists and user has access
+    const tenant = await this.tenantModel.byTenant(landlordId).findById(tenantId).exec();
+    
+    if (!tenant) {
+      throw new NotFoundException(`Tenant with ID ${tenantId} not found`);
+    }
+
+    // For tenant users, ensure they can only access their own tenant's users
+    if (currentUser.user_type === 'Tenant') {
+      if (currentUser.party_id?.toString() !== tenantId) {
+        throw new ForbiddenException('You can only manage users within your own tenant');
+      }
+    }
+
+    return tenant;
+  }
+
+  // Helper method to get landlord ID from user
+  private getLandlordId(currentUser: UserDocument) {
+    return currentUser.tenantId && typeof currentUser.tenantId === 'object'
+      ? (currentUser.tenantId as any)._id
+      : currentUser.tenantId;
+  }
+
+  // Helper method to validate that a user belongs to a specific tenant
+  private async validateUserBelongsToTenant(
+    userId: string,
+    tenantId: string,
+    currentUser: UserDocument,
+  ) {
+    // Validation: Ensure userId is a valid ObjectId format
+    if (!userId.match(/^[0-9a-fA-F]{24}$/)) {
+      throw new UnprocessableEntityException('Invalid user ID format');
+    }
+
+    const landlordId = this.getLandlordId(currentUser);
+
+    // Find and verify the user belongs to the tenant
+    const user = await this.userModel
+      .byTenant(landlordId)
+      .findOne({
+        _id: userId,
+        user_type: 'Tenant',
+        party_id: tenantId,
+      })
+      .exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found or does not belong to this tenant');
+    }
+
+    return user;
   }
 
   // Helper method to filter update fields based on user role
@@ -309,6 +455,72 @@ export class TenantsService {
         return []; // Contractors cannot update tenant records
       default:
         return [];
+    }
+  }
+
+
+  // Validation helper for tenant creation
+  private async validateTenantCreationData(
+    name: string,
+    email: string,
+    username: string,
+    landlordId: any,
+  ) {
+    // Check if tenant name already exists
+    const existingTenant = await this.tenantModel
+      .byTenant(landlordId)
+      .findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } })
+      .exec();
+    
+    if (existingTenant) {
+      throw new UnprocessableEntityException(
+        `A tenant with the name '${name}' already exists in your organization`,
+      );
+    }
+
+    // Check if email is already registered
+    const existingUserWithEmail = await this.userModel
+      .byTenant(landlordId)
+      .findOne({ email: email.toLowerCase() })
+      .exec();
+    
+    if (existingUserWithEmail) {
+      throw new UnprocessableEntityException(
+        `The email '${email}' is already registered in your organization`,
+      );
+    }
+
+    // Check if username is already taken
+    const existingUserWithUsername = await this.userModel
+      .byTenant(landlordId)
+      .findOne({ username: username.toLowerCase() })
+      .exec();
+    
+    if (existingUserWithUsername) {
+      throw new UnprocessableEntityException(
+        `The username '${username}' is already taken in your organization`,
+      );
+    }
+  }
+
+  // Validation helper for tenant name uniqueness during updates
+  private async validateTenantNameUniqueness(
+    name: string,
+    landlordId: any,
+    excludeId: string,
+  ) {
+    const existingTenant = await this.tenantModel
+      .byTenant(landlordId)
+      .findOne({ 
+        name: { $regex: new RegExp(`^${name}$`, 'i') },
+        _id: { $ne: excludeId },
+      })
+      .exec();
+    
+    if (existingTenant) {
+      throw new UnprocessableEntityException(
+        `A tenant with the name '${name}' already exists in your organization`,
+      );
     }
   }
 }
