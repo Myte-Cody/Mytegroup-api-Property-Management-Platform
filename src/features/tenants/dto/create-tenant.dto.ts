@@ -15,6 +15,18 @@ export class CreateTenantDto {
   name: string;
 
   @ApiProperty({
+    description: 'Username for the tenant user account',
+    example: 'johndoe',
+    minLength: 3,
+    maxLength: 64,
+  })
+  @IsNotEmpty()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(64)
+  username: string;
+
+  @ApiProperty({
     description: 'Email address for the tenant user account',
     example: 'john.doe@example.com',
   })

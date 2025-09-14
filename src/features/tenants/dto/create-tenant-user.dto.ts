@@ -1,20 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsEmail,
-  IsEnum,
   IsNotEmpty,
-  IsOptional,
   IsString,
   Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { UserType } from '../../../common/enums/user-type.enum';
 
-export class CreateUserDto {
+export class CreateTenantUserDto {
   @ApiProperty({
     example: 'johndoe',
-    description: 'Unique username for the user',
+    description: 'Unique username for the tenant user',
   })
   @IsString()
   @IsNotEmpty()
@@ -23,7 +20,7 @@ export class CreateUserDto {
 
   @ApiProperty({
     example: 'john.doe@example.com',
-    description: 'Email address of the user',
+    description: 'Email address of the tenant user',
   })
   @IsEmail()
   @IsNotEmpty()
@@ -41,23 +38,4 @@ export class CreateUserDto {
     message: 'Password is too weak',
   })
   password: string;
-
-  @ApiProperty({
-    example: UserType.LANDLORD,
-    description: 'Type of user being created',
-    enum: UserType,
-    enumName: 'UserType',
-  })
-  @IsEnum(UserType)
-  @IsNotEmpty()
-  user_type: UserType;
-
-  @ApiProperty({
-    example: '507f1f77bcf86cd799439011',
-    description: 'ID of the associated party (Landlord/Tenant/Contractor)',
-    required: false,
-  })
-  @IsString()
-  @IsOptional()
-  party_id?: string;
 }
