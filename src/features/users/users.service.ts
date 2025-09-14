@@ -81,7 +81,7 @@ export class UsersService {
 
     // Create ability for the current user with populated data
     const ability = this.caslAuthorizationService.createAbilityForUser(
-      populatedUser as unknown as User & { isAdmin?: boolean },
+      populatedUser,
     );
 
     let baseQuery = (this.userModel.find() as any).accessibleBy(ability, Action.Read);

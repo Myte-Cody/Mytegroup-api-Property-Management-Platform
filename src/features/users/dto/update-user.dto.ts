@@ -33,12 +33,4 @@ export class UpdateUserDto {
   })
   password?: string;
 
-  @ApiProperty({
-    example: false,
-    description: 'Whether the user is a system administrator',
-    required: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  isAdmin?: boolean;
 }
