@@ -49,7 +49,7 @@ export class SeedDevDataCommand extends CommandRunner {
       // Create landlords
       const landlords = await this.createLandlords(numLandlords, verbose);
 
-      // Create users for each landlord + admin
+      // Create users for each landlord
       const users = await this.createUsers(landlords, verbose);
 
       // Create properties for each landlord
