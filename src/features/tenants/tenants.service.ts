@@ -1,20 +1,25 @@
-import {ForbiddenException, Injectable, NotFoundException, UnprocessableEntityException} from '@nestjs/common';
-import {InjectModel} from '@nestjs/mongoose';
-import {Action} from '../../common/casl/casl-ability.factory';
-import {CaslAuthorizationService} from '../../common/casl/services/casl-authorization.service';
-import {AppModel} from '../../common/interfaces/app-model.interface';
-import {createPaginatedResponse, PaginatedResponse} from '../../common/utils/pagination.utils';
-import {User, UserDocument} from '../users/schemas/user.schema';
-import {CreateUserDto} from '../users/dto/create-user.dto';
-import {UpdateUserDto} from '../users/dto/update-user.dto';
-import {UserQueryDto} from '../users/dto/user-query.dto';
-import {CreateTenantUserDto} from './dto/create-tenant-user.dto';
-import {UserType} from '../../common/enums/user-type.enum';
-import {UsersService} from '../users/users.service';
-import {CreateTenantDto} from './dto/create-tenant.dto';
-import {PaginatedTenantsResponse, TenantQueryDto} from './dto/tenant-query.dto';
-import {UpdateTenantDto} from './dto/update-tenant.dto';
-import {Tenant} from './schema/tenant.schema';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Action } from '../../common/casl/casl-ability.factory';
+import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
+import { UserType } from '../../common/enums/user-type.enum';
+import { AppModel } from '../../common/interfaces/app-model.interface';
+import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
+import { CreateUserDto } from '../users/dto/create-user.dto';
+import { UpdateUserDto } from '../users/dto/update-user.dto';
+import { UserQueryDto } from '../users/dto/user-query.dto';
+import { User, UserDocument } from '../users/schemas/user.schema';
+import { UsersService } from '../users/users.service';
+import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
+import { CreateTenantDto } from './dto/create-tenant.dto';
+import { PaginatedTenantsResponse, TenantQueryDto } from './dto/tenant-query.dto';
+import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { Tenant } from './schema/tenant.schema';
 
 @Injectable()
 export class TenantsService {
@@ -213,7 +218,7 @@ export class TenantsService {
     };
 
     await this.usersService.create(userData, currentUser);
-    
+
     return savedTenant;
   }
 
@@ -304,7 +309,7 @@ export class TenantsService {
     };
 
     // Use UserService for consistent business logic and CASL authorization
-    return  await this.usersService.findAllPaginated(tenantUserQuery, currentUser)
+    return await this.usersService.findAllPaginated(tenantUserQuery, currentUser);
   }
 
   async createTenantUser(
@@ -335,36 +340,29 @@ export class TenantsService {
   ) {
     // Validate tenant exists and user has access
     await this.validateTenantAccess(tenantId, currentUser, Action.Update);
-    
+
     await this.validateUserBelongsToTenant(userId, tenantId, currentUser);
 
     return await this.usersService.update(userId, updateUserDto, currentUser);
   }
 
-  async removeTenantUser(
-    tenantId: string,
-    userId: string,
-    currentUser: UserDocument,
-  ) {
+  async removeTenantUser(tenantId: string, userId: string, currentUser: UserDocument) {
     await this.validateTenantAccess(tenantId, currentUser, Action.Delete);
-    
+
     await this.validateUserBelongsToTenant(userId, tenantId, currentUser);
 
     return await this.usersService.remove(userId);
   }
 
   // Helper method to validate tenant access
-  private async validateTenantAccess(
-    tenantId: string,
-    currentUser: UserDocument,
-    action: Action,
-  ) {
-
+  private async validateTenantAccess(tenantId: string, currentUser: UserDocument, action: Action) {
     // Check CASL permissions
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
-    
+
     if (!ability.can(action, Tenant)) {
-      throw new ForbiddenException(`You do not have permission to ${action.toLowerCase()} tenant users`);
+      throw new ForbiddenException(
+        `You do not have permission to ${action.toLowerCase()} tenant users`,
+      );
     }
 
     // Ensure user has tenant context
@@ -376,7 +374,7 @@ export class TenantsService {
 
     // Verify the tenant exists and user has access
     const tenant = await this.tenantModel.byTenant(landlordId).findById(tenantId).exec();
-    
+
     if (!tenant) {
       throw new NotFoundException(`Tenant with ID ${tenantId} not found`);
     }
@@ -458,7 +456,6 @@ export class TenantsService {
     }
   }
 
-
   // Validation helper for tenant creation
   private async validateTenantCreationData(
     name: string,
@@ -471,7 +468,7 @@ export class TenantsService {
       .byTenant(landlordId)
       .findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } })
       .exec();
-    
+
     if (existingTenant) {
       throw new UnprocessableEntityException(
         `A tenant with the name '${name}' already exists in your organization`,
@@ -483,7 +480,7 @@ export class TenantsService {
       .byTenant(landlordId)
       .findOne({ email: email.toLowerCase() })
       .exec();
-    
+
     if (existingUserWithEmail) {
       throw new UnprocessableEntityException(
         `The email '${email}' is already registered in your organization`,
@@ -495,7 +492,7 @@ export class TenantsService {
       .byTenant(landlordId)
       .findOne({ username: username.toLowerCase() })
       .exec();
-    
+
     if (existingUserWithUsername) {
       throw new UnprocessableEntityException(
         `The username '${username}' is already taken in your organization`,
@@ -504,19 +501,15 @@ export class TenantsService {
   }
 
   // Validation helper for tenant name uniqueness during updates
-  private async validateTenantNameUniqueness(
-    name: string,
-    landlordId: any,
-    excludeId: string,
-  ) {
+  private async validateTenantNameUniqueness(name: string, landlordId: any, excludeId: string) {
     const existingTenant = await this.tenantModel
       .byTenant(landlordId)
-      .findOne({ 
+      .findOne({
         name: { $regex: new RegExp(`^${name}$`, 'i') },
         _id: { $ne: excludeId },
       })
       .exec();
-    
+
     if (existingTenant) {
       throw new UnprocessableEntityException(
         `A tenant with the name '${name}' already exists in your organization`,
