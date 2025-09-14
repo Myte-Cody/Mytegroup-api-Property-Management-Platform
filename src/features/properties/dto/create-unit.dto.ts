@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   IsEnum,
   IsNotEmpty,
@@ -8,9 +9,8 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { HasMimeType, IsFile, MaxFileSize, MemoryStoredFile } from 'nestjs-form-data';
 import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enum';
-import { IsFile, HasMimeType, MaxFileSize, MemoryStoredFile } from 'nestjs-form-data';
-import { Type } from 'class-transformer';
 
 export class CreateUnitDto {
   @ApiProperty({
@@ -74,6 +74,8 @@ export class CreateUnitDto {
   @IsOptional()
   @IsFile({ each: true })
   @MaxFileSize(10 * 1024 * 1024, { each: true })
-  @HasMimeType(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'video/mp4', 'video/avi'], { each: true })
+  @HasMimeType(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'video/mp4', 'video/avi'], {
+    each: true,
+  })
   media_files?: MemoryStoredFile[];
 }

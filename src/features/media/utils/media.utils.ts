@@ -1,5 +1,5 @@
-import * as path from 'path';
 import * as crypto from 'crypto';
+import * as path from 'path';
 import { MediaType } from '../schemas/media.schema';
 
 export class MediaUtils {
@@ -16,16 +16,16 @@ export class MediaUtils {
    * Generate storage path based on entity and date
    */
   static generateStoragePath(
-    entityType: string, 
-    entityId: string, 
+    entityType: string,
+    entityId: string,
     filename: string,
-    collection: string = 'default'
+    collection: string = 'default',
   ): string {
     const date = new Date();
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
-    
+
     return `${entityType.toLowerCase()}/${entityId}/${collection}/${year}/${month}/${day}/${filename}`;
   }
 
@@ -69,7 +69,7 @@ export class MediaUtils {
       ];
       return defaultAllowed.includes(mimeType);
     }
-    
+
     return allowedTypes.includes(mimeType);
   }
 
@@ -78,11 +78,11 @@ export class MediaUtils {
    */
   static formatFileSize(bytes: number): string {
     if (bytes === 0) return '0 Bytes';
-    
+
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    
+
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 

@@ -1,8 +1,4 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
 import { Action } from '../../common/casl/casl-ability.factory';
@@ -31,16 +27,12 @@ export class TenantsService {
   ): Promise<PaginatedTenantsResponse<Tenant>> {
     // Tenant users should not be able to list other tenants - only access their own profile
     if (currentUser.user_type === 'Tenant') {
-      throw new ForbiddenException('Tenant users cannot access the tenant list. Use /tenants/me to access your own profile.');
+      throw new ForbiddenException(
+        'Tenant users cannot access the tenant list. Use /tenants/me to access your own profile.',
+      );
     }
 
-    const {
-      page = 1,
-      limit = 10,
-      search,
-      sortBy = 'createdAt',
-      sortOrder = 'desc',
-    } = queryDto;
+    const { page = 1, limit = 10, search, sortBy = 'createdAt', sortOrder = 'desc' } = queryDto;
 
     // STEP 1: CASL - Check if user can read tenants
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
@@ -50,12 +42,13 @@ export class TenantsService {
     }
 
     // STEP 2: mongo-tenant - Apply tenant isolation (mandatory for all users)
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     if (!landlordId) {
-      // Users without landlord_id cannot access any tenants
+      // Users without tenantId cannot access any tenants
       return createPaginatedResponse<Tenant>([], 0, page, limit);
     }
 
@@ -90,7 +83,9 @@ export class TenantsService {
   async findOne(id: string, currentUser: UserDocument) {
     // Tenant users should only access their own profile via /tenants/me
     if (currentUser.user_type === 'Tenant') {
-      throw new ForbiddenException('Tenant users cannot access other tenant records. Use /tenants/me to access your own profile.');
+      throw new ForbiddenException(
+        'Tenant users cannot access other tenant records. Use /tenants/me to access your own profile.',
+      );
     }
 
     // CASL: Check read permission
@@ -101,18 +96,16 @@ export class TenantsService {
     }
 
     // mongo-tenant: Apply tenant filtering (mandatory)
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
-    const tenant = await this.tenantModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const tenant = await this.tenantModel.byTenant(landlordId).findById(id).exec();
 
     if (!tenant) {
       throw new NotFoundException(`Tenant with ID ${id} not found`);
@@ -140,23 +133,21 @@ export class TenantsService {
     }
 
     // mongo-tenant: Apply tenant filtering (mandatory)
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     const tenantId = currentUser.party_id;
     if (!tenantId) {
       throw new ForbiddenException('No tenant profile associated with this user');
     }
 
-    const tenant = await this.tenantModel
-      .byTenant(landlordId)
-      .findById(tenantId)
-      .exec();
+    const tenant = await this.tenantModel.byTenant(landlordId).findById(tenantId).exec();
 
     if (!tenant) {
       throw new NotFoundException('Tenant profile not found');
@@ -179,13 +170,14 @@ export class TenantsService {
     }
 
     // Ensure user has tenant context
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Cannot create tenant: No tenant context');
     }
 
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     // Extract user data from DTO
     const { email, password, name } = createTenantDto;
@@ -197,7 +189,7 @@ export class TenantsService {
     // Create the tenant first
     const tenantData = {
       name,
-      landlord_id: landlordId, // Enforce tenant boundary
+      tenantId: landlordId, // Enforce tenant boundary
     };
 
     // mongo-tenant: Create within tenant context
@@ -212,7 +204,7 @@ export class TenantsService {
       password: hashedPassword,
       user_type: 'Tenant',
       party_id: savedTenant._id, // Link to the tenant
-      landlord_id: landlordId, // Set tenant context
+      tenantId: landlordId, // Set tenant context
     };
 
     // mongo-tenant: Create user within tenant context
@@ -228,19 +220,17 @@ export class TenantsService {
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     // Ensure user has tenant context
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     // mongo-tenant: Find within tenant context
-    const tenant = await this.tenantModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const tenant = await this.tenantModel.byTenant(landlordId).findById(id).exec();
 
     if (!tenant) {
       throw new NotFoundException(`Tenant with ID ${id} not found`);
@@ -267,19 +257,17 @@ export class TenantsService {
 
     // todo do we need this verifiatio each time
     // Ensure user has tenant context
-    if (!currentUser.landlord_id) {
+    if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const landlordId = currentUser.landlord_id && typeof currentUser.landlord_id === 'object' 
-      ? (currentUser.landlord_id as any)._id 
-      : currentUser.landlord_id;
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
 
     // mongo-tenant: Find within tenant context
-    const tenant = await this.tenantModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const tenant = await this.tenantModel.byTenant(landlordId).findById(id).exec();
 
     if (!tenant) {
       throw new NotFoundException(`Tenant with ID ${id} not found`);
@@ -295,7 +283,10 @@ export class TenantsService {
   }
 
   // Helper method to filter update fields based on user role
-  private filterUpdateFields(updateTenantDto: UpdateTenantDto, currentUser: UserDocument): UpdateTenantDto {
+  private filterUpdateFields(
+    updateTenantDto: UpdateTenantDto,
+    currentUser: UserDocument,
+  ): UpdateTenantDto {
     const allowedFields = this.getAllowedUpdateFields(currentUser);
     const filteredDto: any = {};
 

@@ -2,10 +2,9 @@ import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/co
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
-import { Model } from 'mongoose';
+import { AppModel } from '../../common/interfaces/app-model.interface';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { LoginDto } from './dto/login.dto';
-import { AppModel } from '../../common/interfaces/app-model.interface';
 
 @Injectable()
 export class AuthService {
@@ -21,7 +20,7 @@ export class AuthService {
       .findOne({ email })
       .select('+password')
       .populate('party_id') // Populate the party reference (Landlord/Tenant/Contractor)
-      .populate('landlord_id', 'company_name') // Populate landlord info
+      .populate('tenantId', 'name') // Populate landlord info
       .exec();
 
     if (!user) {
@@ -35,16 +34,18 @@ export class AuthService {
     }
 
     // Ensure user has required tenant context
-    if (!user.landlord_id) {
-      throw new UnauthorizedException('User account is not properly configured - missing tenant context');
+    if (!user.tenantId) {
+      throw new UnauthorizedException(
+        'User account is not properly configured - missing tenant context',
+      );
     }
 
-    const payload = { 
-      sub: user._id, 
+    const payload = {
+      sub: user._id,
       email: user.email,
       user_type: user.user_type,
-      landlord_id: user.landlord_id,
-      party_id: user.party_id
+      tenantId: user.tenantId,
+      party_id: user.party_id,
     };
 
     return {
@@ -53,9 +54,9 @@ export class AuthService {
         username: user.username,
         email: user.email,
         user_type: user.user_type,
-        landlord_id: user.landlord_id,
+        tenantId: user.tenantId,
         party_info: user.party_id,
-        landlord_info: user.landlord_id,
+        landlord_info: user.tenantId,
       },
       accessToken: this.jwtService.sign(payload),
     };
@@ -64,9 +65,9 @@ export class AuthService {
   async getCurrentUser(userId: string) {
     const user = await this.userModel
       .findById(userId)
-      .select('_id username email user_type landlord_id party_id')
+      .select('_id username email user_type tenantId party_id')
       .populate('party_id')
-      .populate('landlord_id', 'company_name')
+      .populate('tenantId', 'name')
       .exec();
 
     if (!user) {
@@ -74,7 +75,7 @@ export class AuthService {
     }
 
     // Ensure user has tenant context
-    if (!user.landlord_id) {
+    if (!user.tenantId) {
       throw new UnauthorizedException('User account is missing tenant context');
     }
 
@@ -83,10 +84,10 @@ export class AuthService {
       username: user.username,
       email: user.email,
       user_type: user.user_type,
-      landlord_id: user.landlord_id,
+      tenantId: user.tenantId,
       party_id: user.party_id,
       party_info: user.party_id, // Populated party data
-      landlord_info: user.landlord_id, // Populated landlord data
+      landlord_info: user.tenantId, // Populated landlord data
     };
   }
 }

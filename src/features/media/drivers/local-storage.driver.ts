@@ -9,6 +9,7 @@ const writeFile = promisify(fs.writeFile);
 const unlink = promisify(fs.unlink);
 const access = promisify(fs.access);
 const mkdir = promisify(fs.mkdir);
+const copyFile = promisify(fs.copyFile);
 
 @Injectable()
 export class LocalStorageDriver implements StorageDriverInterface {
@@ -18,7 +19,7 @@ export class LocalStorageDriver implements StorageDriverInterface {
   constructor(private configService: ConfigService) {
     this.uploadPath = this.configService.get('MEDIA_UPLOAD_PATH', 'uploads');
     this.baseUrl = this.configService.get('APP_BASE_URL', 'http://localhost:3000');
-    
+
     // Ensure upload directory exists
     this.ensureUploadDirectory();
   }
@@ -26,19 +27,33 @@ export class LocalStorageDriver implements StorageDriverInterface {
   async store(file: any, relativePath: string): Promise<string> {
     const fullPath = path.join(this.uploadPath, relativePath);
     const directory = path.dirname(fullPath);
-    
+
     // Ensure directory exists
     await mkdir(directory, { recursive: true });
-    
-    // Write file
-    await writeFile(fullPath, file.buffer);
-    
+
+    // Handle different file object structures
+    if (file.buffer) {
+      // Memory storage - file has buffer property
+      await writeFile(fullPath, file.buffer);
+    } else if (file.path) {
+      // Disk storage - file is already stored, need to move it
+      await copyFile(file.path, fullPath);
+      // Clean up temp file
+      try {
+        await unlink(file.path);
+      } catch (error) {
+        console.warn('Failed to clean up temp file:', file.path);
+      }
+    } else {
+      throw new Error('File object must have either buffer or path property');
+    }
+
     return relativePath;
   }
 
   async delete(relativePath: string): Promise<void> {
     const fullPath = path.join(this.uploadPath, relativePath);
-    
+
     try {
       await unlink(fullPath);
     } catch (error) {
@@ -55,7 +70,7 @@ export class LocalStorageDriver implements StorageDriverInterface {
 
   async exists(relativePath: string): Promise<boolean> {
     const fullPath = path.join(this.uploadPath, relativePath);
-    
+
     try {
       await access(fullPath);
       return true;

@@ -1,19 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { SeedDevDataCommand } from './seed-dev-data.command';
 
-
 @Injectable()
 export class SeedersService {
-  constructor(
-    private readonly seedDevDataCommand: SeedDevDataCommand,
-  ) {}
+  constructor(private readonly seedDevDataCommand: SeedDevDataCommand) {}
 
   async runAll(): Promise<void> {
     console.log('🌱 Starting all seeders...\n');
 
-    const seeders = [
-      { name: 'Dev Data Seeder', command: this.seedDevDataCommand },
-    ];
+    const seeders = [{ name: 'Dev Data Seeder', command: this.seedDevDataCommand }];
 
     for (const seeder of seeders) {
       try {
@@ -36,7 +31,9 @@ export class SeedersService {
 
     const seeder = seederMap[seederName];
     if (!seeder) {
-      throw new Error(`Seeder '${seederName}' not found. Available: ${Object.keys(seederMap).join(', ')}`);
+      throw new Error(
+        `Seeder '${seederName}' not found. Available: ${Object.keys(seederMap).join(', ')}`,
+      );
     }
 
     console.log(`🌱 Running ${seederName} seeder...`);

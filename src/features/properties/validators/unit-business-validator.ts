@@ -1,7 +1,13 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { UnitAvailabilityStatus } from '../../../common/enums/unit.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
+import { UserDocument } from '../../users/schemas/user.schema';
 import { CreateUnitDto } from '../dto/create-unit.dto';
 import { UpdateUnitDto } from '../dto/update-unit.dto';
 import { Unit } from '../schemas/unit.schema';
@@ -10,11 +16,13 @@ export interface UnitUpdateValidationContext {
   existingUnit: Unit;
   updateDto: UpdateUnitDto;
   userId?: string;
+  currentUser: UserDocument;
 }
 
 export interface UnitCreateValidationContext {
   createDto: CreateUnitDto;
   propertyId: string;
+  currentUser: UserDocument;
 }
 
 export interface UnitDeleteValidationContext {
@@ -26,9 +34,20 @@ export class UnitBusinessValidator {
   constructor(@InjectModel(Unit.name) private readonly unitModel: AppModel<Unit>) {}
 
   async validateCreate(context: UnitCreateValidationContext): Promise<void> {
-    const { createDto, propertyId } = context;
+    const { createDto, propertyId, currentUser } = context;
+
+    // Extract landlord ID for tenant filtering
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
+
+    if (!landlordId) {
+      throw new ForbiddenException('Cannot validate unit: No tenant context');
+    }
 
     const duplicateUnit = await this.unitModel
+      .byTenant(landlordId)
       .findOne({
         property: propertyId,
         unitNumber: createDto.unitNumber,
@@ -45,7 +64,7 @@ export class UnitBusinessValidator {
   async validateUpdate(context: UnitUpdateValidationContext): Promise<void> {
     const { existingUnit, updateDto } = context;
 
-    await this.validateUnitNumberUniquenessForUpdate(existingUnit, updateDto);
+    await this.validateUnitNumberUniquenessForUpdate(existingUnit, updateDto, context);
 
     this.validateStatusTransition(existingUnit, updateDto);
   }
@@ -70,12 +89,24 @@ export class UnitBusinessValidator {
   private async validateUnitNumberUniquenessForUpdate(
     existingUnit: Unit,
     updateDto: UpdateUnitDto,
+    context: UnitUpdateValidationContext,
   ): Promise<void> {
     if (!updateDto.unitNumber || updateDto.unitNumber === existingUnit.unitNumber) {
       return; // No change in unit number
     }
 
+    // Extract landlord ID for tenant filtering
+    const landlordId =
+      context.currentUser.tenantId && typeof context.currentUser.tenantId === 'object'
+        ? (context.currentUser.tenantId as any)._id
+        : context.currentUser.tenantId;
+
+    if (!landlordId) {
+      throw new ForbiddenException('Cannot validate unit: No tenant context');
+    }
+
     const duplicateUnit = await this.unitModel
+      .byTenant(landlordId)
       .findOne({
         property: existingUnit.property,
         unitNumber: updateDto.unitNumber,

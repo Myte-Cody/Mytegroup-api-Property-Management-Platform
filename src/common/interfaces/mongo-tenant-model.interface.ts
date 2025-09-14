@@ -1,7 +1,6 @@
-import { Model } from "mongoose";
-import { ObjectId } from "mongodb";
-
+import { ObjectId } from 'mongodb';
+import { Model } from 'mongoose';
 
 export interface MongoTenantModel<T> extends Model<T> {
-    byTenant: (landlordId: ObjectId) => Model<T>;
+  byTenant: (landlordId: ObjectId) => Model<T>;
 }

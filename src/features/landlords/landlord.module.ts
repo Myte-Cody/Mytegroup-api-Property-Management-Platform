@@ -5,7 +5,6 @@ import { Property, PropertySchema } from '../properties/schemas/property.schema'
 import { Unit, UnitSchema } from '../properties/schemas/unit.schema';
 import { Landlord, LandlordSchema } from './schema/landlord.schema';
 
-
 @Module({
   imports: [
     MongooseModule.forFeature([

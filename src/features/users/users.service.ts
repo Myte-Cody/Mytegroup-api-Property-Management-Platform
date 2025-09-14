@@ -16,36 +16,63 @@ export class UsersService {
     private caslAuthorizationService: CaslAuthorizationService,
   ) {}
 
-  async create(createUserDto: CreateUserDto) {
-    const { username, email, password } = createUserDto;
+  async create(createUserDto: CreateUserDto, currentUser: UserDocument) {
+    const { username, email, password, user_type } = createUserDto;
 
-    const existingUsername = await this.userModel.findOne({ username }).exec();
-    if (existingUsername) {
-      throw new UnprocessableEntityException(`Username '${username}' is already taken`);
+    // Get tenantId from current user
+    const landlordId =
+      currentUser.tenantId && typeof currentUser.tenantId === 'object'
+        ? (currentUser.tenantId as any)._id
+        : currentUser.tenantId;
+
+    if (!landlordId) {
+      throw new UnprocessableEntityException('Current user must have a tenantId to create users');
     }
 
-    const existingEmail = await this.userModel.findOne({ email }).exec();
+    // Check username uniqueness within the same landlord
+    const existingUsername = await this.userModel
+      .findOne({
+        username,
+        tenantId: landlordId,
+      })
+      .exec();
+    if (existingUsername) {
+      throw new UnprocessableEntityException(
+        `Username '${username}' is already taken within this organization`,
+      );
+    }
+
+    // Check email uniqueness within the same landlord
+    const existingEmail = await this.userModel
+      .findOne({
+        email,
+        tenantId: landlordId,
+      })
+      .exec();
     if (existingEmail) {
-      throw new UnprocessableEntityException(`Email '${email}' is already registered`);
+      throw new UnprocessableEntityException(
+        `Email '${email}' is already registered within this organization`,
+      );
     }
 
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const newUser = new this.userModel({
-      ...createUserDto,
+      username,
+      email,
       password: hashedPassword,
+      user_type,
+      tenantId: landlordId, // Set from current user
     });
 
     return await newUser.save();
   }
 
   async findAllPaginated(queryDto: UserQueryDto, currentUser: User) {
-    const { page, limit, sortBy, sortOrder, search } = queryDto;
+    const { page, limit, sortBy, sortOrder, search, user_type } = queryDto;
 
-    const populatedUser = await this.userModel
-      .findById(currentUser._id)
-      .exec();
+    const populatedUser = await this.userModel.findById(currentUser._id).exec();
 
     if (!populatedUser) {
       return createPaginatedResponse<User>([], 0, page, limit);
@@ -68,6 +95,9 @@ export class UsersService {
       });
     }
 
+    if (user_type) {
+      baseQuery = baseQuery.where({ user_type });
+    }
 
     const skip = (page - 1) * limit;
 
@@ -80,10 +110,7 @@ export class UsersService {
 
     const countQuery = baseQuery.clone().countDocuments();
 
-    const [users, totalCount] = await Promise.all([
-      dataQuery.exec(),
-      countQuery.exec(),
-    ]);
+    const [users, totalCount] = await Promise.all([dataQuery.exec(), countQuery.exec()]);
 
     return createPaginatedResponse<User>(users, totalCount, page, limit);
   }
@@ -101,9 +128,7 @@ export class UsersService {
   }
 
   async update(id: string, updateUserDto: UpdateUserDto, currentUser?: User) {
-    const user = await this.userModel
-    .findById(id)
-    .exec();
+    const user = await this.userModel.findById(id).exec();
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
@@ -112,13 +137,14 @@ export class UsersService {
       const existingUsername = await this.userModel
         .findOne({
           username: updateUserDto.username,
+          tenantId: user.tenantId,
           _id: { $ne: id },
         })
         .exec();
 
       if (existingUsername) {
         throw new UnprocessableEntityException(
-          `Username '${updateUserDto.username}' is already taken`,
+          `Username '${updateUserDto.username}' is already taken within this organization`,
         );
       }
     }
@@ -127,13 +153,14 @@ export class UsersService {
       const existingEmail = await this.userModel
         .findOne({
           email: updateUserDto.email,
+          tenantId: user.tenantId,
           _id: { $ne: id },
         })
         .exec();
 
       if (existingEmail) {
         throw new UnprocessableEntityException(
-          `Email '${updateUserDto.email}' is already registered`,
+          `Email '${updateUserDto.email}' is already registered within this organization`,
         );
       }
     }

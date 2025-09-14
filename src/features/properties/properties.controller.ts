@@ -11,7 +11,15 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
+import { FormDataRequest } from 'nestjs-form-data';
 import { CheckPolicies } from '../../common/casl/decorators/check-policies.decorator';
 import { CaslGuard } from '../../common/casl/guards/casl.guard';
 import {
@@ -23,8 +31,9 @@ import {
 import { CreateUnitPolicyHandler } from '../../common/casl/policies/unit.policies';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
-import { FormDataRequest } from 'nestjs-form-data';
 
+import { MediaType } from '../media/schemas/media.schema';
+import { MediaService } from '../media/services/media.service';
 import { User } from '../users/schemas/user.schema';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { CreateUnitDto } from './dto/create-unit.dto';
@@ -33,8 +42,6 @@ import { UnitQueryDto } from './dto/unit-query.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { PropertiesService } from './properties.service';
 import { UnitsService } from './units.service';
-import { MediaService } from '../media/services/media.service';
-import { MediaType } from '../media/schemas/media.schema';
 
 @ApiTags('Properties')
 @ApiBearerAuth()
@@ -52,10 +59,7 @@ export class PropertiesController {
   @FormDataRequest()
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create a new property with optional media files' })
-  async create(
-    @CurrentUser() user: User,
-    @Body() createPropertyDto: CreatePropertyDto,
-  ) {
+  async create(@CurrentUser() user: User, @Body() createPropertyDto: CreatePropertyDto) {
     return this.propertiesService.create(createPropertyDto, user);
   }
 
@@ -83,10 +87,7 @@ export class PropertiesController {
   @CheckPolicies(new ReadPropertyPolicyHandler())
   @ApiOperation({ summary: 'Get property by ID' })
   @ApiParam({ name: 'id', description: 'Property ID', type: String })
-  findOne(
-    @Param('id', MongoIdValidationPipe) id: string,
-    @CurrentUser() user: User,
-  ) {
+  findOne(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
     return this.propertiesService.findOne(id, user);
   }
 
@@ -111,10 +112,7 @@ export class PropertiesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete property by ID (soft delete)' })
   @ApiParam({ name: 'id', description: 'Property ID', type: String })
-  remove(
-    @Param('id', MongoIdValidationPipe) id: string,
-    @CurrentUser() user: User,
-  ) {
+  remove(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
     return this.propertiesService.remove(id, user);
   }
 
@@ -144,7 +142,7 @@ export class PropertiesController {
   ) {
     // First verify the property exists and user has access
     await this.propertiesService.findOne(propertyId, user);
-    
+
     const media = await this.mediaService.getMediaForEntity(
       'Property',
       propertyId,

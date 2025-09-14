@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Min } from 'class-validator';
-import { Contractor } from '../schema/contractor.schema';
 
 export class ContractorQueryDto {
   @ApiProperty({

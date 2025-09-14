@@ -1,5 +1,5 @@
-import { Command, CommandRunner, Option } from 'nest-commander';
 import { Injectable } from '@nestjs/common';
+import { Command, CommandRunner, Option } from 'nest-commander';
 import { SeedersService } from './seeders.service';
 
 interface SeedAllOptions {
@@ -7,9 +7,9 @@ interface SeedAllOptions {
 }
 
 @Injectable()
-@Command({ 
-  name: 'seed:all', 
-  description: 'Run all database seeders or a specific seeder' 
+@Command({
+  name: 'seed:all',
+  description: 'Run all database seeders or a specific seeder',
 })
 export class SeedAllCommand extends CommandRunner {
   constructor(private readonly seedersService: SeedersService) {
@@ -20,7 +20,7 @@ export class SeedAllCommand extends CommandRunner {
     try {
       // Check for SEEDER environment variable or command option
       const seeder = process.env.SEEDER || options?.seeder;
-      
+
       if (seeder) {
         await this.seedersService.runSpecific(seeder);
       } else {

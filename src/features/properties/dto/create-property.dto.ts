@@ -1,12 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsMongoId,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
-import { IsFile, HasMimeType, MaxFileSize, MemoryStoredFile } from 'nestjs-form-data';
+import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { HasMimeType, IsFile, MaxFileSize, MemoryStoredFile } from 'nestjs-form-data';
 
 export class CreatePropertyDto {
   @ApiProperty({
@@ -64,7 +58,9 @@ export class CreatePropertyDto {
   @IsOptional()
   @IsFile({ each: true })
   @MaxFileSize(10 * 1024 * 1024, { each: true })
-  @HasMimeType(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'video/mp4', 'video/avi'], { each: true })
+  @HasMimeType(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'video/mp4', 'video/avi'], {
+    each: true,
+  })
   media_files?: MemoryStoredFile[];
 
   // Getter for backward compatibility with existing code that expects nested address
@@ -74,7 +70,7 @@ export class CreatePropertyDto {
       city: this.city,
       state: this.state,
       postalCode: this.postalCode,
-      country: this.country
+      country: this.country,
     };
   }
 }

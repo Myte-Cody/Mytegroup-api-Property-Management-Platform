@@ -37,64 +37,56 @@ export class MediaMetadata {
 export class Media extends Document implements SoftDelete {
   @Prop({ required: true, index: true })
   model_type: string; // 'Property', 'Unit', 'Tenant', etc.
-  
-  @Prop({ 
-    type: MongooseSchema.Types.ObjectId, 
-    required: true,
-    index: true 
-  })
-  model_id: Types.ObjectId; 
-  
+
   @Prop({
     type: MongooseSchema.Types.ObjectId,
-    ref: 'Landlord',
     required: true,
-    index: true
+    index: true,
   })
-  landlord_id: Types.ObjectId;
-  
+  model_id: Types.ObjectId;
+
   @Prop({ required: true, trim: true })
-  name: string; 
-  
+  name: string;
+
   @Prop({ required: true, trim: true })
   file_name: string; // Stored filename (with UUID)
-  
+
   @Prop({ required: true })
   mime_type: string; // image/jpeg, application/pdf, etc.
-  
+
   @Prop({ required: true, min: 0 })
   size: number; // File size in bytes
-  
-  @Prop({ 
+
+  @Prop({
     type: String,
     enum: MediaType,
-    required: true 
+    required: true,
   })
   type: MediaType; // Media type classification
-  
+
   // Storage configuration
-  @Prop({ 
+  @Prop({
     type: String,
     enum: StorageDisk,
     required: true,
-    default: StorageDisk.LOCAL
+    default: StorageDisk.LOCAL,
   })
   disk: StorageDisk; // Storage driver
-  
+
   @Prop({ required: true })
   path: string; // Storage path
-  
+
   @Prop()
-  url?: string; // Public URL (for S3 or CDN)
-  
+  url?: string; // Public URL (stored for S3/CDN, calculated for local)
+
   // Collection/category for organization
   @Prop({ default: 'default', trim: true })
   collection_name: string; // 'gallery', 'documents', 'thumbnails', etc.
-  
+
   // Metadata for images and other files
   @Prop({ type: MediaMetadata })
   metadata?: MediaMetadata;
-  
+
   // Soft delete
   deleted: boolean;
   deletedAt?: Date;
@@ -107,4 +99,4 @@ MediaSchema.plugin(accessibleRecordsPlugin);
 MediaSchema.plugin(mongoTenant);
 
 MediaSchema.index({ model_type: 1, model_id: 1, collection_name: 1 });
-MediaSchema.index({ landlord_id: 1, model_type: 1 });
+MediaSchema.index({ tenant_id: 1, model_type: 1 });

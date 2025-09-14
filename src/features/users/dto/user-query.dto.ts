@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { UserType } from '../../../common/enums/user-type.enum';
 
 export class UserQueryDto {
   @ApiPropertyOptional({ description: 'Page number (1-based)', default: 1 })
@@ -32,4 +33,12 @@ export class UserQueryDto {
   @IsString()
   search?: string;
 
+  @ApiPropertyOptional({
+    description: 'Filter by user type',
+    enum: UserType,
+    enumName: 'UserType',
+  })
+  @IsOptional()
+  @IsEnum(UserType)
+  user_type?: UserType;
 }

@@ -1,16 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
-  IsBoolean,
   IsEmail,
-  IsMongoId,
+  IsEnum,
   IsNotEmpty,
-  IsOptional,
   IsString,
   Matches,
   MaxLength,
   MinLength,
-  ValidateIf,
 } from 'class-validator';
+import { UserType } from '../../../common/enums/user-type.enum';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -43,14 +41,13 @@ export class CreateUserDto {
   })
   password: string;
 
-
   @ApiProperty({
-    example: false,
-    description: 'Whether the user is a system administrator',
-    required: false,
-    default: false,
+    example: UserType.LANDLORD,
+    description: 'Type of user being created',
+    enum: UserType,
+    enumName: 'UserType',
   })
-  @IsOptional()
-  @IsBoolean()
-  isAdmin?: boolean;
+  @IsEnum(UserType)
+  @IsNotEmpty()
+  user_type: UserType;
 }

@@ -6,9 +6,9 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 
 import { CaslModule } from '../../common/casl/casl.module';
-import { User, UserSchema } from '../users/schemas/user.schema';
 import { Property, PropertySchema } from '../properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../properties/schemas/unit.schema';
+import { User, UserSchema } from '../users/schemas/user.schema';
 import { MediaController } from './controllers/media.controller';
 import { LocalStorageDriver } from './drivers/local-storage.driver';
 import { S3StorageDriver } from './drivers/s3-storage.driver';
@@ -31,7 +31,7 @@ import { StorageManager } from './services/storage-manager.service';
         destination: './uploads/temp',
         filename: (req, file, callback) => {
           // Generate unique filename for temporary storage
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
           const extension = extname(file.originalname);
           callback(null, `${file.fieldname}-${uniqueSuffix}${extension}`);
         },
@@ -51,7 +51,7 @@ import { StorageManager } from './services/storage-manager.service';
           'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
           'text/plain',
         ];
-        
+
         if (allowedMimes.includes(file.mimetype)) {
           callback(null, true);
         } else {
@@ -61,15 +61,7 @@ import { StorageManager } from './services/storage-manager.service';
     }),
   ],
   controllers: [MediaController],
-  providers: [
-    MediaService,
-    StorageManager,
-    LocalStorageDriver,
-    S3StorageDriver,
-  ],
-  exports: [
-    MediaService,
-    StorageManager,
-  ],
+  providers: [MediaService, StorageManager, LocalStorageDriver, S3StorageDriver],
+  exports: [MediaService, StorageManager],
 })
 export class MediaModule {}

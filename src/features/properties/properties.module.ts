@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
-import { NestjsFormDataModule } from 'nestjs-form-data';
 import { MongooseModule } from '@nestjs/mongoose';
+import { NestjsFormDataModule } from 'nestjs-form-data';
 import { CaslModule } from '../../common/casl/casl.module';
+import { MediaModule } from '../media/media.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { PropertiesController } from './properties.controller';
 import { PropertiesService } from './properties.service';
@@ -10,7 +11,6 @@ import { Unit, UnitSchema } from './schemas/unit.schema';
 import { UnitsController } from './units.controller';
 import { UnitsService } from './units.service';
 import { UnitBusinessValidator } from './validators/unit-business-validator';
-import { MediaModule } from '../media/media.module';
 
 @Module({
   imports: [
