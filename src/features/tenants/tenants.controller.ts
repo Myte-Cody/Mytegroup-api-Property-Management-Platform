@@ -22,10 +22,9 @@ import {
 } from '../../common/casl/policies/tenant.policies';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
-import { User } from '../users/schemas/user.schema';
-import { CreateUserDto } from '../users/dto/create-user.dto';
 import { UpdateUserDto } from '../users/dto/update-user.dto';
 import { UserQueryDto } from '../users/dto/user-query.dto';
+import { User } from '../users/schemas/user.schema';
 import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { TenantQueryDto } from './dto/tenant-query.dto';
