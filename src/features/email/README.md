@@ -397,6 +397,39 @@ export class BulkUserService {
 }
 ```
 
+## Email Debugging with Ethereal
+
+For development debugging, the email service supports Ethereal Email, which provides:
+- **Test email accounts** - Auto-generated credentials  
+- **Web preview** - View sent emails in browser
+- **No real delivery** - Safe for testing
+
+### Setup Ethereal Debugging
+
+1. **Enable in Environment**
+   ```bash
+   NODE_ENV=development
+   EMAIL_USE_ETHEREAL=true
+   ```
+
+2. **Automatic Configuration**
+   - Service creates test accounts automatically
+   - Logs credentials and preview URLs
+   - Falls back to configured SMTP if Ethereal fails
+
+3. **Preview Emails**
+   ```
+   [EmailService] Using Ethereal Email for development debugging
+   [EmailService] Ethereal credentials - User: test@ethereal.email, Pass: abc123
+   [EmailService] Email sent successfully to user@example.com. Message ID: <msg@ethereal.email>
+   [EmailService] 📧 Ethereal preview URL: https://ethereal.email/message/abc123
+   ```
+
+4. **Access Emails**
+   - Click the preview URL to view the email
+   - Use credentials to log into Ethereal dashboard
+   - View all sent emails in one place
+
 ## Best Practices
 
 1. **Use Specialized Services** - Import only the email services you need
@@ -414,14 +447,20 @@ export class BulkUserService {
 2. **Queue Background Operations** - Use queue methods for non-critical emails
    ```typescript
    // ✅ For user registration (can be delayed)
-   await this.welcomeEmailService.queueWelcomeEmail(email, name);
+   await this.welcomeEmailService.sendWelcomeEmail(email, name, url, { queue: true });
    
    // ✅ For critical security emails (immediate)
    await this.authEmailService.sendPasswordResetEmail(email, token);
    ```
 
-3. **Template Reuse** - Create reusable templates for common email types
-4. **Error Handling** - Implement proper error handling for email failures
-5. **Testing** - Test templates with sample data before production
-6. **Rate Limiting** - Be mindful of email provider rate limits
-7. **Service Organization** - Keep email logic organized by purpose (auth, welcome, notifications)
+3. **Development Debugging** - Use Ethereal for testing
+   ```typescript
+   // Set EMAIL_USE_ETHEREAL=true in development
+   // View emails at preview URLs instead of real inboxes
+   ```
+
+4. **Template Reuse** - Create reusable templates for common email types
+5. **Error Handling** - Implement proper error handling for email failures
+6. **Testing** - Test templates with sample data before production
+7. **Rate Limiting** - Be mindful of email provider rate limits
+8. **Service Organization** - Keep email logic organized by purpose (auth, welcome, notifications)

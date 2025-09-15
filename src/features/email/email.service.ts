@@ -13,9 +13,37 @@ export class EmailService {
     this.initializeTransporter();
   }
 
-  private initializeTransporter() {
+  private async initializeTransporter() {
     const emailConfig: EmailConfig = this.configService.get<EmailConfig>('email');
+    const isDevelopment = this.configService.get<string>('NODE_ENV') === 'development';
     
+    // Use Ethereal for development debugging
+    if (isDevelopment && emailConfig.useEthereal) {
+      try {
+        const testAccount = await nodemailer.createTestAccount();
+        this.transporter = nodemailer.createTransport({
+          host: 'smtp.ethereal.email',
+          port: 587,
+          secure: false,
+          auth: {
+            user: testAccount.user,
+            pass: testAccount.pass,
+          },
+        });
+        this.logger.log('Using Ethereal Email for development debugging');
+        this.logger.log(`Ethereal credentials - User: ${testAccount.user}, Pass: ${testAccount.pass}`);
+      } catch (error) {
+        this.logger.error('Failed to create Ethereal test account, falling back to configured SMTP', error);
+        this.createConfiguredTransporter(emailConfig);
+      }
+    } else {
+      this.createConfiguredTransporter(emailConfig);
+    }
+
+    this.verifyConnection();
+  }
+
+  private createConfiguredTransporter(emailConfig: EmailConfig) {
     this.transporter = nodemailer.createTransport({
       host: emailConfig.host,
       port: emailConfig.port,
@@ -25,8 +53,6 @@ export class EmailService {
         pass: emailConfig.auth.pass,
       },
     });
-
-    this.verifyConnection();
   }
 
   private async verifyConnection() {
@@ -41,6 +67,7 @@ export class EmailService {
   async sendMail(options: SendEmailOptions): Promise<void> {
     try {
       const emailConfig: EmailConfig = this.configService.get<EmailConfig>('email');
+      const isDevelopment = this.configService.get<string>('NODE_ENV') === 'development';
       
       const mailOptions = {
         from: emailConfig.from,
@@ -55,6 +82,14 @@ export class EmailService {
 
       const result = await this.transporter.sendMail(mailOptions);
       this.logger.log(`Email sent successfully to ${options.to}. Message ID: ${result.messageId}`);
+      
+      // Log Ethereal preview URL in development
+      if (isDevelopment && emailConfig.useEthereal) {
+        const previewUrl = nodemailer.getTestMessageUrl(result);
+        if (previewUrl) {
+          this.logger.log(`📧 Ethereal preview URL: ${previewUrl}`);
+        }
+      }
     } catch (error) {
       this.logger.error(`Failed to send email to ${options.to}`, error);
       throw error;

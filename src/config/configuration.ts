@@ -34,6 +34,7 @@ export default () => {
         pass: process.env.EMAIL_PASS,
       },
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+      useEthereal: process.env.EMAIL_USE_ETHEREAL === 'true',
     },
     redis: {
       host: process.env.REDIS_HOST || 'localhost',

@@ -7,6 +7,7 @@ export interface EmailConfig {
     pass: string;
   };
   from: string;
+  useEthereal?: boolean;
 }
 
 export interface SendEmailOptions {
