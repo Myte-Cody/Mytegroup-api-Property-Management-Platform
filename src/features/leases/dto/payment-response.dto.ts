@@ -1,10 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose, Transform, Type } from 'class-transformer';
-import {
-  PaymentMethod,
-  PaymentStatus,
-  PaymentType,
-} from '../../../common/enums/lease.enum';
+import { PaymentMethod, PaymentStatus, PaymentType } from '../../../common/enums/lease.enum';
 
 export class PaymentLeaseResponseDto {
   @ApiProperty()
