@@ -14,15 +14,20 @@ import {
 } from '../../../common/enums/lease.enum';
 import { UnitAvailabilityStatus } from '../../../common/enums/unit.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
-import {
-  createEmptyPaginatedResponse,
-  createPaginatedResponse,
-} from '../../../common/utils/pagination.utils';
 import { Property } from '../../properties/schemas/property.schema';
 import { Unit } from '../../properties/schemas/unit.schema';
 import { Tenant } from '../../tenants/schema/tenant.schema';
 import { UserDocument } from '../../users/schemas/user.schema';
-import { MarkPaymentPaidDto, UploadPaymentProofDto } from '../dto';
+import {
+  CreateLeaseDto,
+  MarkPaymentPaidDto,
+  RenewLeaseDto,
+  TerminateLeaseDto,
+  UpdateLeaseDto,
+  UploadPaymentProofDto,
+} from '../dto';
+import { LeaseQueryDto } from '../dto/lease-query.dto';
+import { LeaseResponseDto, PaginatedLeasesResponseDto } from '../dto/lease-response.dto';
 import { Lease } from '../schemas/lease.schema';
 import { Payment } from '../schemas/payment.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
@@ -48,10 +53,9 @@ export class LeasesService {
   ) {}
 
   async findAllPaginated(
-    queryDto: any, // TODO: Create LeaseQueryDto
+    leaseQueryDto: LeaseQueryDto,
     currentUser: UserDocument,
-  ): Promise<any> {
-    // TODO: Create PaginatedLeasesResponse
+  ): Promise<PaginatedLeasesResponseDto> {
     const {
       page = 1,
       limit = 10,
@@ -62,22 +66,28 @@ export class LeasesService {
       propertyId,
       unitId,
       tenantId,
-    } = queryDto;
+    } = leaseQueryDto;
 
-    // mongo-tenant: Apply tenant isolation (mandatory for all users)
     const landlordId = this.getLandlordId(currentUser);
 
     if (!landlordId) {
-      // Users without tenantId cannot access any leases
-      return createEmptyPaginatedResponse(page, limit);
+      return {
+        data: [],
+        meta: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+        success: true,
+      };
     }
 
     let baseQuery = this.leaseModel.byTenant(landlordId).find();
 
-    // Add search functionality
     if (search) {
-      // Search across related entities will require population or aggregation
-      // For now, we can search by lease terms
       baseQuery = baseQuery.where({
         $or: [
           { terms: { $regex: search, $options: 'i' } },
@@ -86,7 +96,6 @@ export class LeasesService {
       });
     }
 
-    // Add filters
     if (status) {
       baseQuery = baseQuery.where({ status });
     }
@@ -103,14 +112,11 @@ export class LeasesService {
       baseQuery = baseQuery.where({ tenant: tenantId });
     }
 
-    // Build sort object
-    const sortObj: any = {};
+    const sortObj: Record<string, 1 | -1> = {};
     sortObj[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
-    // Calculate pagination
     const skip = (page - 1) * limit;
 
-    // Execute queries with population
     const [leases, total] = await Promise.all([
       baseQuery
         .clone()
@@ -124,11 +130,25 @@ export class LeasesService {
       baseQuery.clone().countDocuments().exec(),
     ]);
 
-    return createPaginatedResponse(leases, total, page, limit);
+    const totalPages = Math.ceil(total / limit);
+    const hasNext = page < totalPages;
+    const hasPrev = page > 1;
+
+    return {
+      data: leases as any[],
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNext,
+        hasPrev,
+      },
+      success: true,
+    };
   }
 
   async findOne(id: string, currentUser: UserDocument) {
-    // mongo-tenant: Apply tenant filtering (mandatory)
     const landlordId = this.getLandlordId(currentUser);
 
     if (!landlordId) {
@@ -150,9 +170,7 @@ export class LeasesService {
     return lease;
   }
 
-  async create(createLeaseDto: any, currentUser: UserDocument) {
-    // TODO: Create CreateLeaseDto
-    // Ensure user has tenant context
+  async create(createLeaseDto: CreateLeaseDto, currentUser: UserDocument): Promise<Lease> {
     const landlordId = this.getLandlordId(currentUser);
 
     if (!landlordId) {
@@ -175,7 +193,11 @@ export class LeasesService {
     return savedLease;
   }
 
-  async update(id: string, updateLeaseDto: any, currentUser: UserDocument) {
+  async update(
+    id: string,
+    updateLeaseDto: UpdateLeaseDto,
+    currentUser: UserDocument,
+  ): Promise<Lease> {
     if (!updateLeaseDto || Object.keys(updateLeaseDto).length === 0) {
       throw new BadRequestException('Update data cannot be empty');
     }
@@ -203,8 +225,11 @@ export class LeasesService {
     return await existingLease.save();
   }
 
-  async terminate(id: string, terminationData: any, currentUser: UserDocument) {
-    // TODO: Create TerminateLeaseDto
+  async terminate(
+    id: string,
+    terminationData: TerminateLeaseDto,
+    currentUser: UserDocument,
+  ): Promise<Lease> {
     const landlordId = this.getLandlordId(currentUser);
 
     if (!landlordId) {
@@ -241,8 +266,11 @@ export class LeasesService {
     return await lease.save();
   }
 
-  async renewLease(id: string, renewalData: any, currentUser: UserDocument) {
-    // TODO: Create RenewLeaseDto
+  async renewLease(
+    id: string,
+    renewalData: RenewLeaseDto,
+    currentUser: UserDocument,
+  ): Promise<{ lease: Lease; newRentalPeriod: RentalPeriod }> {
     const landlordId = this.getLandlordId(currentUser);
 
     if (!landlordId) {
@@ -358,7 +386,7 @@ export class LeasesService {
 
   // Helper Methods
 
-  private async validateLeaseCreation(createLeaseDto: any, landlordId: any) {
+  private async validateLeaseCreation(createLeaseDto: CreateLeaseDto, landlordId: Types.ObjectId) {
     // Validate unit exists and is available
     const unit = await this.unitModel.byTenant(landlordId).findById(createLeaseDto.unit).exec();
     if (!unit) {
@@ -399,7 +427,7 @@ export class LeasesService {
     }
   }
 
-  private async activateLease(lease: any, landlordId: any) {
+  private async activateLease(lease: Lease, landlordId: Types.ObjectId | string) {
     try {
       const RentalPeriodWithTenant = this.rentalPeriodModel.byTenant(landlordId);
       const initialRentalPeriod = new RentalPeriodWithTenant({
@@ -455,7 +483,7 @@ export class LeasesService {
     leaseId: string,
     refundReason: string,
     currentUser: UserDocument,
-  ): Promise<any> {
+  ): Promise<LeaseResponseDto> {
     const landlordId = this.getLandlordId(currentUser);
 
     const lease = await this.leaseModel.byTenant(landlordId).findById(leaseId).exec();
@@ -489,7 +517,11 @@ export class LeasesService {
     return updatedLease;
   }
 
-  private async handleStatusChange(lease: any, newStatus: LeaseStatus, landlordId: any) {
+  private async handleStatusChange(
+    lease: Lease,
+    newStatus: LeaseStatus,
+    landlordId: Types.ObjectId | string,
+  ) {
     if (newStatus === LeaseStatus.ACTIVE && lease.status === LeaseStatus.DRAFT) {
       await this.activateLease(lease, landlordId);
     }
@@ -521,9 +553,13 @@ export class LeasesService {
     return this.paymentsService.validatePayment(leaseId, rentalPeriodId, validateDto, currentUser);
   }
 
-  private getLandlordId(currentUser: UserDocument) {
+  private getLandlordId(currentUser: UserDocument): Types.ObjectId | null {
+    if (!currentUser.tenantId) {
+      return null;
+    }
+
     return currentUser.tenantId && typeof currentUser.tenantId === 'object'
       ? (currentUser.tenantId as any)._id
-      : currentUser.tenantId;
+      : new Types.ObjectId(currentUser.tenantId);
   }
 }
