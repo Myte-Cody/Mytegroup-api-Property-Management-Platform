@@ -1,14 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import {
-  IsEnum,
-  IsInt,
-  IsMongoId,
-  IsOptional,
-  IsString,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, Min } from 'class-validator';
 import { RentalPeriodStatus } from '../../../common/enums/lease.enum';
 
 export class RentalPeriodQueryDto {
@@ -79,7 +71,7 @@ export class RentalPeriodQueryDto {
     example: '2024-01-01',
   })
   @IsOptional()
-  @Transform(({ value }) => value ? new Date(value) : undefined)
+  @Transform(({ value }) => (value ? new Date(value) : undefined))
   startDateFrom?: Date;
 
   @ApiPropertyOptional({
@@ -87,7 +79,7 @@ export class RentalPeriodQueryDto {
     example: '2024-12-31',
   })
   @IsOptional()
-  @Transform(({ value }) => value ? new Date(value) : undefined)
+  @Transform(({ value }) => (value ? new Date(value) : undefined))
   startDateTo?: Date;
 
   @ApiPropertyOptional({
@@ -95,7 +87,7 @@ export class RentalPeriodQueryDto {
     example: '2024-01-01',
   })
   @IsOptional()
-  @Transform(({ value }) => value ? new Date(value) : undefined)
+  @Transform(({ value }) => (value ? new Date(value) : undefined))
   endDateFrom?: Date;
 
   @ApiPropertyOptional({
@@ -103,6 +95,6 @@ export class RentalPeriodQueryDto {
     example: '2024-12-31',
   })
   @IsOptional()
-  @Transform(({ value }) => value ? new Date(value) : undefined)
+  @Transform(({ value }) => (value ? new Date(value) : undefined))
   endDateTo?: Date;
 }

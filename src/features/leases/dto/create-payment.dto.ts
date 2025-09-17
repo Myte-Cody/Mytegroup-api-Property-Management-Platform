@@ -11,11 +11,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import {
-  PaymentMethod,
-  PaymentStatus,
-  PaymentType,
-} from '../../../common/enums/lease.enum';
+import { PaymentMethod, PaymentStatus, PaymentType } from '../../../common/enums/lease.enum';
 
 export class CreatePaymentDto {
   @ApiProperty({

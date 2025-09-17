@@ -1,19 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import {
-  IsEnum,
-  IsInt,
-  IsMongoId,
-  IsOptional,
-  IsString,
-  Max,
-  Min,
-} from 'class-validator';
-import {
-  PaymentMethod,
-  PaymentStatus,
-  PaymentType,
-} from '../../../common/enums/lease.enum';
+import { IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, Min } from 'class-validator';
+import { PaymentMethod, PaymentStatus, PaymentType } from '../../../common/enums/lease.enum';
 
 export class PaymentQueryDto {
   @ApiPropertyOptional({
@@ -109,7 +97,7 @@ export class PaymentQueryDto {
     example: '2024-01-01',
   })
   @IsOptional()
-  @Transform(({ value }) => value ? new Date(value) : undefined)
+  @Transform(({ value }) => (value ? new Date(value) : undefined))
   startDate?: Date;
 
   @ApiPropertyOptional({
@@ -117,7 +105,7 @@ export class PaymentQueryDto {
     example: '2024-12-31',
   })
   @IsOptional()
-  @Transform(({ value }) => value ? new Date(value) : undefined)
+  @Transform(({ value }) => (value ? new Date(value) : undefined))
   endDate?: Date;
 
   @ApiPropertyOptional({
@@ -125,7 +113,7 @@ export class PaymentQueryDto {
     example: '2024-01-01',
   })
   @IsOptional()
-  @Transform(({ value }) => value ? new Date(value) : undefined)
+  @Transform(({ value }) => (value ? new Date(value) : undefined))
   paidDateFrom?: Date;
 
   @ApiPropertyOptional({
@@ -133,6 +121,6 @@ export class PaymentQueryDto {
     example: '2024-12-31',
   })
   @IsOptional()
-  @Transform(({ value }) => value ? new Date(value) : undefined)
+  @Transform(({ value }) => (value ? new Date(value) : undefined))
   paidDateTo?: Date;
 }

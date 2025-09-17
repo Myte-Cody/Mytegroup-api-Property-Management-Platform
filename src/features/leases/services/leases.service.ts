@@ -6,7 +6,12 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
-import { LeaseStatus, PaymentStatus, PaymentType, RentalPeriodStatus } from '../../../common/enums/lease.enum';
+import {
+  LeaseStatus,
+  PaymentStatus,
+  PaymentType,
+  RentalPeriodStatus,
+} from '../../../common/enums/lease.enum';
 import { UnitAvailabilityStatus } from '../../../common/enums/unit.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import {
@@ -45,7 +50,8 @@ export class LeasesService {
   async findAllPaginated(
     queryDto: any, // TODO: Create LeaseQueryDto
     currentUser: UserDocument,
-  ): Promise<any> { // TODO: Create PaginatedLeasesResponse
+  ): Promise<any> {
+    // TODO: Create PaginatedLeasesResponse
     const {
       page = 1,
       limit = 10,
@@ -144,7 +150,8 @@ export class LeasesService {
     return lease;
   }
 
-  async create(createLeaseDto: any, currentUser: UserDocument) { // TODO: Create CreateLeaseDto
+  async create(createLeaseDto: any, currentUser: UserDocument) {
+    // TODO: Create CreateLeaseDto
     // Ensure user has tenant context
     const landlordId = this.getLandlordId(currentUser);
 
@@ -180,10 +187,7 @@ export class LeasesService {
     }
 
     // Find existing lease
-    const existingLease = await this.leaseModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const existingLease = await this.leaseModel.byTenant(landlordId).findById(id).exec();
 
     if (!existingLease) {
       throw new NotFoundException(`Lease with ID ${id} not found`);
@@ -199,17 +203,15 @@ export class LeasesService {
     return await existingLease.save();
   }
 
-  async terminate(id: string, terminationData: any, currentUser: UserDocument) { // TODO: Create TerminateLeaseDto
+  async terminate(id: string, terminationData: any, currentUser: UserDocument) {
+    // TODO: Create TerminateLeaseDto
     const landlordId = this.getLandlordId(currentUser);
 
     if (!landlordId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const lease = await this.leaseModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const lease = await this.leaseModel.byTenant(landlordId).findById(id).exec();
 
     if (!lease) {
       throw new NotFoundException(`Lease with ID ${id} not found`);
@@ -232,26 +234,22 @@ export class LeasesService {
     }
 
     // Update unit availability
-    await this.unitModel
-      .byTenant(landlordId)
-      .findByIdAndUpdate(lease.unit, {
-        availabilityStatus: UnitAvailabilityStatus.VACANT,
-      });
+    await this.unitModel.byTenant(landlordId).findByIdAndUpdate(lease.unit, {
+      availabilityStatus: UnitAvailabilityStatus.VACANT,
+    });
 
     return await lease.save();
   }
 
-  async renewLease(id: string, renewalData: any, currentUser: UserDocument) { // TODO: Create RenewLeaseDto
+  async renewLease(id: string, renewalData: any, currentUser: UserDocument) {
+    // TODO: Create RenewLeaseDto
     const landlordId = this.getLandlordId(currentUser);
 
     if (!landlordId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const lease = await this.leaseModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const lease = await this.leaseModel.byTenant(landlordId).findById(id).exec();
 
     if (!lease) {
       throw new NotFoundException(`Lease with ID ${id} not found`);
@@ -280,7 +278,8 @@ export class LeasesService {
       };
 
       if (renewalData.rentIncrease.type === 'PERCENTAGE') {
-        newRentAmount = currentRentalPeriod.rentAmount * (1 + renewalData.rentIncrease.amount / 100);
+        newRentAmount =
+          currentRentalPeriod.rentAmount * (1 + renewalData.rentIncrease.amount / 100);
       } else {
         newRentAmount = currentRentalPeriod.rentAmount + renewalData.rentIncrease.amount;
       }
@@ -319,8 +318,15 @@ export class LeasesService {
       return { lease, newRentalPeriod: savedNewRentalPeriod };
     } catch (error) {
       // Handle MongoDB duplicate key error
-      if (error.code === 11000 && error.keyPattern && error.keyPattern.lease && error.keyPattern.status) {
-        throw new BadRequestException('Cannot renew lease: An active rental period already exists for this lease. Please terminate the current rental period before creating a new one.');
+      if (
+        error.code === 11000 &&
+        error.keyPattern &&
+        error.keyPattern.lease &&
+        error.keyPattern.status
+      ) {
+        throw new BadRequestException(
+          'Cannot renew lease: An active rental period already exists for this lease. Please terminate the current rental period before creating a new one.',
+        );
       }
       // Re-throw other errors
       throw error;
@@ -335,10 +341,7 @@ export class LeasesService {
     }
 
     // Find lease
-    const lease = await this.leaseModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const lease = await this.leaseModel.byTenant(landlordId).findById(id).exec();
 
     if (!lease) {
       throw new NotFoundException(`Lease with ID ${id} not found`);
@@ -373,13 +376,19 @@ export class LeasesService {
     }
 
     // Validate tenant exists
-    const tenant = await this.tenantModel.byTenant(landlordId).findById(createLeaseDto.tenant).exec();
+    const tenant = await this.tenantModel
+      .byTenant(landlordId)
+      .findById(createLeaseDto.tenant)
+      .exec();
     if (!tenant) {
       throw new NotFoundException('Tenant not found');
     }
 
     // Validate property exists
-    const property = await this.propertyModel.byTenant(landlordId).findById(createLeaseDto.property).exec();
+    const property = await this.propertyModel
+      .byTenant(landlordId)
+      .findById(createLeaseDto.property)
+      .exec();
     if (!property) {
       throw new NotFoundException('Property not found');
     }
@@ -405,7 +414,10 @@ export class LeasesService {
 
       const PaymentWithTenant = this.paymentModel.byTenant(landlordId);
 
-      const rentPaymentReference = await PaymentReferenceUtils.generatePaymentReference(this.paymentModel, landlordId);
+      const rentPaymentReference = await PaymentReferenceUtils.generatePaymentReference(
+        this.paymentModel,
+        landlordId,
+      );
       const firstPayment = new PaymentWithTenant({
         lease: lease._id,
         rentalPeriod: initialRentalPeriod._id,
@@ -420,15 +432,19 @@ export class LeasesService {
 
       await firstPayment.save();
 
-      await this.unitModel
-        .byTenant(landlordId)
-        .findByIdAndUpdate(lease.unit, {
-          availabilityStatus: UnitAvailabilityStatus.OCCUPIED,
-        });
+      await this.unitModel.byTenant(landlordId).findByIdAndUpdate(lease.unit, {
+        availabilityStatus: UnitAvailabilityStatus.OCCUPIED,
+      });
     } catch (error) {
-
-      if (error.code === 11000 && error.keyPattern && error.keyPattern.lease && error.keyPattern.status) {
-        throw new BadRequestException('Cannot activate lease: An active rental period already exists for this lease.');
+      if (
+        error.code === 11000 &&
+        error.keyPattern &&
+        error.keyPattern.lease &&
+        error.keyPattern.status
+      ) {
+        throw new BadRequestException(
+          'Cannot activate lease: An active rental period already exists for this lease.',
+        );
       }
 
       throw error;
@@ -441,11 +457,8 @@ export class LeasesService {
     currentUser: UserDocument,
   ): Promise<any> {
     const landlordId = this.getLandlordId(currentUser);
-    
-    const lease = await this.leaseModel
-      .byTenant(landlordId)
-      .findById(leaseId)
-      .exec();
+
+    const lease = await this.leaseModel.byTenant(landlordId).findById(leaseId).exec();
 
     if (!lease) {
       throw new NotFoundException('Lease not found');
@@ -468,7 +481,7 @@ export class LeasesService {
           securityDepositRefundedDate: new Date(),
           securityDepositRefundReason: refundReason,
         },
-        { new: true }
+        { new: true },
       )
       .populate('unit property tenant')
       .exec();

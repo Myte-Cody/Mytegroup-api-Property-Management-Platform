@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsEmail, IsOptional, IsString, MinLength, Matches } from 'class-validator';
+import { IsEmail, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 
 export class UpdateUserDto {
   @ApiProperty({
@@ -22,7 +22,8 @@ export class UpdateUserDto {
 
   @ApiProperty({
     example: 'StrongP@ss123',
-    description: 'Password must contain at least 8 characters, including uppercase, lowercase, and numbers or special characters',
+    description:
+      'Password must contain at least 8 characters, including uppercase, lowercase, and numbers or special characters',
     required: false,
   })
   @IsOptional()
@@ -32,5 +33,4 @@ export class UpdateUserDto {
     message: 'Password is too weak',
   })
   password?: string;
-
 }

@@ -8,7 +8,10 @@ import { CaslAuthorizationService } from './services/casl-authorization.service'
 import { Contractor, ContractorSchema } from '../../features/contractors/schema/contractor.schema';
 import { Lease, LeaseSchema } from '../../features/leases/schemas/lease.schema';
 import { Payment, PaymentSchema } from '../../features/leases/schemas/payment.schema';
-import { RentalPeriod, RentalPeriodSchema } from '../../features/leases/schemas/rental-period.schema';
+import {
+  RentalPeriod,
+  RentalPeriodSchema,
+} from '../../features/leases/schemas/rental-period.schema';
 import { Property, PropertySchema } from '../../features/properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../../features/properties/schemas/unit.schema';
 import { Tenant, TenantSchema } from '../../features/tenants/schema/tenant.schema';

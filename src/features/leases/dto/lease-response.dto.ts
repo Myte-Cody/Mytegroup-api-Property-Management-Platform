@@ -1,11 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose, Transform, Type } from 'class-transformer';
 import { IsOptional, ValidateNested } from 'class-validator';
-import {
-  LeaseStatus,
-  PaymentCycle,
-  RentIncreaseType,
-} from '../../../common/enums/lease.enum';
+import { LeaseStatus, PaymentCycle, RentIncreaseType } from '../../../common/enums/lease.enum';
 
 export class RentIncreaseResponseDto {
   @ApiProperty({
@@ -152,7 +148,7 @@ export class LeaseResponseDto {
   @Expose()
   notes?: string;
 
-    @ApiPropertyOptional({ type: RentIncreaseResponseDto })
+  @ApiPropertyOptional({ type: RentIncreaseResponseDto })
   @IsOptional()
   @ValidateNested()
   @Type(() => RentIncreaseResponseDto)

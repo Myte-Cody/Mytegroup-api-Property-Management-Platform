@@ -11,14 +11,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { 
-  ApiBearerAuth, 
-  ApiBody, 
+import {
+  ApiBearerAuth,
+  ApiBody,
   ApiConsumes,
-  ApiOperation, 
-  ApiParam, 
+  ApiOperation,
+  ApiParam,
   ApiResponse,
-  ApiTags 
+  ApiTags,
 } from '@nestjs/swagger';
 import { FormDataRequest } from 'nestjs-form-data';
 import { CheckPolicies } from '../../common/casl/decorators/check-policies.decorator';
@@ -34,7 +34,7 @@ import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pi
 import { MediaType } from '../media/schemas/media.schema';
 import { MediaService } from '../media/services/media.service';
 import { User } from '../users/schemas/user.schema';
-import { 
+import {
   CreateLeaseDto,
   LeaseQueryDto,
   LeaseResponseDto,
@@ -64,8 +64,8 @@ export class LeasesController {
   @Get()
   @CheckPolicies(new ReadLeasePolicyHandler())
   @ApiOperation({ summary: 'Get all leases with pagination, filtering, and sorting' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Paginated list of leases',
     type: PaginatedLeasesResponseDto,
   })
@@ -77,8 +77,8 @@ export class LeasesController {
   @CheckPolicies(new ReadLeasePolicyHandler())
   @ApiOperation({ summary: 'Get lease by ID' })
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Lease details',
     type: LeaseResponseDto,
   })
@@ -90,15 +90,12 @@ export class LeasesController {
   @CheckPolicies(new CreateLeasePolicyHandler())
   @ApiOperation({ summary: 'Create a new lease' })
   @ApiBody({ type: CreateLeaseDto })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Lease created successfully',
     type: LeaseResponseDto,
   })
-  create(
-    @Body() createLeaseDto: CreateLeaseDto,
-    @CurrentUser() user: User,
-  ) {
+  create(@Body() createLeaseDto: CreateLeaseDto, @CurrentUser() user: User) {
     return this.leasesService.create(createLeaseDto, user);
   }
 
@@ -107,8 +104,8 @@ export class LeasesController {
   @ApiOperation({ summary: 'Update lease details' })
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
   @ApiBody({ type: UpdateLeaseDto })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Lease updated successfully',
     type: LeaseResponseDto,
   })
@@ -125,8 +122,8 @@ export class LeasesController {
   @ApiOperation({ summary: 'Terminate a lease' })
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
   @ApiBody({ type: TerminateLeaseDto })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Lease terminated successfully',
     type: LeaseResponseDto,
   })
@@ -143,8 +140,8 @@ export class LeasesController {
   @ApiOperation({ summary: 'Renew a lease' })
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
   @ApiBody({ type: RenewLeaseDto })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Lease renewed successfully',
   })
   renew(
@@ -160,8 +157,8 @@ export class LeasesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a lease (only draft leases)' })
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
-  @ApiResponse({ 
-    status: 204, 
+  @ApiResponse({
+    status: 204,
     description: 'Lease deleted successfully',
   })
   remove(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
@@ -172,8 +169,8 @@ export class LeasesController {
   @CheckPolicies(new ReadLeasePolicyHandler())
   @ApiOperation({ summary: 'Get all media for a lease' })
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Lease media files',
   })
   async getLeaseMedia(
@@ -184,9 +181,15 @@ export class LeasesController {
   ) {
     await this.leasesService.findOne(leaseId, user);
 
-    const media = await this.mediaService.getMediaForEntity('Lease', leaseId, user, collectionName, {
-      media_type: mediaType,
-    });
+    const media = await this.mediaService.getMediaForEntity(
+      'Lease',
+      leaseId,
+      user,
+      collectionName,
+      {
+        media_type: mediaType,
+      },
+    );
 
     return {
       success: true,
@@ -198,8 +201,8 @@ export class LeasesController {
   @CheckPolicies(new ReadLeasePolicyHandler())
   @ApiOperation({ summary: 'Get lease documents' })
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Lease documents',
   })
   async getLeaseDocuments(
@@ -208,7 +211,12 @@ export class LeasesController {
   ) {
     await this.leasesService.findOne(leaseId, user);
 
-    const documents = await this.mediaService.getMediaForEntity('Lease', leaseId, user, 'documents');
+    const documents = await this.mediaService.getMediaForEntity(
+      'Lease',
+      leaseId,
+      user,
+      'documents',
+    );
 
     return {
       success: true,
@@ -220,8 +228,8 @@ export class LeasesController {
   @CheckPolicies(new ReadLeasePolicyHandler())
   @ApiOperation({ summary: 'Get lease contracts' })
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Lease contracts',
   })
   async getLeaseContracts(
@@ -230,7 +238,12 @@ export class LeasesController {
   ) {
     await this.leasesService.findOne(leaseId, user);
 
-    const contracts = await this.mediaService.getMediaForEntity('Lease', leaseId, user, 'contracts');
+    const contracts = await this.mediaService.getMediaForEntity(
+      'Lease',
+      leaseId,
+      user,
+      'contracts',
+    );
 
     return {
       success: true,
@@ -243,18 +256,18 @@ export class LeasesController {
   @ApiOperation({ summary: 'Refund security deposit for a lease' })
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
   @ApiBody({ type: RefundSecurityDepositDto })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Security deposit refunded successfully',
     type: LeaseResponseDto,
   })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Bad request - lease has no security deposit or already refunded' 
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - lease has no security deposit or already refunded',
   })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'Lease not found' 
+  @ApiResponse({
+    status: 404,
+    description: 'Lease not found',
   })
   async refundSecurityDeposit(
     @Param('id', MongoIdValidationPipe) leaseId: string,
@@ -279,14 +292,14 @@ export class LeasesController {
   @ApiOperation({ summary: 'Get payment details for a rental period' })
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
   @ApiParam({ name: 'rentalPeriodId', description: 'Rental Period ID', type: String })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Payment details retrieved successfully',
     type: PaymentResponseDto,
   })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'Payment not found' 
+  @ApiResponse({
+    status: 404,
+    description: 'Payment not found',
   })
   async getPaymentForRentalPeriod(
     @Param('id', MongoIdValidationPipe) leaseId: string,
@@ -313,18 +326,18 @@ export class LeasesController {
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
   @ApiParam({ name: 'rentalPeriodId', description: 'Rental Period ID', type: String })
   @ApiBody({ type: UploadPaymentProofDto })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Payment proof submitted successfully',
     type: PaymentResponseDto,
   })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Bad request - payment not in correct status' 
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - payment not in correct status',
   })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'Payment not found' 
+  @ApiResponse({
+    status: 404,
+    description: 'Payment not found',
   })
   async submitPaymentProof(
     @Param('id', MongoIdValidationPipe) leaseId: string,
@@ -352,18 +365,18 @@ export class LeasesController {
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
   @ApiParam({ name: 'rentalPeriodId', description: 'Rental Period ID', type: String })
   @ApiBody({ type: MarkPaymentPaidDto })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Payment validated successfully',
     type: PaymentResponseDto,
   })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Bad request - payment not in correct status' 
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request - payment not in correct status',
   })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'Payment not found' 
+  @ApiResponse({
+    status: 404,
+    description: 'Payment not found',
   })
   async validatePayment(
     @Param('id', MongoIdValidationPipe) leaseId: string,

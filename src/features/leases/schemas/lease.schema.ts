@@ -150,7 +150,7 @@ LeaseSchema.index(
 
 LeaseSchema.index({ tenant_id: 1, status: 1, startDate: 1 });
 LeaseSchema.index({ property: 1, status: 1 });
-LeaseSchema.index({ endDate: 1, status: 1 }); 
+LeaseSchema.index({ endDate: 1, status: 1 });
 
 LeaseSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 LeaseSchema.plugin(accessibleRecordsPlugin);

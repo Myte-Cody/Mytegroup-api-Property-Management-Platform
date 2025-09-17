@@ -1,8 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsDate, IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
-import { PaymentMethod } from '../../../common/enums/lease.enum';
 import { HasMimeType, IsFile, MaxFileSize, MemoryStoredFile } from 'nestjs-form-data';
+import { PaymentMethod } from '../../../common/enums/lease.enum';
 
 export class UploadPaymentProofDto {
   @ApiProperty({

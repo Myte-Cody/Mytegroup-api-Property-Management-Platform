@@ -1,8 +1,4 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { RentalPeriodStatus } from '../../../common/enums/lease.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
@@ -26,7 +22,8 @@ export class RentalPeriodsService {
   async findAllPaginated(
     queryDto: any, // TODO: Create RentalPeriodQueryDto
     currentUser: UserDocument,
-  ): Promise<any> { // TODO: Create PaginatedRentalPeriodResponse
+  ): Promise<any> {
+    // TODO: Create PaginatedRentalPeriodResponse
     const {
       page = 1,
       limit = 10,
@@ -149,10 +146,7 @@ export class RentalPeriodsService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const rentalPeriod = await this.rentalPeriodModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const rentalPeriod = await this.rentalPeriodModel.byTenant(landlordId).findById(id).exec();
 
     if (!rentalPeriod) {
       throw new NotFoundException(`RentalPeriod with ID ${id} not found`);
@@ -161,17 +155,14 @@ export class RentalPeriodsService {
     // Find the root of the renewal chain
     let root = rentalPeriod;
     while (root.renewedFrom) {
-      root = await this.rentalPeriodModel
-        .byTenant(landlordId)
-        .findById(root.renewedFrom)
-        .exec();
+      root = await this.rentalPeriodModel.byTenant(landlordId).findById(root.renewedFrom).exec();
       if (!root) break;
     }
 
     // Build the complete chain from root
     const chain = [];
     let current = root;
-    
+
     while (current) {
       chain.push(current);
       if (current.renewedTo) {
@@ -260,7 +251,9 @@ export class RentalPeriodsService {
       totalPeriods: rentalPeriods.length,
       currentRent: rentalPeriods[rentalPeriods.length - 1]?.rentAmount || 0,
       originalRent: rentalPeriods[0]?.rentAmount || 0,
-      totalIncrease: (rentalPeriods[rentalPeriods.length - 1]?.rentAmount || 0) - (rentalPeriods[0]?.rentAmount || 0),
+      totalIncrease:
+        (rentalPeriods[rentalPeriods.length - 1]?.rentAmount || 0) -
+        (rentalPeriods[0]?.rentAmount || 0),
       history: rentHistory,
     };
   }

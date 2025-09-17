@@ -7,19 +7,19 @@ import { MediaModule } from '../media/media.module';
 import { PropertiesModule } from '../properties/properties.module';
 import { Property, PropertySchema } from '../properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../properties/schemas/unit.schema';
-import { TenantsModule } from '../tenants/tenant.module';
 import { Tenant, TenantSchema } from '../tenants/schema/tenant.schema';
-import { UsersModule } from '../users/users.module';
+import { TenantsModule } from '../tenants/tenant.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { UsersModule } from '../users/users.module';
 import { LeasesController } from './leases.controller';
 import { PaymentsController } from './payments.controller';
+import { RentalPeriodsController } from './rental-periods.controller';
 import { Lease, LeaseSchema } from './schemas/lease.schema';
 import { Payment, PaymentSchema } from './schemas/payment.schema';
 import { RentalPeriod, RentalPeriodSchema } from './schemas/rental-period.schema';
 import { LeasesService } from './services/leases.service';
 import { PaymentsService } from './services/payments.service';
 import { RentalPeriodsService } from './services/rental-periods.service';
-import { RentalPeriodsController } from './rental-periods.controller';
 
 @Module({
   imports: [

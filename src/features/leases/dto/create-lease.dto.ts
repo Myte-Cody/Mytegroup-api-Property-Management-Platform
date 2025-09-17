@@ -1,7 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-  IsArray,
   IsBoolean,
   IsDate,
   IsEnum,
@@ -15,11 +14,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import {
-  LeaseStatus,
-  PaymentCycle,
-  RentIncreaseType,
-} from '../../../common/enums/lease.enum';
+import { LeaseStatus, PaymentCycle, RentIncreaseType } from '../../../common/enums/lease.enum';
 
 export class RentIncreaseDto {
   @ApiProperty({
@@ -121,7 +116,7 @@ export class CreateLeaseDto {
     example: 1200,
     minimum: 0,
   })
-  @ValidateIf(o => o.isSecurityDeposit === true)
+  @ValidateIf((o) => o.isSecurityDeposit === true)
   @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()

@@ -11,8 +11,8 @@ import {
   createEmptyPaginatedResponse,
   createPaginatedResponse,
 } from '../../../common/utils/pagination.utils';
-import { UserDocument } from '../../users/schemas/user.schema';
 import { MediaService } from '../../media/services/media.service';
+import { UserDocument } from '../../users/schemas/user.schema';
 import { MarkPaymentPaidDto, UploadPaymentProofDto } from '../dto';
 import { Lease } from '../schemas/lease.schema';
 import { Payment } from '../schemas/payment.schema';
@@ -31,10 +31,7 @@ export class PaymentsService {
     private readonly mediaService: MediaService,
   ) {}
 
-  async findAllPaginated(
-    queryDto: any,
-    currentUser: UserDocument,
-  ): Promise<any> {
+  async findAllPaginated(queryDto: any, currentUser: UserDocument): Promise<any> {
     const {
       page = 1,
       limit = 10,
@@ -213,10 +210,7 @@ export class PaymentsService {
     }
 
     // Find existing payment
-    const existingPayment = await this.paymentModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const existingPayment = await this.paymentModel.byTenant(landlordId).findById(id).exec();
 
     if (!existingPayment) {
       throw new NotFoundException(`Payment with ID ${id} not found`);
@@ -238,10 +232,7 @@ export class PaymentsService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const payment = await this.paymentModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const payment = await this.paymentModel.byTenant(landlordId).findById(id).exec();
 
     if (!payment) {
       throw new NotFoundException(`Payment with ID ${id} not found`);
@@ -254,7 +245,7 @@ export class PaymentsService {
     payment.status = PaymentStatus.PROCESSED;
     payment.processedDate = new Date();
 
-    // TODO: After payment is processed and marked as PAID, calculate and update 
+    // TODO: After payment is processed and marked as PAID, calculate and update
     // the nextPaymentDueDate in the associated lease based on payment cycle
 
     return await payment.save();
@@ -268,10 +259,7 @@ export class PaymentsService {
     }
 
     // Find payment
-    const payment = await this.paymentModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const payment = await this.paymentModel.byTenant(landlordId).findById(id).exec();
 
     if (!payment) {
       throw new NotFoundException(`Payment with ID ${id} not found`);
@@ -324,32 +312,29 @@ export class PaymentsService {
       throw new NotFoundException(`Lease with ID ${leaseId} not found`);
     }
 
-    const payments = await this.paymentModel
-      .byTenant(landlordId)
-      .find({ lease: leaseId })
-      .exec();
+    const payments = await this.paymentModel.byTenant(landlordId).find({ lease: leaseId }).exec();
 
     const summary = {
       totalPayments: payments.length,
       totalAmount: payments.reduce((sum, p) => sum + p.amount, 0),
       processedAmount: payments
-        .filter(p => p.status === PaymentStatus.PROCESSED)
+        .filter((p) => p.status === PaymentStatus.PROCESSED)
         .reduce((sum, p) => sum + p.amount, 0),
       pendingAmount: payments
-        .filter(p => p.status === PaymentStatus.PENDING)
+        .filter((p) => p.status === PaymentStatus.PENDING)
         .reduce((sum, p) => sum + p.amount, 0),
       byType: {
-        rent: payments.filter(p => p.type === PaymentType.RENT).length,
-        deposit: payments.filter(p => p.type === PaymentType.DEPOSIT).length,
-        fees: payments.filter(p => p.type === PaymentType.FEES).length,
-        utilities: payments.filter(p => p.type === PaymentType.UTILITIES).length,
-        maintenance: payments.filter(p => p.type === PaymentType.MAINTENANCE).length,
-        other: payments.filter(p => p.type === PaymentType.OTHER).length,
+        rent: payments.filter((p) => p.type === PaymentType.RENT).length,
+        deposit: payments.filter((p) => p.type === PaymentType.DEPOSIT).length,
+        fees: payments.filter((p) => p.type === PaymentType.FEES).length,
+        utilities: payments.filter((p) => p.type === PaymentType.UTILITIES).length,
+        maintenance: payments.filter((p) => p.type === PaymentType.MAINTENANCE).length,
+        other: payments.filter((p) => p.type === PaymentType.OTHER).length,
       },
       byStatus: {
-        pending: payments.filter(p => p.status === PaymentStatus.PENDING).length,
-        processed: payments.filter(p => p.status === PaymentStatus.PROCESSED).length,
-        failed: payments.filter(p => p.status === PaymentStatus.FAILED).length,
+        pending: payments.filter((p) => p.status === PaymentStatus.PENDING).length,
+        processed: payments.filter((p) => p.status === PaymentStatus.PROCESSED).length,
+        failed: payments.filter((p) => p.status === PaymentStatus.FAILED).length,
       },
     };
 
@@ -364,7 +349,10 @@ export class PaymentsService {
 
   private async validatePaymentCreation(createPaymentDto: any, landlordId: any) {
     // Validate lease exists
-    const lease = await this.leaseModel.byTenant(landlordId).findById(createPaymentDto.lease).exec();
+    const lease = await this.leaseModel
+      .byTenant(landlordId)
+      .findById(createPaymentDto.lease)
+      .exec();
     if (!lease) {
       throw new NotFoundException('Lease not found');
     }
@@ -434,7 +422,7 @@ export class PaymentsService {
           paidDate: submitDto.paymentDate,
           status: PaymentStatus.PAID,
         },
-        { new: true }
+        { new: true },
       )
       .populate('lease rentalPeriod')
       .exec();
@@ -492,7 +480,7 @@ export class PaymentsService {
           processedDate: new Date(),
           status: PaymentStatus.PROCESSED,
         },
-        { new: true }
+        { new: true },
       )
       .populate('lease rentalPeriod')
       .exec();

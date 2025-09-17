@@ -31,7 +31,6 @@ export class CreateUserPolicyHandler implements IPolicyHandler {
 
     if (!canCreate) return false;
 
-
     return true;
   }
 }

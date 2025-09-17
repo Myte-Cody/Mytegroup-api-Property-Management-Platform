@@ -25,11 +25,6 @@ import { UnitBusinessValidator } from './validators/unit-business-validator';
   ],
   controllers: [PropertiesController, UnitsController],
   providers: [PropertiesService, UnitsService, UnitBusinessValidator],
-  exports: [
-    PropertiesService,
-    UnitsService,
-    UnitBusinessValidator,
-    MongooseModule,
-  ],
+  exports: [PropertiesService, UnitsService, UnitBusinessValidator, MongooseModule],
 })
 export class PropertiesModule {}

@@ -11,13 +11,13 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { 
-  ApiBearerAuth, 
-  ApiBody, 
-  ApiOperation, 
-  ApiParam, 
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiParam,
   ApiResponse,
-  ApiTags 
+  ApiTags,
 } from '@nestjs/swagger';
 import { CheckPolicies } from '../../common/casl/decorators/check-policies.decorator';
 import { CaslGuard } from '../../common/casl/guards/casl.guard';
@@ -32,7 +32,7 @@ import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pi
 import { MediaType } from '../media/schemas/media.schema';
 import { MediaService } from '../media/services/media.service';
 import { User } from '../users/schemas/user.schema';
-import { 
+import {
   CreatePaymentDto,
   PaginatedPaymentsResponseDto,
   PaymentQueryDto,
@@ -55,8 +55,8 @@ export class PaymentsController {
   @Get()
   @CheckPolicies(new ReadPaymentPolicyHandler())
   @ApiOperation({ summary: 'Get all payments with pagination, filtering, and sorting' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Paginated list of payments',
     type: PaginatedPaymentsResponseDto,
   })
@@ -68,8 +68,8 @@ export class PaymentsController {
   @CheckPolicies(new ReadPaymentPolicyHandler())
   @ApiOperation({ summary: 'Get payment by ID' })
   @ApiParam({ name: 'id', description: 'Payment ID', type: String })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Payment details',
     type: PaymentResponseDto,
   })
@@ -81,8 +81,8 @@ export class PaymentsController {
   @CheckPolicies(new ReadPaymentPolicyHandler())
   @ApiOperation({ summary: 'Get payment by reference number' })
   @ApiParam({ name: 'reference', description: 'Payment reference number', type: String })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Payment details',
     type: PaymentResponseDto,
   })
@@ -94,15 +94,12 @@ export class PaymentsController {
   @CheckPolicies(new CreatePaymentPolicyHandler())
   @ApiOperation({ summary: 'Create a new payment' })
   @ApiBody({ type: CreatePaymentDto })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Payment created successfully',
     type: PaymentResponseDto,
   })
-  create(
-    @Body() createPaymentDto: CreatePaymentDto,
-    @CurrentUser() user: User,
-  ) {
+  create(@Body() createPaymentDto: CreatePaymentDto, @CurrentUser() user: User) {
     return this.paymentsService.create(createPaymentDto, user);
   }
 
@@ -111,8 +108,8 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Update payment details' })
   @ApiParam({ name: 'id', description: 'Payment ID', type: String })
   @ApiBody({ type: UpdatePaymentDto })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Payment updated successfully',
     type: PaymentResponseDto,
   })
@@ -128,15 +125,12 @@ export class PaymentsController {
   @CheckPolicies(new UpdatePaymentPolicyHandler())
   @ApiOperation({ summary: 'Process a pending payment' })
   @ApiParam({ name: 'id', description: 'Payment ID', type: String })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Payment processed successfully',
     type: PaymentResponseDto,
   })
-  process(
-    @Param('id', MongoIdValidationPipe) id: string,
-    @CurrentUser() user: User,
-  ) {
+  process(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
     return this.paymentsService.processPayment(id, user);
   }
 
@@ -145,8 +139,8 @@ export class PaymentsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a payment (only pending payments)' })
   @ApiParam({ name: 'id', description: 'Payment ID', type: String })
-  @ApiResponse({ 
-    status: 204, 
+  @ApiResponse({
+    status: 204,
     description: 'Payment deleted successfully',
   })
   remove(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
@@ -157,14 +151,14 @@ export class PaymentsController {
   @CheckPolicies(new ReadPaymentPolicyHandler())
   @ApiOperation({ summary: 'Get all payments for a specific lease' })
   @ApiParam({ name: 'leaseId', description: 'Lease ID', type: String })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'List of payments for the lease',
     type: [PaymentResponseDto],
   })
   getPaymentsByLease(
-    @Param('leaseId', MongoIdValidationPipe) leaseId: string, 
-    @CurrentUser() user: User
+    @Param('leaseId', MongoIdValidationPipe) leaseId: string,
+    @CurrentUser() user: User,
   ) {
     return this.paymentsService.getPaymentsByLease(leaseId, user);
   }
@@ -173,14 +167,14 @@ export class PaymentsController {
   @CheckPolicies(new ReadPaymentPolicyHandler())
   @ApiOperation({ summary: 'Get payment summary analytics for a lease' })
   @ApiParam({ name: 'leaseId', description: 'Lease ID', type: String })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Payment summary with analytics',
     type: PaymentSummaryDto,
   })
   getPaymentSummary(
-    @Param('leaseId', MongoIdValidationPipe) leaseId: string, 
-    @CurrentUser() user: User
+    @Param('leaseId', MongoIdValidationPipe) leaseId: string,
+    @CurrentUser() user: User,
   ) {
     return this.paymentsService.getPaymentSummary(leaseId, user);
   }
@@ -189,8 +183,8 @@ export class PaymentsController {
   @CheckPolicies(new ReadPaymentPolicyHandler())
   @ApiOperation({ summary: 'Get payment receipts' })
   @ApiParam({ name: 'id', description: 'Payment ID', type: String })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Payment receipts',
   })
   async getPaymentReceipts(
@@ -199,7 +193,12 @@ export class PaymentsController {
   ) {
     await this.paymentsService.findOne(paymentId, user);
 
-    const receipts = await this.mediaService.getMediaForEntity('Payment', paymentId, user, 'receipts');
+    const receipts = await this.mediaService.getMediaForEntity(
+      'Payment',
+      paymentId,
+      user,
+      'receipts',
+    );
 
     return {
       success: true,
@@ -211,8 +210,8 @@ export class PaymentsController {
   @CheckPolicies(new ReadPaymentPolicyHandler())
   @ApiOperation({ summary: 'Get payment documents' })
   @ApiParam({ name: 'id', description: 'Payment ID', type: String })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Payment documents',
   })
   async getPaymentDocuments(
@@ -221,7 +220,12 @@ export class PaymentsController {
   ) {
     await this.paymentsService.findOne(paymentId, user);
 
-    const documents = await this.mediaService.getMediaForEntity('Payment', paymentId, user, 'documents');
+    const documents = await this.mediaService.getMediaForEntity(
+      'Payment',
+      paymentId,
+      user,
+      'documents',
+    );
 
     return {
       success: true,
@@ -233,8 +237,8 @@ export class PaymentsController {
   @CheckPolicies(new ReadPaymentPolicyHandler())
   @ApiOperation({ summary: 'Get all media for a payment' })
   @ApiParam({ name: 'id', description: 'Payment ID', type: String })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Payment media files',
   })
   async getPaymentMedia(
@@ -245,9 +249,15 @@ export class PaymentsController {
   ) {
     await this.paymentsService.findOne(paymentId, user);
 
-    const media = await this.mediaService.getMediaForEntity('Payment', paymentId, user, collectionName, {
-      media_type: mediaType,
-    });
+    const media = await this.mediaService.getMediaForEntity(
+      'Payment',
+      paymentId,
+      user,
+      collectionName,
+      {
+        media_type: mediaType,
+      },
+    );
 
     return {
       success: true,
