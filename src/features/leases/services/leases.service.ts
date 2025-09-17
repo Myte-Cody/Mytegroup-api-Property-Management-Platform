@@ -427,7 +427,7 @@ export class LeasesService {
     }
   }
 
-  private async activateLease(lease: Lease, landlordId: Types.ObjectId | string) {
+  private async activateLease(lease: Lease, landlordId: Types.ObjectId) {
     try {
       const RentalPeriodWithTenant = this.rentalPeriodModel.byTenant(landlordId);
       const initialRentalPeriod = new RentalPeriodWithTenant({
@@ -483,7 +483,7 @@ export class LeasesService {
     leaseId: string,
     refundReason: string,
     currentUser: UserDocument,
-  ): Promise<LeaseResponseDto> {
+  ): Promise<any> {
     const landlordId = this.getLandlordId(currentUser);
 
     const lease = await this.leaseModel.byTenant(landlordId).findById(leaseId).exec();
@@ -520,7 +520,7 @@ export class LeasesService {
   private async handleStatusChange(
     lease: Lease,
     newStatus: LeaseStatus,
-    landlordId: Types.ObjectId | string,
+    landlordId: Types.ObjectId,
   ) {
     if (newStatus === LeaseStatus.ACTIVE && lease.status === LeaseStatus.DRAFT) {
       await this.activateLease(lease, landlordId);
