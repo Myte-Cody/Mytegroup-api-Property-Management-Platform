@@ -6,6 +6,9 @@ import { CaslAuthorizationService } from './services/casl-authorization.service'
 
 // Import schemas
 import { Contractor, ContractorSchema } from '../../features/contractors/schema/contractor.schema';
+import { Lease, LeaseSchema } from '../../features/leases/schemas/lease.schema';
+import { Payment, PaymentSchema } from '../../features/leases/schemas/payment.schema';
+import { RentalPeriod, RentalPeriodSchema } from '../../features/leases/schemas/rental-period.schema';
 import { Property, PropertySchema } from '../../features/properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../../features/properties/schemas/unit.schema';
 import { Tenant, TenantSchema } from '../../features/tenants/schema/tenant.schema';
@@ -50,6 +53,30 @@ import {
   UpdateContractorPolicyHandler,
 } from './policies/contractor.policies';
 
+import {
+  CreateLeasePolicyHandler,
+  DeleteLeasePolicyHandler,
+  ManageLeasePolicyHandler,
+  ReadLeasePolicyHandler,
+  UpdateLeasePolicyHandler,
+} from './policies/lease.policies';
+
+import {
+  CreateRentalPeriodPolicyHandler,
+  DeleteRentalPeriodPolicyHandler,
+  ManageRentalPeriodPolicyHandler,
+  ReadRentalPeriodPolicyHandler,
+  UpdateRentalPeriodPolicyHandler,
+} from './policies/rental-period.policies';
+
+import {
+  CreatePaymentPolicyHandler,
+  DeletePaymentPolicyHandler,
+  ManagePaymentPolicyHandler,
+  ReadPaymentPolicyHandler,
+  UpdatePaymentPolicyHandler,
+} from './policies/payment.policies';
+
 const policyHandlers = [
   // Property policies
   ReadPropertyPolicyHandler,
@@ -83,6 +110,27 @@ const policyHandlers = [
   CreateContractorPolicyHandler,
   UpdateContractorPolicyHandler,
   DeleteContractorPolicyHandler,
+
+  // Lease policies
+  ReadLeasePolicyHandler,
+  ManageLeasePolicyHandler,
+  CreateLeasePolicyHandler,
+  UpdateLeasePolicyHandler,
+  DeleteLeasePolicyHandler,
+
+  // RentalPeriod policies
+  ReadRentalPeriodPolicyHandler,
+  ManageRentalPeriodPolicyHandler,
+  CreateRentalPeriodPolicyHandler,
+  UpdateRentalPeriodPolicyHandler,
+  DeleteRentalPeriodPolicyHandler,
+
+  // Payment policies
+  ReadPaymentPolicyHandler,
+  ManagePaymentPolicyHandler,
+  CreatePaymentPolicyHandler,
+  UpdatePaymentPolicyHandler,
+  DeletePaymentPolicyHandler,
 ];
 
 @Module({
@@ -93,6 +141,9 @@ const policyHandlers = [
       { name: Contractor.name, schema: ContractorSchema },
       { name: Property.name, schema: PropertySchema },
       { name: Unit.name, schema: UnitSchema },
+      { name: Lease.name, schema: LeaseSchema },
+      { name: RentalPeriod.name, schema: RentalPeriodSchema },
+      { name: Payment.name, schema: PaymentSchema },
     ]),
   ],
   providers: [CaslAbilityFactory, CaslGuard, CaslAuthorizationService, ...policyHandlers],
