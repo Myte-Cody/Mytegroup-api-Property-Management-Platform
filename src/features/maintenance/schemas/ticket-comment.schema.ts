@@ -26,7 +26,6 @@ export class TicketComment extends Document implements SoftDelete {
   @Prop({ required: true, maxlength: 2000 })
   content: string;
 
-
   deleted: boolean;
   deletedAt?: Date;
 }

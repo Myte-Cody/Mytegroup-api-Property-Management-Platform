@@ -2,7 +2,11 @@ import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
-import { TicketCategory, TicketPriority, TicketStatus } from '../../../common/enums/maintenance.enum';
+import {
+  TicketCategory,
+  TicketPriority,
+  TicketStatus,
+} from '../../../common/enums/maintenance.enum';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
 const mongoTenant = require('mongo-tenant');
 

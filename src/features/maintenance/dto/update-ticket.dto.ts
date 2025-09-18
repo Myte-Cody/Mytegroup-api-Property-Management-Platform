@@ -1,13 +1,6 @@
 import { ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import {
-  IsDate,
-  IsEnum,
-  IsMongoId,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsDate, IsEnum, IsMongoId, IsOptional, IsString, MaxLength } from 'class-validator';
 import { TicketStatus } from '../../../common/enums/maintenance.enum';
 import { CreateTicketDto } from './create-ticket.dto';
 

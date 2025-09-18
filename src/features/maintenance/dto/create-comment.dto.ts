@@ -22,8 +22,19 @@ export class CreateCommentDto {
   @IsOptional()
   @IsFile({ each: true })
   @MaxFileSize(10 * 1024 * 1024, { each: true })
-  @HasMimeType(['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'video/mp4', 'video/avi', 'application/pdf'], {
-    each: true,
-  })
+  @HasMimeType(
+    [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/gif',
+      'video/mp4',
+      'video/avi',
+      'application/pdf',
+    ],
+    {
+      each: true,
+    },
+  )
   media_files?: MemoryStoredFile[];
 }

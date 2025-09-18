@@ -37,10 +37,7 @@ export class TicketReferenceUtils {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const ticketNumber = await this.generateTicketNumber(ticketModel, tenantId);
 
-      const existingTicket = await ticketModel
-        .byTenant(tenantId)
-        .findOne({ ticketNumber })
-        .exec();
+      const existingTicket = await ticketModel.byTenant(tenantId).findOne({ ticketNumber }).exec();
 
       if (!existingTicket) {
         return ticketNumber;

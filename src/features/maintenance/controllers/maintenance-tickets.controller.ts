@@ -1,26 +1,10 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Query,
-  Req,
-  UseInterceptors,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiConsumes, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { FormDataRequest } from 'nestjs-form-data';
 import { MediaType } from '../../media/schemas/media.schema';
 import { MediaService } from '../../media/services/media.service';
 import { UserDocument } from '../../users/schemas/user.schema';
-import {
-  AssignTicketDto,
-  CreateTicketDto,
-  TicketQueryDto,
-  UpdateTicketDto,
-} from '../dto';
+import { AssignTicketDto, CreateTicketDto, TicketQueryDto, UpdateTicketDto } from '../dto';
 import { MaintenanceTicketsService } from '../services/maintenance-tickets.service';
 
 @ApiTags('Maintenance Tickets')
@@ -38,20 +22,14 @@ export class MaintenanceTicketsController {
   @ApiResponse({ status: 201, description: 'Ticket created successfully' })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
-  async create(
-    @Body() createTicketDto: CreateTicketDto,
-    @Req() req: { user: UserDocument },
-  ) {
+  async create(@Body() createTicketDto: CreateTicketDto, @Req() req: { user: UserDocument }) {
     return this.ticketsService.create(createTicketDto, req.user);
   }
 
   @Get()
   @ApiOperation({ summary: 'Get all maintenance tickets with pagination and filtering' })
   @ApiResponse({ status: 200, description: 'Tickets retrieved successfully' })
-  async findAll(
-    @Query() query: TicketQueryDto,
-    @Req() req: { user: UserDocument },
-  ) {
+  async findAll(@Query() query: TicketQueryDto, @Req() req: { user: UserDocument }) {
     return this.ticketsService.findAllPaginated(query, req.user);
   }
 
@@ -60,10 +38,7 @@ export class MaintenanceTicketsController {
   @ApiResponse({ status: 200, description: 'Ticket found' })
   @ApiResponse({ status: 404, description: 'Ticket not found' })
   @ApiResponse({ status: 403, description: 'Access denied' })
-  async findOne(
-    @Param('id') id: string,
-    @Req() req: { user: UserDocument },
-  ) {
+  async findOne(@Param('id') id: string, @Req() req: { user: UserDocument }) {
     return this.ticketsService.findOne(id, req.user);
   }
 
@@ -101,10 +76,7 @@ export class MaintenanceTicketsController {
   @ApiResponse({ status: 400, description: 'Only open tickets can be deleted' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Ticket not found' })
-  async remove(
-    @Param('id') id: string,
-    @Req() req: { user: UserDocument },
-  ) {
+  async remove(@Param('id') id: string, @Req() req: { user: UserDocument }) {
     return this.ticketsService.remove(id, req.user);
   }
 
@@ -119,9 +91,15 @@ export class MaintenanceTicketsController {
   ) {
     await this.ticketsService.findOne(ticketId, req.user);
 
-    const media = await this.mediaService.getMediaForEntity('MaintenanceTicket', ticketId, req.user, collectionName, {
-      media_type: mediaType,
-    });
+    const media = await this.mediaService.getMediaForEntity(
+      'MaintenanceTicket',
+      ticketId,
+      req.user,
+      collectionName,
+      {
+        media_type: mediaType,
+      },
+    );
 
     return {
       success: true,

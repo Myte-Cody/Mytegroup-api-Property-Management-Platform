@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
+import { LeaseStatus } from '../../../common/enums/lease.enum';
 import { TicketStatus } from '../../../common/enums/maintenance.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import {
@@ -13,24 +14,15 @@ import {
   createPaginatedResponse,
 } from '../../../common/utils/pagination.utils';
 import { Contractor } from '../../contractors/schema/contractor.schema';
+import { Lease } from '../../leases';
 import { MediaService } from '../../media/services/media.service';
 import { Property } from '../../properties/schemas/property.schema';
 import { Unit } from '../../properties/schemas/unit.schema';
 import { Tenant } from '../../tenants/schema/tenant.schema';
 import { UserDocument } from '../../users/schemas/user.schema';
-import {
-  AssignTicketDto,
-  CreateTicketDto,
-  TicketQueryDto,
-  UpdateTicketDto,
-} from '../dto';
+import { AssignTicketDto, CreateTicketDto, TicketQueryDto, UpdateTicketDto } from '../dto';
 import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
 import { TicketReferenceUtils } from '../utils/ticket-reference.utils';
-import { Lease } from '../../leases';
-import {
-  LeaseStatus,
-} from '../../../common/enums/lease.enum';
-
 
 @Injectable()
 export class MaintenanceTicketsService {
@@ -150,7 +142,7 @@ export class MaintenanceTicketsService {
           ticket._id.toString(),
           currentUser,
           undefined,
-          {}, 
+          {},
         );
         return {
           ...ticket.toObject(),
@@ -194,8 +186,8 @@ export class MaintenanceTicketsService {
       'MaintenanceTicket',
       ticket._id.toString(),
       currentUser,
-      undefined, 
-      {}, 
+      undefined,
+      {},
     );
 
     return {
@@ -227,10 +219,10 @@ export class MaintenanceTicketsService {
         throw new NotFoundException('Unit not found');
       }
       const activeLease = await this.leaseModel
-            .byTenant(tenantId)
-            .findOne({ unit: createTicketDto.unit, status: LeaseStatus.ACTIVE })
-            .exec();
-    
+        .byTenant(tenantId)
+        .findOne({ unit: createTicketDto.unit, status: LeaseStatus.ACTIVE })
+        .exec();
+
       console.log('Found lease for unit:', activeLease);
       if (activeLease) {
         ticketTenant = activeLease.tenant as Types.ObjectId;
@@ -252,7 +244,14 @@ export class MaintenanceTicketsService {
 
     if (createTicketDto.media_files && createTicketDto.media_files.length > 0) {
       const uploadPromises = createTicketDto.media_files.map(async (file) => {
-        return this.mediaService.upload(file, ticket, currentUser, 'ticket_images', undefined, 'MaintenanceTicket');
+        return this.mediaService.upload(
+          file,
+          ticket,
+          currentUser,
+          'ticket_images',
+          undefined,
+          'MaintenanceTicket',
+        );
       });
 
       const uploadedMedia = await Promise.all(uploadPromises);
@@ -274,7 +273,11 @@ export class MaintenanceTicketsService {
     };
   }
 
-  async update(id: string, updateTicketDto: UpdateTicketDto, currentUser: UserDocument): Promise<MaintenanceTicket> {
+  async update(
+    id: string,
+    updateTicketDto: UpdateTicketDto,
+    currentUser: UserDocument,
+  ): Promise<MaintenanceTicket> {
     if (!updateTicketDto || Object.keys(updateTicketDto).length === 0) {
       throw new BadRequestException('Update data cannot be empty');
     }
@@ -301,7 +304,11 @@ export class MaintenanceTicketsService {
     return await existingTicket.save();
   }
 
-  async assignTicket(id: string, assignDto: AssignTicketDto, currentUser: UserDocument): Promise<MaintenanceTicket> {
+  async assignTicket(
+    id: string,
+    assignDto: AssignTicketDto,
+    currentUser: UserDocument,
+  ): Promise<MaintenanceTicket> {
     const tenantId = this.getTenantId(currentUser);
 
     if (!tenantId) {
@@ -417,7 +424,10 @@ export class MaintenanceTicketsService {
     }
 
     if (currentUser.user_type === 'Contractor') {
-      if (!ticket.assignedContractor || ticket.assignedContractor.toString() !== currentUser.party_id.toString()) {
+      if (
+        !ticket.assignedContractor ||
+        ticket.assignedContractor.toString() !== currentUser.party_id.toString()
+      ) {
         throw new ForbiddenException('You can only update tickets assigned to you');
       }
 
@@ -426,7 +436,9 @@ export class MaintenanceTicketsService {
       const invalidFields = updateFields.filter((field) => !allowedFields.includes(field));
 
       if (invalidFields.length > 0) {
-        throw new ForbiddenException(`Contractors cannot update fields: ${invalidFields.join(', ')}`);
+        throw new ForbiddenException(
+          `Contractors cannot update fields: ${invalidFields.join(', ')}`,
+        );
       }
     }
   }
@@ -437,11 +449,11 @@ export class MaintenanceTicketsService {
     currentUser: UserDocument,
   ) {
     // current flow
-    //  OPEN → IN_REVIEW or CLOSED                                                                                     
-    //  IN_REVIEW → ASSIGNED or CLOSED                                                                            
-    //  ASSIGNED → IN_PROGRESS or CLOSED                                                                               
-    //  IN_PROGRESS → DONE only                                                                                   
-    //  DONE → CLOSED only                                                                                        
+    //  OPEN → IN_REVIEW or CLOSED
+    //  IN_REVIEW → ASSIGNED or CLOSED
+    //  ASSIGNED → IN_PROGRESS or CLOSED
+    //  IN_PROGRESS → DONE only
+    //  DONE → CLOSED only
     //  CLOSED → terminal
     const validTransitions: Record<TicketStatus, TicketStatus[]> = {
       [TicketStatus.OPEN]: [TicketStatus.IN_REVIEW, TicketStatus.CLOSED],
