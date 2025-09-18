@@ -6,7 +6,7 @@ export interface StorageDriverInterface {
 }
 
 export interface MediaServiceInterface {
-  upload(file: any, entity: any, currentUser: any, collection?: string): Promise<any>;
+  upload(file: any, entity: any, currentUser: any, collection?: string, disk?: any, modelType?: string): Promise<any>;
 
   getMediaForEntity(
     entityType: string,

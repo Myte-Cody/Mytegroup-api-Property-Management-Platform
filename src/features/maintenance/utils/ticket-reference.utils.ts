@@ -1,0 +1,56 @@
+import { Types } from 'mongoose';
+import { AppModel } from '../../../common/interfaces/app-model.interface';
+import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
+
+export class TicketReferenceUtils {
+  static async generateTicketNumber(
+    ticketModel: AppModel<MaintenanceTicket>,
+    tenantId: Types.ObjectId,
+  ): Promise<string> {
+    const currentYear = new Date().getFullYear();
+    const prefix = `MT${currentYear}`;
+
+    // Get the count of tickets for this tenant in the current year
+    const startOfYear = new Date(currentYear, 0, 1);
+    const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59);
+
+    const count = await ticketModel
+      .byTenant(tenantId)
+      .countDocuments({
+        createdAt: {
+          $gte: startOfYear,
+          $lte: endOfYear,
+        },
+      })
+      .exec();
+
+    // Generate ticket number with zero-padded sequential number
+    const sequentialNumber = (count + 1).toString().padStart(6, '0');
+    return `${prefix}-${sequentialNumber}`;
+  }
+
+  static async generateUniqueTicketNumber(
+    ticketModel: AppModel<MaintenanceTicket>,
+    tenantId: Types.ObjectId,
+    maxRetries: number = 5,
+  ): Promise<string> {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const ticketNumber = await this.generateTicketNumber(ticketModel, tenantId);
+
+      const existingTicket = await ticketModel
+        .byTenant(tenantId)
+        .findOne({ ticketNumber })
+        .exec();
+
+      if (!existingTicket) {
+        return ticketNumber;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    const timestamp = Date.now().toString().slice(-6);
+    const currentYear = new Date().getFullYear();
+    return `MT${currentYear}-${timestamp}`;
+  }
+}

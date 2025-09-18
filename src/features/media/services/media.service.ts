@@ -213,6 +213,70 @@ export class MediaService implements MediaServiceInterface {
     }
   }
 
+  private determineEntityType(entity: any): string {
+    if (
+      entity?.constructor?.name &&
+      entity.constructor.name !== 'MongoTenantModel' &&
+      entity.constructor.name !== 'model'
+    ) {
+      return entity.constructor.name;
+    }
+
+    if (entity?.schema?.modelName) {
+      return entity.schema.modelName;
+    }
+
+    if (entity?.collection?.modelName) {
+      return entity.collection.modelName;
+    }
+
+    if (entity?.__t) {
+      return entity.__t;
+    }
+
+    if (entity?.address && entity?.name && !entity?.property && !entity?.unit) {
+      return 'Property';
+    } else if (entity?.property && entity?.unitNumber !== undefined) {
+      return 'Unit';
+    } else if (entity?.email && entity?.user_type) {
+      return 'User';
+    } else if (entity?.tenant && entity?.ticketNumber) {
+      return 'MaintenanceTicket';
+    } else if (entity?.unit && entity?.tenant && entity?.startDate && entity?.endDate) {
+      return 'Lease';
+    } else if (entity?.name && entity?.email && !entity?.user_type) {
+      return 'Tenant';
+    } else if (entity?.name && entity?.specializations) {
+      return 'Contractor';
+    }
+
+    const fieldPatterns = {
+      MaintenanceTicket: ['ticketNumber', 'category', 'priority', 'requestDate'],
+      Lease: ['rentAmount', 'paymentCycle', 'startDate', 'endDate'],
+      Property: ['address', 'propertyType'],
+      Unit: ['unitNumber', 'type', 'availabilityStatus'],
+      Tenant: ['name', 'email', 'phoneNumber'],
+      Contractor: ['name', 'specializations', 'hourlyRate'],
+      User: ['username', 'email', 'user_type'],
+    };
+
+    for (const [modelName, fields] of Object.entries(fieldPatterns)) {
+      const hasRequiredFields = fields.some((field) => entity && entity.hasOwnProperty(field));
+      if (hasRequiredFields) {
+        return modelName;
+      }
+    }
+
+    console.warn(`Could not determine entity type for entity:`, {
+      constructor: entity?.constructor?.name,
+      schema: entity?.schema?.modelName,
+      collection: entity?.collection?.modelName,
+      keys: entity ? Object.keys(entity) : [],
+    });
+
+    return 'UnknownModel';
+  }
+
   private extractMetadata(file: MemoryStoredFile): any {
     const metadata: any = {};
 
