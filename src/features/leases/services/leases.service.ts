@@ -27,7 +27,7 @@ import {
   UploadPaymentProofDto,
 } from '../dto';
 import { LeaseQueryDto } from '../dto/lease-query.dto';
-import { LeaseResponseDto, PaginatedLeasesResponseDto } from '../dto/lease-response.dto';
+import { PaginatedLeasesResponseDto } from '../dto/lease-response.dto';
 import { Lease } from '../schemas/lease.schema';
 import { Payment } from '../schemas/payment.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';

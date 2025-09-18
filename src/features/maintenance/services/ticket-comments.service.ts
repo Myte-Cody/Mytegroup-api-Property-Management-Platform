@@ -1,8 +1,4 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
@@ -46,7 +42,14 @@ export class TicketCommentsService {
 
     if (createCommentDto.media_files && createCommentDto.media_files.length > 0) {
       const uploadPromises = createCommentDto.media_files.map(async (file) => {
-        return this.mediaService.upload(file, savedComment, currentUser, 'comment_attachments', undefined, 'TicketComment');
+        return this.mediaService.upload(
+          file,
+          savedComment,
+          currentUser,
+          'comment_attachments',
+          undefined,
+          'TicketComment',
+        );
       });
 
       const uploadedMedia = await Promise.all(uploadPromises);
@@ -88,10 +91,7 @@ export class TicketCommentsService {
     };
   }
 
-  async findAllForTicket(
-    ticketId: string,
-    currentUser: UserDocument,
-  ): Promise<any[]> {
+  async findAllForTicket(ticketId: string, currentUser: UserDocument): Promise<any[]> {
     const tenantId = this.getTenantId(currentUser);
 
     if (!tenantId) {
@@ -137,10 +137,7 @@ export class TicketCommentsService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const comment = await this.commentModel
-      .byTenant(tenantId)
-      .findById(commentId)
-      .exec();
+    const comment = await this.commentModel.byTenant(tenantId).findById(commentId).exec();
 
     if (!comment) {
       throw new NotFoundException('Comment not found');
@@ -161,10 +158,7 @@ export class TicketCommentsService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const comment = await this.commentModel
-      .byTenant(tenantId)
-      .findById(commentId)
-      .exec();
+    const comment = await this.commentModel.byTenant(tenantId).findById(commentId).exec();
 
     if (!comment) {
       throw new NotFoundException('Comment not found');

@@ -224,7 +224,11 @@ export class MediaService implements MediaServiceInterface {
   }
 
   private determineEntityType(entity: any): string {
-    if (entity?.constructor?.name && entity.constructor.name !== 'MongoTenantModel' && entity.constructor.name !== 'model') {
+    if (
+      entity?.constructor?.name &&
+      entity.constructor.name !== 'MongoTenantModel' &&
+      entity.constructor.name !== 'model'
+    ) {
       return entity.constructor.name;
     }
 
@@ -263,11 +267,11 @@ export class MediaService implements MediaServiceInterface {
       Unit: ['unitNumber', 'type', 'availabilityStatus'],
       Tenant: ['name', 'email', 'phoneNumber'],
       Contractor: ['name', 'specializations', 'hourlyRate'],
-      User: ['username', 'email', 'user_type']
+      User: ['username', 'email', 'user_type'],
     };
 
     for (const [modelName, fields] of Object.entries(fieldPatterns)) {
-      const hasRequiredFields = fields.some(field => entity && entity.hasOwnProperty(field));
+      const hasRequiredFields = fields.some((field) => entity && entity.hasOwnProperty(field));
       if (hasRequiredFields) {
         return modelName;
       }
@@ -277,7 +281,7 @@ export class MediaService implements MediaServiceInterface {
       constructor: entity?.constructor?.name,
       schema: entity?.schema?.modelName,
       collection: entity?.collection?.modelName,
-      keys: entity ? Object.keys(entity) : []
+      keys: entity ? Object.keys(entity) : [],
     });
 
     return 'UnknownModel';

@@ -1,14 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Query,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiConsumes, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { FormDataRequest } from 'nestjs-form-data';
 import { MediaType } from '../../media/schemas/media.schema';
@@ -46,10 +36,7 @@ export class TicketCommentsController {
   @ApiResponse({ status: 200, description: 'Comments retrieved successfully' })
   @ApiResponse({ status: 403, description: 'Access denied' })
   @ApiResponse({ status: 404, description: 'Ticket not found' })
-  async findAll(
-    @Param('ticketId') ticketId: string,
-    @Req() req: { user: UserDocument },
-  ) {
+  async findAll(@Param('ticketId') ticketId: string, @Req() req: { user: UserDocument }) {
     return this.commentsService.findAllForTicket(ticketId, req.user);
   }
 
@@ -71,10 +58,7 @@ export class TicketCommentsController {
   @ApiResponse({ status: 200, description: 'Comment deleted successfully' })
   @ApiResponse({ status: 403, description: 'You can only delete your own comments' })
   @ApiResponse({ status: 404, description: 'Comment not found' })
-  async remove(
-    @Param('commentId') commentId: string,
-    @Req() req: { user: UserDocument },
-  ) {
+  async remove(@Param('commentId') commentId: string, @Req() req: { user: UserDocument }) {
     return this.commentsService.remove(commentId, req.user);
   }
 
@@ -87,9 +71,15 @@ export class TicketCommentsController {
     @Query('media_type') mediaType?: MediaType,
     @Query('collection_name') collectionName?: string,
   ) {
-    const media = await this.mediaService.getMediaForEntity('TicketComment', commentId, req.user, collectionName, {
-      media_type: mediaType,
-    });
+    const media = await this.mediaService.getMediaForEntity(
+      'TicketComment',
+      commentId,
+      req.user,
+      collectionName,
+      {
+        media_type: mediaType,
+      },
+    );
 
     return {
       success: true,

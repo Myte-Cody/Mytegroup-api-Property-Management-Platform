@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { NestjsFormDataModule } from 'nestjs-form-data';
 import { ContractorModule } from '../contractors/contractor.module';
 import { Contractor, ContractorSchema } from '../contractors/schema/contractor.schema';
+import { Lease, LeaseSchema, LeasesModule } from '../leases';
 import { MediaModule } from '../media/media.module';
 import { PropertiesModule } from '../properties/properties.module';
 import { TenantsModule } from '../tenants/tenant.module';
@@ -12,7 +13,6 @@ import { MaintenanceTicket, MaintenanceTicketSchema } from './schemas/maintenanc
 import { TicketComment, TicketCommentSchema } from './schemas/ticket-comment.schema';
 import { MaintenanceTicketsService } from './services/maintenance-tickets.service';
 import { TicketCommentsService } from './services/ticket-comments.service';
-import { Lease, LeasesModule, LeaseSchema } from '../leases';
 
 @Module({
   imports: [
@@ -27,7 +27,7 @@ import { Lease, LeasesModule, LeaseSchema } from '../leases';
     ContractorModule,
     LeasesModule,
     MediaModule,
-    NestjsFormDataModule
+    NestjsFormDataModule,
   ],
   controllers: [MaintenanceTicketsController, TicketCommentsController],
   providers: [MaintenanceTicketsService, TicketCommentsService],
