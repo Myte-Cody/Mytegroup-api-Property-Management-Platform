@@ -8,6 +8,7 @@ import { ContractorModule } from './features/contractors/contractor.module';
 import { EmailModule } from './features/email/email.module';
 import { LandlordModule } from './features/landlords/landlord.module';
 import { LeasesModule } from './features/leases/leases.module';
+import { MaintenanceModule } from './features/maintenance/maintenance.module';
 import { MediaModule } from './features/media/media.module';
 import { PropertiesModule } from './features/properties/properties.module';
 import { TenantsModule } from './features/tenants/tenant.module';
@@ -34,6 +35,7 @@ import { UsersModule } from './features/users/users.module';
     ContractorModule,
     PropertiesModule,
     LeasesModule,
+    MaintenanceModule,
     MediaModule,
     MongooseModule.forRoot(process.env.DB_URL, {
       dbName: process.env.MONGO_DB_NAME,

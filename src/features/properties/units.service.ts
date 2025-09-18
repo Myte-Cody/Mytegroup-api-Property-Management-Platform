@@ -79,7 +79,7 @@ export class UnitsService {
     // If media files are provided, upload them
     if (createUnitDto.media_files && createUnitDto.media_files.length > 0) {
       const uploadPromises = createUnitDto.media_files.map(async (file) => {
-        return this.mediaService.upload(file, unit, currentUser, 'unit_photos');
+        return this.mediaService.upload(file, unit, currentUser, 'unit_photos', undefined, 'Unit');
       });
 
       const uploadedMedia = await Promise.all(uploadPromises);
