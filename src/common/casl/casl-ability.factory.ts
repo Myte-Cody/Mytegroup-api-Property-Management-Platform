@@ -8,6 +8,7 @@ import {
 } from '@casl/ability';
 import { Injectable } from '@nestjs/common';
 import { Contractor } from '../../features/contractors/schema/contractor.schema';
+import { Invitation } from '../../features/invitations/schemas/invitation.schema';
 import { Lease } from '../../features/leases/schemas/lease.schema';
 import { Payment } from '../../features/leases/schemas/payment.schema';
 import { RentalPeriod } from '../../features/leases/schemas/rental-period.schema';
@@ -25,6 +26,7 @@ export const SUBJECTS = {
   UNIT: Unit,
   TENANT: Tenant,
   CONTRACTOR: Contractor,
+  INVITATION: Invitation,
   MEDIA: Media,
   LEASE: Lease,
   SUB_LEASE: RentalPeriod,
@@ -38,6 +40,7 @@ const SUBJECT_MODEL_MAPPING = {
   Unit: Unit,
   Tenant: Tenant,
   Contractor: Contractor,
+  Invitation: Invitation,
   Media: Media,
   Lease: Lease,
   RentalPeriod: RentalPeriod,
@@ -130,6 +133,7 @@ export class CaslAbilityFactory {
     can(Action.Manage, Unit);
     can(Action.Manage, Tenant);
     can(Action.Manage, Contractor);
+    can(Action.Manage, Invitation);
     can(Action.Manage, Media);
     can(Action.Manage, Lease);
     can(Action.Manage, RentalPeriod);

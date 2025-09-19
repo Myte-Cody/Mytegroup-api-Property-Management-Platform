@@ -6,6 +6,7 @@ import configuration from './config/configuration';
 import { AuthModule } from './features/auth/auth.module';
 import { ContractorModule } from './features/contractors/contractor.module';
 import { EmailModule } from './features/email/email.module';
+import { InvitationsModule } from './features/invitations/invitations.module';
 import { LandlordModule } from './features/landlords/landlord.module';
 import { LeasesModule } from './features/leases/leases.module';
 import { MediaModule } from './features/media/media.module';
@@ -32,6 +33,7 @@ import { UsersModule } from './features/users/users.module';
     LandlordModule,
     TenantsModule,
     ContractorModule,
+    InvitationsModule,
     PropertiesModule,
     LeasesModule,
     MediaModule,

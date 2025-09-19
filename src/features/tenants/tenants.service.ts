@@ -5,6 +5,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { Types } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { UserType } from '../../common/enums/user-type.enum';
@@ -219,6 +220,41 @@ export class TenantsService {
     };
 
     await this.usersService.create(userData, currentUser);
+
+    return savedTenant;
+  }
+
+  async createFromInvitation(createTenantDto: CreateTenantDto, landlordId: string) {
+    // Extract user data from DTO
+    const { email, password, name, username, phoneNumber } = createTenantDto;
+
+    // Convert landlordId to ObjectId
+    const landlordObjectId = new Types.ObjectId(landlordId);
+
+    // Validate tenant creation data (no CASL authorization needed for invitations)
+    await this.validateTenantCreationData(name, email, username, landlordObjectId);
+
+    // Create tenant
+    const tenantData = {
+      name,
+      phoneNumber,
+      tenantId: landlordObjectId,
+    };
+
+    const TenantWithTenant = this.tenantModel.byTenant(landlordObjectId);
+    const newTenant = new TenantWithTenant(tenantData);
+    const savedTenant = await newTenant.save();
+
+    // Create user account (without current user context for invitations)
+    const userData = {
+      username,
+      email,
+      password,
+      user_type: UserType.TENANT,
+      party_id: savedTenant._id.toString(),
+    };
+
+    await this.usersService.createFromInvitation(userData, landlordObjectId.toString());
 
     return savedTenant;
   }

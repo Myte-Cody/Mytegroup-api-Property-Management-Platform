@@ -70,6 +70,50 @@ export class UsersService {
     return await newUser.save();
   }
 
+  async createFromInvitation(createUserDto: CreateUserDto, landlordId: string) {
+    const { username, email, password, user_type, party_id } = createUserDto;
+
+    // Check username uniqueness within the same landlord
+    const existingUsername = await this.userModel
+      .findOne({
+        username,
+        tenantId: landlordId,
+      })
+      .exec();
+    if (existingUsername) {
+      throw new UnprocessableEntityException(
+        `Username '${username}' is already taken within this organization`,
+      );
+    }
+
+    // Check email uniqueness within the same landlord
+    const existingEmail = await this.userModel
+      .findOne({
+        email,
+        tenantId: landlordId,
+      })
+      .exec();
+    if (existingEmail) {
+      throw new UnprocessableEntityException(
+        `Email '${email}' is already registered within this organization`,
+      );
+    }
+
+    const salt = await bcrypt.genSalt();
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const newUser = new this.userModel({
+      username,
+      email,
+      password: hashedPassword,
+      user_type,
+      party_id,
+      tenantId: landlordId,
+    });
+
+    return await newUser.save();
+  }
+
   async findAllPaginated(queryDto: UserQueryDto, currentUser: User) {
     const { page, limit, sortBy, sortOrder, search, user_type } = queryDto;
 
