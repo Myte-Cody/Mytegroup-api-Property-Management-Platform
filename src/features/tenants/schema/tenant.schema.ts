@@ -10,6 +10,9 @@ export class Tenant extends Document implements SoftDelete {
   @Prop({ required: true })
   name: string;
 
+  @Prop({ required: false })
+  phoneNumber?: string;
+
   deleted: boolean;
   deletedAt?: Date;
 }

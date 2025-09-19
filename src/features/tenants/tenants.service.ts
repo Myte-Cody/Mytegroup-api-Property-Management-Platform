@@ -192,7 +192,7 @@ export class TenantsService {
         : currentUser.tenantId;
 
     // Extract user data from DTO
-    const { email, password, name, username } = createTenantDto;
+    const { email, password, name, username, phoneNumber } = createTenantDto;
 
     // Validate tenant creation data
     await this.validateTenantCreationData(name, email, username, landlordId);
@@ -201,6 +201,7 @@ export class TenantsService {
     // todo start transaction
     const tenantData = {
       name,
+      phoneNumber,
       tenantId: landlordId,
     };
 
@@ -446,7 +447,7 @@ export class TenantsService {
   private getAllowedUpdateFields(currentUser: UserDocument): string[] {
     switch (currentUser.user_type) {
       case 'Landlord':
-        return ['name']; // Landlords can update tenant details
+        return ['name', 'phoneNumber']; // Landlords can update tenant details
       case 'Tenant':
         return []; // Tenants cannot update tenant records
       case 'Contractor':
