@@ -57,7 +57,7 @@ export class CreatePaymentDto {
   @IsOptional()
   @Type(() => Date)
   @IsDate()
-  paymentDate?: Date;
+  paidAt?: Date;
 
   @ApiProperty({
     description: 'Type of payment',
@@ -87,15 +87,6 @@ export class CreatePaymentDto {
   @IsEnum(PaymentMethod)
   paymentMethod?: PaymentMethod;
 
-  @ApiPropertyOptional({
-    description: 'Transaction reference or ID',
-    example: 'TXN123456789',
-    maxLength: 100,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  transactionReference?: string;
 
   @ApiPropertyOptional({
     description: 'Additional notes about the payment',

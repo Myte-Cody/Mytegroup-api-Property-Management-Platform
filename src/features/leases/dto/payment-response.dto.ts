@@ -81,17 +81,7 @@ export class PaymentResponseDto {
   @ApiPropertyOptional()
   @Expose()
   @Type(() => Date)
-  paymentDate?: Date;
-
-  @ApiPropertyOptional()
-  @Expose()
-  @Type(() => Date)
-  paidDate?: Date;
-
-  @ApiPropertyOptional()
-  @Expose()
-  @Type(() => Date)
-  processedDate?: Date;
+  paidAt?: Date;
 
   @ApiPropertyOptional()
   @Expose()
@@ -118,44 +108,12 @@ export class PaymentResponseDto {
   @Expose()
   paymentMethod?: PaymentMethod;
 
-  @ApiPropertyOptional()
-  @Expose()
-  transactionReference?: string;
 
   @ApiPropertyOptional()
   @Expose()
   notes?: string;
 
-  @ApiPropertyOptional({
-    description: 'Whether the payment has been validated by the landlord',
-  })
-  @Expose()
-  landlordValidated?: boolean;
 
-  @ApiPropertyOptional({
-    description: 'Date when the payment was validated by the landlord',
-  })
-  @Expose()
-  @Type(() => Date)
-  landlordValidatedDate?: Date;
-
-  @ApiPropertyOptional({
-    description: 'Notes from the landlord about the payment validation',
-  })
-  @Expose()
-  landlordNotes?: string;
-
-  @ApiPropertyOptional({
-    description: 'Notes from the tenant about the payment',
-  })
-  @Expose()
-  tenantNotes?: string;
-
-  @ApiPropertyOptional({
-    description: 'Auto-generated payment reference',
-  })
-  @Expose()
-  reference?: string;
 
   @ApiProperty()
   @Expose()

@@ -21,17 +21,17 @@ export class UploadPaymentProofDto {
   @Type(() => Date)
   @IsDate()
   @IsNotEmpty()
-  paymentDate: Date;
+  paidAt: Date;
 
   @ApiPropertyOptional({
-    description: 'Optional notes from tenant about the payment',
+    description: 'Optional notes about the payment',
     example: 'Bank transfer completed via mobile app',
     maxLength: 500,
   })
   @IsOptional()
   @IsString()
   @MaxLength(500)
-  tenantNotes?: string;
+  notes?: string;
 
   @IsOptional()
   @IsFile({ each: true })
@@ -59,15 +59,15 @@ export class MarkPaymentPaidDto {
   @Type(() => Date)
   @IsDate()
   @IsNotEmpty()
-  paymentDate: Date;
+  paidAt: Date;
 
   @ApiPropertyOptional({
-    description: 'Optional notes from landlord about the payment validation',
+    description: 'Optional notes about the payment',
     example: 'Payment verified and confirmed in bank account',
     maxLength: 500,
   })
   @IsOptional()
   @IsString()
   @MaxLength(500)
-  landlordNotes?: string;
+  notes?: string;
 }

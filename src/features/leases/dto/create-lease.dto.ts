@@ -11,10 +11,60 @@ import {
   IsString,
   MaxLength,
   Min,
+  Validate,
   ValidateIf,
   ValidateNested,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  ValidationArguments,
 } from 'class-validator';
 import { LeaseStatus, PaymentCycle, RentIncreaseType } from '../../../common/enums/lease.enum';
+
+// Custom validators
+@ValidatorConstraint({ name: 'startDateBeforeEndDate', async: false })
+export class StartDateBeforeEndDateValidator implements ValidatorConstraintInterface {
+  validate(value: any, args: ValidationArguments) {
+    const dto = args.object as CreateLeaseDto;
+    if (!dto.startDate || !dto.endDate) {
+      return true; // Let other validators handle missing dates
+    }
+    return new Date(dto.startDate) < new Date(dto.endDate);
+  }
+
+  defaultMessage(args: ValidationArguments) {
+    return 'Start date must be before end date';
+  }
+}
+
+@ValidatorConstraint({ name: 'autoRenewalRequiresRentIncrease', async: false })
+export class AutoRenewalRequiresRentIncreaseValidator implements ValidatorConstraintInterface {
+  validate(value: any, args: ValidationArguments) {
+    const dto = args.object as CreateLeaseDto;
+    if (dto.autoRenewal) {
+      return !!dto.rentIncrease;
+    }
+    return true;
+  }
+
+  defaultMessage(args: ValidationArguments) {
+    return 'Rent increase configuration is required when auto renewal is enabled';
+  }
+}
+
+@ValidatorConstraint({ name: 'percentageLimit', async: false })
+export class PercentageLimitValidator implements ValidatorConstraintInterface {
+  validate(value: any, args: ValidationArguments) {
+    const dto = args.object as RentIncreaseDto;
+    if (dto.type === RentIncreaseType.PERCENTAGE) {
+      return dto.amount <= 100;
+    }
+    return true;
+  }
+
+  defaultMessage(args: ValidationArguments) {
+    return 'Percentage increase cannot exceed 100%';
+  }
+}
 
 export class RentIncreaseDto {
   @ApiProperty({
@@ -22,19 +72,20 @@ export class RentIncreaseDto {
     enum: RentIncreaseType,
     example: RentIncreaseType.PERCENTAGE,
   })
-  @IsEnum(RentIncreaseType)
-  @IsNotEmpty()
+  @IsEnum(RentIncreaseType, { message: 'Please select a valid rent increase type' })
+  @IsNotEmpty({ message: 'Rent increase type is required' })
   type: RentIncreaseType;
 
   @ApiProperty({
     description: 'Amount or percentage for rent increase',
     example: 5,
-    minimum: 0,
+    minimum: 0.01,
   })
   @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  @IsNotEmpty()
+  @IsNumber({}, { message: 'Rent increase amount must be a number' })
+  @Min(0.01, { message: 'Rent increase amount must be greater than 0' })
+  @IsNotEmpty({ message: 'Rent increase amount is required' })
+  @Validate(PercentageLimitValidator)
   amount: number;
 
   @ApiPropertyOptional({
@@ -53,24 +104,24 @@ export class CreateLeaseDto {
     description: 'Property ID where the unit is located',
     example: '673d8b8f123456789abcdef0',
   })
-  @IsMongoId()
-  @IsNotEmpty()
+  @IsMongoId({ message: 'Invalid property ID format' })
+  @IsNotEmpty({ message: 'Property is required' })
   property: string;
 
   @ApiProperty({
     description: 'Unit ID being leased',
     example: '673d8b8f123456789abcdef1',
   })
-  @IsMongoId()
-  @IsNotEmpty()
+  @IsMongoId({ message: 'Invalid unit ID format' })
+  @IsNotEmpty({ message: 'Unit is required' })
   unit: string;
 
   @ApiProperty({
     description: 'Tenant ID for the lease',
     example: '673d8b8f123456789abcdef2',
   })
-  @IsMongoId()
-  @IsNotEmpty()
+  @IsMongoId({ message: 'Invalid tenant ID format' })
+  @IsNotEmpty({ message: 'Tenant is required' })
   tenant: string;
 
   @ApiProperty({
@@ -78,8 +129,8 @@ export class CreateLeaseDto {
     example: '2024-01-01T00:00:00.000Z',
   })
   @Type(() => Date)
-  @IsDate()
-  @IsNotEmpty()
+  @IsDate({ message: 'Invalid start date format' })
+  @IsNotEmpty({ message: 'Start date is required' })
   startDate: Date;
 
   @ApiProperty({
@@ -87,19 +138,20 @@ export class CreateLeaseDto {
     example: '2024-12-31T23:59:59.999Z',
   })
   @Type(() => Date)
-  @IsDate()
-  @IsNotEmpty()
+  @IsDate({ message: 'Invalid end date format' })
+  @IsNotEmpty({ message: 'End date is required' })
+  @Validate(StartDateBeforeEndDateValidator)
   endDate: Date;
 
   @ApiProperty({
     description: 'Monthly rent amount',
     example: 1200,
-    minimum: 0,
+    minimum: 0.01,
   })
   @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  @IsNotEmpty()
+  @IsNumber({}, { message: 'Rent amount must be a number' })
+  @Min(0.01, { message: 'Rent amount must be greater than 0' })
+  @IsNotEmpty({ message: 'Rent amount is required' })
   rentAmount: number;
 
   @ApiPropertyOptional({
@@ -128,8 +180,8 @@ export class CreateLeaseDto {
     enum: PaymentCycle,
     example: PaymentCycle.MONTHLY,
   })
-  @IsEnum(PaymentCycle)
-  @IsNotEmpty()
+  @IsEnum(PaymentCycle, { message: 'Please select a valid payment cycle' })
+  @IsNotEmpty({ message: 'Payment cycle is required' })
   paymentCycle: PaymentCycle;
 
   @ApiPropertyOptional({
@@ -138,7 +190,7 @@ export class CreateLeaseDto {
   })
   @IsOptional()
   @Type(() => Date)
-  @IsDate()
+  @IsDate({ message: 'Invalid next payment due date format' })
   nextPaymentDueDate?: Date;
 
   @ApiPropertyOptional({
@@ -148,7 +200,7 @@ export class CreateLeaseDto {
     default: LeaseStatus.DRAFT,
   })
   @IsOptional()
-  @IsEnum(LeaseStatus)
+  @IsEnum(LeaseStatus, { message: 'Please select a valid lease status' })
   status?: LeaseStatus;
 
   @ApiPropertyOptional({
@@ -161,15 +213,6 @@ export class CreateLeaseDto {
   @MaxLength(5000)
   terms?: string;
 
-  @ApiPropertyOptional({
-    description: 'Additional notes about the lease',
-    example: 'Tenant requested early move-in date',
-    maxLength: 1000,
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(1000)
-  notes?: string;
 
   @ApiPropertyOptional({
     description: 'Rent increase configuration for this lease',
@@ -179,4 +222,14 @@ export class CreateLeaseDto {
   @ValidateNested()
   @Type(() => RentIncreaseDto)
   rentIncrease?: RentIncreaseDto;
+
+  @ApiPropertyOptional({
+    description: 'Whether the lease should automatically renew',
+    example: true,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Validate(AutoRenewalRequiresRentIncreaseValidator)
+  autoRenewal?: boolean;
 }

@@ -9,6 +9,7 @@ import {
 import { UserDocument } from '../../users/schemas/user.schema';
 import { Lease } from '../schemas/lease.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
+import { Payment } from '../schemas/payment.schema';
 
 @Injectable()
 export class RentalPeriodsService {
@@ -17,10 +18,12 @@ export class RentalPeriodsService {
     private readonly rentalPeriodModel: AppModel<RentalPeriod>,
     @InjectModel(Lease.name)
     private readonly leaseModel: AppModel<Lease>,
+    @InjectModel(Payment.name)
+    private readonly paymentModel: AppModel<Payment>,
   ) {}
 
   async findAllPaginated(
-    queryDto: any, // TODO: Create RentalPeriodQueryDto
+    queryDto: any, // TODO Create RentalPeriodQueryDto
     currentUser: UserDocument,
   ): Promise<any> {
     // TODO: Create PaginatedRentalPeriodResponse
@@ -115,6 +118,7 @@ export class RentalPeriodsService {
     return rentalPeriod;
   }
 
+  // todo merge with findall
   async findByLease(leaseId: string, currentUser: UserDocument) {
     const landlordId = this.getLandlordId(currentUser);
 
@@ -136,7 +140,35 @@ export class RentalPeriodsService {
       .populate('renewedTo', 'startDate endDate rentAmount')
       .exec();
 
-    return rentalPeriods;
+    // Get payments for each rental period
+    // todo check the posiibility of populate
+    const rentalPeriodsWithPayments = await Promise.all(
+      rentalPeriods.map(async (period) => {
+        const payment = await this.paymentModel
+          .byTenant(landlordId)
+          .findOne({
+            rentalPeriod: period._id,
+            type: 'RENT'
+          })
+          .exec();
+
+        return {
+          ...period.toObject(),
+          payment: payment ? {
+            id: payment._id,
+            amount: payment.amount,
+            status: payment.status,
+            type: payment.type,
+            paymentMethod: payment.paymentMethod,
+            dueDate: payment.dueDate,
+            paidAt: payment.paidAt,
+            notes: payment.notes,
+          } : null
+        };
+      })
+    );
+
+    return rentalPeriodsWithPayments;
   }
 
   async findRenewalChain(id: string, currentUser: UserDocument) {

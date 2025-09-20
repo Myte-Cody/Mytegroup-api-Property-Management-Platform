@@ -1,7 +1,18 @@
 import { ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDate, IsOptional, IsString, MaxLength } from 'class-validator';
-import { CreateLeaseDto } from './create-lease.dto';
+import {
+  IsBoolean,
+  IsDate,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Validate,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  ValidationArguments
+} from 'class-validator';
+import { CreateLeaseDto, StartDateBeforeEndDateValidator, AutoRenewalRequiresRentIncreaseValidator } from './create-lease.dto';
+import { LeaseStatus } from '../../../common/enums/lease.enum';
 
 export class UpdateLeaseDto extends PartialType(CreateLeaseDto) {
   @ApiPropertyOptional({
@@ -10,7 +21,7 @@ export class UpdateLeaseDto extends PartialType(CreateLeaseDto) {
   })
   @IsOptional()
   @Type(() => Date)
-  @IsDate()
+  @IsDate({ message: 'Invalid termination date format' })
   terminationDate?: Date;
 
   @ApiPropertyOptional({
@@ -19,18 +30,9 @@ export class UpdateLeaseDto extends PartialType(CreateLeaseDto) {
     maxLength: 500,
   })
   @IsOptional()
-  @IsString()
-  @MaxLength(500)
+  @IsString({ message: 'Termination reason must be a string' })
+  @MaxLength(500, { message: 'Termination reason cannot exceed 500 characters' })
   terminationReason?: string;
-
-  @ApiPropertyOptional({
-    description: 'Whether the security deposit has been refunded to the tenant',
-    example: true,
-    default: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  securityDepositRefunded?: boolean;
 
   @ApiPropertyOptional({
     description: 'Date when the security deposit was refunded',
@@ -38,8 +40,8 @@ export class UpdateLeaseDto extends PartialType(CreateLeaseDto) {
   })
   @IsOptional()
   @Type(() => Date)
-  @IsDate()
-  securityDepositRefundedDate?: Date;
+  @IsDate({ message: 'Invalid security deposit refund date format' })
+  securityDepositRefundedAt?: Date;
 
   @ApiPropertyOptional({
     description: 'Reason or notes for security deposit refund',
@@ -47,7 +49,16 @@ export class UpdateLeaseDto extends PartialType(CreateLeaseDto) {
     maxLength: 500,
   })
   @IsOptional()
-  @IsString()
-  @MaxLength(500)
+  @IsString({ message: 'Security deposit refund reason must be a string' })
+  @MaxLength(500, { message: 'Security deposit refund reason cannot exceed 500 characters' })
   securityDepositRefundReason?: string;
+
+  @ApiPropertyOptional({
+    description: 'Whether the lease should automatically renew',
+    example: true,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'Auto renewal must be a boolean value' })
+  autoRenewal?: boolean;
 }

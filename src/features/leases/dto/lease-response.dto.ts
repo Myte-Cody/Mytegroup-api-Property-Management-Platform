@@ -113,18 +113,13 @@ export class LeaseResponseDto {
   @Expose()
   securityDepositAmount?: number;
 
-  @ApiPropertyOptional({
-    description: 'Whether the security deposit has been refunded',
-  })
-  @Expose()
-  securityDepositRefunded?: boolean;
 
   @ApiPropertyOptional({
     description: 'Date when the security deposit was refunded',
   })
   @Expose()
   @Type(() => Date)
-  securityDepositRefundedDate?: Date;
+  securityDepositRefundedAt?: Date;
 
   @ApiPropertyOptional({
     description: 'Reason or notes for security deposit refund',

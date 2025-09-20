@@ -2,7 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-  NotFoundException,
+  NotFoundException, UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
@@ -31,7 +31,6 @@ import { LeaseResponseDto, PaginatedLeasesResponseDto } from '../dto/lease-respo
 import { Lease } from '../schemas/lease.schema';
 import { Payment } from '../schemas/payment.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
-import { PaymentReferenceUtils } from '../utils/payment-reference.utils';
 import { PaymentsService } from './payments.service';
 
 @Injectable()
@@ -116,7 +115,7 @@ export class LeasesService {
     sortObj[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
     const skip = (page - 1) * limit;
-
+    // todo use utils
     const [leases, total] = await Promise.all([
       baseQuery
         .clone()
@@ -199,7 +198,7 @@ export class LeasesService {
     currentUser: UserDocument,
   ): Promise<Lease> {
     if (!updateLeaseDto || Object.keys(updateLeaseDto).length === 0) {
-      throw new BadRequestException('Update data cannot be empty');
+      throw new UnprocessableEntityException('Update data cannot be empty');
     }
 
     const landlordId = this.getLandlordId(currentUser);
@@ -214,6 +213,9 @@ export class LeasesService {
     if (!existingLease) {
       throw new NotFoundException(`Lease with ID ${id} not found`);
     }
+
+    // Validate lease update
+    await this.validateLeaseUpdate(existingLease, updateLeaseDto, landlordId);
 
     // Handle status changes
     if (updateLeaseDto.status && updateLeaseDto.status !== existingLease.status) {
@@ -290,7 +292,7 @@ export class LeasesService {
       .exec();
 
     if (!currentRentalPeriod) {
-      throw new BadRequestException('No active rental period found for renewal');
+      throw new UnprocessableEntityException('No active rental period found for renewal');
     }
 
     // Calculate new rent amount
@@ -352,7 +354,7 @@ export class LeasesService {
         error.keyPattern.lease &&
         error.keyPattern.status
       ) {
-        throw new BadRequestException(
+        throw new UnprocessableEntityException(
           'Cannot renew lease: An active rental period already exists for this lease. Please terminate the current rental period before creating a new one.',
         );
       }
@@ -377,10 +379,12 @@ export class LeasesService {
 
     // Only allow deletion of DRAFT leases
     if (lease.status !== LeaseStatus.DRAFT) {
-      throw new BadRequestException('Only draft leases can be deleted');
+      throw new UnprocessableEntityException('Only draft leases can be deleted');
     }
 
-    await this.leaseModel.byTenant(landlordId).findByIdAndDelete(id);
+    // Use soft delete instead of hard delete
+    lease.deleted = true;
+    await lease.save();
     return { message: 'Lease deleted successfully' };
   }
 
@@ -393,37 +397,200 @@ export class LeasesService {
       throw new NotFoundException('Unit not found');
     }
 
-    // Check if unit already has an active lease
-    const existingLease = await this.leaseModel
-      .byTenant(landlordId)
-      .findOne({ unit: createLeaseDto.unit, status: LeaseStatus.ACTIVE })
-      .exec();
-
-    if (existingLease) {
-      throw new BadRequestException('Unit already has an active lease');
-    }
-
     // Validate tenant exists
     const tenant = await this.tenantModel
-      .byTenant(landlordId)
-      .findById(createLeaseDto.tenant)
-      .exec();
+        .byTenant(landlordId)
+        .findById(createLeaseDto.tenant)
+        .exec();
     if (!tenant) {
       throw new NotFoundException('Tenant not found');
     }
 
     // Validate property exists
     const property = await this.propertyModel
-      .byTenant(landlordId)
-      .findById(createLeaseDto.property)
-      .exec();
+        .byTenant(landlordId)
+        .findById(createLeaseDto.property)
+        .exec();
     if (!property) {
       throw new NotFoundException('Property not found');
     }
 
-    // Validate dates
-    if (new Date(createLeaseDto.startDate) >= new Date(createLeaseDto.endDate)) {
-      throw new BadRequestException('Start date must be before end date');
+    // Validate unit-property relationship
+    if (unit.property.toString() !== createLeaseDto.property.toString()) {
+      throw new UnprocessableEntityException('Selected unit does not belong to the selected property');
+    }
+
+    // Validate unit availability (must be available or already assigned to this lease)
+    if (unit.availabilityStatus === UnitAvailabilityStatus.OCCUPIED) {
+      // Check if unit is occupied by a different lease
+      const existingActiveLease = await this.leaseModel
+        .byTenant(landlordId)
+        .findOne({
+          unit: createLeaseDto.unit,
+          status: { $in: [LeaseStatus.ACTIVE] }
+        })
+        .exec();
+
+      if (existingActiveLease) {
+        throw new UnprocessableEntityException('Unit is currently occupied by another active lease');
+      }
+    }
+
+    // Check for overlapping leases (dates and cross-field validations handled by DTO)
+    await this.validateNoOverlappingLeases(
+      createLeaseDto.unit,
+      new Date(createLeaseDto.startDate),
+      new Date(createLeaseDto.endDate),
+      landlordId
+    );
+  }
+
+  private async validateLeaseUpdate(
+    existingLease: Lease,
+    updateLeaseDto: UpdateLeaseDto,
+    landlordId: Types.ObjectId
+  ) {
+    // Validate status transition
+    if (updateLeaseDto.status && updateLeaseDto.status !== existingLease.status) {
+      this.validateStatusTransition(existingLease.status, updateLeaseDto.status);
+    }
+
+    // Grace period validation for active leases (business logic)
+    if (updateLeaseDto.startDate || updateLeaseDto.endDate) {
+      const startDate = new Date(updateLeaseDto.startDate || existingLease.startDate);
+      const endDate = new Date(updateLeaseDto.endDate || existingLease.endDate);
+
+      if (existingLease.status === LeaseStatus.ACTIVE) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Don't allow changing start date of active lease to past
+        if (updateLeaseDto.startDate && startDate < today) {
+          throw new UnprocessableEntityException('Cannot change start date of active lease to a past date');
+        }
+
+        // Don't allow end date changes that would terminate lease immediately
+        if (updateLeaseDto.endDate && endDate <= today) {
+          throw new UnprocessableEntityException('Cannot set end date of active lease to today or past. Use terminate instead');
+        }
+      }
+
+      // Check for overlapping leases if dates are changing
+      const unitIdToValidate = updateLeaseDto.unit || existingLease.unit.toString();
+      await this.validateNoOverlappingLeases(
+        unitIdToValidate,
+        startDate,
+        endDate,
+        landlordId,
+        existingLease._id.toString()
+      );
+    }
+
+    // Validate unit-property relationship if changing unit or property
+    if (updateLeaseDto.unit || updateLeaseDto.property) {
+      const unitId = updateLeaseDto.unit || existingLease.unit;
+      const propertyId = updateLeaseDto.property || existingLease.property;
+
+      const unit = await this.unitModel.byTenant(landlordId).findById(unitId).exec();
+      if (!unit) {
+        throw new NotFoundException('Unit not found');
+      }
+
+      if (unit.property.toString() !== propertyId.toString()) {
+        throw new UnprocessableEntityException('Selected unit does not belong to the selected property');
+      }
+
+      // Check unit availability if changing unit
+      if (updateLeaseDto.unit && updateLeaseDto.unit !== existingLease.unit.toString()) {
+        if (unit.availabilityStatus === UnitAvailabilityStatus.OCCUPIED) {
+          const existingActiveLease = await this.leaseModel
+            .byTenant(landlordId)
+            .findOne({
+              unit: unitId,
+              status: { $in: [LeaseStatus.ACTIVE] },
+              _id: { $ne: existingLease._id }
+            })
+            .exec();
+
+          if (existingActiveLease) {
+            throw new UnprocessableEntityException('Unit is currently occupied by another active lease');
+          }
+        }
+      }
+    }
+
+    // Note: Date validation, auto-renewal validation, and cross-field validation now handled by DTO
+  }
+
+  private validateStatusTransition(currentStatus: LeaseStatus, newStatus: LeaseStatus) {
+    const validTransitions: Record<LeaseStatus, LeaseStatus[]> = {
+      [LeaseStatus.DRAFT]: [LeaseStatus.ACTIVE, LeaseStatus.TERMINATED],
+      [LeaseStatus.ACTIVE]: [LeaseStatus.EXPIRED, LeaseStatus.TERMINATED, LeaseStatus.RENEWED],
+      [LeaseStatus.EXPIRED]: [], // Cannot change status from expired
+      [LeaseStatus.TERMINATED]: [], // Cannot change status from terminated
+      [LeaseStatus.RENEWED]: [LeaseStatus.EXPIRED, LeaseStatus.TERMINATED], // Renewed can expire or terminate
+    };
+
+    const allowedStatuses = validTransitions[currentStatus] || [];
+    if (!allowedStatuses.includes(newStatus)) {
+      throw new UnprocessableEntityException(
+        `Invalid status transition from ${currentStatus} to ${newStatus}. ` +
+        `Allowed transitions: ${allowedStatuses.join(', ') || 'none'}`
+      );
+    }
+  }
+
+  private async validateNoOverlappingLeases(
+    unitId: string,
+    startDate: Date,
+    endDate: Date,
+    landlordId: Types.ObjectId,
+    excludeLeaseId?: string
+  ) {
+    const query: any = {
+      unit: unitId,
+      status: { $in: [LeaseStatus.DRAFT, LeaseStatus.ACTIVE] },
+      $or: [
+        // New lease starts during existing lease period
+        {
+          startDate: { $lte: startDate },
+          endDate: { $gt: startDate }
+        },
+        // New lease ends during existing lease period
+        {
+          startDate: { $lt: endDate },
+          endDate: { $gte: endDate }
+        },
+        // New lease completely contains existing lease period
+        {
+          startDate: { $gte: startDate },
+          endDate: { $lte: endDate }
+        },
+        // Existing lease completely contains new lease period
+        {
+          startDate: { $lte: startDate },
+          endDate: { $gte: endDate }
+        }
+      ]
+    };
+
+    // Exclude current lease from overlap check if updating
+    if (excludeLeaseId) {
+      query._id = { $ne: excludeLeaseId };
+    }
+
+    const overlappingLeases = await this.leaseModel
+      .byTenant(landlordId)
+      .find(query)
+      .exec();
+
+    if (overlappingLeases.length > 0) {
+      const overlappingLease = overlappingLeases[0];
+      const formatDate = (date: Date) => date.toISOString().split('T')[0];
+      throw new UnprocessableEntityException(
+        `Unit already has a ${overlappingLease.status.toLowerCase()} lease for the period ${formatDate(overlappingLease.startDate)} to ${formatDate(overlappingLease.endDate)}. ` +
+        `The requested period ${formatDate(startDate)} to ${formatDate(endDate)} overlaps with this existing lease.`
+      );
     }
   }
 
@@ -442,20 +609,16 @@ export class LeasesService {
 
       const PaymentWithTenant = this.paymentModel.byTenant(landlordId);
 
-      const rentPaymentReference = await PaymentReferenceUtils.generatePaymentReference(
-        this.paymentModel,
-        landlordId,
-      );
       const firstPayment = new PaymentWithTenant({
         lease: lease._id,
         rentalPeriod: initialRentalPeriod._id,
+        // todo do we need this ?
         tenant: lease.tenant,
         amount: lease.rentAmount,
         type: PaymentType.RENT,
         status: PaymentStatus.PENDING,
         dueDate: lease.startDate,
         description: 'First rent payment',
-        reference: rentPaymentReference,
       });
 
       await firstPayment.save();
@@ -470,7 +633,7 @@ export class LeasesService {
         error.keyPattern.lease &&
         error.keyPattern.status
       ) {
-        throw new BadRequestException(
+        throw new UnprocessableEntityException(
           'Cannot activate lease: An active rental period already exists for this lease.',
         );
       }
@@ -493,11 +656,11 @@ export class LeasesService {
     }
 
     if (!lease.isSecurityDeposit) {
-      throw new BadRequestException('This lease does not have a security deposit');
+      throw new UnprocessableEntityException('This lease does not have a security deposit');
     }
 
-    if (lease.securityDepositRefunded) {
-      throw new BadRequestException('Security deposit has already been refunded');
+    if (lease.securityDepositRefundedAt) {
+      throw new UnprocessableEntityException('Security deposit has already been refunded');
     }
 
     const updatedLease = await this.leaseModel
@@ -505,8 +668,7 @@ export class LeasesService {
       .findByIdAndUpdate(
         leaseId,
         {
-          securityDepositRefunded: true,
-          securityDepositRefundedDate: new Date(),
+          securityDepositRefundedAt: new Date(),
           securityDepositRefundReason: refundReason,
         },
         { new: true },

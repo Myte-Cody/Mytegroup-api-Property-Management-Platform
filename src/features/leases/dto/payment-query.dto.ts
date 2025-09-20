@@ -114,7 +114,7 @@ export class PaymentQueryDto {
   })
   @IsOptional()
   @Transform(({ value }) => (value ? new Date(value) : undefined))
-  paidDateFrom?: Date;
+  paidAtFrom?: Date;
 
   @ApiPropertyOptional({
     description: 'Filter payments paid up to this date',
@@ -122,5 +122,5 @@ export class PaymentQueryDto {
   })
   @IsOptional()
   @Transform(({ value }) => (value ? new Date(value) : undefined))
-  paidDateTo?: Date;
+  paidAtTo?: Date;
 }

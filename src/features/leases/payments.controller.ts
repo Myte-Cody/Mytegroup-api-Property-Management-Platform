@@ -40,6 +40,7 @@ import {
   PaymentSummaryDto,
   UpdatePaymentDto,
 } from './dto';
+import { MarkPaymentAsPaidDto } from './dto/mark-payment-as-paid.dto';
 import { PaymentsService } from './services/payments.service';
 
 @ApiTags('Payments')
@@ -75,19 +76,6 @@ export class PaymentsController {
   })
   findOne(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
     return this.paymentsService.findOne(id, user);
-  }
-
-  @Get('reference/:reference')
-  @CheckPolicies(new ReadPaymentPolicyHandler())
-  @ApiOperation({ summary: 'Get payment by reference number' })
-  @ApiParam({ name: 'reference', description: 'Payment reference number', type: String })
-  @ApiResponse({
-    status: 200,
-    description: 'Payment details',
-    type: PaymentResponseDto,
-  })
-  findByReference(@Param('reference') reference: string, @CurrentUser() user: User) {
-    return this.paymentsService.findByReference(reference, user);
   }
 
   @Post()
@@ -263,5 +251,34 @@ export class PaymentsController {
       success: true,
       data: media,
     };
+  }
+
+  @Post(':id/mark-as-paid')
+  @CheckPolicies(new UpdatePaymentPolicyHandler())
+  @ApiOperation({ summary: 'Mark a payment as paid' })
+  @ApiParam({ name: 'id', description: 'Payment ID', type: String })
+  @ApiBody({ type: MarkPaymentAsPaidDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Payment marked as paid successfully',
+    type: PaymentResponseDto,
+  })
+  markAsPaid(
+    @Param('id', MongoIdValidationPipe) id: string,
+    @Body() markAsPaidDto: MarkPaymentAsPaidDto,
+    @CurrentUser() user: User
+  ) {
+    return this.paymentsService.markAsPaid(id, markAsPaidDto, user);
+  }
+
+  @Post(':id/mark-as-not-paid')
+  @CheckPolicies(new UpdatePaymentPolicyHandler())
+  @ApiOperation({ summary: 'Mark a payment as not paid (reset to pending)' })
+  @ApiParam({ name: 'id', description: 'Payment ID', type: String })
+  markAsNotPaid(
+    @Param('id', MongoIdValidationPipe) id: string,
+    @CurrentUser() user: User
+  ) {
+    return this.paymentsService.markAsNotPaid(id, user);
   }
 }

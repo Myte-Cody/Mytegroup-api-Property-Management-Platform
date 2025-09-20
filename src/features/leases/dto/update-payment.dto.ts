@@ -11,7 +11,7 @@ export class UpdatePaymentDto extends PartialType(CreatePaymentDto) {
   @IsOptional()
   @Type(() => Date)
   @IsDate()
-  paidDate?: Date;
+  paidAt?: Date;
 }
 
 export class RefundPaymentDto {

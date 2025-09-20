@@ -53,6 +53,7 @@ export class RentalPeriod extends Document implements SoftDelete {
   status: RentalPeriodStatus;
 
   // appliedRentIncrease is defined manually in schema creation
+  // todo verify uasge
   appliedRentIncrease?: AppliedRentIncrease;
 
   @Prop({
@@ -82,6 +83,7 @@ export const RentalPeriodSchema = SchemaFactory.createForClass(RentalPeriod);
 const AppliedRentIncreaseSchema = SchemaFactory.createForClass(AppliedRentIncrease);
 
 // Use the schema for the appliedRentIncrease field
+// todo what is this ?
 RentalPeriodSchema.add({
   appliedRentIncrease: {
     type: AppliedRentIncreaseSchema,
@@ -100,8 +102,7 @@ RentalPeriodSchema.index(
 
 RentalPeriodSchema.index({ tenant_id: 1, lease: 1, startDate: 1 });
 RentalPeriodSchema.index({ lease: 1, status: 1, endDate: 1 });
-RentalPeriodSchema.index({ renewedFrom: 1 });
-RentalPeriodSchema.index({ renewedTo: 1 });
+
 
 RentalPeriodSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 RentalPeriodSchema.plugin(accessibleRecordsPlugin);

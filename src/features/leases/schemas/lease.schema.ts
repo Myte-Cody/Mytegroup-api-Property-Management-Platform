@@ -43,6 +43,7 @@ export class Lease extends Document implements SoftDelete {
   })
   tenant: Types.ObjectId;
 
+  // todo why relationship with property
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Property',
@@ -66,11 +67,8 @@ export class Lease extends Document implements SoftDelete {
   @Prop({ min: 0 })
   securityDepositAmount?: number;
 
-  @Prop({ default: false })
-  securityDepositRefunded: boolean;
-
   @Prop()
-  securityDepositRefundedDate?: Date;
+  securityDepositRefundedAt?: Date;
 
   @Prop({ maxlength: 500 })
   securityDepositRefundReason?: string;
@@ -82,7 +80,8 @@ export class Lease extends Document implements SoftDelete {
   })
   paymentCycle: PaymentCycle;
 
-  @Prop({ type: Date })
+  // todo what it dooe this ?
+  @Prop({type: Date})
   nextPaymentDueDate?: Date;
 
   @Prop({
@@ -118,6 +117,7 @@ export class Lease extends Document implements SoftDelete {
 
 export const LeaseSchema = SchemaFactory.createForClass(Lease);
 
+// todo why we don't have virtual in other fields
 LeaseSchema.virtual('media', {
   ref: 'Media',
   localField: '_id',
@@ -139,6 +139,7 @@ LeaseSchema.virtual('contracts', {
   match: { model_type: 'Lease', collection_name: 'contracts' },
 });
 
+// todo check this index
 LeaseSchema.index(
   { unit: 1, status: 1, tenant_id: 1 },
   {
