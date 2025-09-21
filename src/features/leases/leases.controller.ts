@@ -40,7 +40,7 @@ import {
   LeaseResponseDto,
   MarkPaymentPaidDto,
   PaginatedLeasesResponseDto,
-  PaymentResponseDto,
+  TransactionResponseDto,
   RefundSecurityDepositDto,
   RenewLeaseDto,
   TerminateLeaseDto,
@@ -48,7 +48,7 @@ import {
   UploadPaymentProofDto,
 } from './dto';
 import { LeasesService } from './services/leases.service';
-import { PaymentsService } from './services/payments.service';
+import { TransactionsService } from './services/transactions.service';
 
 @ApiTags('Leases')
 @ApiBearerAuth()
@@ -57,7 +57,7 @@ import { PaymentsService } from './services/payments.service';
 export class LeasesController {
   constructor(
     private readonly leasesService: LeasesService,
-    private readonly paymentsService: PaymentsService,
+    private readonly transactionsService: TransactionsService,
     private readonly mediaService: MediaService,
   ) {}
 
@@ -295,7 +295,7 @@ export class LeasesController {
   @ApiResponse({
     status: 200,
     description: 'Payment details retrieved successfully',
-    type: PaymentResponseDto,
+    type: TransactionResponseDto,
   })
   @ApiResponse({
     status: 404,
@@ -329,7 +329,7 @@ export class LeasesController {
   @ApiResponse({
     status: 200,
     description: 'Payment proof submitted successfully',
-    type: PaymentResponseDto,
+    type: TransactionResponseDto,
   })
   @ApiResponse({
     status: 400,

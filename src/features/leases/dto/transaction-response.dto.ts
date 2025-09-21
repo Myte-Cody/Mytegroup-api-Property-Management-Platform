@@ -2,19 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Expose, Transform, Type } from 'class-transformer';
 import { PaymentMethod, PaymentStatus, PaymentType } from '../../../common/enums/lease.enum';
 
-export class PaymentLeaseResponseDto {
+export class TransactionLeaseResponseDto {
   @ApiProperty()
   @Expose()
   @Transform(({ obj }) => obj._id.toString())
   id: string;
-
-  @ApiProperty()
-  @Expose()
-  unit: {
-    _id: string;
-    unitNumber: string;
-    type: string;
-  };
 
   @ApiProperty()
   @Expose()
@@ -25,14 +17,19 @@ export class PaymentLeaseResponseDto {
 
   @ApiProperty()
   @Expose()
-  property: {
+  unit: {
     _id: string;
-    name: string;
-    address: string;
+    unitNumber: string;
+    type: string;
+    property: {
+      _id: string;
+      name: string;
+      address: string;
+    };
   };
 }
 
-export class PaymentRentalPeriodResponseDto {
+export class TransactionRentalPeriodResponseDto {
   @ApiProperty()
   @Expose()
   @Transform(({ obj }) => obj._id.toString())
@@ -53,21 +50,21 @@ export class PaymentRentalPeriodResponseDto {
   rentAmount: number;
 }
 
-export class PaymentResponseDto {
+export class TransactionResponseDto {
   @ApiProperty()
   @Expose()
   @Transform(({ obj }) => obj._id.toString())
   id: string;
 
-  @ApiProperty({ type: PaymentLeaseResponseDto })
+  @ApiProperty({ type: TransactionLeaseResponseDto })
   @Expose()
-  @Type(() => PaymentLeaseResponseDto)
-  lease: PaymentLeaseResponseDto;
+  @Type(() => TransactionLeaseResponseDto)
+  lease: TransactionLeaseResponseDto;
 
-  @ApiPropertyOptional({ type: PaymentRentalPeriodResponseDto })
+  @ApiPropertyOptional({ type: TransactionRentalPeriodResponseDto })
   @Expose()
-  @Type(() => PaymentRentalPeriodResponseDto)
-  rentalPeriod?: PaymentRentalPeriodResponseDto;
+  @Type(() => TransactionRentalPeriodResponseDto)
+  rentalPeriod?: TransactionRentalPeriodResponseDto;
 
   @ApiProperty()
   @Expose()
@@ -126,11 +123,11 @@ export class PaymentResponseDto {
   updatedAt: Date;
 }
 
-export class PaginatedPaymentsResponseDto {
-  @ApiProperty({ type: [PaymentResponseDto] })
+export class PaginatedTransactionsResponseDto {
+  @ApiProperty({ type: [TransactionResponseDto] })
   @Expose()
-  @Type(() => PaymentResponseDto)
-  data: PaymentResponseDto[];
+  @Type(() => TransactionResponseDto)
+  data: TransactionResponseDto[];
 
   @ApiProperty()
   @Expose()
@@ -148,10 +145,10 @@ export class PaginatedPaymentsResponseDto {
   success: boolean;
 }
 
-export class PaymentSummaryDto {
+export class TransactionSummaryDto {
   @ApiProperty()
   @Expose()
-  totalPayments: number;
+  totalTransactions: number;
 
   @ApiProperty()
   @Expose()

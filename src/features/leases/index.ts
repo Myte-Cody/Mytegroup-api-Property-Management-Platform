@@ -3,17 +3,17 @@ export * from './leases.module';
 
 // Controllers
 export * from './leases.controller';
-export * from './payments.controller';
+export * from './transactions.controller';
 export * from './rental-periods.controller';
 
 // Services
 export * from './services/leases.service';
-export * from './services/payments.service';
+export * from './services/transactions.service';
 export * from './services/rental-periods.service';
 
 // Schemas
 export * from './schemas/lease.schema';
-export * from './schemas/payment.schema';
+export * from './schemas/transaction.schema';
 export * from './schemas/rental-period.schema';
 
 // DTOs - Lease
@@ -27,8 +27,8 @@ export * from './dto/update-lease.dto';
 export * from './dto/rental-period-query.dto';
 export * from './dto/rental-period-response.dto';
 
-// DTOs - Payment
-export * from './dto/create-payment.dto';
-export * from './dto/payment-query.dto';
-export * from './dto/payment-response.dto';
-export * from './dto/update-payment.dto';
+// DTOs - Transaction
+export * from './dto/create-transaction.dto';
+export * from './dto/transaction-query.dto';
+export * from './dto/transaction-response.dto';
+export * from './dto/update-transaction.dto';

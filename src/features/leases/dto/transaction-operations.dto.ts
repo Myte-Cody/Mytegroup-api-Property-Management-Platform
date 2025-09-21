@@ -4,7 +4,7 @@ import { IsDate, IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'cla
 import { HasMimeType, IsFile, MaxFileSize, MemoryStoredFile } from 'nestjs-form-data';
 import { PaymentMethod } from '../../../common/enums/lease.enum';
 
-export class UploadPaymentProofDto {
+export class UploadTransactionProofDto {
   @ApiProperty({
     description: 'Method used for payment',
     enum: PaymentMethod,
@@ -24,7 +24,7 @@ export class UploadPaymentProofDto {
   paidAt: Date;
 
   @ApiPropertyOptional({
-    description: 'Optional notes about the payment',
+    description: 'Optional notes about the transaction',
     example: 'Bank transfer completed via mobile app',
     maxLength: 500,
   })
@@ -42,7 +42,7 @@ export class UploadPaymentProofDto {
   media_files?: MemoryStoredFile[];
 }
 
-export class MarkPaymentPaidDto {
+export class MarkTransactionPaidDto {
   @ApiProperty({
     description: 'Method used for payment',
     enum: PaymentMethod,
@@ -62,8 +62,8 @@ export class MarkPaymentPaidDto {
   paidAt: Date;
 
   @ApiPropertyOptional({
-    description: 'Optional notes about the payment',
-    example: 'Payment verified and confirmed in bank account',
+    description: 'Optional notes about the transaction',
+    example: 'Transaction verified and confirmed in bank account',
     maxLength: 500,
   })
   @IsOptional()

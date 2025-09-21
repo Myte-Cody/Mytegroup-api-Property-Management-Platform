@@ -186,5 +186,5 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Parse command line arguments
 if (require.main === module) {
-  program.parse();
+  program.parse(process.argv);
 }

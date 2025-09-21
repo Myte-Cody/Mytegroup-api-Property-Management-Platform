@@ -3,7 +3,7 @@ import { Transform, Type } from 'class-transformer';
 import { IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, Min } from 'class-validator';
 import { PaymentMethod, PaymentStatus, PaymentType } from '../../../common/enums/lease.enum';
 
-export class PaymentQueryDto {
+export class TransactionQueryDto {
   @ApiPropertyOptional({
     description: 'Page number for pagination',
     example: 1,
@@ -50,7 +50,7 @@ export class PaymentQueryDto {
   sortOrder?: 'asc' | 'desc' = 'desc';
 
   @ApiPropertyOptional({
-    description: 'Filter by payment status',
+    description: 'Filter by transaction status',
     enum: PaymentStatus,
     example: PaymentStatus.PAID,
   })
@@ -59,7 +59,7 @@ export class PaymentQueryDto {
   status?: PaymentStatus;
 
   @ApiPropertyOptional({
-    description: 'Filter by payment type',
+    description: 'Filter by transaction type',
     enum: PaymentType,
     example: PaymentType.RENT,
   })
@@ -93,7 +93,7 @@ export class PaymentQueryDto {
   paymentMethod?: PaymentMethod;
 
   @ApiPropertyOptional({
-    description: 'Filter payments due from this date',
+    description: 'Filter transactions due from this date',
     example: '2024-01-01',
   })
   @IsOptional()
@@ -101,7 +101,7 @@ export class PaymentQueryDto {
   startDate?: Date;
 
   @ApiPropertyOptional({
-    description: 'Filter payments due up to this date',
+    description: 'Filter transactions due up to this date',
     example: '2024-12-31',
   })
   @IsOptional()
@@ -109,7 +109,7 @@ export class PaymentQueryDto {
   endDate?: Date;
 
   @ApiPropertyOptional({
-    description: 'Filter payments paid from this date',
+    description: 'Filter transactions paid from this date',
     example: '2024-01-01',
   })
   @IsOptional()
@@ -117,7 +117,7 @@ export class PaymentQueryDto {
   paidAtFrom?: Date;
 
   @ApiPropertyOptional({
-    description: 'Filter payments paid up to this date',
+    description: 'Filter transactions paid up to this date',
     example: '2024-12-31',
   })
   @IsOptional()

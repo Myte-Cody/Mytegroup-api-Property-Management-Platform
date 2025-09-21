@@ -1,3 +1,3 @@
 export { Lease, LeaseSchema, RentIncrease } from './lease.schema';
-export { Payment, PaymentSchema } from './payment.schema';
+export { Transaction, TransactionSchema } from './transaction.schema';
 export { AppliedRentIncrease, RentalPeriod, RentalPeriodSchema } from './rental-period.schema';

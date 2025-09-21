@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { PaymentMethod } from '../../../common/enums/lease.enum';
 
-export class MarkPaymentAsPaidDto {
+export class MarkTransactionAsPaidDto {
   @ApiProperty({
     description: 'Payment method used',
     enum: PaymentMethod,
@@ -13,8 +13,8 @@ export class MarkPaymentAsPaidDto {
   paymentMethod: PaymentMethod;
 
   @ApiPropertyOptional({
-    description: 'Notes about the payment',
-    example: 'Payment received via bank transfer',
+    description: 'Notes about the transaction',
+    example: 'Transaction received via bank transfer',
     maxLength: 500,
   })
   @IsOptional()

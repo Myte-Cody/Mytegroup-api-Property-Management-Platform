@@ -5,21 +5,20 @@ import { CaslModule } from '../../common/casl/casl.module';
 import { CommonModule } from '../../common/common.module';
 import { MediaModule } from '../media/media.module';
 import { PropertiesModule } from '../properties/properties.module';
-import { Property, PropertySchema } from '../properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../properties/schemas/unit.schema';
 import { Tenant, TenantSchema } from '../tenants/schema/tenant.schema';
 import { TenantsModule } from '../tenants/tenant.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
 import { LeasesController } from './leases.controller';
-import { PaymentsController } from './payments.controller';
+import { TransactionsController } from './transactions.controller';
 import { RentalPeriodsController } from './rental-periods.controller';
 import { Lease, LeaseSchema } from './schemas/lease.schema';
-import { Payment, PaymentSchema } from './schemas/payment.schema';
+import { Transaction, TransactionSchema } from './schemas/transaction.schema';
 import { RentalPeriod, RentalPeriodSchema } from './schemas/rental-period.schema';
 import { AutoRenewalService } from './services/auto-renewal.service';
 import { LeasesService } from './services/leases.service';
-import { PaymentsService } from './services/payments.service';
+import { TransactionsService } from './services/transactions.service';
 import { RentalPeriodsService } from './services/rental-periods.service';
 
 @Module({
@@ -27,9 +26,8 @@ import { RentalPeriodsService } from './services/rental-periods.service';
     MongooseModule.forFeature([
       { name: Lease.name, schema: LeaseSchema },
       { name: RentalPeriod.name, schema: RentalPeriodSchema },
-      { name: Payment.name, schema: PaymentSchema },
+      { name: Transaction.name, schema: TransactionSchema },
       { name: Unit.name, schema: UnitSchema },
-      { name: Property.name, schema: PropertySchema },
       { name: Tenant.name, schema: TenantSchema },
       { name: User.name, schema: UserSchema },
     ]),
@@ -41,8 +39,8 @@ import { RentalPeriodsService } from './services/rental-periods.service';
     TenantsModule,
     UsersModule,
   ],
-  controllers: [LeasesController, RentalPeriodsController, PaymentsController],
-  providers: [LeasesService, RentalPeriodsService, PaymentsService, AutoRenewalService],
-  exports: [LeasesService, RentalPeriodsService, PaymentsService, AutoRenewalService],
+  controllers: [LeasesController, RentalPeriodsController, TransactionsController],
+  providers: [LeasesService, RentalPeriodsService, TransactionsService, AutoRenewalService],
+  exports: [LeasesService, RentalPeriodsService, TransactionsService, AutoRenewalService],
 })
 export class LeasesModule {}

@@ -95,9 +95,11 @@ export class AutoRenewalService {
         autoRenewal: true,
         endDate: { $gte: new Date(cutoffDate) },
       })
-      .populate('unit')
+      .populate({
+        path: 'unit',
+        populate: { path: 'property' }
+      })
       .populate('tenant')
-      .populate('property')
       .exec();
 
 

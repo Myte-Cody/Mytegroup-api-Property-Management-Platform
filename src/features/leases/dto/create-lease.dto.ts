@@ -25,14 +25,14 @@ import { LeaseStatus, PaymentCycle, RentIncreaseType } from '../../../common/enu
 export class StartDateBeforeEndDateValidator implements ValidatorConstraintInterface {
   validate(value: any, args: ValidationArguments) {
     const dto = args.object as CreateLeaseDto;
-    if (!dto.startDate || !dto.endDate) {
+    if (!dto.startDate || !dto.rentalPeriodEndDate) {
       return true; // Let other validators handle missing dates
     }
-    return new Date(dto.startDate) < new Date(dto.endDate);
+    return new Date(dto.startDate) < new Date(dto.rentalPeriodEndDate);
   }
 
   defaultMessage(args: ValidationArguments) {
-    return 'Start date must be before end date';
+    return 'Start date must be before rental period end date';
   }
 }
 
@@ -101,14 +101,6 @@ export class RentIncreaseDto {
 
 export class CreateLeaseDto {
   @ApiProperty({
-    description: 'Property ID where the unit is located',
-    example: '673d8b8f123456789abcdef0',
-  })
-  @IsMongoId({ message: 'Invalid property ID format' })
-  @IsNotEmpty({ message: 'Property is required' })
-  property: string;
-
-  @ApiProperty({
     description: 'Unit ID being leased',
     example: '673d8b8f123456789abcdef1',
   })
@@ -134,14 +126,14 @@ export class CreateLeaseDto {
   startDate: Date;
 
   @ApiProperty({
-    description: 'Lease end date',
+    description: 'Initial rental period end date',
     example: '2024-12-31T23:59:59.999Z',
   })
   @Type(() => Date)
-  @IsDate({ message: 'Invalid end date format' })
-  @IsNotEmpty({ message: 'End date is required' })
+  @IsDate({ message: 'Invalid rental period end date format' })
+  @IsNotEmpty({ message: 'Rental period end date is required' })
   @Validate(StartDateBeforeEndDateValidator)
-  endDate: Date;
+  rentalPeriodEndDate: Date;
 
   @ApiProperty({
     description: 'Monthly rent amount',

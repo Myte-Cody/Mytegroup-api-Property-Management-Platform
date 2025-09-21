@@ -10,7 +10,7 @@ import { Injectable } from '@nestjs/common';
 import { Contractor } from '../../features/contractors/schema/contractor.schema';
 import { Invitation } from '../../features/invitations/schemas/invitation.schema';
 import { Lease } from '../../features/leases/schemas/lease.schema';
-import { Payment } from '../../features/leases/schemas/payment.schema';
+import { Transaction } from '../../features/leases/schemas/transaction.schema';
 import { RentalPeriod } from '../../features/leases/schemas/rental-period.schema';
 import { Media } from '../../features/media/schemas/media.schema';
 import { Property } from '../../features/properties/schemas/property.schema';
@@ -30,7 +30,7 @@ export const SUBJECTS = {
   MEDIA: Media,
   LEASE: Lease,
   SUB_LEASE: RentalPeriod,
-  PAYMENT: Payment,
+  TRANSACTION: Transaction,
 } as const;
 
 // Subject model name mapping for detectSubjectType
@@ -44,7 +44,7 @@ const SUBJECT_MODEL_MAPPING = {
   Media: Media,
   Lease: Lease,
   RentalPeriod: RentalPeriod,
-  Payment: Payment,
+  Transaction: Transaction,
 } as const;
 
 // Define actions that can be performed
@@ -137,7 +137,7 @@ export class CaslAbilityFactory {
     can(Action.Manage, Media);
     can(Action.Manage, Lease);
     can(Action.Manage, RentalPeriod);
-    can(Action.Manage, Payment);
+    can(Action.Manage, Transaction);
 
     // Landlords can manage all types of users within their context
     if (landlordId) {
@@ -166,7 +166,7 @@ export class CaslAbilityFactory {
     if (tenantPartyId) {
       can(Action.Read, Lease, { tenant: tenantPartyId });
       can(Action.Read, RentalPeriod, { lease: { tenant: tenantPartyId } });
-      can(Action.Read, Payment, { lease: { tenant: tenantPartyId } });
+      can(Action.Read, Transaction, { lease: { tenant: tenantPartyId } });
     }
 
     // Tenants can read their own tenant record
@@ -206,9 +206,9 @@ export class CaslAbilityFactory {
     cannot(Action.Create, RentalPeriod);
     cannot(Action.Update, RentalPeriod);
     cannot(Action.Delete, RentalPeriod);
-    cannot(Action.Create, Payment);
-    cannot(Action.Update, Payment);
-    cannot(Action.Delete, Payment);
+    cannot(Action.Create, Transaction);
+    cannot(Action.Update, Transaction);
+    cannot(Action.Delete, Transaction);
 
     // Tenants cannot manage non-tenant users
     cannot(Action.Manage, User, { user_type: UserType.LANDLORD });
@@ -256,9 +256,9 @@ export class CaslAbilityFactory {
     cannot(Action.Create, RentalPeriod);
     cannot(Action.Update, RentalPeriod);
     cannot(Action.Delete, RentalPeriod);
-    cannot(Action.Create, Payment);
-    cannot(Action.Update, Payment);
-    cannot(Action.Delete, Payment);
-    cannot(Action.Read, Payment); // Contractors don't need payment access
+    cannot(Action.Create, Transaction);
+    cannot(Action.Update, Transaction);
+    cannot(Action.Delete, Transaction);
+    cannot(Action.Read, Transaction); // Contractors don't need payment access
   }
 }

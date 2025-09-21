@@ -1,11 +1,11 @@
 import { ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsDate, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
-import { CreatePaymentDto } from './create-payment.dto';
+import { CreateTransactionDto } from './create-transaction.dto';
 
-export class UpdatePaymentDto extends PartialType(CreatePaymentDto) {
+export class UpdateTransactionDto extends PartialType(CreateTransactionDto) {
   @ApiPropertyOptional({
-    description: 'Date when payment was paid',
+    description: 'Date when transaction was paid',
     example: '2024-01-30T10:00:00.000Z',
   })
   @IsOptional()
@@ -14,9 +14,9 @@ export class UpdatePaymentDto extends PartialType(CreatePaymentDto) {
   paidAt?: Date;
 }
 
-export class RefundPaymentDto {
+export class RefundTransactionDto {
   @ApiPropertyOptional({
-    description: 'Refund amount (defaults to full payment amount)',
+    description: 'Refund amount (defaults to full transaction amount)',
     example: 1200,
     minimum: 0,
   })

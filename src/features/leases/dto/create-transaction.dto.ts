@@ -13,9 +13,9 @@ import {
 } from 'class-validator';
 import { PaymentMethod, PaymentStatus, PaymentType } from '../../../common/enums/lease.enum';
 
-export class CreatePaymentDto {
+export class CreateTransactionDto {
   @ApiProperty({
-    description: 'Lease ID this payment belongs to',
+    description: 'Lease ID this transaction belongs to',
     example: '673d8b8f123456789abcdef0',
   })
   @IsMongoId()
@@ -23,7 +23,7 @@ export class CreatePaymentDto {
   lease: string;
 
   @ApiPropertyOptional({
-    description: 'RentalPeriod ID this payment belongs to (if applicable)',
+    description: 'RentalPeriod ID this transaction belongs to (if applicable)',
     example: '673d8b8f123456789abcdef1',
   })
   @IsOptional()
@@ -31,7 +31,7 @@ export class CreatePaymentDto {
   rentalPeriod?: string;
 
   @ApiProperty({
-    description: 'Payment amount',
+    description: 'Transaction amount',
     example: 1200,
     minimum: 0,
   })
@@ -42,7 +42,7 @@ export class CreatePaymentDto {
   amount: number;
 
   @ApiProperty({
-    description: 'Payment due date',
+    description: 'Transaction due date',
     example: '2024-01-31T23:59:59.999Z',
   })
   @Type(() => Date)
@@ -51,7 +51,7 @@ export class CreatePaymentDto {
   dueDate: Date;
 
   @ApiPropertyOptional({
-    description: 'Date when payment was made',
+    description: 'Date when transaction was made',
     example: '2024-01-30T10:00:00.000Z',
   })
   @IsOptional()
@@ -60,7 +60,7 @@ export class CreatePaymentDto {
   paidAt?: Date;
 
   @ApiProperty({
-    description: 'Type of payment',
+    description: 'Type of transaction',
     enum: PaymentType,
     example: PaymentType.RENT,
   })
@@ -69,7 +69,7 @@ export class CreatePaymentDto {
   type: PaymentType;
 
   @ApiPropertyOptional({
-    description: 'Payment status',
+    description: 'Transaction status',
     enum: PaymentStatus,
     example: PaymentStatus.PENDING,
     default: PaymentStatus.PENDING,
@@ -89,8 +89,8 @@ export class CreatePaymentDto {
 
 
   @ApiPropertyOptional({
-    description: 'Additional notes about the payment',
-    example: 'Late payment due to bank processing delay',
+    description: 'Additional notes about the transaction',
+    example: 'Late transaction due to bank processing delay',
     maxLength: 500,
   })
   @IsOptional()

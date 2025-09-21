@@ -43,20 +43,12 @@ export class Lease extends Document implements SoftDelete {
   })
   tenant: Types.ObjectId;
 
-  // todo why relationship with property
-  @Prop({
-    type: MongooseSchema.Types.ObjectId,
-    ref: 'Property',
-    required: true,
-    index: true,
-  })
-  property: Types.ObjectId;
-
   @Prop({ required: true, index: true })
   startDate: Date;
 
-  @Prop({ required: true, index: true })
-  endDate: Date;
+  // endDate is now calculated from the latest rental period
+  // @Prop({ required: true, index: true })
+  // endDate: Date;
 
   @Prop({ required: true, min: 0 })
   rentAmount: number;
@@ -139,6 +131,23 @@ LeaseSchema.virtual('contracts', {
   match: { model_type: 'Lease', collection_name: 'contracts' },
 });
 
+LeaseSchema.virtual('rentalPeriods', {
+  ref: 'RentalPeriod',
+  localField: '_id',
+  foreignField: 'lease',
+});
+
+LeaseSchema.virtual('endDate').get(function() {
+  if ((this as any).rentalPeriods && (this as any).rentalPeriods.length > 0) {
+    const latestPeriod = (this as any).rentalPeriods.reduce((latest: any, current: any) => {
+      return new Date(current.endDate) > new Date(latest.endDate) ? current : latest;
+    });
+    return latestPeriod.endDate;
+  }
+  // Fallback for cases where rental periods aren't populated
+  return undefined;
+});
+
 // todo check this index
 LeaseSchema.index(
   { unit: 1, status: 1, tenant_id: 1 },
@@ -149,9 +158,6 @@ LeaseSchema.index(
   },
 );
 
-LeaseSchema.index({ tenant_id: 1, status: 1, startDate: 1 });
-LeaseSchema.index({ property: 1, status: 1 });
-LeaseSchema.index({ endDate: 1, status: 1 });
 
 LeaseSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 LeaseSchema.plugin(accessibleRecordsPlugin);

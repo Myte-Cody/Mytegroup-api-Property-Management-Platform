@@ -97,8 +97,6 @@ RentalPeriodSchema.index(
   },
 );
 
-RentalPeriodSchema.index({ tenant_id: 1, lease: 1, startDate: 1 });
-RentalPeriodSchema.index({ lease: 1, status: 1, endDate: 1 });
 
 
 RentalPeriodSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });

@@ -7,7 +7,7 @@ import { CaslAuthorizationService } from './services/casl-authorization.service'
 // Import schemas
 import { Contractor, ContractorSchema } from '../../features/contractors/schema/contractor.schema';
 import { Lease, LeaseSchema } from '../../features/leases/schemas/lease.schema';
-import { Payment, PaymentSchema } from '../../features/leases/schemas/payment.schema';
+import { Transaction, TransactionSchema } from '../../features/leases/schemas/transaction.schema';
 import {
   RentalPeriod,
   RentalPeriodSchema,
@@ -73,12 +73,12 @@ import {
 } from './policies/rental-period.policies';
 
 import {
-  CreatePaymentPolicyHandler,
-  DeletePaymentPolicyHandler,
-  ManagePaymentPolicyHandler,
-  ReadPaymentPolicyHandler,
-  UpdatePaymentPolicyHandler,
-} from './policies/payment.policies';
+  CreateTransactionPolicyHandler,
+  DeleteTransactionPolicyHandler,
+  ManageTransactionPolicyHandler,
+  ReadTransactionPolicyHandler,
+  UpdateTransactionPolicyHandler,
+} from './policies/transaction.policies';
 
 const policyHandlers = [
   // Property policies
@@ -128,12 +128,12 @@ const policyHandlers = [
   UpdateRentalPeriodPolicyHandler,
   DeleteRentalPeriodPolicyHandler,
 
-  // Payment policies
-  ReadPaymentPolicyHandler,
-  ManagePaymentPolicyHandler,
-  CreatePaymentPolicyHandler,
-  UpdatePaymentPolicyHandler,
-  DeletePaymentPolicyHandler,
+  // Transaction policies
+  ReadTransactionPolicyHandler,
+  ManageTransactionPolicyHandler,
+  CreateTransactionPolicyHandler,
+  UpdateTransactionPolicyHandler,
+  DeleteTransactionPolicyHandler,
 ];
 
 @Module({
@@ -146,10 +146,11 @@ const policyHandlers = [
       { name: Unit.name, schema: UnitSchema },
       { name: Lease.name, schema: LeaseSchema },
       { name: RentalPeriod.name, schema: RentalPeriodSchema },
-      { name: Payment.name, schema: PaymentSchema },
+      { name: Transaction.name, schema: TransactionSchema },
     ]),
   ],
   providers: [CaslAbilityFactory, CaslGuard, CaslAuthorizationService, ...policyHandlers],
   exports: [CaslAbilityFactory, CaslGuard, CaslAuthorizationService, ...policyHandlers],
 })
 export class CaslModule {}
+

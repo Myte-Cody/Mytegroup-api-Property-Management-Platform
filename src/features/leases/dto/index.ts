@@ -10,9 +10,13 @@ export * from './update-lease.dto';
 export * from './rental-period-query.dto';
 export * from './rental-period-response.dto';
 
-// Payment DTOs
-export * from './create-payment.dto';
-export * from './payment-operations.dto';
-export * from './payment-query.dto';
-export * from './payment-response.dto';
-export * from './update-payment.dto';
+// Transaction DTOs
+export * from './create-transaction.dto';
+export * from './transaction-operations.dto';
+export * from './transaction-query.dto';
+export * from './transaction-response.dto';
+export * from './update-transaction.dto';
+export * from './mark-transaction-as-paid.dto';
+
+export { UploadTransactionProofDto as UploadPaymentProofDto } from './transaction-operations.dto';
+export { MarkTransactionPaidDto as MarkPaymentPaidDto } from './transaction-operations.dto';

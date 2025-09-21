@@ -7,8 +7,7 @@ import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
 const mongoTenant = require('mongo-tenant');
 
 @Schema({ timestamps: true })
-export class Payment extends Document implements SoftDelete {
-  // why relation with lease ?
+export class Transaction extends Document implements SoftDelete {
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Lease',
@@ -65,46 +64,40 @@ export class Payment extends Document implements SoftDelete {
   deletedAt?: Date;
 }
 
-export const PaymentSchema = SchemaFactory.createForClass(Payment);
+export const TransactionSchema = SchemaFactory.createForClass(Transaction);
 
 // Virtual for media relationship
-PaymentSchema.virtual('media', {
+TransactionSchema.virtual('media', {
   ref: 'Media',
   localField: '_id',
   foreignField: 'model_id',
-  match: { model_type: 'Payment' },
+  match: { model_type: 'Transaction' },
 });
 
-// Virtual for payment receipts
-PaymentSchema.virtual('receipts', {
+// Virtual for transaction receipts
+TransactionSchema.virtual('receipts', {
   ref: 'Media',
   localField: '_id',
   foreignField: 'model_id',
-  match: { model_type: 'Payment', collection_name: 'receipts' },
+  match: { model_type: 'Transaction', collection_name: 'receipts' },
 });
 
-// Virtual for payment documents (invoices, statements, etc.)
-PaymentSchema.virtual('documents', {
+// Virtual for transaction documents (invoices, statements, etc.)
+TransactionSchema.virtual('documents', {
   ref: 'Media',
   localField: '_id',
   foreignField: 'model_id',
-  match: { model_type: 'Payment', collection_name: 'documents' },
+  match: { model_type: 'Transaction', collection_name: 'documents' },
 });
 
-PaymentSchema.virtual('paymentProofs', {
+TransactionSchema.virtual('transactionProofs', {
   ref: 'Media',
   localField: '_id',
   foreignField: 'model_id',
-  match: { model_type: 'Payment', collection_name: 'payment-proofs' },
+  match: { model_type: 'Transaction', collection_name: 'transaction-proofs' },
 });
 
-PaymentSchema.index({ tenant_id: 1, lease: 1, dueDate: 1 });
-PaymentSchema.index({ tenant_id: 1, status: 1, dueDate: 1 });
-PaymentSchema.index({ lease: 1, type: 1, status: 1 });
-PaymentSchema.index({ rentalPeriod: 1, status: 1 });
-PaymentSchema.index({ dueDate: 1, status: 1 });
-PaymentSchema.index({ paidAt: 1 });
 
-PaymentSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
-PaymentSchema.plugin(accessibleRecordsPlugin);
-PaymentSchema.plugin(mongoTenant);
+TransactionSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
+TransactionSchema.plugin(accessibleRecordsPlugin);
+TransactionSchema.plugin(mongoTenant);

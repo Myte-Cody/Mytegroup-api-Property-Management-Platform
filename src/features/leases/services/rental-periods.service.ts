@@ -9,7 +9,7 @@ import {
 import { UserDocument } from '../../users/schemas/user.schema';
 import { Lease } from '../schemas/lease.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
-import { Payment } from '../schemas/payment.schema';
+import { Transaction } from '../schemas/transaction.schema';
 
 @Injectable()
 export class RentalPeriodsService {
@@ -18,8 +18,8 @@ export class RentalPeriodsService {
     private readonly rentalPeriodModel: AppModel<RentalPeriod>,
     @InjectModel(Lease.name)
     private readonly leaseModel: AppModel<Lease>,
-    @InjectModel(Payment.name)
-    private readonly paymentModel: AppModel<Payment>,
+    @InjectModel(Transaction.name)
+    private readonly transactionModel: AppModel<Transaction>,
   ) {}
 
   async findAllPaginated(
@@ -71,11 +71,14 @@ export class RentalPeriodsService {
         .limit(limit)
         .populate({
           path: 'lease',
-          select: 'unit tenant property',
+          select: 'unit tenant',
           populate: [
-            { path: 'unit', select: 'unitNumber type' },
+            {
+              path: 'unit',
+              select: 'unitNumber type',
+              populate: { path: 'property', select: 'name address' }
+            },
             { path: 'tenant', select: 'name' },
-            { path: 'property', select: 'name address' },
           ],
         })
         .populate('renewedFrom', 'startDate endDate rentAmount')
@@ -100,11 +103,14 @@ export class RentalPeriodsService {
       .findById(id)
       .populate({
         path: 'lease',
-        select: 'unit tenant property terms',
+        select: 'unit tenant terms',
         populate: [
-          { path: 'unit', select: 'unitNumber type' },
+          {
+            path: 'unit',
+            select: 'unitNumber type',
+            populate: { path: 'property', select: 'name address' }
+          },
           { path: 'tenant', select: 'name' },
-          { path: 'property', select: 'name address' },
         ],
       })
       .populate('renewedFrom', 'startDate endDate rentAmount')
@@ -144,7 +150,7 @@ export class RentalPeriodsService {
     // todo check the posiibility of populate
     const rentalPeriodsWithPayments = await Promise.all(
       rentalPeriods.map(async (period) => {
-        const payment = await this.paymentModel
+        const transaction = await this.transactionModel
           .byTenant(landlordId)
           .findOne({
             rentalPeriod: period._id,
@@ -154,15 +160,15 @@ export class RentalPeriodsService {
 
         return {
           ...period.toObject(),
-          payment: payment ? {
-            id: payment._id,
-            amount: payment.amount,
-            status: payment.status,
-            type: payment.type,
-            paymentMethod: payment.paymentMethod,
-            dueDate: payment.dueDate,
-            paidAt: payment.paidAt,
-            notes: payment.notes,
+          payment: transaction ? {
+            id: transaction._id,
+            amount: transaction.amount,
+            status: transaction.status,
+            type: transaction.type,
+            paymentMethod: transaction.paymentMethod,
+            dueDate: transaction.dueDate,
+            paidAt: transaction.paidAt,
+            notes: transaction.notes,
           } : null
         };
       })

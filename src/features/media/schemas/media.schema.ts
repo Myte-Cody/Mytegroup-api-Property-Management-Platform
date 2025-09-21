@@ -98,5 +98,3 @@ MediaSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 MediaSchema.plugin(accessibleRecordsPlugin);
 MediaSchema.plugin(mongoTenant);
 
-MediaSchema.index({ model_type: 1, model_id: 1, collection_name: 1 });
-MediaSchema.index({ tenant_id: 1, model_type: 1 });

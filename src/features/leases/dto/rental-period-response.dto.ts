@@ -32,6 +32,11 @@ export class RentalPeriodLeaseResponseDto {
     _id: string;
     unitNumber: string;
     type: string;
+    property: {
+      _id: string;
+      name: string;
+      address: string;
+    };
   };
 
   @ApiProperty()
@@ -39,14 +44,6 @@ export class RentalPeriodLeaseResponseDto {
   tenant: {
     _id: string;
     name: string;
-  };
-
-  @ApiProperty()
-  @Expose()
-  property: {
-    _id: string;
-    name: string;
-    address: string;
   };
 
   @ApiPropertyOptional()

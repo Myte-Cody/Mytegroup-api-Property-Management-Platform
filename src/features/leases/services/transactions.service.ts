@@ -13,18 +13,18 @@ import {
 } from '../../../common/utils/pagination.utils';
 import { MediaService } from '../../media/services/media.service';
 import { UserDocument } from '../../users/schemas/user.schema';
-import { MarkPaymentPaidDto, UploadPaymentProofDto } from '../dto';
-import { MarkPaymentAsPaidDto } from '../dto/mark-payment-as-paid.dto';
+import { MarkTransactionPaidDto, UploadTransactionProofDto } from '../dto';
+import { MarkTransactionAsPaidDto } from '../dto/mark-transaction-as-paid.dto';
 import { Lease } from '../schemas/lease.schema';
-import { Payment } from '../schemas/payment.schema';
+import { Transaction } from '../schemas/transaction.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
-import { getFirstPaymentDueDate } from '../utils/payment-schedule.utils';
+import { getFirstTransactionDueDate } from '../utils/transaction-schedule.utils';
 
 @Injectable()
-export class PaymentsService {
+export class TransactionsService {
   constructor(
-    @InjectModel(Payment.name)
-    private readonly paymentModel: AppModel<Payment>,
+    @InjectModel(Transaction.name)
+    private readonly transactionModel: AppModel<Transaction>,
     @InjectModel(Lease.name)
     private readonly leaseModel: AppModel<Lease>,
     @InjectModel(RentalPeriod.name)
@@ -53,7 +53,7 @@ export class PaymentsService {
       return createEmptyPaginatedResponse(page, limit);
     }
 
-    let baseQuery = this.paymentModel.byTenant(landlordId).find();
+    let baseQuery = this.transactionModel.byTenant(landlordId).find();
 
     if (status) {
       baseQuery = baseQuery.where({ status });
@@ -88,7 +88,7 @@ export class PaymentsService {
 
     const skip = (page - 1) * limit;
 
-    const [payments, total] = await Promise.all([
+    const [transactions, total] = await Promise.all([
       baseQuery
         .clone()
         .sort(sortObj)
@@ -96,11 +96,14 @@ export class PaymentsService {
         .limit(limit)
         .populate({
           path: 'lease',
-          select: 'unit tenant property',
+          select: 'unit tenant',
           populate: [
-            { path: 'unit', select: 'unitNumber type' },
+            {
+              path: 'unit',
+              select: 'unitNumber type',
+              populate: { path: 'property', select: 'name address' }
+            },
             { path: 'tenant', select: 'name' },
-            { path: 'property', select: 'name address' },
           ],
         })
         .populate('rentalPeriod', 'startDate endDate rentAmount')
@@ -108,7 +111,7 @@ export class PaymentsService {
       baseQuery.clone().countDocuments().exec(),
     ]);
 
-    return createPaginatedResponse(payments, total, page, limit);
+    return createPaginatedResponse(transactions, total, page, limit);
   }
 
   async findOne(id: string, currentUser: UserDocument) {
@@ -118,55 +121,58 @@ export class PaymentsService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const payment = await this.paymentModel
+    const transaction = await this.transactionModel
       .byTenant(landlordId)
       .findById(id)
       .populate({
         path: 'lease',
-        select: 'unit tenant property terms',
+        select: 'unit tenant terms',
         populate: [
-          { path: 'unit', select: 'unitNumber type' },
+          {
+            path: 'unit',
+            select: 'unitNumber type',
+            populate: { path: 'property', select: 'name address' }
+          },
           { path: 'tenant', select: 'name' },
-          { path: 'property', select: 'name address' },
         ],
       })
       .populate('rentalPeriod', 'startDate endDate rentAmount')
       .exec();
 
-    if (!payment) {
-      throw new NotFoundException(`Payment with ID ${id} not found`);
+    if (!transaction) {
+      throw new NotFoundException(`Transaction with ID ${id} not found`);
     }
 
-    return payment;
+    return transaction;
   }
 
 
-  async create(createPaymentDto: any, currentUser: UserDocument) {
+  async create(createTransactionDto: any, currentUser: UserDocument) {
     const landlordId = this.getLandlordId(currentUser);
 
     if (!landlordId) {
-      throw new ForbiddenException('Cannot create payment: No tenant context');
+      throw new ForbiddenException('Cannot create transaction: No tenant context');
     }
 
-    await this.validatePaymentCreation(createPaymentDto, landlordId);
+    await this.validateTransactionCreation(createTransactionDto, landlordId);
 
-    const PaymentWithTenant = this.paymentModel.byTenant(landlordId);
+    const TransactionWithTenant = this.transactionModel.byTenant(landlordId);
 
-    // For manual payment creation, create single payment with provided or calculated due date
-    let paymentData = { ...createPaymentDto };
+    // For manual transaction creation, create single transaction with provided or calculated due date
+    let transactionData = { ...createTransactionDto };
 
-    if (!createPaymentDto.dueDate && createPaymentDto.rentalPeriod) {
+    if (!createTransactionDto.dueDate && createTransactionDto.rentalPeriod) {
       // Fetch the rental period and lease to get the payment cycle
       const rentalPeriod = await this.rentalPeriodModel
         .byTenant(landlordId)
-        .findById(createPaymentDto.rentalPeriod)
+        .findById(createTransactionDto.rentalPeriod)
         .populate('lease')
         .exec();
 
       if (rentalPeriod && typeof rentalPeriod.lease === 'object') {
         const lease = rentalPeriod.lease as any;
-        // For manual payment creation, use the first payment due date from the schedule
-        paymentData.dueDate = getFirstPaymentDueDate(
+        // For manual transaction creation, use the first transaction due date from the schedule
+        transactionData.dueDate = getFirstTransactionDueDate(
           rentalPeriod.startDate,
           rentalPeriod.endDate,
           lease.paymentCycle
@@ -174,12 +180,12 @@ export class PaymentsService {
       }
     }
 
-    const newPayment = new PaymentWithTenant(paymentData);
-    return await newPayment.save();
+    const newTransaction = new TransactionWithTenant(transactionData);
+    return await newTransaction.save();
   }
 
-  async update(id: string, updatePaymentDto: any, currentUser: UserDocument) {
-    if (!updatePaymentDto || Object.keys(updatePaymentDto).length === 0) {
+  async update(id: string, updateTransactionDto: any, currentUser: UserDocument) {
+    if (!updateTransactionDto || Object.keys(updateTransactionDto).length === 0) {
       throw new BadRequestException('Update data cannot be empty');
     }
 
@@ -189,45 +195,45 @@ export class PaymentsService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    // Find existing payment
-    const existingPayment = await this.paymentModel.byTenant(landlordId).findById(id).exec();
+    // Find existing transaction
+    const existingTransaction = await this.transactionModel.byTenant(landlordId).findById(id).exec();
 
-    if (!existingPayment) {
-      throw new NotFoundException(`Payment with ID ${id} not found`);
+    if (!existingTransaction) {
+      throw new NotFoundException(`Transaction with ID ${id} not found`);
     }
 
-    if (existingPayment.status === PaymentStatus.PROCESSED) {
-      throw new BadRequestException('Cannot modify processed payments');
+    if (existingTransaction.status === PaymentStatus.PROCESSED) {
+      throw new BadRequestException('Cannot modify processed transactions');
     }
 
-    // Update the payment
-    Object.assign(existingPayment, updatePaymentDto);
-    return await existingPayment.save();
+    // Update the transaction
+    Object.assign(existingTransaction, updateTransactionDto);
+    return await existingTransaction.save();
   }
 
-  async processPayment(id: string, currentUser: UserDocument) {
+  async processTransaction(id: string, currentUser: UserDocument) {
     const landlordId = this.getLandlordId(currentUser);
 
     if (!landlordId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const payment = await this.paymentModel.byTenant(landlordId).findById(id).exec();
+    const transaction = await this.transactionModel.byTenant(landlordId).findById(id).exec();
 
-    if (!payment) {
-      throw new NotFoundException(`Payment with ID ${id} not found`);
+    if (!transaction) {
+      throw new NotFoundException(`Transaction with ID ${id} not found`);
     }
 
-    if (payment.status !== PaymentStatus.PENDING) {
-      throw new BadRequestException('Only pending payments can be processed');
+    if (transaction.status !== PaymentStatus.PENDING) {
+      throw new BadRequestException('Only pending transactions can be processed');
     }
 
-    payment.status = PaymentStatus.PROCESSED;
+    transaction.status = PaymentStatus.PROCESSED;
 
-    // TODO: After payment is processed and marked as PAID, calculate and update
-    // the nextPaymentDueDate in the associated lease based on payment cycle
+    // TODO: After transaction is processed and marked as PAID, calculate and update
+    // the nextTransactionDueDate in the associated lease based on payment cycle
 
-    return await payment.save();
+    return await transaction.save();
   }
 
   async remove(id: string, currentUser: UserDocument) {
@@ -237,25 +243,25 @@ export class PaymentsService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    // Find payment
-    const payment = await this.paymentModel.byTenant(landlordId).findById(id).exec();
+    // Find transaction
+    const transaction = await this.transactionModel.byTenant(landlordId).findById(id).exec();
 
-    if (!payment) {
-      throw new NotFoundException(`Payment with ID ${id} not found`);
+    if (!transaction) {
+      throw new NotFoundException(`Transaction with ID ${id} not found`);
     }
 
-    // Only allow deletion of PENDING payments
-    if (payment.status !== PaymentStatus.PENDING) {
-      throw new BadRequestException('Only pending payments can be deleted');
+    // Only allow deletion of PENDING transactions
+    if (transaction.status !== PaymentStatus.PENDING) {
+      throw new BadRequestException('Only pending transactions can be deleted');
     }
 
-    await this.paymentModel.byTenant(landlordId).findByIdAndDelete(id);
-    return { message: 'Payment deleted successfully' };
+    await this.transactionModel.byTenant(landlordId).findByIdAndDelete(id);
+    return { message: 'Transaction deleted successfully' };
   }
 
   // Analytics and Reporting Methods
 
-  async getPaymentsByLease(leaseId: string, currentUser: UserDocument) {
+  async getTransactionsByLease(leaseId: string, currentUser: UserDocument) {
     const landlordId = this.getLandlordId(currentUser);
 
     if (!landlordId) {
@@ -268,17 +274,17 @@ export class PaymentsService {
       throw new NotFoundException(`Lease with ID ${leaseId} not found`);
     }
 
-    const payments = await this.paymentModel
+    const transactions = await this.transactionModel
       .byTenant(landlordId)
       .find({ lease: leaseId })
       .sort({ paidAt: -1 })
       .populate('rentalPeriod', 'startDate endDate rentAmount')
       .exec();
 
-    return payments;
+    return transactions;
   }
 
-  async getPaymentSummary(leaseId: string, currentUser: UserDocument) {
+  async getTransactionSummary(leaseId: string, currentUser: UserDocument) {
     const landlordId = this.getLandlordId(currentUser);
 
     if (!landlordId) {
@@ -291,29 +297,29 @@ export class PaymentsService {
       throw new NotFoundException(`Lease with ID ${leaseId} not found`);
     }
 
-    const payments = await this.paymentModel.byTenant(landlordId).find({ lease: leaseId }).exec();
+    const transactions = await this.transactionModel.byTenant(landlordId).find({ lease: leaseId }).exec();
 
     const summary = {
-      totalPayments: payments.length,
-      totalAmount: payments.reduce((sum, p) => sum + p.amount, 0),
-      processedAmount: payments
+      totalTransactions: transactions.length,
+      totalAmount: transactions.reduce((sum, p) => sum + p.amount, 0),
+      processedAmount: transactions
         .filter((p) => p.status === PaymentStatus.PROCESSED)
         .reduce((sum, p) => sum + p.amount, 0),
-      pendingAmount: payments
+      pendingAmount: transactions
         .filter((p) => p.status === PaymentStatus.PENDING)
         .reduce((sum, p) => sum + p.amount, 0),
       byType: {
-        rent: payments.filter((p) => p.type === PaymentType.RENT).length,
-        deposit: payments.filter((p) => p.type === PaymentType.DEPOSIT).length,
-        fees: payments.filter((p) => p.type === PaymentType.FEES).length,
-        utilities: payments.filter((p) => p.type === PaymentType.UTILITIES).length,
-        maintenance: payments.filter((p) => p.type === PaymentType.MAINTENANCE).length,
-        other: payments.filter((p) => p.type === PaymentType.OTHER).length,
+        rent: transactions.filter((p) => p.type === PaymentType.RENT).length,
+        deposit: transactions.filter((p) => p.type === PaymentType.DEPOSIT).length,
+        fees: transactions.filter((p) => p.type === PaymentType.FEES).length,
+        utilities: transactions.filter((p) => p.type === PaymentType.UTILITIES).length,
+        maintenance: transactions.filter((p) => p.type === PaymentType.MAINTENANCE).length,
+        other: transactions.filter((p) => p.type === PaymentType.OTHER).length,
       },
       byStatus: {
-        pending: payments.filter((p) => p.status === PaymentStatus.PENDING).length,
-        processed: payments.filter((p) => p.status === PaymentStatus.PROCESSED).length,
-        failed: payments.filter((p) => p.status === PaymentStatus.FAILED).length,
+        pending: transactions.filter((p) => p.status === PaymentStatus.PENDING).length,
+        processed: transactions.filter((p) => p.status === PaymentStatus.PROCESSED).length,
+        failed: transactions.filter((p) => p.status === PaymentStatus.FAILED).length,
       },
     };
 
@@ -323,50 +329,50 @@ export class PaymentsService {
   // Helper Methods
 
 
-  private async validatePaymentCreation(createPaymentDto: any, landlordId: any) {
+  private async validateTransactionCreation(createTransactionDto: any, landlordId: any) {
     // Validate lease exists
     const lease = await this.leaseModel
       .byTenant(landlordId)
-      .findById(createPaymentDto.lease)
+      .findById(createTransactionDto.lease)
       .exec();
     if (!lease) {
       throw new NotFoundException('Lease not found');
     }
 
-    if (createPaymentDto.rentalPeriod) {
+    if (createTransactionDto.rentalPeriod) {
       const rentalPeriod = await this.rentalPeriodModel
         .byTenant(landlordId)
-        .findById(createPaymentDto.rentalPeriod)
+        .findById(createTransactionDto.rentalPeriod)
         .exec();
       if (!rentalPeriod) {
         throw new NotFoundException('RentalPeriod not found');
       }
 
-      if (rentalPeriod.lease.toString() !== createPaymentDto.lease) {
+      if (rentalPeriod.lease.toString() !== createTransactionDto.lease) {
         throw new BadRequestException('RentalPeriod does not belong to the specified lease');
       }
     }
 
     // Validate amount
-    if (!createPaymentDto.amount || createPaymentDto.amount <= 0) {
-      throw new BadRequestException('Payment amount must be greater than 0');
+    if (!createTransactionDto.amount || createTransactionDto.amount <= 0) {
+      throw new BadRequestException('Transaction amount must be greater than 0');
     }
 
-    // Validate payment date
-    if (createPaymentDto.paidAt && new Date(createPaymentDto.paidAt) > new Date()) {
-      throw new BadRequestException('Payment date cannot be in the future');
+    // Validate transaction date
+    if (createTransactionDto.paidAt && new Date(createTransactionDto.paidAt) > new Date()) {
+      throw new BadRequestException('Transaction date cannot be in the future');
     }
   }
 
-  async submitPaymentProof(
+  async submitTransactionProof(
     leaseId: string,
     rentalPeriodId: string,
-    submitDto: UploadPaymentProofDto,
+    submitDto: UploadTransactionProofDto,
     currentUser: UserDocument,
-  ): Promise<Payment> {
+  ): Promise<Transaction> {
     const landlordId = this.getLandlordId(currentUser);
 
-    const payment = await this.paymentModel
+    const transaction = await this.transactionModel
       .byTenant(landlordId)
       .findOne({
         lease: leaseId,
@@ -375,22 +381,22 @@ export class PaymentsService {
       .populate('lease rentalPeriod')
       .exec();
 
-    if (!payment) {
-      throw new NotFoundException('Payment not found for this rental period');
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found for this rental period');
     }
 
-    if (payment.status !== PaymentStatus.PENDING) {
-      throw new BadRequestException('Payment proof can only be submitted for pending payments');
+    if (transaction.status !== PaymentStatus.PENDING) {
+      throw new BadRequestException('Transaction proof can only be submitted for pending transactions');
     }
 
     if (new Date(submitDto.paidAt) > new Date()) {
-      throw new BadRequestException('Payment date cannot be in the future');
+      throw new BadRequestException('Transaction date cannot be in the future');
     }
 
-    const updatedPayment = await this.paymentModel
+    const updatedTransaction = await this.transactionModel
       .byTenant(landlordId)
       .findByIdAndUpdate(
-        payment._id,
+        transaction._id,
         {
           paymentMethod: submitDto.paymentMethod,
           paidAt: submitDto.paidAt,
@@ -403,24 +409,24 @@ export class PaymentsService {
 
     if (submitDto.media_files && submitDto.media_files.length > 0) {
       const uploadPromises = submitDto.media_files.map(async (file) => {
-        return this.mediaService.upload(file, updatedPayment, currentUser, 'payment_proof');
+        return this.mediaService.upload(file, updatedTransaction, currentUser, 'transaction_proof');
       });
 
       await Promise.all(uploadPromises);
     }
 
-    return updatedPayment;
+    return updatedTransaction;
   }
 
 
-  async getPaymentForRentalPeriod(
+  async getTransactionForRentalPeriod(
     leaseId: string,
     rentalPeriodId: string,
     currentUser: UserDocument,
-  ): Promise<Payment> {
+  ): Promise<Transaction> {
     const landlordId = this.getLandlordId(currentUser);
 
-    const payment = await this.paymentModel
+    const transaction = await this.transactionModel
       .byTenant(landlordId)
       .findOne({
         lease: leaseId,
@@ -429,45 +435,45 @@ export class PaymentsService {
       .populate('lease rentalPeriod')
       .exec();
 
-    if (!payment) {
-      throw new NotFoundException('Payment not found for this rental period');
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found for this rental period');
     }
 
-    return payment;
+    return transaction;
   }
 
-  async markAsPaid(id: string, markAsPaidDto: MarkPaymentAsPaidDto, currentUser: UserDocument) {
+  async markAsPaid(id: string, markAsPaidDto: MarkTransactionAsPaidDto, currentUser: UserDocument) {
     const landlordId = this.getLandlordId(currentUser);
 
     if (!landlordId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const payment = await this.paymentModel
+    const transaction = await this.transactionModel
       .byTenant(landlordId)
       .findById(id)
       .populate('lease rentalPeriod')
       .exec();
 
-    if (!payment) {
-      throw new NotFoundException(`Payment with ID ${id} not found`);
+    if (!transaction) {
+      throw new NotFoundException(`Transaction with ID ${id} not found`);
     }
 
-    // Update payment status to PAID
-    payment.status = PaymentStatus.PAID;
-    payment.paidAt = new Date();
+    // Update transaction status to PAID
+    transaction.status = PaymentStatus.PAID;
+    transaction.paidAt = new Date();
 
     if (markAsPaidDto.paymentMethod) {
-      payment.paymentMethod = markAsPaidDto.paymentMethod;
+      transaction.paymentMethod = markAsPaidDto.paymentMethod;
     }
 
     if (markAsPaidDto.notes) {
-      payment.notes = markAsPaidDto.notes;
+      transaction.notes = markAsPaidDto.notes;
     }
 
-    await payment.save();
+    await transaction.save();
 
-    return payment;
+    return transaction;
   }
 
   async markAsNotPaid(id: string, currentUser: UserDocument) {
@@ -477,25 +483,25 @@ export class PaymentsService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    const payment = await this.paymentModel
+    const transaction = await this.transactionModel
       .byTenant(landlordId)
       .findById(id)
       .populate('lease rentalPeriod')
       .exec();
 
-    if (!payment) {
-      throw new NotFoundException(`Payment with ID ${id} not found`);
+    if (!transaction) {
+      throw new NotFoundException(`Transaction with ID ${id} not found`);
     }
 
-    // Reset payment to default pending state
-    payment.status = PaymentStatus.PENDING;
-    payment.paidAt = undefined;
-    payment.paymentMethod = undefined;
-    payment.notes = undefined;
+    // Reset transaction to default pending state
+    transaction.status = PaymentStatus.PENDING;
+    transaction.paidAt = undefined;
+    transaction.paymentMethod = undefined;
+    transaction.notes = undefined;
 
-    await payment.save();
+    await transaction.save();
 
-    return payment;
+    return transaction;
   }
 
 

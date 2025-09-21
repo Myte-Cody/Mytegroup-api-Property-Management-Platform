@@ -15,7 +15,6 @@ import {
 } from '../../../common/enums/lease.enum';
 import { UnitAvailabilityStatus } from '../../../common/enums/unit.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
-import { Property } from '../../properties/schemas/property.schema';
 import { Unit } from '../../properties/schemas/unit.schema';
 import { Tenant } from '../../tenants/schema/tenant.schema';
 import { UserDocument } from '../../users/schemas/user.schema';
@@ -30,10 +29,10 @@ import {
 import { LeaseQueryDto } from '../dto/lease-query.dto';
 import { LeaseResponseDto, PaginatedLeasesResponseDto } from '../dto/lease-response.dto';
 import { Lease } from '../schemas/lease.schema';
-import { Payment } from '../schemas/payment.schema';
+import { Transaction } from '../schemas/transaction.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
-import { PaymentsService } from './payments.service';
-import { generatePaymentSchedule } from '../utils/payment-schedule.utils';
+import { TransactionsService } from './transactions.service';
+import { generateTransactionSchedule, calculateTerminationEndDate } from '../utils/transaction-schedule.utils';
 
 @Injectable()
 export class LeasesService {
@@ -42,15 +41,13 @@ export class LeasesService {
     private readonly leaseModel: AppModel<Lease>,
     @InjectModel(RentalPeriod.name)
     private readonly rentalPeriodModel: AppModel<RentalPeriod>,
-    @InjectModel(Payment.name)
-    private readonly paymentModel: AppModel<Payment>,
+    @InjectModel(Transaction.name)
+    private readonly transactionModel: AppModel<Transaction>,
     @InjectModel(Unit.name)
     private readonly unitModel: AppModel<Unit>,
-    @InjectModel(Property.name)
-    private readonly propertyModel: AppModel<Property>,
     @InjectModel(Tenant.name)
     private readonly tenantModel: AppModel<Tenant>,
-    private readonly paymentsService: PaymentsService,
+    private readonly transactionsService: TransactionsService,
   ) {}
 
   async findAllPaginated(
@@ -102,7 +99,10 @@ export class LeasesService {
     }
 
     if (propertyId) {
-      baseQuery = baseQuery.where({ property: propertyId });
+      // Filter by property through unit relationship
+      const unitsInProperty = await this.unitModel.byTenant(landlordId).find({ property: propertyId }).select('_id').exec();
+      const unitIds = unitsInProperty.map(unit => unit._id);
+      baseQuery = baseQuery.where({ unit: { $in: unitIds } });
     }
 
     if (unitId) {
@@ -124,9 +124,12 @@ export class LeasesService {
         .sort(sortObj)
         .skip(skip)
         .limit(limit)
-        .populate('unit', 'unitNumber type availabilityStatus')
+        .populate({
+          path: 'unit',
+          select: 'unitNumber type availabilityStatus',
+          populate: { path: 'property', select: 'name address' }
+        })
         .populate('tenant', 'name')
-        .populate('property', 'name address')
         .exec(),
       baseQuery.clone().countDocuments().exec(),
     ]);
@@ -159,9 +162,12 @@ export class LeasesService {
     const lease = await this.leaseModel
       .byTenant(landlordId)
       .findById(id)
-      .populate('unit', 'unitNumber type availabilityStatus')
+      .populate({
+        path: 'unit',
+        select: 'unitNumber type availabilityStatus',
+        populate: { path: 'property', select: 'name address' }
+      })
       .populate('tenant', 'name')
-      .populate('property', 'name address')
       .exec();
 
     if (!lease) {
@@ -181,14 +187,17 @@ export class LeasesService {
     // Validate the lease data
     await this.validateLeaseCreation(createLeaseDto, landlordId);
 
+    // Extract rentalPeriodEndDate and create lease without it
+    const { rentalPeriodEndDate, ...leaseData } = createLeaseDto;
+
     // Create lease
     const LeaseWithTenant = this.leaseModel.byTenant(landlordId);
-    const newLease = new LeaseWithTenant(createLeaseDto);
+    const newLease = new LeaseWithTenant(leaseData);
     const savedLease = await newLease.save();
 
     // If lease is created as ACTIVE, create initial RentalPeriod and update unit status
     if (createLeaseDto.status === LeaseStatus.ACTIVE) {
-      await this.activateLease(savedLease, landlordId);
+      await this.activateLease(savedLease, landlordId, rentalPeriodEndDate);
     }
 
     return savedLease;
@@ -219,6 +228,11 @@ export class LeasesService {
     // Validate lease update
     await this.validateLeaseUpdate(existingLease, updateLeaseDto, landlordId);
 
+    // Handle payment cycle changes
+    if (updateLeaseDto.paymentCycle && updateLeaseDto.paymentCycle !== existingLease.paymentCycle) {
+      await this.handlePaymentCycleChange(existingLease, updateLeaseDto.paymentCycle, landlordId);
+    }
+
     // Handle status changes
     if (updateLeaseDto.status && updateLeaseDto.status !== existingLease.status) {
       await this.handleStatusChange(existingLease, updateLeaseDto.status, landlordId);
@@ -246,23 +260,37 @@ export class LeasesService {
       throw new NotFoundException(`Lease with ID ${id} not found`);
     }
 
+    const terminationDate = terminationData.terminationDate ? new Date(terminationData.terminationDate) : new Date();
+
+    // Calculate the proper end date based on payment cycle
+    const calculatedEndDate = calculateTerminationEndDate(terminationDate, lease.paymentCycle);
+
     // Update lease status
     lease.status = LeaseStatus.TERMINATED;
-    lease.terminationDate = terminationData.terminationDate || new Date();
+    lease.terminationDate = terminationDate;
     lease.terminationReason = terminationData.terminationReason;
 
-    // Update current active rental period
     const currentRentalPeriod = await this.rentalPeriodModel
       .byTenant(landlordId)
       .findOne({ lease: id, status: RentalPeriodStatus.ACTIVE })
       .exec();
 
+      // Update the rental period end date based on termination date and payment cycle
     if (currentRentalPeriod) {
+      currentRentalPeriod.endDate = calculatedEndDate;
       currentRentalPeriod.status = RentalPeriodStatus.EXPIRED;
       await currentRentalPeriod.save();
     }
 
-    // Update unit availability
+    await this.transactionModel
+      .byTenant(landlordId)
+      .deleteMany({
+        lease: id,
+        status: PaymentStatus.PENDING,
+        dueDate: { $gt: terminationDate }
+      })
+      .exec();
+
     await this.unitModel.byTenant(landlordId).findByIdAndUpdate(lease.unit, {
       availabilityStatus: UnitAvailabilityStatus.VACANT,
     });
@@ -338,23 +366,23 @@ export class LeasesService {
       // Link rental periods
       currentRentalPeriod.renewedTo = new Types.ObjectId(savedNewRentalPeriod._id.toString());
 
-      // Update lease end date
-      lease.endDate = renewalData.endDate;
+      // Note: lease.endDate is now calculated from rental periods
+      // lease.endDate = renewalData.endDate;
       lease.rentAmount = newRentAmount;
 
       // Create payment schedule for the new rental period
-      const paymentSchedule = generatePaymentSchedule(
+      const transactionSchedule = generateTransactionSchedule(
         renewalData.startDate,
         renewalData.endDate,
         lease.paymentCycle
       );
 
-      await this.createPaymentsForSchedule(
+      await this.createTransactionsForSchedule(
         id,
         savedNewRentalPeriod._id.toString(),
         lease.tenant.toString(),
         newRentAmount,
-        paymentSchedule,
+        transactionSchedule,
         landlordId
       );
 
@@ -411,19 +439,8 @@ export class LeasesService {
       throw new NotFoundException('Tenant not found');
     }
 
-    // Validate property exists
-    const property = await this.propertyModel
-        .byTenant(landlordId)
-        .findById(createLeaseDto.property)
-        .exec();
-    if (!property) {
-      throw new NotFoundException('Property not found');
-    }
-
-    // Validate unit-property relationship
-    if (unit.property.toString() !== createLeaseDto.property.toString()) {
-      throw new UnprocessableEntityException('Selected unit does not belong to the selected property');
-    }
+    // The property validation is no longer needed since we only need unit
+    // The unit already belongs to a property, so no validation required
 
     // Validate unit availability (must be available or already assigned to this lease)
     if (unit.availabilityStatus === UnitAvailabilityStatus.OCCUPIED) {
@@ -445,7 +462,7 @@ export class LeasesService {
     await this.validateNoOverlappingLeases(
       createLeaseDto.unit,
       new Date(createLeaseDto.startDate),
-      new Date(createLeaseDto.endDate),
+      new Date(createLeaseDto.rentalPeriodEndDate),
       landlordId
     );
   }
@@ -461,57 +478,37 @@ export class LeasesService {
     }
 
     // Grace period validation for active leases (business logic)
-    if (updateLeaseDto.startDate || updateLeaseDto.endDate) {
-      const startDate = new Date(updateLeaseDto.startDate || existingLease.startDate);
-      const endDate = new Date(updateLeaseDto.endDate || existingLease.endDate);
+    if (updateLeaseDto.startDate) {
+      const startDate = new Date(updateLeaseDto.startDate);
 
       if (existingLease.status === LeaseStatus.ACTIVE) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         // Don't allow changing start date of active lease to past
-        if (updateLeaseDto.startDate && startDate < today) {
+        if (startDate < today) {
           throw new UnprocessableEntityException('Cannot change start date of active lease to a past date');
-        }
-
-        // Don't allow end date changes that would terminate lease immediately
-        if (updateLeaseDto.endDate && endDate <= today) {
-          throw new UnprocessableEntityException('Cannot set end date of active lease to today or past. Use terminate instead');
         }
       }
 
-      // Check for overlapping leases if dates are changing
-      const unitIdToValidate = updateLeaseDto.unit || existingLease.unit.toString();
-      await this.validateNoOverlappingLeases(
-        unitIdToValidate,
-        startDate,
-        endDate,
-        landlordId,
-        existingLease._id.toString()
-      );
+      // Note: End date validation is no longer needed since endDate is calculated from rental periods
+      // Overlapping lease validation will be handled by rental period management
     }
 
-    // Validate unit-property relationship if changing unit or property
-    if (updateLeaseDto.unit || updateLeaseDto.property) {
-      const unitId = updateLeaseDto.unit || existingLease.unit;
-      const propertyId = updateLeaseDto.property || existingLease.property;
-
-      const unit = await this.unitModel.byTenant(landlordId).findById(unitId).exec();
+    // Validate unit if changing unit
+    if (updateLeaseDto.unit) {
+      const unit = await this.unitModel.byTenant(landlordId).findById(updateLeaseDto.unit).exec();
       if (!unit) {
         throw new NotFoundException('Unit not found');
       }
 
-      if (unit.property.toString() !== propertyId.toString()) {
-        throw new UnprocessableEntityException('Selected unit does not belong to the selected property');
-      }
-
       // Check unit availability if changing unit
-      if (updateLeaseDto.unit && updateLeaseDto.unit !== existingLease.unit.toString()) {
+      if (updateLeaseDto.unit !== existingLease.unit.toString()) {
         if (unit.availabilityStatus === UnitAvailabilityStatus.OCCUPIED) {
           const existingActiveLease = await this.leaseModel
             .byTenant(landlordId)
             .findOne({
-              unit: unitId,
+              unit: updateLeaseDto.unit,
               status: { $in: [LeaseStatus.ACTIVE] },
               _id: { $ne: existingLease._id }
             })
@@ -593,19 +590,22 @@ export class LeasesService {
       const overlappingLease = overlappingLeases[0];
       const formatDate = (date: Date) => date.toISOString().split('T')[0];
       throw new UnprocessableEntityException(
-        `Unit already has a ${overlappingLease.status.toLowerCase()} lease for the period ${formatDate(overlappingLease.startDate)} to ${formatDate(overlappingLease.endDate)}. ` +
+        `Unit already has a ${overlappingLease.status.toLowerCase()} lease starting ${formatDate(overlappingLease.startDate)}. ` +
         `The requested period ${formatDate(startDate)} to ${formatDate(endDate)} overlaps with this existing lease.`
       );
     }
   }
 
-  private async activateLease(lease: Lease, landlordId: Types.ObjectId) {
+  private async activateLease(lease: Lease, landlordId: Types.ObjectId, rentalPeriodEndDate?: Date) {
     try {
+      // Use the provided rentalPeriodEndDate or fall back to lease creation data
+      const endDate = rentalPeriodEndDate || (lease as any).rentalPeriodEndDate;
+
       const RentalPeriodWithTenant = this.rentalPeriodModel.byTenant(landlordId);
       const initialRentalPeriod = new RentalPeriodWithTenant({
         lease: lease._id,
         startDate: lease.startDate,
-        endDate: lease.endDate,
+        endDate: endDate,
         rentAmount: lease.rentAmount,
         status: RentalPeriodStatus.ACTIVE,
       });
@@ -613,20 +613,30 @@ export class LeasesService {
       await initialRentalPeriod.save();
 
       // Create payment schedule for the initial rental period
-      const paymentSchedule = generatePaymentSchedule(
+      const transactionSchedule = generateTransactionSchedule(
         lease.startDate,
-        lease.endDate,
+        endDate,
         lease.paymentCycle
       );
 
-      await this.createPaymentsForSchedule(
+      await this.createTransactionsForSchedule(
         lease._id.toString(),
         initialRentalPeriod._id.toString(),
         lease.tenant.toString(),
         lease.rentAmount,
-        paymentSchedule,
+        transactionSchedule,
         landlordId
       );
+
+      // Create security deposit transaction if lease has security deposit
+      if (lease.isSecurityDeposit && lease.securityDepositAmount) {
+        await this.createSecurityDepositTransaction(
+          lease._id.toString(),
+          lease.securityDepositAmount,
+          lease.startDate,
+          landlordId
+        );
+      }
 
       await this.unitModel.byTenant(landlordId).findByIdAndUpdate(lease.unit, {
         availabilityStatus: UnitAvailabilityStatus.OCCUPIED,
@@ -678,7 +688,11 @@ export class LeasesService {
         },
         { new: true },
       )
-      .populate('unit property tenant')
+      .populate({
+        path: 'unit',
+        populate: { path: 'property' }
+      })
+      .populate('tenant')
       .exec();
 
     return updatedLease;
@@ -694,12 +708,64 @@ export class LeasesService {
     }
   }
 
+  private async handlePaymentCycleChange(
+    lease: Lease,
+    newPaymentCycle: PaymentCycle,
+    landlordId: Types.ObjectId,
+  ) {
+    // Only handle payment cycle changes for active leases
+    if (lease.status !== LeaseStatus.ACTIVE) {
+      return;
+    }
+
+    // Get the current active rental period
+    const currentRentalPeriod = await this.rentalPeriodModel
+      .byTenant(landlordId)
+      .findOne({ lease: lease._id, status: RentalPeriodStatus.ACTIVE })
+      .exec();
+
+    if (!currentRentalPeriod) {
+      return; // No active rental period, nothing to update
+    }
+
+    // Delete all pending transactions for the current rental period
+    await this.transactionModel
+      .byTenant(landlordId)
+      .deleteMany({
+        lease: lease._id,
+        rentalPeriod: currentRentalPeriod._id,
+        status: PaymentStatus.PENDING,
+      })
+      .exec();
+
+    // Generate new transaction schedule based on the new payment cycle
+    // Calculate remaining period: from today to end of current rental period
+    const today = new Date();
+    const remainingStartDate = today > currentRentalPeriod.startDate ? today : currentRentalPeriod.startDate;
+
+    const transactionSchedule = generateTransactionSchedule(
+      remainingStartDate,
+      currentRentalPeriod.endDate,
+      newPaymentCycle
+    );
+
+    // Create new transactions for the remaining period
+    await this.createTransactionsForSchedule(
+      lease._id.toString(),
+      currentRentalPeriod._id.toString(),
+      lease.tenant.toString(),
+      currentRentalPeriod.rentAmount,
+      transactionSchedule,
+      landlordId
+    );
+  }
+
   async getPaymentForRentalPeriod(
     leaseId: string,
     rentalPeriodId: string,
     currentUser: UserDocument,
-  ): Promise<Payment> {
-    return this.paymentsService.getPaymentForRentalPeriod(leaseId, rentalPeriodId, currentUser);
+  ): Promise<Transaction> {
+    return this.transactionsService.getTransactionForRentalPeriod(leaseId, rentalPeriodId, currentUser);
   }
 
   async submitPaymentProof(
@@ -707,12 +773,12 @@ export class LeasesService {
     rentalPeriodId: string,
     submitDto: UploadPaymentProofDto,
     currentUser: UserDocument,
-  ): Promise<Payment> {
-    return this.paymentsService.submitPaymentProof(leaseId, rentalPeriodId, submitDto, currentUser);
+  ): Promise<Transaction> {
+    return this.transactionsService.submitTransactionProof(leaseId, rentalPeriodId, submitDto, currentUser);
   }
 
 
-  private async createPaymentsForSchedule(
+  private async createTransactionsForSchedule(
     leaseId: string,
     rentalPeriodId: string,
     tenantId: string,
@@ -720,10 +786,10 @@ export class LeasesService {
     dueDates: Date[],
     landlordId: any
   ): Promise<void> {
-    const PaymentWithTenant = this.paymentModel.byTenant(landlordId);
+    const TransactionWithTenant = this.transactionModel.byTenant(landlordId);
 
-    const paymentPromises = dueDates.map(dueDate => {
-      const payment = new PaymentWithTenant({
+    const transactionPromises = dueDates.map(dueDate => {
+      const transaction = new TransactionWithTenant({
         lease: leaseId,
         rentalPeriod: rentalPeriodId,
         tenant: tenantId,
@@ -732,10 +798,30 @@ export class LeasesService {
         status: PaymentStatus.PENDING,
         dueDate: dueDate,
       });
-      return payment.save();
+      return transaction.save();
     });
 
-    await Promise.all(paymentPromises);
+    await Promise.all(transactionPromises);
+  }
+
+  private async createSecurityDepositTransaction(
+    leaseId: string,
+    amount: number,
+    dueDate: Date,
+    landlordId: any
+  ): Promise<void> {
+    const TransactionWithTenant = this.transactionModel.byTenant(landlordId);
+
+    const securityDepositTransaction = new TransactionWithTenant({
+      lease: leaseId,
+      amount: amount,
+      type: PaymentType.DEPOSIT,
+      status: PaymentStatus.PENDING,
+      dueDate: dueDate,
+      notes: 'Security deposit for lease activation'
+    });
+
+    await securityDepositTransaction.save();
   }
 
   private getLandlordId(currentUser: UserDocument): Types.ObjectId | null {

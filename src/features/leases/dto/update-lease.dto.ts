@@ -1,4 +1,4 @@
-import { ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { ApiPropertyOptional, PartialType, OmitType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -14,7 +14,7 @@ import {
 import { CreateLeaseDto, StartDateBeforeEndDateValidator, AutoRenewalRequiresRentIncreaseValidator } from './create-lease.dto';
 import { LeaseStatus } from '../../../common/enums/lease.enum';
 
-export class UpdateLeaseDto extends PartialType(CreateLeaseDto) {
+export class UpdateLeaseDto extends PartialType(OmitType(CreateLeaseDto, ['rentalPeriodEndDate'] as const)) {
   @ApiPropertyOptional({
     description: 'Date when lease was terminated',
     example: '2024-06-15T00:00:00.000Z',
