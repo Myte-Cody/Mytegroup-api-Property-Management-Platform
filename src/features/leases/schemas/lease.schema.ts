@@ -72,9 +72,6 @@ export class Lease extends Document implements SoftDelete {
   })
   paymentCycle: PaymentCycle;
 
-  // todo what it dooe this ?
-  @Prop({type: Date})
-  nextPaymentDueDate?: Date;
 
   @Prop({
     type: String,

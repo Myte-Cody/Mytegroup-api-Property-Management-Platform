@@ -167,13 +167,6 @@ export class LeaseResponseDto {
   @Expose()
   @Type(() => Date)
   updatedAt: Date;
-
-  @ApiProperty({
-    description: 'Next payment due date (set after first payment is processed)',
-  })
-  @Expose()
-  @Type(() => Date)
-  nextPaymentDueDate?: Date;
 }
 
 export class PaginationMetaDto {

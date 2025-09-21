@@ -180,10 +180,6 @@ export class CreateLeaseDto {
     description: 'Next payment due date (will be set after first payment is processed)',
     example: '2025-09-01T00:00:00.000Z',
   })
-  @IsOptional()
-  @Type(() => Date)
-  @IsDate({ message: 'Invalid next payment due date format' })
-  nextPaymentDueDate?: Date;
 
   @ApiPropertyOptional({
     description: 'Lease status',
