@@ -13,7 +13,10 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "db:seed": "ts-node -r tsconfig-paths/register src/cli.ts seed:all"
+    "db:seed": "ts-node -r tsconfig-paths/register src/cli.ts seed:all",
+    "lease:renew": "ts-node -r tsconfig-paths/register src/scripts/lease-renewal.ts process",
+    "lease:renew:preview": "ts-node -r tsconfig-paths/register src/scripts/lease-renewal.ts preview",
+    "lease:renew:live": "ts-node -r tsconfig-paths/register src/scripts/lease-renewal.ts process --no-dry-run"
   },
   "dependencies": {
     "@casl/ability": "^6.7.3",
@@ -31,6 +34,7 @@
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "commander": "^13.1.0",
     "mongo-tenant": "^1.8.0",
     "mongoose": "^8.17.1",
     "mongoose-delete": "^1.0.2",

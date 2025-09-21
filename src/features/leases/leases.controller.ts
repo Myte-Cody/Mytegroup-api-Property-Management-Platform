@@ -359,42 +359,4 @@ export class LeasesController {
     };
   }
 
-  @Patch(':id/rental-periods/:rentalPeriodId/pay/validate')
-  @CheckPolicies(new UpdateLeasePolicyHandler())
-  @ApiOperation({ summary: 'Validate payment (landlord action)' })
-  @ApiParam({ name: 'id', description: 'Lease ID', type: String })
-  @ApiParam({ name: 'rentalPeriodId', description: 'Rental Period ID', type: String })
-  @ApiBody({ type: MarkPaymentPaidDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Payment validated successfully',
-    type: PaymentResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad request - payment not in correct status',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Payment not found',
-  })
-  async validatePayment(
-    @Param('id', MongoIdValidationPipe) leaseId: string,
-    @Param('rentalPeriodId', MongoIdValidationPipe) rentalPeriodId: string,
-    @Body() markPaymentPaidDto: MarkPaymentPaidDto,
-    @CurrentUser() user: User,
-  ) {
-    const payment = await this.leasesService.validatePayment(
-      leaseId,
-      rentalPeriodId,
-      markPaymentPaidDto,
-      user,
-    );
-
-    return {
-      success: true,
-      data: payment,
-      message: 'Payment validated successfully',
-    };
-  }
 }

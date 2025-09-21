@@ -88,9 +88,6 @@ export class RentalPeriodResponseDto {
   @Type(() => AppliedRentIncreaseResponseDto)
   appliedRentIncrease?: AppliedRentIncreaseResponseDto;
 
-  @ApiPropertyOptional()
-  @Expose()
-  renewalNotes?: string;
 
   @ApiPropertyOptional()
   @Expose()

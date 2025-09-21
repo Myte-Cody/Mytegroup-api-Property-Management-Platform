@@ -8,6 +8,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 import {
   LeaseStatus,
+  PaymentCycle,
   PaymentStatus,
   PaymentType,
   RentalPeriodStatus,
@@ -32,6 +33,7 @@ import { Lease } from '../schemas/lease.schema';
 import { Payment } from '../schemas/payment.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
 import { PaymentsService } from './payments.service';
+import { generatePaymentSchedule } from '../utils/payment-schedule.utils';
 
 @Injectable()
 export class LeasesService {
@@ -273,6 +275,7 @@ export class LeasesService {
     renewalData: RenewLeaseDto,
     currentUser: UserDocument,
   ): Promise<{ lease: Lease; newRentalPeriod: RentalPeriod }> {
+    // todo DB transaction
     const landlordId = this.getLandlordId(currentUser);
 
     if (!landlordId) {
@@ -296,7 +299,7 @@ export class LeasesService {
     }
 
     // Calculate new rent amount
-    let newRentAmount = renewalData.rentAmount || currentRentalPeriod.rentAmount;
+    let newRentAmount = currentRentalPeriod.rentAmount;
     let appliedRentIncrease = null;
 
     if (renewalData.rentIncrease) {
@@ -304,7 +307,6 @@ export class LeasesService {
         type: renewalData.rentIncrease.type,
         amount: renewalData.rentIncrease.amount,
         previousRent: currentRentalPeriod.rentAmount,
-        reason: renewalData.rentIncrease.reason,
       };
 
       if (renewalData.rentIncrease.type === 'PERCENTAGE') {
@@ -326,10 +328,9 @@ export class LeasesService {
         startDate: renewalData.startDate,
         endDate: renewalData.endDate,
         rentAmount: newRentAmount,
-        status: RentalPeriodStatus.ACTIVE,
+        status: RentalPeriodStatus.PENDING,
         appliedRentIncrease,
-        renewedFrom: currentRentalPeriod._id,
-        renewalNotes: renewalData.notes,
+        renewedFrom: currentRentalPeriod._id
       });
 
       const savedNewRentalPeriod = await newRentalPeriod.save();
@@ -341,24 +342,28 @@ export class LeasesService {
       lease.endDate = renewalData.endDate;
       lease.rentAmount = newRentAmount;
 
+      // Create payment schedule for the new rental period
+      const paymentSchedule = generatePaymentSchedule(
+        renewalData.startDate,
+        renewalData.endDate,
+        lease.paymentCycle
+      );
+
+      await this.createPaymentsForSchedule(
+        id,
+        savedNewRentalPeriod._id.toString(),
+        lease.tenant.toString(),
+        newRentAmount,
+        paymentSchedule,
+        landlordId
+      );
+
       // Save all changes
       await currentRentalPeriod.save();
       await lease.save();
 
       return { lease, newRentalPeriod: savedNewRentalPeriod };
     } catch (error) {
-      // Handle MongoDB duplicate key error
-      if (
-        error.code === 11000 &&
-        error.keyPattern &&
-        error.keyPattern.lease &&
-        error.keyPattern.status
-      ) {
-        throw new UnprocessableEntityException(
-          'Cannot renew lease: An active rental period already exists for this lease. Please terminate the current rental period before creating a new one.',
-        );
-      }
-      // Re-throw other errors
       throw error;
     }
   }
@@ -607,21 +612,21 @@ export class LeasesService {
 
       await initialRentalPeriod.save();
 
-      const PaymentWithTenant = this.paymentModel.byTenant(landlordId);
+      // Create payment schedule for the initial rental period
+      const paymentSchedule = generatePaymentSchedule(
+        lease.startDate,
+        lease.endDate,
+        lease.paymentCycle
+      );
 
-      const firstPayment = new PaymentWithTenant({
-        lease: lease._id,
-        rentalPeriod: initialRentalPeriod._id,
-        // todo do we need this ?
-        tenant: lease.tenant,
-        amount: lease.rentAmount,
-        type: PaymentType.RENT,
-        status: PaymentStatus.PENDING,
-        dueDate: lease.startDate,
-        description: 'First rent payment',
-      });
-
-      await firstPayment.save();
+      await this.createPaymentsForSchedule(
+        lease._id.toString(),
+        initialRentalPeriod._id.toString(),
+        lease.tenant.toString(),
+        lease.rentAmount,
+        paymentSchedule,
+        landlordId
+      );
 
       await this.unitModel.byTenant(landlordId).findByIdAndUpdate(lease.unit, {
         availabilityStatus: UnitAvailabilityStatus.OCCUPIED,
@@ -706,13 +711,31 @@ export class LeasesService {
     return this.paymentsService.submitPaymentProof(leaseId, rentalPeriodId, submitDto, currentUser);
   }
 
-  async validatePayment(
+
+  private async createPaymentsForSchedule(
     leaseId: string,
     rentalPeriodId: string,
-    validateDto: MarkPaymentPaidDto,
-    currentUser: UserDocument,
-  ): Promise<Payment> {
-    return this.paymentsService.validatePayment(leaseId, rentalPeriodId, validateDto, currentUser);
+    tenantId: string,
+    amount: number,
+    dueDates: Date[],
+    landlordId: any
+  ): Promise<void> {
+    const PaymentWithTenant = this.paymentModel.byTenant(landlordId);
+
+    const paymentPromises = dueDates.map(dueDate => {
+      const payment = new PaymentWithTenant({
+        lease: leaseId,
+        rentalPeriod: rentalPeriodId,
+        tenant: tenantId,
+        amount: amount,
+        type: PaymentType.RENT,
+        status: PaymentStatus.PENDING,
+        dueDate: dueDate,
+      });
+      return payment.save();
+    });
+
+    await Promise.all(paymentPromises);
   }
 
   private getLandlordId(currentUser: UserDocument): Types.ObjectId | null {

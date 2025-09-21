@@ -17,6 +17,7 @@ import { RentalPeriodsController } from './rental-periods.controller';
 import { Lease, LeaseSchema } from './schemas/lease.schema';
 import { Payment, PaymentSchema } from './schemas/payment.schema';
 import { RentalPeriod, RentalPeriodSchema } from './schemas/rental-period.schema';
+import { AutoRenewalService } from './services/auto-renewal.service';
 import { LeasesService } from './services/leases.service';
 import { PaymentsService } from './services/payments.service';
 import { RentalPeriodsService } from './services/rental-periods.service';
@@ -41,7 +42,7 @@ import { RentalPeriodsService } from './services/rental-periods.service';
     UsersModule,
   ],
   controllers: [LeasesController, RentalPeriodsController, PaymentsController],
-  providers: [LeasesService, RentalPeriodsService, PaymentsService],
-  exports: [LeasesService, RentalPeriodsService, PaymentsService],
+  providers: [LeasesService, RentalPeriodsService, PaymentsService, AutoRenewalService],
+  exports: [LeasesService, RentalPeriodsService, PaymentsService, AutoRenewalService],
 })
 export class LeasesModule {}

@@ -19,6 +19,7 @@ export enum RentIncreaseType {
 }
 
 export enum RentalPeriodStatus {
+  PENDING = 'PENDING',
   ACTIVE = 'ACTIVE',
   EXPIRED = 'EXPIRED',
   RENEWED = 'RENEWED',

@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { PaymentStatus, PaymentType } from '../../../common/enums/lease.enum';
+import { PaymentCycle, PaymentStatus, PaymentType } from '../../../common/enums/lease.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import {
   createEmptyPaginatedResponse,
@@ -18,6 +18,7 @@ import { MarkPaymentAsPaidDto } from '../dto/mark-payment-as-paid.dto';
 import { Lease } from '../schemas/lease.schema';
 import { Payment } from '../schemas/payment.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
+import { getFirstPaymentDueDate } from '../utils/payment-schedule.utils';
 
 @Injectable()
 export class PaymentsService {
@@ -150,9 +151,30 @@ export class PaymentsService {
     await this.validatePaymentCreation(createPaymentDto, landlordId);
 
     const PaymentWithTenant = this.paymentModel.byTenant(landlordId);
-    const newPayment = new PaymentWithTenant({
-      ...createPaymentDto,
-    });
+
+    // For manual payment creation, create single payment with provided or calculated due date
+    let paymentData = { ...createPaymentDto };
+
+    if (!createPaymentDto.dueDate && createPaymentDto.rentalPeriod) {
+      // Fetch the rental period and lease to get the payment cycle
+      const rentalPeriod = await this.rentalPeriodModel
+        .byTenant(landlordId)
+        .findById(createPaymentDto.rentalPeriod)
+        .populate('lease')
+        .exec();
+
+      if (rentalPeriod && typeof rentalPeriod.lease === 'object') {
+        const lease = rentalPeriod.lease as any;
+        // For manual payment creation, use the first payment due date from the schedule
+        paymentData.dueDate = getFirstPaymentDueDate(
+          rentalPeriod.startDate,
+          rentalPeriod.endDate,
+          lease.paymentCycle
+        );
+      }
+    }
+
+    const newPayment = new PaymentWithTenant(paymentData);
     return await newPayment.save();
   }
 
@@ -475,6 +497,7 @@ export class PaymentsService {
 
     return payment;
   }
+
 
   private getLandlordId(currentUser: UserDocument) {
     return currentUser.tenantId && typeof currentUser.tenantId === 'object'

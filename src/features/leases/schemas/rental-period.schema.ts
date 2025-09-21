@@ -70,9 +70,6 @@ export class RentalPeriod extends Document implements SoftDelete {
   })
   renewedTo?: Types.ObjectId;
 
-  @Prop({ maxlength: 500 })
-  renewalNotes?: string;
-
   deleted: boolean;
   deletedAt?: Date;
 }
