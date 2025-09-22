@@ -10,6 +10,7 @@ import { UserDocument } from '../../users/schemas/user.schema';
 import { Lease } from '../schemas/lease.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
 import { Transaction } from '../schemas/transaction.schema';
+import { RentalPeriodQueryDto } from '../dto/rental-period-query.dto';
 
 @Injectable()
 export class RentalPeriodsService {
@@ -23,10 +24,9 @@ export class RentalPeriodsService {
   ) {}
 
   async findAllPaginated(
-    queryDto: any, // TODO Create RentalPeriodQueryDto
+    queryDto: RentalPeriodQueryDto,
     currentUser: UserDocument,
   ): Promise<any> {
-    // TODO: Create PaginatedRentalPeriodResponse
     const {
       page = 1,
       limit = 10,
@@ -36,11 +36,9 @@ export class RentalPeriodsService {
       leaseId,
     } = queryDto;
 
-    // mongo-tenant: Apply tenant isolation (mandatory for all users)
     const landlordId = this.getLandlordId(currentUser);
 
     if (!landlordId) {
-      // Users without tenantId cannot access any RentalPeriod
       return createEmptyPaginatedResponse(page, limit);
     }
 
@@ -118,7 +116,7 @@ export class RentalPeriodsService {
     return rentalPeriod;
   }
 
-  // todo merge with findall
+
   async findByLease(leaseId: string, currentUser: UserDocument) {
     const landlordId = this.getLandlordId(currentUser);
 
@@ -140,8 +138,6 @@ export class RentalPeriodsService {
       .populate('renewedTo', 'startDate endDate rentAmount')
       .exec();
 
-    // Get payments for each rental period
-    // todo check the posiibility of populate
     const rentalPeriodsWithPayments = await Promise.all(
       rentalPeriods.map(async (period) => {
         const transaction = await this.transactionModel

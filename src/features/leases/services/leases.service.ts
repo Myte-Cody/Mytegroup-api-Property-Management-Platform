@@ -183,15 +183,12 @@ export class LeasesService {
       throw new ForbiddenException('Cannot create lease: No tenant context');
     }
 
-    // Validate the lease data
     await this.validateLeaseCreation(createLeaseDto, landlordId);
 
-    // Create lease
     const LeaseWithTenant = this.leaseModel.byTenant(landlordId);
     const newLease = new LeaseWithTenant(createLeaseDto);
     const savedLease = await newLease.save();
 
-    // If lease is created as ACTIVE, create initial RentalPeriod and update unit status
     if (createLeaseDto.status === LeaseStatus.ACTIVE) {
       await this.activateLease(savedLease, landlordId);
     }
@@ -214,27 +211,22 @@ export class LeasesService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    // Find existing lease
     const existingLease = await this.leaseModel.byTenant(landlordId).findById(id).exec();
 
     if (!existingLease) {
       throw new NotFoundException(`Lease with ID ${id} not found`);
     }
 
-    // Validate lease update
     await this.validateLeaseUpdate(existingLease, updateLeaseDto, landlordId);
 
-    // Handle payment cycle changes
     if (updateLeaseDto.paymentCycle && updateLeaseDto.paymentCycle !== existingLease.paymentCycle) {
       await this.handlePaymentCycleChange(existingLease, updateLeaseDto.paymentCycle, landlordId);
     }
 
-    // Handle status changes
     if (updateLeaseDto.status && updateLeaseDto.status !== existingLease.status) {
       await this.handleStatusChange(existingLease, updateLeaseDto.status, landlordId);
     }
 
-    // Update the lease
     Object.assign(existingLease, updateLeaseDto);
     return await existingLease.save();
   }
@@ -258,10 +250,8 @@ export class LeasesService {
 
     const terminationDate = terminationData.terminationDate ? new Date(terminationData.terminationDate) : new Date();
 
-    // Calculate the proper end date based on payment cycle
     const calculatedEndDate = calculateTerminationEndDate(terminationDate, lease.paymentCycle);
 
-    // Update lease status
     lease.status = LeaseStatus.TERMINATED;
     lease.terminationDate = terminationDate;
     lease.terminationReason = terminationData.terminationReason;
@@ -271,7 +261,6 @@ export class LeasesService {
       .findOne({ lease: id, status: RentalPeriodStatus.ACTIVE })
       .exec();
 
-      // Update the rental period end date based on termination date and payment cycle
     if (currentRentalPeriod) {
       currentRentalPeriod.endDate = calculatedEndDate;
       currentRentalPeriod.status = RentalPeriodStatus.EXPIRED;
@@ -456,7 +445,6 @@ export class LeasesService {
       this.validateStatusTransition(existingLease.status, updateLeaseDto.status);
     }
 
-    // Grace period validation for active leases (business logic)
     if (updateLeaseDto.startDate || updateLeaseDto.endDate) {
       const startDate = new Date(updateLeaseDto.startDate || existingLease.startDate);
       const endDate = new Date(updateLeaseDto.endDate || existingLease.endDate);

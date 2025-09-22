@@ -27,27 +27,22 @@ export class InvitationsService {
   ) {}
 
   async create(createInvitationDto: CreateInvitationDto, currentUser: UserDocument): Promise<Invitation> {
-    // CASL: Check create permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     if (!ability.can(Action.Create, Invitation)) {
       throw new ForbiddenException('You do not have permission to create invitations');
     }
 
-    // Ensure user has tenant context
     if (!currentUser.tenantId) {
       throw new ForbiddenException('Cannot create invitation: No tenant context');
     }
 
     const landlordId = this.getLandlordId(currentUser);
 
-    // Get appropriate strategy for validation
     const strategy = this.invitationStrategyFactory.getStrategy(createInvitationDto.entityType);
 
-    // Validate entity-specific data
     await strategy.validateEntityData(createInvitationDto.entityData);
 
-    // Check if invitation already exists for this email and entity type
     const existingInvitation = await this.invitationModel
       .byTenant(landlordId)
       .findOne({
@@ -63,7 +58,6 @@ export class InvitationsService {
       );
     }
 
-    // Generate secure invitation token
     const invitationToken = this.generateInvitationToken();
 
     // Create invitation
@@ -81,12 +75,10 @@ export class InvitationsService {
     const InvitationWithTenant = this.invitationModel.byTenant(landlordId);
     const newInvitation = new InvitationWithTenant(invitationData);
 
-    // Validate using strategy before saving
     await strategy.validateInvitationData(newInvitation);
 
     const savedInvitation = await newInvitation.save();
 
-    // todo send invitation
     return savedInvitation;
   }
 
@@ -94,14 +86,12 @@ export class InvitationsService {
     queryDto: InvitationQueryDto,
     currentUser: UserDocument,
   ): Promise<PaginatedResponse<Invitation>> {
-    // CASL: Check read permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     if (!ability.can(Action.Read, Invitation)) {
       throw new ForbiddenException('You do not have permission to view invitations');
     }
 
-    // Ensure user has tenant context
     if (!currentUser.tenantId) {
       throw new ForbiddenException('Access denied: No tenant context');
     }
@@ -111,10 +101,8 @@ export class InvitationsService {
 
     let baseQuery = this.invitationModel.byTenant(landlordId).find();
 
-    // Apply CASL field-level filtering
     baseQuery = (baseQuery as any).accessibleBy(ability, Action.Read);
 
-    // Add search functionality
     if (search) {
       baseQuery = baseQuery.where({
         $or: [
@@ -151,7 +139,6 @@ export class InvitationsService {
   }
 
   async findByToken(token: string): Promise<Invitation> {
-    // First check if token exists at all
     const anyInvitation = await this.invitationModel
       .findOne({ invitationToken: token })
       .exec();
@@ -160,14 +147,12 @@ export class InvitationsService {
       throw new NotFoundException('Invitation token not found');
     }
 
-    // Check if invitation is in pending status
     if (anyInvitation.status !== InvitationStatus.PENDING) {
       throw new BadRequestException(
         `Invitation is no longer available. Status: ${anyInvitation.status}`,
       );
     }
 
-    // Check if invitation has expired
     if (anyInvitation.expiresAt <= new Date()) {
       throw new BadRequestException('Invitation has expired');
     }
@@ -177,14 +162,14 @@ export class InvitationsService {
 
   async acceptInvitation(token: string, acceptInvitationDto: AcceptInvitationDto): Promise<any> {
 
-
-    // Find invitation by token (this will throw NotFoundException if not found/invalid)
     const invitation = await this.findByToken(token);
 
-    // Get appropriate strategy
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found');
+    }
+
     const strategy = this.invitationStrategyFactory.getStrategy(invitation.entityType);
 
-    // Create the entity using the strategy
     const createdEntity = await strategy.createEntity(invitation, acceptInvitationDto);
 
     // Mark invitation as accepted

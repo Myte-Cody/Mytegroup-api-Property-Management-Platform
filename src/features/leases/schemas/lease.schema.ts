@@ -26,7 +26,6 @@ const RentIncreaseSchema = SchemaFactory.createForClass(RentIncrease);
 
 @Schema({ timestamps: true })
 export class Lease extends Document implements SoftDelete {
-  // Core Relationships
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Unit',
@@ -95,9 +94,6 @@ export class Lease extends Document implements SoftDelete {
   @Prop({ default: false })
   autoRenewal: boolean;
 
-  @Prop()
-  renewalNoticeDate?: Date;
-
   // Soft delete
   deleted: boolean;
   deletedAt?: Date;
@@ -105,7 +101,6 @@ export class Lease extends Document implements SoftDelete {
 
 export const LeaseSchema = SchemaFactory.createForClass(Lease);
 
-// todo why we don't have virtual in other fields
 LeaseSchema.virtual('media', {
   ref: 'Media',
   localField: '_id',
@@ -128,15 +123,15 @@ LeaseSchema.virtual('contracts', {
 });
 
 
-// todo check this index
 LeaseSchema.index(
-  { unit: 1, status: 1, tenant_id: 1 },
+  { unit: 1, status: 1 },
   {
     unique: true,
     partialFilterExpression: { status: LeaseStatus.ACTIVE },
-    name: 'unit_active_lease_tenant_unique',
+    name: 'unit_active_lease_unique',
   },
 );
+
 
 
 LeaseSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });

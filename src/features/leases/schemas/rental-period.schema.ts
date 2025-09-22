@@ -52,8 +52,6 @@ export class RentalPeriod extends Document implements SoftDelete {
   })
   status: RentalPeriodStatus;
 
-  // appliedRentIncrease is defined manually in schema creation
-  // todo verify uasge
   appliedRentIncrease?: AppliedRentIncrease;
 
   @Prop({
@@ -76,11 +74,9 @@ export class RentalPeriod extends Document implements SoftDelete {
 
 export const RentalPeriodSchema = SchemaFactory.createForClass(RentalPeriod);
 
-// Create separate schema for AppliedRentIncrease embedded document
+
 const AppliedRentIncreaseSchema = SchemaFactory.createForClass(AppliedRentIncrease);
 
-// Use the schema for the appliedRentIncrease field
-// todo what is this ?
 RentalPeriodSchema.add({
   appliedRentIncrease: {
     type: AppliedRentIncreaseSchema,
@@ -89,14 +85,13 @@ RentalPeriodSchema.add({
 });
 
 RentalPeriodSchema.index(
-  { lease: 1, status: 1, tenant_id: 1 },
+  { lease: 1, status: 1 },
   {
     unique: true,
     partialFilterExpression: { status: RentalPeriodStatus.ACTIVE },
     name: 'lease_active_rentalperiod_tenant_unique',
   },
 );
-
 
 
 RentalPeriodSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });

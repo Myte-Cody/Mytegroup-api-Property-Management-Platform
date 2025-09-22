@@ -33,7 +33,6 @@ export function generateTransactionSchedule(
         currentDate.setFullYear(currentDate.getFullYear() + 1);
         break;
       default:
-        // Default to monthly if unknown cycle
         currentDate.setMonth(currentDate.getMonth() + 1);
         break;
     }

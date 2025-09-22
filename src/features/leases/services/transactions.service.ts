@@ -13,7 +13,7 @@ import {
 } from '../../../common/utils/pagination.utils';
 import { MediaService } from '../../media/services/media.service';
 import { UserDocument } from '../../users/schemas/user.schema';
-import { MarkTransactionPaidDto, UploadTransactionProofDto } from '../dto';
+import { UploadTransactionProofDto } from '../dto';
 import { MarkTransactionAsPaidDto } from '../dto/mark-transaction-as-paid.dto';
 import { Lease } from '../schemas/lease.schema';
 import { Transaction } from '../schemas/transaction.schema';
@@ -162,7 +162,6 @@ export class TransactionsService {
     let transactionData = { ...createTransactionDto };
 
     if (!createTransactionDto.dueDate && createTransactionDto.rentalPeriod) {
-      // Fetch the rental period and lease to get the payment cycle
       const rentalPeriod = await this.rentalPeriodModel
         .byTenant(landlordId)
         .findById(createTransactionDto.rentalPeriod)

@@ -57,7 +57,6 @@ export class AutoRenewalService {
     this.logger.log(`Starting auto-renewal process with config: ${JSON.stringify(config)}`);
 
     try {
-      // Find eligible leases for renewal
       const eligibleLeases = await this.findEligibleLeases(config);
 
       this.logger.log(`Found ${eligibleLeases.length} eligible leases for auto-renewal`);
@@ -96,16 +95,18 @@ export class AutoRenewalService {
         autoRenewal: true,
         endDate: { $gte: new Date(cutoffDate) },
       })
-      .populate('unit')
+      .populate({
+        path: 'unit',
+        populate: {
+          path: 'property'
+        }
+      })
       .populate('tenant')
-      .populate('property')
       .exec();
-
 
     // Filter to only include leases that have an active rental period but no future periods
     const filtered = [];
     for (const lease of eligibleLeases) {
-      // Check if lease has an active rental period (required for renewal)
       const hasActiveRentalPeriod = await this.rentalPeriodModel
         .findOne({
           lease: lease._id,
@@ -113,21 +114,18 @@ export class AutoRenewalService {
         })
         .exec();
       if (!hasActiveRentalPeriod) {
-        // Skip leases without active rental periods
         continue;
       }
 
-      // Check if lease already has future renewal periods
       const hasFutureRentalPeriod = await this.rentalPeriodModel
         .findOne({
           lease: lease._id,
-          startDate: { $gt: new Date() }, // Future start date
+          startDate: { $gt: new Date() }, 
           status: { $in: [RentalPeriodStatus.ACTIVE, RentalPeriodStatus.PENDING] },
         })
         .exec();
 
       if (!hasFutureRentalPeriod) {
-        // Only include leases with active periods but no future renewals
         filtered.push(lease);
       }
     }
@@ -146,7 +144,7 @@ export class AutoRenewalService {
       } catch (error) {
         this.logger.error(`Error processing lease ${lease._id}:`, error);
         result.failed++;
-        const tenantIdentifier = (lease as any).tenant_id?.toString() || 'unknown';
+        const tenantIdentifier = (lease as any).tenantId?.toString() || 'unknown';
         result.errors.push({
           leaseId: lease._id.toString(),
           error: error.message,
@@ -171,8 +169,7 @@ export class AutoRenewalService {
     config: RenewalConfig,
     result: RenewalResult,
   ): Promise<void> {
-    // Get tenant ID from the lease's tenant_id field (mongo-tenant plugin)
-    const tenantIdentifier = (lease as any).tenant_id?.toString() || 'unknown';
+    const tenantIdentifier = (lease as any).tenantId?.toString() || 'unknown';
 
     this.logger.log(`Processing renewal for lease ${lease._id} (tenant: ${tenantIdentifier})`);
 
@@ -183,7 +180,6 @@ export class AutoRenewalService {
 
     const { newRentAmount, rentIncrease } = calculateRentIncrease(lease, config);
 
-    // Prepare renewal data
     const renewalData: RenewLeaseDto = {
       startDate: newStartDate,
       endDate: newEndDate,
@@ -205,8 +201,6 @@ export class AutoRenewalService {
     }
 
     // Create a system user context for the renewal process
-    // This ensures proper tenant isolation during renewal
-    // The mongo-tenant plugin adds tenant_id to the document
     const leaseContext = (lease as any).tenantId;
     this.logger.warn({lease, leaseContext})
     
@@ -223,7 +217,6 @@ export class AutoRenewalService {
       user_type: 'Admin'
     } as any;
 
-    // Execute the renewal
     try {
       const renewalResult = await this.leasesService.renewLease(
         lease._id.toString(),
@@ -247,7 +240,6 @@ export class AutoRenewalService {
       // TODO: Log renewal in audit system
     } catch (error) {
       console.log(error)
-      // Handle specific duplicate key error (lease already renewed)
       if (error.message?.includes('An active rental period already exists')) {
         this.logger.warn(`Lease ${lease._id} appears to already be renewed, skipping`);
         result.details.push({

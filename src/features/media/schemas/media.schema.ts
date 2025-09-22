@@ -79,11 +79,9 @@ export class Media extends Document implements SoftDelete {
   @Prop()
   url?: string; // Public URL (stored for S3/CDN, calculated for local)
 
-  // Collection/category for organization
   @Prop({ default: 'default', trim: true })
   collection_name: string; // 'gallery', 'documents', 'thumbnails', etc.
 
-  // Metadata for images and other files
   @Prop({ type: MediaMetadata })
   metadata?: MediaMetadata;
 

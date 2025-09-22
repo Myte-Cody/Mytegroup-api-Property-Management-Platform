@@ -26,7 +26,7 @@ export class StartDateBeforeEndDateValidator implements ValidatorConstraintInter
   validate(value: any, args: ValidationArguments) {
     const dto = args.object as CreateLeaseDto;
     if (!dto.startDate || !dto.endDate) {
-      return true; // Let other validators handle missing dates
+      return true;
     }
     return new Date(dto.startDate) < new Date(dto.endDate);
   }
