@@ -14,7 +14,7 @@ import {
 import { CreateLeaseDto, StartDateBeforeEndDateValidator, AutoRenewalRequiresRentIncreaseValidator } from './create-lease.dto';
 import { LeaseStatus } from '../../../common/enums/lease.enum';
 
-export class UpdateLeaseDto extends PartialType(OmitType(CreateLeaseDto, ['rentalPeriodEndDate'] as const)) {
+export class UpdateLeaseDto extends PartialType(CreateLeaseDto) {
   @ApiPropertyOptional({
     description: 'Date when lease was terminated',
     example: '2024-06-15T00:00:00.000Z',

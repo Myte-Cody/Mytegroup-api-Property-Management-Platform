@@ -187,17 +187,14 @@ export class LeasesService {
     // Validate the lease data
     await this.validateLeaseCreation(createLeaseDto, landlordId);
 
-    // Extract rentalPeriodEndDate and create lease without it
-    const { rentalPeriodEndDate, ...leaseData } = createLeaseDto;
-
     // Create lease
     const LeaseWithTenant = this.leaseModel.byTenant(landlordId);
-    const newLease = new LeaseWithTenant(leaseData);
+    const newLease = new LeaseWithTenant(createLeaseDto);
     const savedLease = await newLease.save();
 
     // If lease is created as ACTIVE, create initial RentalPeriod and update unit status
     if (createLeaseDto.status === LeaseStatus.ACTIVE) {
-      await this.activateLease(savedLease, landlordId, rentalPeriodEndDate);
+      await this.activateLease(savedLease, landlordId);
     }
 
     return savedLease;
@@ -366,8 +363,8 @@ export class LeasesService {
       // Link rental periods
       currentRentalPeriod.renewedTo = new Types.ObjectId(savedNewRentalPeriod._id.toString());
 
-      // Note: lease.endDate is now calculated from rental periods
-      // lease.endDate = renewalData.endDate;
+      // Update lease end date
+      lease.endDate = renewalData.endDate;
       lease.rentAmount = newRentAmount;
 
       // Create payment schedule for the new rental period
@@ -439,8 +436,6 @@ export class LeasesService {
       throw new NotFoundException('Tenant not found');
     }
 
-    // The property validation is no longer needed since we only need unit
-    // The unit already belongs to a property, so no validation required
 
     // Validate unit availability (must be available or already assigned to this lease)
     if (unit.availabilityStatus === UnitAvailabilityStatus.OCCUPIED) {
@@ -462,7 +457,7 @@ export class LeasesService {
     await this.validateNoOverlappingLeases(
       createLeaseDto.unit,
       new Date(createLeaseDto.startDate),
-      new Date(createLeaseDto.rentalPeriodEndDate),
+      new Date(createLeaseDto.endDate),
       landlordId
     );
   }
@@ -478,21 +473,34 @@ export class LeasesService {
     }
 
     // Grace period validation for active leases (business logic)
-    if (updateLeaseDto.startDate) {
-      const startDate = new Date(updateLeaseDto.startDate);
+    if (updateLeaseDto.startDate || updateLeaseDto.endDate) {
+      const startDate = new Date(updateLeaseDto.startDate || existingLease.startDate);
+      const endDate = new Date(updateLeaseDto.endDate || existingLease.endDate);
 
       if (existingLease.status === LeaseStatus.ACTIVE) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
         // Don't allow changing start date of active lease to past
-        if (startDate < today) {
+        if (updateLeaseDto.startDate && startDate < today) {
           throw new UnprocessableEntityException('Cannot change start date of active lease to a past date');
+        }
+
+        // Don't allow end date changes that would terminate lease immediately
+        if (updateLeaseDto.endDate && endDate <= today) {
+          throw new UnprocessableEntityException('Cannot set end date of active lease to today or past. Use terminate instead');
         }
       }
 
-      // Note: End date validation is no longer needed since endDate is calculated from rental periods
-      // Overlapping lease validation will be handled by rental period management
+      // Check for overlapping leases if dates are changing
+      const unitIdToValidate = updateLeaseDto.unit || existingLease.unit.toString();
+      await this.validateNoOverlappingLeases(
+        unitIdToValidate,
+        startDate,
+        endDate,
+        landlordId,
+        existingLease._id.toString()
+      );
     }
 
     // Validate unit if changing unit
@@ -590,22 +598,20 @@ export class LeasesService {
       const overlappingLease = overlappingLeases[0];
       const formatDate = (date: Date) => date.toISOString().split('T')[0];
       throw new UnprocessableEntityException(
-        `Unit already has a ${overlappingLease.status.toLowerCase()} lease starting ${formatDate(overlappingLease.startDate)}. ` +
+        `Unit already has a ${overlappingLease.status.toLowerCase()} lease for the period ${formatDate(overlappingLease.startDate)} to ${formatDate(overlappingLease.endDate)}. ` +
         `The requested period ${formatDate(startDate)} to ${formatDate(endDate)} overlaps with this existing lease.`
       );
     }
   }
 
-  private async activateLease(lease: Lease, landlordId: Types.ObjectId, rentalPeriodEndDate?: Date) {
+  private async activateLease(lease: Lease, landlordId: Types.ObjectId) {
     try {
-      // Use the provided rentalPeriodEndDate or fall back to lease creation data
-      const endDate = rentalPeriodEndDate || (lease as any).rentalPeriodEndDate;
 
       const RentalPeriodWithTenant = this.rentalPeriodModel.byTenant(landlordId);
       const initialRentalPeriod = new RentalPeriodWithTenant({
         lease: lease._id,
         startDate: lease.startDate,
-        endDate: endDate,
+        endDate: lease.endDate,
         rentAmount: lease.rentAmount,
         status: RentalPeriodStatus.ACTIVE,
       });
@@ -615,7 +621,7 @@ export class LeasesService {
       // Create payment schedule for the initial rental period
       const transactionSchedule = generateTransactionSchedule(
         lease.startDate,
-        endDate,
+        lease.endDate,
         lease.paymentCycle
       );
 
@@ -628,7 +634,6 @@ export class LeasesService {
         landlordId
       );
 
-      // Create security deposit transaction if lease has security deposit
       if (lease.isSecurityDeposit && lease.securityDepositAmount) {
         await this.createSecurityDepositTransaction(
           lease._id.toString(),

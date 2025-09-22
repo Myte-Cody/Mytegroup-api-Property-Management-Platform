@@ -46,9 +46,8 @@ export class Lease extends Document implements SoftDelete {
   @Prop({ required: true, index: true })
   startDate: Date;
 
-  // endDate is now calculated from the latest rental period
-  // @Prop({ required: true, index: true })
-  // endDate: Date;
+  @Prop({ required: true, index: true })
+  endDate: Date;
 
   @Prop({ required: true, min: 0 })
   rentAmount: number;
@@ -128,22 +127,6 @@ LeaseSchema.virtual('contracts', {
   match: { model_type: 'Lease', collection_name: 'contracts' },
 });
 
-LeaseSchema.virtual('rentalPeriods', {
-  ref: 'RentalPeriod',
-  localField: '_id',
-  foreignField: 'lease',
-});
-
-LeaseSchema.virtual('endDate').get(function() {
-  if ((this as any).rentalPeriods && (this as any).rentalPeriods.length > 0) {
-    const latestPeriod = (this as any).rentalPeriods.reduce((latest: any, current: any) => {
-      return new Date(current.endDate) > new Date(latest.endDate) ? current : latest;
-    });
-    return latestPeriod.endDate;
-  }
-  // Fallback for cases where rental periods aren't populated
-  return undefined;
-});
 
 // todo check this index
 LeaseSchema.index(
