@@ -6,13 +6,8 @@ import {
   IsOptional,
   IsString,
   MaxLength,
-  Validate,
-  ValidatorConstraint,
-  ValidatorConstraintInterface,
-  ValidationArguments
 } from 'class-validator';
-import { CreateLeaseDto, StartDateBeforeEndDateValidator, AutoRenewalRequiresRentIncreaseValidator } from './create-lease.dto';
-import { LeaseStatus } from '../../../common/enums/lease.enum';
+import { CreateLeaseDto } from './create-lease.dto';
 
 export class UpdateLeaseDto extends PartialType(CreateLeaseDto) {
   @ApiPropertyOptional({

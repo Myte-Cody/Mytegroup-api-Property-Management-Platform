@@ -20,19 +20,19 @@ import { Tenant } from '../../tenants/schema/tenant.schema';
 import { UserDocument } from '../../users/schemas/user.schema';
 import {
   CreateLeaseDto,
-  MarkPaymentPaidDto,
   RenewLeaseDto,
   TerminateLeaseDto,
   UpdateLeaseDto,
   UploadPaymentProofDto,
 } from '../dto';
 import { LeaseQueryDto } from '../dto/lease-query.dto';
-import { LeaseResponseDto, PaginatedLeasesResponseDto } from '../dto/lease-response.dto';
+import { PaginatedLeasesResponseDto } from '../dto/lease-response.dto';
 import { Lease } from '../schemas/lease.schema';
 import { Transaction } from '../schemas/transaction.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
 import { TransactionsService } from './transactions.service';
 import { generateTransactionSchedule, calculateTerminationEndDate } from '../utils/transaction-schedule.utils';
+import { calculateRentIncrease, validateRenewalStartDate } from '../utils/renewal.utils';
 
 @Injectable()
 export class LeasesService {
@@ -99,7 +99,6 @@ export class LeasesService {
     }
 
     if (propertyId) {
-      // Filter by property through unit relationship
       const unitsInProperty = await this.unitModel.byTenant(landlordId).find({ property: propertyId }).select('_id').exec();
       const unitIds = unitsInProperty.map(unit => unit._id);
       baseQuery = baseQuery.where({ unit: { $in: unitIds } });
@@ -117,7 +116,7 @@ export class LeasesService {
     sortObj[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
     const skip = (page - 1) * limit;
-    // todo use utils
+
     const [leases, total] = await Promise.all([
       baseQuery
         .clone()
@@ -323,30 +322,27 @@ export class LeasesService {
       throw new UnprocessableEntityException('No active rental period found for renewal');
     }
 
-    // Calculate new rent amount
-    let newRentAmount = currentRentalPeriod.rentAmount;
-    let appliedRentIncrease = null;
-
-    if (renewalData.rentIncrease) {
-      appliedRentIncrease = {
-        type: renewalData.rentIncrease.type,
-        amount: renewalData.rentIncrease.amount,
-        previousRent: currentRentalPeriod.rentAmount,
-      };
-
-      if (renewalData.rentIncrease.type === 'PERCENTAGE') {
-        newRentAmount =
-          currentRentalPeriod.rentAmount * (1 + renewalData.rentIncrease.amount / 100);
-      } else {
-        newRentAmount = currentRentalPeriod.rentAmount + renewalData.rentIncrease.amount;
-      }
+    try {
+      validateRenewalStartDate(new Date(renewalData.startDate), new Date(currentRentalPeriod.endDate));
+    } catch (error) {
+      throw new UnprocessableEntityException(error.message);
     }
 
-    // Mark current rental period as renewed
+    const rentCalculation = calculateRentIncrease(lease);
+    const newRentAmount = rentCalculation.newRentAmount;
+    let appliedRentIncrease = null;
+
+    if (rentCalculation.rentIncrease) {
+      appliedRentIncrease = {
+        type: rentCalculation.rentIncrease.type,
+        amount: rentCalculation.rentIncrease.amount,
+        previousRent: currentRentalPeriod.rentAmount,
+      };
+    }
+
     currentRentalPeriod.status = RentalPeriodStatus.RENEWED;
 
     try {
-      // Create new rental period
       const RentalPeriodWithTenant = this.rentalPeriodModel.byTenant(landlordId);
       const newRentalPeriod = new RentalPeriodWithTenant({
         lease: id,
@@ -360,14 +356,11 @@ export class LeasesService {
 
       const savedNewRentalPeriod = await newRentalPeriod.save();
 
-      // Link rental periods
       currentRentalPeriod.renewedTo = new Types.ObjectId(savedNewRentalPeriod._id.toString());
 
-      // Update lease end date
       lease.endDate = renewalData.endDate;
       lease.rentAmount = newRentAmount;
 
-      // Create payment schedule for the new rental period
       const transactionSchedule = generateTransactionSchedule(
         renewalData.startDate,
         renewalData.endDate,
@@ -383,7 +376,6 @@ export class LeasesService {
         landlordId
       );
 
-      // Save all changes
       await currentRentalPeriod.save();
       await lease.save();
 
@@ -400,19 +392,16 @@ export class LeasesService {
       throw new ForbiddenException('Access denied: No tenant context');
     }
 
-    // Find lease
     const lease = await this.leaseModel.byTenant(landlordId).findById(id).exec();
 
     if (!lease) {
       throw new NotFoundException(`Lease with ID ${id} not found`);
     }
 
-    // Only allow deletion of DRAFT leases
     if (lease.status !== LeaseStatus.DRAFT) {
       throw new UnprocessableEntityException('Only draft leases can be deleted');
     }
 
-    // Use soft delete instead of hard delete
     lease.deleted = true;
     await lease.save();
     return { message: 'Lease deleted successfully' };
@@ -421,13 +410,11 @@ export class LeasesService {
   // Helper Methods
 
   private async validateLeaseCreation(createLeaseDto: CreateLeaseDto, landlordId: Types.ObjectId) {
-    // Validate unit exists and is available
     const unit = await this.unitModel.byTenant(landlordId).findById(createLeaseDto.unit).exec();
     if (!unit) {
       throw new NotFoundException('Unit not found');
     }
 
-    // Validate tenant exists
     const tenant = await this.tenantModel
         .byTenant(landlordId)
         .findById(createLeaseDto.tenant)
@@ -436,10 +423,7 @@ export class LeasesService {
       throw new NotFoundException('Tenant not found');
     }
 
-
-    // Validate unit availability (must be available or already assigned to this lease)
     if (unit.availabilityStatus === UnitAvailabilityStatus.OCCUPIED) {
-      // Check if unit is occupied by a different lease
       const existingActiveLease = await this.leaseModel
         .byTenant(landlordId)
         .findOne({
@@ -528,8 +512,6 @@ export class LeasesService {
         }
       }
     }
-
-    // Note: Date validation, auto-renewal validation, and cross-field validation now handled by DTO
   }
 
   private validateStatusTransition(currentStatus: LeaseStatus, newStatus: LeaseStatus) {

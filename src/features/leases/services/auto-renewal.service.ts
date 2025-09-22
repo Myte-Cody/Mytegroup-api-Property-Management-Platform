@@ -8,6 +8,7 @@ import { Lease } from '../schemas/lease.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
 import { LeasesService } from './leases.service';
 import { RenewLeaseDto } from '../dto/lease-operations.dto';
+import { calculateRenewalDates, calculateRentIncrease } from '../utils/renewal.utils';
 
 export interface RenewalResult {
   processed: number;
@@ -175,26 +176,17 @@ export class AutoRenewalService {
 
     this.logger.log(`Processing renewal for lease ${lease._id} (tenant: ${tenantIdentifier})`);
 
-    // Calculate new lease dates
-    const newStartDate = new Date(lease.endDate);
-    newStartDate.setDate(newStartDate.getDate() + 1); // Start the day after current lease ends
+    const { startDate: newStartDate, endDate: newEndDate } = calculateRenewalDates(
+      lease.endDate,
+      config.defaultRenewalTermMonths
+    );
 
-    const newEndDate = new Date(newStartDate);
-    newEndDate.setMonth(newEndDate.getMonth() + config.defaultRenewalTermMonths);
-    newEndDate.setDate(newEndDate.getDate() - 1); // End the day before next term starts
-
-    // Calculate rent increase (if any)
-    const { newRentAmount, rentIncrease } = this.calculateRentIncrease(lease, config);
+    const { newRentAmount, rentIncrease } = calculateRentIncrease(lease, config);
 
     // Prepare renewal data
-    // We can pass either rentIncrease OR rentAmount, renewLease will handle both cases
     const renewalData: RenewLeaseDto = {
       startDate: newStartDate,
       endDate: newEndDate,
-      // Pass rentIncrease if we have one, otherwise renewLease will use current rent
-      ...(rentIncrease && { rentIncrease }),
-      // Optionally pass explicit rentAmount if no rent increase logic applies
-      ...(rentIncrease === null && newRentAmount !== lease.rentAmount && { rentAmount: newRentAmount }),
     };
 
     if (config.dryRun) {
@@ -276,51 +268,6 @@ export class AutoRenewalService {
     }
   }
 
-  private calculateRentIncrease(lease: Lease, config: RenewalConfig) {
-    let newRentAmount = lease.rentAmount;
-    let rentIncrease = null;
-
-    // Check if lease has predefined rent increase settings
-    if (lease.rentIncrease) {
-      rentIncrease = {
-        type: lease.rentIncrease.type,
-        amount: lease.rentIncrease.amount,
-        reason: lease.rentIncrease.reason || 'Auto-renewal rent increase',
-      };
-
-      if (lease.rentIncrease.type === 'PERCENTAGE') {
-        newRentAmount = lease.rentAmount * (1 + lease.rentIncrease.amount / 100);
-      } else {
-        newRentAmount = lease.rentAmount + lease.rentIncrease.amount;
-      }
-    } else if (config.defaultRentIncreasePercentage > 0) {
-      // Apply default rent increase if configured
-      const increaseAmount = config.defaultRentIncreasePercentage;
-
-      // Check if increase is within allowed limits
-      if (increaseAmount <= config.maxRentIncreasePercentage) {
-        rentIncrease = {
-          type: 'PERCENTAGE' as const,
-          amount: increaseAmount,
-          reason: 'Automatic annual rent increase',
-        };
-        newRentAmount = lease.rentAmount * (1 + increaseAmount / 100);
-      }
-    }
-
-    // Ensure rent increase doesn't exceed maximum allowed
-    const maxAllowedRent = lease.rentAmount * (1 + config.maxRentIncreasePercentage / 100);
-    if (newRentAmount > maxAllowedRent) {
-      this.logger.warn(`Rent increase for lease ${lease._id} exceeds maximum allowed. Capping at ${config.maxRentIncreasePercentage}%`);
-      newRentAmount = maxAllowedRent;
-      if (rentIncrease) {
-        rentIncrease.amount = config.maxRentIncreasePercentage;
-        rentIncrease.reason += ' (capped at maximum allowed increase)';
-      }
-    }
-
-    return { newRentAmount: Math.round(newRentAmount * 100) / 100, rentIncrease };
-  }
 
   async getRenewalPreview(configOverrides?: Partial<RenewalConfig>): Promise<RenewalResult> {
     // Force dry run for preview

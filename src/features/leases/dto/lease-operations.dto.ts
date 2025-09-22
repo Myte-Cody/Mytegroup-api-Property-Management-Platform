@@ -3,14 +3,10 @@ import { Type } from 'class-transformer';
 import {
   IsDate,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
   MaxLength,
-  Min,
-  ValidateNested,
 } from 'class-validator';
-import { RentIncreaseDto } from './create-lease.dto';
 
 export class TerminateLeaseDto {
   @ApiPropertyOptional({
@@ -52,25 +48,6 @@ export class RenewLeaseDto {
   @IsNotEmpty()
   endDate: Date;
 
-  @ApiPropertyOptional({
-    description: 'New rent amount (if different from current)',
-    example: 1350,
-    minimum: 0,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  rentAmount?: number;
-
-  @ApiPropertyOptional({
-    description: 'Rent increase details for renewal',
-    type: RentIncreaseDto,
-  })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => RentIncreaseDto)
-  rentIncrease?: RentIncreaseDto;
 
   @ApiPropertyOptional({
     description: 'Notes about the lease renewal',
