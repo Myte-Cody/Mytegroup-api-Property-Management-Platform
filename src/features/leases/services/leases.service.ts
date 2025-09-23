@@ -259,7 +259,7 @@ export class LeasesService {
 
     lease.status = LeaseStatus.TERMINATED;
     lease.terminationDate = terminationDate;
-    lease.endDate = terminationDate;
+
     if (terminationData.terminationReason) {
       lease.terminationReason = terminationData.terminationReason;
     }
