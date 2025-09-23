@@ -17,6 +17,15 @@ export interface RenewalDates {
 }
 
 /**
+ * Normalize a date to UTC start of day (00:00:00.000Z)
+ */
+export function normalizeToUTCStartOfDay(date: Date): Date {
+  const utcDate = new Date(date);
+  utcDate.setUTCHours(0, 0, 0, 0);
+  return utcDate;
+}
+
+/**
  * Calculate renewal start and end dates
  * Start date is the day after current lease ends
  * End date is calculated based on the renewal term in months
@@ -32,7 +41,10 @@ export function calculateRenewalDates(
   endDate.setMonth(endDate.getMonth() + renewalTermMonths);
   endDate.setDate(endDate.getDate() - 1); // End the day before next term starts
 
-  return { startDate, endDate };
+  return {
+    startDate: normalizeToUTCStartOfDay(startDate),
+    endDate: normalizeToUTCStartOfDay(endDate)
+  };
 }
 
 /**

@@ -32,7 +32,7 @@ import { Transaction } from '../schemas/transaction.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
 import { TransactionsService } from './transactions.service';
 import { generateTransactionSchedule, calculateTerminationEndDate } from '../utils/transaction-schedule.utils';
-import { calculateRentIncrease, validateRenewalStartDate } from '../utils/renewal.utils';
+import { calculateRentIncrease, validateRenewalStartDate, normalizeToUTCStartOfDay } from '../utils/renewal.utils';
 
 @Injectable()
 export class LeasesService {
@@ -335,8 +335,8 @@ export class LeasesService {
       const RentalPeriodWithTenant = this.rentalPeriodModel.byTenant(landlordId);
       const newRentalPeriod = new RentalPeriodWithTenant({
         lease: id,
-        startDate: renewalData.startDate,
-        endDate: renewalData.endDate,
+        startDate: normalizeToUTCStartOfDay(renewalData.startDate),
+        endDate: normalizeToUTCStartOfDay(renewalData.endDate),
         rentAmount: newRentAmount,
         status: RentalPeriodStatus.PENDING,
         appliedRentIncrease,
@@ -580,8 +580,8 @@ export class LeasesService {
       const RentalPeriodWithTenant = this.rentalPeriodModel.byTenant(landlordId);
       const initialRentalPeriod = new RentalPeriodWithTenant({
         lease: lease._id,
-        startDate: lease.startDate,
-        endDate: lease.endDate,
+        startDate: normalizeToUTCStartOfDay(lease.startDate),
+        endDate: normalizeToUTCStartOfDay(lease.endDate),
         rentAmount: lease.rentAmount,
         status: RentalPeriodStatus.ACTIVE,
       });
