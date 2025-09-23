@@ -16,7 +16,8 @@
     "db:seed": "ts-node -r tsconfig-paths/register src/cli.ts seed:all",
     "lease:renew": "ts-node -r tsconfig-paths/register src/scripts/lease-renewal.ts process",
     "lease:renew:preview": "ts-node -r tsconfig-paths/register src/scripts/lease-renewal.ts preview",
-    "lease:renew:live": "ts-node -r tsconfig-paths/register src/scripts/lease-renewal.ts process --no-dry-run"
+    "lease:renew:live": "ts-node -r tsconfig-paths/register src/scripts/lease-renewal.ts process --no-dry-run",
+    "status:update": "ts-node -r tsconfig-paths/register src/scripts/status-updater.ts"
   },
   "dependencies": {
     "@casl/ability": "^6.7.3",

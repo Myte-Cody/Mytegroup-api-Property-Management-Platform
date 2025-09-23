@@ -33,6 +33,8 @@ import { RentalPeriod } from '../schemas/rental-period.schema';
 import { TransactionsService } from './transactions.service';
 import { generateTransactionSchedule, calculateTerminationEndDate } from '../utils/transaction-schedule.utils';
 import { calculateRentIncrease, validateRenewalStartDate, normalizeToUTCStartOfDay } from '../utils/renewal.utils';
+import { getToday } from '../../../common/utils/date.utils';
+
 
 @Injectable()
 export class LeasesService {
@@ -461,8 +463,7 @@ export class LeasesService {
       const endDate = new Date(updateLeaseDto.endDate || existingLease.endDate);
 
       if (existingLease.status === LeaseStatus.ACTIVE) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const today = getToday();
 
         // Don't allow changing start date of active lease to past
         if (updateLeaseDto.startDate && startDate < today) {

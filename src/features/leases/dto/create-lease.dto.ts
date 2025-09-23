@@ -19,6 +19,7 @@ import {
   ValidationArguments,
 } from 'class-validator';
 import { LeaseStatus, PaymentCycle, RentIncreaseType } from '../../../common/enums/lease.enum';
+import { getToday } from '../../../common/utils/date.utils'
 
 // Custom validators
 @ValidatorConstraint({ name: 'startDateBeforeEndDate', async: false })
@@ -71,8 +72,7 @@ export class EndDateInFutureValidator implements ValidatorConstraintInterface {
   validate(value: any, args: ValidationArguments) {
     if (!value) return true;
     const endDate = new Date(value);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getToday();
     return endDate > today;
   }
 

@@ -1,6 +1,9 @@
 import { RentIncreaseType } from '../../../common/enums/lease.enum';
 import { Lease } from '../schemas/lease.schema';
 import { RenewalConfig } from '../../../config/renewal.config';
+import { normalizeToDate, addDaysToDate, addMonthsUTC } from '../../../common/utils/date.utils';
+
+export const normalizeToUTCStartOfDay = normalizeToDate;
 
 export interface RentIncreaseCalculation {
   newRentAmount: number;
@@ -17,16 +20,7 @@ export interface RenewalDates {
 }
 
 /**
- * Normalize a date to UTC start of day (00:00:00.000Z)
- */
-export function normalizeToUTCStartOfDay(date: Date): Date {
-  const utcDate = new Date(date);
-  utcDate.setUTCHours(0, 0, 0, 0);
-  return utcDate;
-}
-
-/**
- * Calculate renewal start and end dates
+ * Calculate renewal start and end dates (UTC-based)
  * Start date is the day after current lease ends
  * End date is calculated based on the renewal term in months
  */
@@ -34,16 +28,15 @@ export function calculateRenewalDates(
   currentEndDate: Date,
   renewalTermMonths: number
 ): RenewalDates {
-  const startDate = new Date(currentEndDate);
-  startDate.setDate(startDate.getDate() + 1); // Start the day after current lease ends
+  // Start the day after current lease ends
+  const startDate = addDaysToDate(currentEndDate, 1);
 
-  const endDate = new Date(startDate);
-  endDate.setMonth(endDate.getMonth() + renewalTermMonths);
-  endDate.setDate(endDate.getDate() - 1); // End the day before next term starts
+  // Calculate end date by adding months and subtracting 1 day
+  const endDate = addDaysToDate(addMonthsUTC(startDate, renewalTermMonths), -1);
 
   return {
-    startDate: normalizeToUTCStartOfDay(startDate),
-    endDate: normalizeToUTCStartOfDay(endDate)
+    startDate,
+    endDate
   };
 }
 
@@ -105,16 +98,16 @@ export function calculateRentIncrease(
 }
 
 /**
- * Validate that renewal start date follows the day-after rule
+ * Validate that renewal start date follows the day-after rule (UTC-based)
  */
 export function validateRenewalStartDate(
   renewalStartDate: Date,
   currentEndDate: Date
 ): void {
-  const expectedStartDate = new Date(currentEndDate);
-  expectedStartDate.setDate(expectedStartDate.getDate() + 1);
+  const expectedStartDate = addDaysToDate(currentEndDate, 1);
+  const normalizedRenewalStart = normalizeToDate(renewalStartDate);
 
-  if (renewalStartDate.getTime() !== expectedStartDate.getTime()) {
+  if (normalizedRenewalStart.getTime() !== expectedStartDate.getTime()) {
     throw new Error(
       `Renewal start date must be ${expectedStartDate.toISOString().split('T')[0]} (the day after current period ends)`
     );

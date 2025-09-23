@@ -4,6 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { RenewalConfig } from '../../../config/renewal.config';
 import { LeaseStatus, RentalPeriodStatus } from '../../../common/enums/lease.enum';
+import { addDaysToDate, getToday } from '../../../common/utils/date.utils';
 import { Lease } from '../schemas/lease.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
 import { LeasesService } from './leases.service';
@@ -86,8 +87,7 @@ export class AutoRenewalService {
   }
 
   private async findEligibleLeases(config: RenewalConfig): Promise<Lease[]> {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() + config.renewalWindowDays);
+    const cutoffDate = addDaysToDate(new Date(), config.renewalWindowDays);
 
     const eligibleLeases = await this.leaseModel
       .find({
@@ -120,7 +120,7 @@ export class AutoRenewalService {
       const hasFutureRentalPeriod = await this.rentalPeriodModel
         .findOne({
           lease: lease._id,
-          startDate: { $gt: new Date() }, 
+          startDate: { $gt: getToday() },
           status: { $in: [RentalPeriodStatus.ACTIVE, RentalPeriodStatus.PENDING] },
         })
         .exec();

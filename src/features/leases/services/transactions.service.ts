@@ -19,6 +19,7 @@ import { Lease } from '../schemas/lease.schema';
 import { Transaction } from '../schemas/transaction.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
 import { getFirstTransactionDueDate } from '../utils/transaction-schedule.utils';
+import { createDateRangeFilter } from '../../../common/utils/date.utils';
 
 @Injectable()
 export class TransactionsService {
@@ -77,9 +78,7 @@ export class TransactionsService {
 
 
     if (startDate || endDate) {
-      const dateFilter: any = {};
-      if (startDate) dateFilter.$gte = new Date(startDate);
-      if (endDate) dateFilter.$lte = new Date(endDate);
+      const dateFilter = createDateRangeFilter(startDate, endDate);
       baseQuery = baseQuery.where({ paidAt: dateFilter });
     }
 
