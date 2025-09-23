@@ -59,3 +59,24 @@ export class RenewLeaseDto {
   @MaxLength(1000)
   notes?: string;
 }
+
+export class ManualRenewLeaseDto {
+  @ApiProperty({
+    description: 'Desired lease end date (will be extended to complete the payment cycle)',
+    example: '2025-12-15T00:00:00.000Z',
+  })
+  @Type(() => Date)
+  @IsDate()
+  @IsNotEmpty()
+  desiredEndDate: Date;
+
+  @ApiPropertyOptional({
+    description: 'Notes about the lease renewal',
+    example: 'Tenant agreed to extension',
+    maxLength: 1000,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  notes?: string;
+}

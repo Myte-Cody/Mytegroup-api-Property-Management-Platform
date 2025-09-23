@@ -68,17 +68,16 @@ export function getFirstTransactionDueDate(
 }
 
 /**
- * Calculates the proper end date for a rental period when terminating a lease
- * based on the payment cycle and termination date
- * @param terminationDate - The date when the lease is being terminated
- * @param paymentCycle - The payment cycle of the lease
- * @returns The calculated end date for the rental period
+ * Completes a date to the end of its payment cycle
+ * @param inputDate - The date to complete to cycle end
+ * @param paymentCycle - The payment cycle to use for completion
+ * @returns The date extended to the end of the payment cycle
  */
-export function calculateTerminationEndDate(
-  terminationDate: Date,
+export function completeCycleEndDate(
+  inputDate: Date,
   paymentCycle: PaymentCycle
 ): Date {
-  const termDate = new Date(terminationDate);
+  const termDate = new Date(inputDate);
 
   switch (paymentCycle) {
     case PaymentCycle.WEEKLY:
@@ -111,4 +110,18 @@ export function calculateTerminationEndDate(
   }
 
   return normalizeToUTCStartOfDay(termDate);
+}
+
+/**
+ * Calculates the proper end date for a rental period when terminating a lease
+ * based on the payment cycle and termination date
+ * @param terminationDate - The date when the lease is being terminated
+ * @param paymentCycle - The payment cycle of the lease
+ * @returns The calculated end date for the rental period
+ */
+export function calculateTerminationEndDate(
+  terminationDate: Date,
+  paymentCycle: PaymentCycle
+): Date {
+  return completeCycleEndDate(terminationDate, paymentCycle);
 }

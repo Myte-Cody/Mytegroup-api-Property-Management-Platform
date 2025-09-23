@@ -24,6 +24,7 @@ import {
   TerminateLeaseDto,
   UpdateLeaseDto,
   UploadPaymentProofDto,
+  ManualRenewLeaseDto,
 } from '../dto';
 import { LeaseQueryDto } from '../dto/lease-query.dto';
 import { PaginatedLeasesResponseDto } from '../dto/lease-response.dto';
@@ -31,8 +32,9 @@ import { Lease } from '../schemas/lease.schema';
 import { Transaction } from '../schemas/transaction.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
 import { TransactionsService } from './transactions.service';
-import { generateTransactionSchedule, calculateTerminationEndDate } from '../utils/transaction-schedule.utils';
+import { generateTransactionSchedule, calculateTerminationEndDate, completeCycleEndDate } from '../utils/transaction-schedule.utils';
 import { calculateRentIncrease, validateRenewalStartDate, normalizeToUTCStartOfDay } from '../utils/renewal.utils';
+import { addDaysToDate } from '../../../common/utils/date.utils';
 import { getToday } from '../../../common/utils/date.utils';
 
 
@@ -324,6 +326,20 @@ export class LeasesService {
       throw new UnprocessableEntityException('No active rental period found for renewal');
     }
 
+    // Check if there are any future/pending rental periods (indicating lease already renewed)
+    const futureRentalPeriod = await this.rentalPeriodModel
+      .byTenant(landlordId)
+      .findOne({
+        lease: id,
+        status: RentalPeriodStatus.PENDING,
+        startDate: { $gt: currentRentalPeriod.endDate }
+      })
+      .exec();
+
+    if (futureRentalPeriod) {
+      throw new BadRequestException('Cannot renew lease: A future rental period already exists. The lease has already been renewed.');
+    }
+
     try {
       validateRenewalStartDate(new Date(renewalData.startDate), new Date(currentRentalPeriod.endDate));
     } catch (error) {
@@ -385,6 +401,81 @@ export class LeasesService {
     } catch (error) {
       throw error;
     }
+  }
+
+  async manualRenewLease(
+    id: string,
+    manualRenewalData: ManualRenewLeaseDto,
+    currentUser: UserDocument,
+  ): Promise<{ lease: Lease; newRentalPeriod: RentalPeriod }> {
+    const landlordId = this.getLandlordId(currentUser);
+
+    if (!landlordId) {
+      throw new ForbiddenException('Access denied: No tenant context');
+    }
+
+    // Fetch the lease to get current endDate and rent increase configuration
+    const lease = await this.leaseModel
+      .byTenant(landlordId)
+      .findById(id)
+      .populate('unit')
+      .populate('tenant')
+      .exec();
+
+    if (!lease) {
+      throw new NotFoundException('Lease not found');
+    }
+
+    if (lease.status !== LeaseStatus.ACTIVE) {
+      throw new BadRequestException(`Cannot renew lease with status '${lease.status}'. Only active leases can be renewed.`);
+    }
+
+    // Validate that the desired end date is after the current lease end date
+    if (manualRenewalData.desiredEndDate <= lease.endDate) {
+      throw new BadRequestException('Desired end date must be after current lease end date');
+    }
+
+    // Get current active rental period to determine correct start date
+    const currentRentalPeriod = await this.rentalPeriodModel
+      .byTenant(landlordId)
+      .findOne({ lease: id, status: RentalPeriodStatus.ACTIVE })
+      .exec();
+
+    if (!currentRentalPeriod) {
+      throw new UnprocessableEntityException('No active rental period found for renewal');
+    }
+
+    // Check if there are any future/pending rental periods (indicating lease already renewed)
+    const futureRentalPeriod = await this.rentalPeriodModel
+      .byTenant(landlordId)
+      .findOne({
+        lease: id,
+        status: RentalPeriodStatus.PENDING,
+        startDate: { $gt: currentRentalPeriod.endDate }
+      })
+      .exec();
+
+    if (futureRentalPeriod) {
+      throw new BadRequestException('Cannot renew lease: A future rental period already exists. The lease has already been renewed.');
+    }
+
+    // Complete the desired end date to the end of the payment cycle
+    const completedEndDate = completeCycleEndDate(manualRenewalData.desiredEndDate, lease.paymentCycle);
+
+    // Create the full renewal data for the existing renewLease function
+    // Start date must be the day after current rental period ends (as per existing validation)
+    // Use the same date utility function as the validation to ensure consistency
+    const startDate = addDaysToDate(currentRentalPeriod.endDate, 1);
+
+
+    const renewalData: RenewLeaseDto = {
+      startDate: startDate, // Start date = day after current rental period end date
+      endDate: completedEndDate, // End date = cycle-completed desired date
+      notes: manualRenewalData.notes,
+    };
+
+    // Use the existing renewLease function as a helper
+    return this.renewLease(id, renewalData, currentUser);
   }
 
   async remove(id: string, currentUser: UserDocument) {

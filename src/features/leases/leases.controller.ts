@@ -45,6 +45,7 @@ import {
   RenewLeaseDto,
   TerminateLeaseDto,
   UpdateLeaseDto,
+  ManualRenewLeaseDto,
   UploadPaymentProofDto,
 } from './dto';
 import { LeasesService } from './services/leases.service';
@@ -137,19 +138,19 @@ export class LeasesController {
 
   @Post(':id/renew')
   @CheckPolicies(new UpdateLeasePolicyHandler())
-  @ApiOperation({ summary: 'Renew a lease' })
+  @ApiOperation({ summary: 'Manually renew a lease' })
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
-  @ApiBody({ type: RenewLeaseDto })
+  @ApiBody({ type: ManualRenewLeaseDto })
   @ApiResponse({
     status: 200,
     description: 'Lease renewed successfully',
   })
   renew(
     @Param('id', MongoIdValidationPipe) id: string,
-    @Body() renewLeaseDto: RenewLeaseDto,
+    @Body() manualRenewLeaseDto: ManualRenewLeaseDto,
     @CurrentUser() user: User,
   ) {
-    return this.leasesService.renewLease(id, renewLeaseDto, user);
+    return this.leasesService.manualRenewLease(id, manualRenewLeaseDto, user);
   }
 
   @Delete(':id')
