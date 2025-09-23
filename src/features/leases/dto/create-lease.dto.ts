@@ -66,6 +66,21 @@ export class PercentageLimitValidator implements ValidatorConstraintInterface {
   }
 }
 
+@ValidatorConstraint({ name: 'endDateInFuture', async: false })
+export class EndDateInFutureValidator implements ValidatorConstraintInterface {
+  validate(value: any, args: ValidationArguments) {
+    if (!value) return true;
+    const endDate = new Date(value);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return endDate > today;
+  }
+
+  defaultMessage(args: ValidationArguments) {
+    return 'End date must be in the future';
+  }
+}
+
 export class RentIncreaseDto {
   @ApiProperty({
     description: 'Type of rent increase',
@@ -133,6 +148,7 @@ export class CreateLeaseDto {
   @IsDate({ message: 'Invalid end date format' })
   @IsNotEmpty({ message: 'End date is required' })
   @Validate(StartDateBeforeEndDateValidator)
+  @Validate(EndDateInFutureValidator)
   endDate: Date;
 
   @ApiProperty({
