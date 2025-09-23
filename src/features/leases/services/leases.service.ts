@@ -259,6 +259,7 @@ export class LeasesService {
 
     lease.status = LeaseStatus.TERMINATED;
     lease.terminationDate = terminationDate;
+    lease.endDate = terminationDate;
     if (terminationData.terminationReason) {
       lease.terminationReason = terminationData.terminationReason;
     }
@@ -280,6 +281,15 @@ export class LeasesService {
         lease: id,
         status: PaymentStatus.PENDING,
         dueDate: { $gt: terminationDate }
+      })
+      .exec();
+
+    // Delete rental periods that start after the termination date
+    await this.rentalPeriodModel
+      .byTenant(landlordId)
+      .deleteMany({
+        lease: id,
+        startDate: { $gt: terminationDate }
       })
       .exec();
 
@@ -336,7 +346,7 @@ export class LeasesService {
       };
     }
 
-    currentRentalPeriod.status = RentalPeriodStatus.RENEWED;
+    // currentRentalPeriod.status = RentalPeriodStatus.RENEWED;
 
     try {
       const RentalPeriodWithTenant = this.rentalPeriodModel.byTenant(landlordId);
