@@ -93,7 +93,7 @@ export class AutoRenewalService {
       .find({
         status: LeaseStatus.ACTIVE,
         autoRenewal: true,
-        endDate: { $gte: new Date(cutoffDate) },
+        endDate: { $lte: cutoffDate },
       })
       .populate({
         path: 'unit',

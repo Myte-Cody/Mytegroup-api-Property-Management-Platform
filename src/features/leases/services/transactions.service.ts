@@ -276,7 +276,7 @@ export class TransactionsService {
     const transactions = await this.transactionModel
       .byTenant(landlordId)
       .find({ lease: leaseId })
-      .sort({ paidAt: -1 })
+      .sort({ dueDate: 1 })
       .populate('rentalPeriod', 'startDate endDate rentAmount')
       .exec();
 
