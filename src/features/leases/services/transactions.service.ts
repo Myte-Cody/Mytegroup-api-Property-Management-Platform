@@ -254,7 +254,7 @@ export class TransactionsService {
       throw new BadRequestException('Only pending transactions can be deleted');
     }
 
-    await this.transactionModel.byTenant(landlordId).findByIdAndDelete(id);
+    await this.transactionModel.deleteById(id);
     return { message: 'Transaction deleted successfully' };
   }
 

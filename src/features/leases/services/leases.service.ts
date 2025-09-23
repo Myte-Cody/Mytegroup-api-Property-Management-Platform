@@ -275,23 +275,17 @@ export class LeasesService {
       await currentRentalPeriod.save();
     }
 
-    await this.transactionModel
-      .byTenant(landlordId)
-      .deleteMany({
-        lease: id,
-        status: PaymentStatus.PENDING,
-        dueDate: { $gt: terminationDate }
-      })
-      .exec();
+    await this.transactionModel.delete({
+      lease: id,
+      status: PaymentStatus.PENDING,
+      dueDate: { $gt: terminationDate }
+    });
 
     // Delete rental periods that start after the termination date
-    await this.rentalPeriodModel
-      .byTenant(landlordId)
-      .deleteMany({
-        lease: id,
-        startDate: { $gt: terminationDate }
-      })
-      .exec();
+    await this.rentalPeriodModel.delete({
+      lease: id,
+      startDate: { $gt: terminationDate }
+    });
 
     await this.unitModel.byTenant(landlordId).findByIdAndUpdate(lease.unit, {
       availabilityStatus: UnitAvailabilityStatus.VACANT,
@@ -721,14 +715,11 @@ export class LeasesService {
     }
 
     // Delete all pending transactions for the current rental period
-    await this.transactionModel
-      .byTenant(landlordId)
-      .deleteMany({
-        lease: lease._id,
-        rentalPeriod: currentRentalPeriod._id,
-        status: PaymentStatus.PENDING,
-      })
-      .exec();
+    await this.transactionModel.delete({
+      lease: lease._id,
+      rentalPeriod: currentRentalPeriod._id,
+      status: PaymentStatus.PENDING,
+    });
 
     // Generate new transaction schedule based on the new payment cycle
     // Calculate remaining period: from today to end of current rental period
