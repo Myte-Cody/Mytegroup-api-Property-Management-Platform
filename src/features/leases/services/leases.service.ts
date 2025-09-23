@@ -248,13 +248,20 @@ export class LeasesService {
       throw new NotFoundException(`Lease with ID ${id} not found`);
     }
 
-    const terminationDate = terminationData.terminationDate ? new Date(terminationData.terminationDate) : new Date();
+    // Validate that lease is active
+    if (lease.status !== LeaseStatus.ACTIVE) {
+      throw new BadRequestException(`Cannot terminate lease with status '${lease.status}'. Only active leases can be terminated.`);
+    }
+
+    const terminationDate = normalizeToUTCStartOfDay(terminationData.terminationDate);
 
     const calculatedEndDate = calculateTerminationEndDate(terminationDate, lease.paymentCycle);
 
     lease.status = LeaseStatus.TERMINATED;
     lease.terminationDate = terminationDate;
-    lease.terminationReason = terminationData.terminationReason;
+    if (terminationData.terminationReason) {
+      lease.terminationReason = terminationData.terminationReason;
+    }
 
     const currentRentalPeriod = await this.rentalPeriodModel
       .byTenant(landlordId)

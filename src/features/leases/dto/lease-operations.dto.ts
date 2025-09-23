@@ -9,24 +9,24 @@ import {
 } from 'class-validator';
 
 export class TerminateLeaseDto {
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'Date when lease is terminated',
     example: '2024-06-15T00:00:00.000Z',
   })
-  @IsOptional()
   @Type(() => Date)
   @IsDate()
-  terminationDate?: Date;
+  @IsNotEmpty()
+  terminationDate: Date;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Reason for lease termination',
     example: 'Tenant requested early termination',
     maxLength: 500,
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(500)
-  terminationReason: string;
+  terminationReason?: string;
 }
 
 export class RenewLeaseDto {

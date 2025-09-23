@@ -1,4 +1,5 @@
 import { PaymentCycle } from '../../../common/enums/lease.enum';
+import { normalizeToUTCStartOfDay } from './renewal.utils';
 
 /**
  * Generates a transaction schedule based on rental period dates and payment cycle
@@ -94,7 +95,7 @@ export function calculateTerminationEndDate(
     case PaymentCycle.QUARTERLY:
       // For quarterly: terminate at the end of the quarter
       const currentMonth = termDate.getMonth();
-      const quarterEndMonth = Math.floor(currentMonth / 3) * 3 + 2; // 2, 5, 8, 11 (Mar, Jun, Sep, Dec)
+      const quarterEndMonth = Math.floor(currentMonth / 3) * 3 + 2;
       termDate.setMonth(quarterEndMonth + 1, 0); // Last day of quarter
       break;
 
@@ -109,7 +110,5 @@ export function calculateTerminationEndDate(
       break;
   }
 
-  // Set to end of day
-  termDate.setHours(23, 59, 59, 999);
-  return termDate;
+  return normalizeToUTCStartOfDay(termDate);
 }
