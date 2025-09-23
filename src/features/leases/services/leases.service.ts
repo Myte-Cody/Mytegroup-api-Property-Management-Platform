@@ -32,7 +32,7 @@ import { Lease } from '../schemas/lease.schema';
 import { Transaction } from '../schemas/transaction.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
 import { TransactionsService } from './transactions.service';
-import { generateTransactionSchedule, calculateTerminationEndDate, completeCycleEndDate } from '../utils/transaction-schedule.utils';
+import { generateTransactionSchedule, completeFullCycle } from '../utils/transaction-schedule.utils';
 import { calculateRentIncrease, validateRenewalStartDate, normalizeToUTCStartOfDay } from '../utils/renewal.utils';
 import { addDaysToDate } from '../../../common/utils/date.utils';
 import { getToday } from '../../../common/utils/date.utils';
@@ -189,8 +189,14 @@ export class LeasesService {
 
     await this.validateLeaseCreation(createLeaseDto, landlordId);
 
+    // Apply full cycle completion to ensure duration is a multiple of payment cycles
+    const completedEndDate = completeFullCycle(createLeaseDto.startDate, createLeaseDto.endDate, createLeaseDto.paymentCycle);
+
     const LeaseWithTenant = this.leaseModel.byTenant(landlordId);
-    const newLease = new LeaseWithTenant(createLeaseDto);
+    const newLease = new LeaseWithTenant({
+      ...createLeaseDto,
+      endDate: completedEndDate // Use cycle-completed end date
+    });
     const savedLease = await newLease.save();
 
     if (createLeaseDto.status === LeaseStatus.ACTIVE) {
@@ -258,8 +264,29 @@ export class LeasesService {
     }
 
     const terminationDate = normalizeToUTCStartOfDay(terminationData.terminationDate);
+    const leaseEndDate = normalizeToUTCStartOfDay(new Date(lease.endDate));
 
-    const calculatedEndDate = calculateTerminationEndDate(terminationDate, lease.paymentCycle);
+    // Validate that termination date is not after lease end date
+    if (terminationDate > leaseEndDate) {
+      throw new BadRequestException(`Termination date cannot be after lease end date (${leaseEndDate.toISOString().split('T')[0]})`);
+    }
+
+    // Get current rental period first to use its start date for calculation
+    const currentRentalPeriod = await this.rentalPeriodModel
+      .byTenant(landlordId)
+      .findOne({ lease: id, status: RentalPeriodStatus.ACTIVE })
+      .exec();
+
+    if (!currentRentalPeriod) {
+      throw new BadRequestException('No active rental period found for termination');
+    }
+
+
+    const calculatedEndDate = completeFullCycle(
+      currentRentalPeriod.startDate,
+      terminationDate,
+      lease.paymentCycle
+    );
 
     lease.status = LeaseStatus.TERMINATED;
     lease.terminationDate = terminationDate;
@@ -268,16 +295,9 @@ export class LeasesService {
       lease.terminationReason = terminationData.terminationReason;
     }
 
-    const currentRentalPeriod = await this.rentalPeriodModel
-      .byTenant(landlordId)
-      .findOne({ lease: id, status: RentalPeriodStatus.ACTIVE })
-      .exec();
-
-    if (currentRentalPeriod) {
-      currentRentalPeriod.endDate = calculatedEndDate;
-      currentRentalPeriod.status = RentalPeriodStatus.EXPIRED;
-      await currentRentalPeriod.save();
-    }
+    currentRentalPeriod.endDate = calculatedEndDate;
+    currentRentalPeriod.status = RentalPeriodStatus.EXPIRED;
+    await currentRentalPeriod.save();
 
     await this.transactionModel.delete({
       lease: id,
@@ -459,18 +479,13 @@ export class LeasesService {
       throw new BadRequestException('Cannot renew lease: A future rental period already exists. The lease has already been renewed.');
     }
 
-    // Complete the desired end date to the end of the payment cycle
-    const completedEndDate = completeCycleEndDate(manualRenewalData.desiredEndDate, lease.paymentCycle);
-
-    // Create the full renewal data for the existing renewLease function
-    // Start date must be the day after current rental period ends (as per existing validation)
-    // Use the same date utility function as the validation to ensure consistency
+    // Complete the desired end date to ensure duration is a multiple of payment cycles
     const startDate = addDaysToDate(currentRentalPeriod.endDate, 1);
-
+    const completedEndDate = completeFullCycle(startDate, manualRenewalData.desiredEndDate, lease.paymentCycle);
 
     const renewalData: RenewLeaseDto = {
       startDate: startDate, // Start date = day after current rental period end date
-      endDate: completedEndDate, // End date = cycle-completed desired date
+      endDate: completedEndDate,
       notes: manualRenewalData.notes,
     };
 

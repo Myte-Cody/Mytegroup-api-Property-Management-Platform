@@ -68,60 +68,65 @@ export function getFirstTransactionDueDate(
 }
 
 /**
- * Completes a date to the end of its payment cycle
- * @param inputDate - The date to complete to cycle end
+ * Completes a desired end date to ensure the lease duration is a multiple of the payment cycle
+ * @param startDate - The start date of the lease
+ * @param desiredEndDate - The desired end date
  * @param paymentCycle - The payment cycle to use for completion
- * @returns The date extended to the end of the payment cycle
+ * @returns The date that ensures the duration is a multiple of payment cycles
  */
-export function completeCycleEndDate(
-  inputDate: Date,
+export function completeFullCycle(
+  startDate: Date,
+  desiredEndDate: Date,
   paymentCycle: PaymentCycle
 ): Date {
-  const termDate = new Date(inputDate);
+  let currentDate = new Date(startDate);
+  let cycles = 0;
+
+  // Count how many complete cycles fit between start and desired end date
+  while (currentDate < desiredEndDate) {
+    cycles++;
+
+    switch (paymentCycle) {
+      case PaymentCycle.WEEKLY:
+        currentDate.setDate(currentDate.getDate() + 7);
+        break;
+      case PaymentCycle.MONTHLY:
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        break;
+      case PaymentCycle.QUARTERLY:
+        currentDate.setMonth(currentDate.getMonth() + 3);
+        break;
+      case PaymentCycle.ANNUALLY:
+        currentDate.setFullYear(currentDate.getFullYear() + 1);
+        break;
+      default:
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        break;
+    }
+  }
+
+  // Now calculate the end date with the complete number of cycles
+  const completedEndDate = new Date(startDate);
 
   switch (paymentCycle) {
     case PaymentCycle.WEEKLY:
-      // For weekly: terminate at the end of the week (Sunday)
-      const daysUntilSunday = (7 - termDate.getDay()) % 7;
-      termDate.setDate(termDate.getDate() + daysUntilSunday);
+      completedEndDate.setDate(completedEndDate.getDate() + (cycles * 7));
       break;
-
     case PaymentCycle.MONTHLY:
-      // For monthly: terminate at the end of the month
-      termDate.setMonth(termDate.getMonth() + 1, 0); // Last day of current month
+      completedEndDate.setMonth(completedEndDate.getMonth() + cycles);
       break;
-
     case PaymentCycle.QUARTERLY:
-      // For quarterly: terminate at the end of the quarter
-      const currentMonth = termDate.getMonth();
-      const quarterEndMonth = Math.floor(currentMonth / 3) * 3 + 2;
-      termDate.setMonth(quarterEndMonth + 1, 0); // Last day of quarter
+      completedEndDate.setMonth(completedEndDate.getMonth() + (cycles * 3));
       break;
-
     case PaymentCycle.ANNUALLY:
-      // For annually: terminate at the end of the year
-      termDate.setMonth(11, 31); // December 31st
+      completedEndDate.setFullYear(completedEndDate.getFullYear() + cycles);
       break;
-
     default:
-      // Default to monthly behavior
-      termDate.setMonth(termDate.getMonth() + 1, 0);
+      completedEndDate.setMonth(completedEndDate.getMonth() + cycles);
       break;
   }
 
-  return normalizeToUTCStartOfDay(termDate);
+  return normalizeToUTCStartOfDay(completedEndDate);
 }
 
-/**
- * Calculates the proper end date for a rental period when terminating a lease
- * based on the payment cycle and termination date
- * @param terminationDate - The date when the lease is being terminated
- * @param paymentCycle - The payment cycle of the lease
- * @returns The calculated end date for the rental period
- */
-export function calculateTerminationEndDate(
-  terminationDate: Date,
-  paymentCycle: PaymentCycle
-): Date {
-  return completeCycleEndDate(terminationDate, paymentCycle);
-}
+
