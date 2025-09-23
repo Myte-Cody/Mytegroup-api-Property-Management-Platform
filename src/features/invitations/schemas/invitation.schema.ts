@@ -55,7 +55,6 @@ export class Invitation extends Document implements SoftDelete {
 export const InvitationSchema = SchemaFactory.createForClass(Invitation);
 
 InvitationSchema.index({ tenantId: 1, email: 1 }, { unique: true });
-InvitationSchema.index({ invitationToken: 1 }, { unique: true });
 
 InvitationSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 InvitationSchema.plugin(accessibleRecordsPlugin);
