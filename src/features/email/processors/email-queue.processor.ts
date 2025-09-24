@@ -1,4 +1,4 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { EmailService } from '../email.service';
@@ -19,7 +19,7 @@ export class EmailQueueProcessor extends WorkerHost {
   async process(job: Job<QueueEmailData>): Promise<any> {
     switch (job.name) {
       case 'send-email':
-        return this.handleEmail(job);
+        return await this.handleEmail(job);
       default:
         throw new Error(`Unknown job type: ${job.name}`);
     }
@@ -38,5 +38,10 @@ export class EmailQueueProcessor extends WorkerHost {
       );
       throw error;
     }
+  }
+
+  @OnWorkerEvent('active')
+  onActive(job: Job<QueueEmailData>) {
+    console.log(`Processing job ${job.id} of type ${job.name} with data ${job.data}...`);
   }
 }

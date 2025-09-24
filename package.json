@@ -20,10 +20,14 @@
     "status:update": "ts-node -r tsconfig-paths/register src/scripts/status-updater.ts"
   },
   "dependencies": {
+    "@bull-board/api": "^6.13.0",
+    "@bull-board/express": "^6.13.0",
+    "@bull-board/nestjs": "^6.13.0",
+    "@bull-board/ui": "^6.13.0",
     "@casl/ability": "^6.7.3",
     "@casl/mongoose": "^8.0.3",
     "@nestjs/bullmq": "^11.0.3",
-    "@nestjs/cli": "^1.8.0",
+    "@nestjs/cli": "^11.0.10",
     "@nestjs/common": "^11.1.6",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.6",
