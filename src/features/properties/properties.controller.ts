@@ -17,6 +17,7 @@ import {
   ApiConsumes,
   ApiOperation,
   ApiParam,
+  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { FormDataRequest } from 'nestjs-form-data';
@@ -28,6 +29,10 @@ import {
   ReadPropertyPolicyHandler,
   UpdatePropertyPolicyHandler,
 } from '../../common/casl/policies/property.policies';
+import {
+  CreateMediaPolicyHandler,
+  DeleteMediaPolicyHandler,
+} from '../../common/casl/policies/media.policies';
 import { CreateUnitPolicyHandler } from '../../common/casl/policies/unit.policies';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
@@ -40,6 +45,7 @@ import { CreateUnitDto } from './dto/create-unit.dto';
 import { PropertyQueryDto } from './dto/property-query.dto';
 import { UnitQueryDto } from './dto/unit-query.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
+import { UploadMediaDto } from './dto/upload-media.dto';
 import { PropertiesService } from './properties.service';
 import { UnitsService } from './units.service';
 
@@ -154,6 +160,87 @@ export class PropertiesController {
     return {
       success: true,
       data: media,
+    };
+  }
+
+  @Post(':id/media/upload')
+  @CheckPolicies(new CreateMediaPolicyHandler())
+  @FormDataRequest()
+  @ApiOperation({ summary: 'Upload media to property' })
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({ name: 'id', description: 'Property ID', type: String })
+  @ApiBody({ type: UploadMediaDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Media uploaded successfully',
+  })
+  async uploadPropertyMedia(
+    @Param('id', MongoIdValidationPipe) propertyId: string,
+    @Body() uploadMediaDto: UploadMediaDto,
+    @CurrentUser() user: User,
+  ) {
+    const property = await this.propertiesService.findOne(propertyId, user);
+
+    const media = await this.mediaService.upload(
+      uploadMediaDto.file,
+      property,
+      user,
+      uploadMediaDto.collection_name || 'property_photos',
+      undefined,
+      'Property',
+    );
+
+    return {
+      success: true,
+      data: media,
+      message: 'Media uploaded successfully',
+    };
+  }
+
+  @Delete(':id/media/:mediaId')
+  @CheckPolicies(new DeleteMediaPolicyHandler())
+  @ApiOperation({ summary: 'Delete property media' })
+  @ApiParam({ name: 'id', description: 'Property ID', type: String })
+  @ApiParam({ name: 'mediaId', description: 'Media ID', type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Media deleted successfully',
+  })
+  async deletePropertyMedia(
+    @Param('id', MongoIdValidationPipe) propertyId: string,
+    @Param('mediaId', MongoIdValidationPipe) mediaId: string,
+    @CurrentUser() user: User,
+  ) {
+    await this.propertiesService.findOne(propertyId, user);
+    await this.mediaService.deleteMedia(mediaId, user);
+
+    return {
+      success: true,
+      message: 'Media deleted successfully',
+    };
+  }
+
+  @Get(':id/media/:mediaId/url')
+  @CheckPolicies(new ReadPropertyPolicyHandler())
+  @ApiOperation({ summary: 'Get property media URL' })
+  @ApiParam({ name: 'id', description: 'Property ID', type: String })
+  @ApiParam({ name: 'mediaId', description: 'Media ID', type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Media URL retrieved successfully',
+  })
+  async getPropertyMediaUrl(
+    @Param('id', MongoIdValidationPipe) propertyId: string,
+    @Param('mediaId', MongoIdValidationPipe) mediaId: string,
+    @CurrentUser() user: User,
+  ) {
+    await this.propertiesService.findOne(propertyId, user);
+    const media = await this.mediaService.findOne(mediaId, user);
+    const url = await this.mediaService.getMediaUrl(media);
+
+    return {
+      success: true,
+      data: { url },
     };
   }
 }

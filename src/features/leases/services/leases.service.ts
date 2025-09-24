@@ -23,7 +23,6 @@ import {
   RenewLeaseDto,
   TerminateLeaseDto,
   UpdateLeaseDto,
-  UploadPaymentProofDto,
   ManualRenewLeaseDto,
 } from '../dto';
 import { LeaseQueryDto } from '../dto/lease-query.dto';
@@ -858,14 +857,6 @@ export class LeasesService {
     return this.transactionsService.getTransactionForRentalPeriod(leaseId, rentalPeriodId, currentUser);
   }
 
-  async submitPaymentProof(
-    leaseId: string,
-    rentalPeriodId: string,
-    submitDto: UploadPaymentProofDto,
-    currentUser: UserDocument,
-  ): Promise<Transaction> {
-    return this.transactionsService.submitTransactionProof(leaseId, rentalPeriodId, submitDto, currentUser);
-  }
 
 
   private async createTransactionsForSchedule(

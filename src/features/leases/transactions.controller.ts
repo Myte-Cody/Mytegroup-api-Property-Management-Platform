@@ -11,9 +11,11 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { FormDataRequest } from 'nestjs-form-data';
 import {
   ApiBearerAuth,
   ApiBody,
+  ApiConsumes,
   ApiOperation,
   ApiParam,
   ApiResponse,
@@ -27,6 +29,10 @@ import {
   ReadTransactionPolicyHandler,
   UpdateTransactionPolicyHandler,
 } from '../../common/casl/policies/transaction.policies';
+import {
+  CreateMediaPolicyHandler,
+  DeleteMediaPolicyHandler,
+} from '../../common/casl/policies/media.policies';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 import { MediaType } from '../media/schemas/media.schema';
@@ -41,6 +47,7 @@ import {
   UpdateTransactionDto,
 } from './dto';
 import { MarkTransactionAsPaidDto } from './dto/mark-transaction-as-paid.dto';
+import { UploadMediaDto } from '../properties/dto/upload-media.dto';
 import { TransactionsService } from './services/transactions.service';
 
 @ApiTags('Transactions')
@@ -249,5 +256,86 @@ export class TransactionsController {
     @CurrentUser() user: User
   ) {
     return this.transactionsService.markAsNotPaid(id, user);
+  }
+
+  @Post(':id/media/upload')
+  @CheckPolicies(new CreateMediaPolicyHandler())
+  @FormDataRequest()
+  @ApiOperation({ summary: 'Upload media to transaction' })
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({ name: 'id', description: 'Transaction ID', type: String })
+  @ApiBody({ type: UploadMediaDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Media uploaded successfully',
+  })
+  async uploadTransactionMedia(
+    @Param('id', MongoIdValidationPipe) transactionId: string,
+    @Body() uploadMediaDto: UploadMediaDto,
+    @CurrentUser() user: User,
+  ) {
+    const transaction = await this.transactionsService.findOne(transactionId, user);
+
+    const media = await this.mediaService.upload(
+      uploadMediaDto.file,
+      transaction,
+      user,
+      uploadMediaDto.collection_name || 'transaction_receipts',
+      undefined,
+      'Transaction',
+    );
+
+    return {
+      success: true,
+      data: media,
+      message: 'Media uploaded successfully',
+    };
+  }
+
+  @Delete(':id/media/:mediaId')
+  @CheckPolicies(new DeleteMediaPolicyHandler())
+  @ApiOperation({ summary: 'Delete transaction media' })
+  @ApiParam({ name: 'id', description: 'Transaction ID', type: String })
+  @ApiParam({ name: 'mediaId', description: 'Media ID', type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Media deleted successfully',
+  })
+  async deleteTransactionMedia(
+    @Param('id', MongoIdValidationPipe) transactionId: string,
+    @Param('mediaId', MongoIdValidationPipe) mediaId: string,
+    @CurrentUser() user: User,
+  ) {
+    await this.transactionsService.findOne(transactionId, user);
+    await this.mediaService.deleteMedia(mediaId, user);
+
+    return {
+      success: true,
+      message: 'Media deleted successfully',
+    };
+  }
+
+  @Get(':id/media/:mediaId/url')
+  @CheckPolicies(new ReadTransactionPolicyHandler())
+  @ApiOperation({ summary: 'Get transaction media URL' })
+  @ApiParam({ name: 'id', description: 'Transaction ID', type: String })
+  @ApiParam({ name: 'mediaId', description: 'Media ID', type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Media URL retrieved successfully',
+  })
+  async getTransactionMediaUrl(
+    @Param('id', MongoIdValidationPipe) transactionId: string,
+    @Param('mediaId', MongoIdValidationPipe) mediaId: string,
+    @CurrentUser() user: User,
+  ) {
+    await this.transactionsService.findOne(transactionId, user);
+    const media = await this.mediaService.findOne(mediaId, user);
+    const url = await this.mediaService.getMediaUrl(media);
+
+    return {
+      success: true,
+      data: { url },
+    };
   }
 }

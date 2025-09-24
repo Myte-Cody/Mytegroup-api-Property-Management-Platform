@@ -29,6 +29,10 @@ import {
   ReadLeasePolicyHandler,
   UpdateLeasePolicyHandler,
 } from '../../common/casl/policies/lease.policies';
+import {
+  CreateMediaPolicyHandler,
+  DeleteMediaPolicyHandler,
+} from '../../common/casl/policies/media.policies';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 import { MediaType } from '../media/schemas/media.schema';
@@ -46,10 +50,10 @@ import {
   TerminateLeaseDto,
   UpdateLeaseDto,
   ManualRenewLeaseDto,
-  UploadPaymentProofDto,
   TransactionSummaryDto,
   RentalPeriodResponseDto,
 } from './dto';
+import { UploadMediaDto } from '../properties/dto/upload-media.dto';
 import { LeasesService } from './services/leases.service';
 import { TransactionsService } from './services/transactions.service';
 import { RentalPeriodsService } from './services/rental-periods.service';
@@ -323,46 +327,6 @@ export class LeasesController {
     };
   }
 
-  @Patch(':id/rental-periods/:rentalPeriodId/pay/submit')
-  @CheckPolicies(new UpdateLeasePolicyHandler())
-  @FormDataRequest()
-  @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Submit payment proof (tenant action)' })
-  @ApiParam({ name: 'id', description: 'Lease ID', type: String })
-  @ApiParam({ name: 'rentalPeriodId', description: 'Rental Period ID', type: String })
-  @ApiBody({ type: UploadPaymentProofDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Payment proof submitted successfully',
-    type: TransactionResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad request - payment not in correct status',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Payment not found',
-  })
-  async submitPaymentProof(
-    @Param('id', MongoIdValidationPipe) leaseId: string,
-    @Param('rentalPeriodId', MongoIdValidationPipe) rentalPeriodId: string,
-    @Body() uploadPaymentProofDto: UploadPaymentProofDto,
-    @CurrentUser() user: User,
-  ) {
-    const payment = await this.leasesService.submitPaymentProof(
-      leaseId,
-      rentalPeriodId,
-      uploadPaymentProofDto,
-      user,
-    );
-
-    return {
-      success: true,
-      data: payment,
-      message: 'Payment proof submitted successfully',
-    };
-  }
 
   @Get(':id/transactions')
   @CheckPolicies(new ReadLeasePolicyHandler())
@@ -416,6 +380,87 @@ export class LeasesController {
     @CurrentUser() user: User,
   ) {
     return this.rentalPeriodsService.getCurrentRentalPeriod(leaseId, user);
+  }
+
+  @Post(':id/media/upload')
+  @CheckPolicies(new CreateMediaPolicyHandler())
+  @FormDataRequest()
+  @ApiOperation({ summary: 'Upload media to lease' })
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({ name: 'id', description: 'Lease ID', type: String })
+  @ApiBody({ type: UploadMediaDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Media uploaded successfully',
+  })
+  async uploadLeaseMedia(
+    @Param('id', MongoIdValidationPipe) leaseId: string,
+    @Body() uploadMediaDto: UploadMediaDto,
+    @CurrentUser() user: User,
+  ) {
+    const lease = await this.leasesService.findOne(leaseId, user);
+
+    const media = await this.mediaService.upload(
+      uploadMediaDto.file,
+      lease,
+      user,
+      uploadMediaDto.collection_name || 'lease_documents',
+      undefined,
+      'Lease',
+    );
+
+    return {
+      success: true,
+      data: media,
+      message: 'Media uploaded successfully',
+    };
+  }
+
+  @Delete(':id/media/:mediaId')
+  @CheckPolicies(new DeleteMediaPolicyHandler())
+  @ApiOperation({ summary: 'Delete lease media' })
+  @ApiParam({ name: 'id', description: 'Lease ID', type: String })
+  @ApiParam({ name: 'mediaId', description: 'Media ID', type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Media deleted successfully',
+  })
+  async deleteLeaseMedia(
+    @Param('id', MongoIdValidationPipe) leaseId: string,
+    @Param('mediaId', MongoIdValidationPipe) mediaId: string,
+    @CurrentUser() user: User,
+  ) {
+    await this.leasesService.findOne(leaseId, user);
+    await this.mediaService.deleteMedia(mediaId, user);
+
+    return {
+      success: true,
+      message: 'Media deleted successfully',
+    };
+  }
+
+  @Get(':id/media/:mediaId/url')
+  @CheckPolicies(new ReadLeasePolicyHandler())
+  @ApiOperation({ summary: 'Get lease media URL' })
+  @ApiParam({ name: 'id', description: 'Lease ID', type: String })
+  @ApiParam({ name: 'mediaId', description: 'Media ID', type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Media URL retrieved successfully',
+  })
+  async getLeaseMediaUrl(
+    @Param('id', MongoIdValidationPipe) leaseId: string,
+    @Param('mediaId', MongoIdValidationPipe) mediaId: string,
+    @CurrentUser() user: User,
+  ) {
+    await this.leasesService.findOne(leaseId, user);
+    const media = await this.mediaService.findOne(mediaId, user);
+    const url = await this.mediaService.getMediaUrl(media);
+
+    return {
+      success: true,
+      data: { url },
+    };
   }
 
 }
