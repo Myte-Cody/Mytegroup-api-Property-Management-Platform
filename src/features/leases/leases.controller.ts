@@ -47,9 +47,12 @@ import {
   UpdateLeaseDto,
   ManualRenewLeaseDto,
   UploadPaymentProofDto,
+  TransactionSummaryDto,
+  RentalPeriodResponseDto,
 } from './dto';
 import { LeasesService } from './services/leases.service';
 import { TransactionsService } from './services/transactions.service';
+import { RentalPeriodsService } from './services/rental-periods.service';
 
 @ApiTags('Leases')
 @ApiBearerAuth()
@@ -60,6 +63,7 @@ export class LeasesController {
     private readonly leasesService: LeasesService,
     private readonly transactionsService: TransactionsService,
     private readonly mediaService: MediaService,
+    private readonly rentalPeriodsService: RentalPeriodsService,
   ) {}
 
   @Get()
@@ -358,6 +362,60 @@ export class LeasesController {
       data: payment,
       message: 'Payment proof submitted successfully',
     };
+  }
+
+  @Get(':id/transactions')
+  @CheckPolicies(new ReadLeasePolicyHandler())
+  @ApiOperation({ summary: 'Get all transactions for a specific lease' })
+  @ApiParam({ name: 'id', description: 'Lease ID', type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'List of transactions for the lease',
+    type: [TransactionResponseDto],
+  })
+  getTransactions(
+    @Param('id', MongoIdValidationPipe) leaseId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.transactionsService.getTransactionsByLease(leaseId, user);
+  }
+
+  @Get(':id/transactions/summary')
+  @CheckPolicies(new ReadLeasePolicyHandler())
+  @ApiOperation({ summary: 'Get transaction summary analytics for a lease' })
+  @ApiParam({ name: 'id', description: 'Lease ID', type: String })
+  getTransactionSummary(
+    @Param('id', MongoIdValidationPipe) leaseId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.transactionsService.getTransactionSummary(leaseId, user);
+  }
+
+  @Get(':id/rental-periods')
+  @CheckPolicies(new ReadLeasePolicyHandler())
+  @ApiOperation({ summary: 'Get all rental periods for a specific lease' })
+  @ApiParam({ name: 'id', description: 'Lease ID', type: String })
+  getRentalPeriods(
+    @Param('id', MongoIdValidationPipe) leaseId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.rentalPeriodsService.findByLease(leaseId, user);
+  }
+
+  @Get(':id/rental-periods/current')
+  @CheckPolicies(new ReadLeasePolicyHandler())
+  @ApiOperation({ summary: 'Get current active rental period for a lease' })
+  @ApiParam({ name: 'id', description: 'Lease ID', type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Current active rental period',
+    type: RentalPeriodResponseDto,
+  })
+  getCurrentRentalPeriod(
+    @Param('id', MongoIdValidationPipe) leaseId: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.rentalPeriodsService.getCurrentRentalPeriod(leaseId, user);
   }
 
 }

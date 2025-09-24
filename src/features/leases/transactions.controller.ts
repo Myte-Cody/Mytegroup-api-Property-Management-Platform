@@ -135,37 +135,6 @@ export class TransactionsController {
     return this.transactionsService.remove(id, user);
   }
 
-  @Get('lease/:leaseId')
-  @CheckPolicies(new ReadTransactionPolicyHandler())
-  @ApiOperation({ summary: 'Get all transactions for a specific lease' })
-  @ApiParam({ name: 'leaseId', description: 'Lease ID', type: String })
-  @ApiResponse({
-    status: 200,
-    description: 'List of transactions for the lease',
-    type: [TransactionResponseDto],
-  })
-  getTransactionsByLease(
-    @Param('leaseId', MongoIdValidationPipe) leaseId: string,
-    @CurrentUser() user: User,
-  ) {
-    return this.transactionsService.getTransactionsByLease(leaseId, user);
-  }
-
-  @Get('lease/:leaseId/summary')
-  @CheckPolicies(new ReadTransactionPolicyHandler())
-  @ApiOperation({ summary: 'Get transaction summary analytics for a lease' })
-  @ApiParam({ name: 'leaseId', description: 'Lease ID', type: String })
-  @ApiResponse({
-    status: 200,
-    description: 'Transaction summary with analytics',
-    type: TransactionSummaryDto,
-  })
-  getTransactionSummary(
-    @Param('leaseId', MongoIdValidationPipe) leaseId: string,
-    @CurrentUser() user: User,
-  ) {
-    return this.transactionsService.getTransactionSummary(leaseId, user);
-  }
 
   @Get(':id/receipts')
   @CheckPolicies(new ReadTransactionPolicyHandler())

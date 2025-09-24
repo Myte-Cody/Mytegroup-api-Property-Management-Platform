@@ -46,34 +46,6 @@ export class RentalPeriodsController {
     return this.rentalPeriodsService.findOne(id, user);
   }
 
-  @Get('lease/:leaseId')
-  @CheckPolicies(new ReadRentalPeriodPolicyHandler())
-  @ApiOperation({ summary: 'Get all rental periods for a specific lease' })
-  @ApiParam({ name: 'leaseId', description: 'Lease ID', type: String })
-  @ApiResponse({
-    status: 200,
-    description: 'List of rental periods for the lease',
-    type: [RentalPeriodResponseDto],
-  })
-  findByLease(@Param('leaseId', MongoIdValidationPipe) leaseId: string, @CurrentUser() user: User) {
-    return this.rentalPeriodsService.findByLease(leaseId, user);
-  }
-
-  @Get('lease/:leaseId/current')
-  @CheckPolicies(new ReadRentalPeriodPolicyHandler())
-  @ApiOperation({ summary: 'Get current active rental period for a lease' })
-  @ApiParam({ name: 'leaseId', description: 'Lease ID', type: String })
-  @ApiResponse({
-    status: 200,
-    description: 'Current active rental period',
-    type: RentalPeriodResponseDto,
-  })
-  getCurrentRentalPeriod(
-    @Param('leaseId', MongoIdValidationPipe) leaseId: string,
-    @CurrentUser() user: User,
-  ) {
-    return this.rentalPeriodsService.getCurrentRentalPeriod(leaseId, user);
-  }
 
   @Get('lease/:leaseId/rent-history')
   @CheckPolicies(new ReadRentalPeriodPolicyHandler())
