@@ -40,6 +40,30 @@ export class Property extends Document implements SoftDelete {
 
 export const PropertySchema = SchemaFactory.createForClass(Property);
 
+// Virtual for media relationship
+PropertySchema.virtual('media', {
+  ref: 'Media',
+  localField: '_id',
+  foreignField: 'model_id',
+  match: { model_type: 'Property' },
+});
+
+// Virtual for property photos
+PropertySchema.virtual('photos', {
+  ref: 'Media',
+  localField: '_id',
+  foreignField: 'model_id',
+  match: { model_type: 'Property', collection_name: 'property_photos' },
+});
+
+// Virtual for property documents
+PropertySchema.virtual('documents', {
+  ref: 'Media',
+  localField: '_id',
+  foreignField: 'model_id',
+  match: { model_type: 'Property', collection_name: 'documents' },
+});
+
 // Add compound unique index for multi-tenant uniqueness
 PropertySchema.index(
   { name: 1, tenantId: 1 },

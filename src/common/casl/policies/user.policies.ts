@@ -30,21 +30,6 @@ export class CreateUserPolicyHandler implements IPolicyHandler {
     const canCreate = ability.can(Action.Create, User);
 
     if (!canCreate) return false;
-    // If trying to create an admin user, check if the current user is an admin
-    // if (context?.isAdmin === true) {
-    //   return user.isAdmin === true;
-    // }
-
-    // If not an admin, check if trying to create a user for a different organization
-    // if (!user.isAdmin && context?.organization) {
-    //   const userOrgId = user.organization?._id?.toString();
-    //   const targetOrgId = context.organization;
-
-    //   // Non-admin users can only create users within their own organization
-    //   if (userOrgId !== targetOrgId) {
-    //     return false;
-    //   }
-    // }
 
     return true;
   }

@@ -79,11 +79,9 @@ export class Media extends Document implements SoftDelete {
   @Prop()
   url?: string; // Public URL (stored for S3/CDN, calculated for local)
 
-  // Collection/category for organization
   @Prop({ default: 'default', trim: true })
   collection_name: string; // 'gallery', 'documents', 'thumbnails', etc.
 
-  // Metadata for images and other files
   @Prop({ type: MediaMetadata })
   metadata?: MediaMetadata;
 
@@ -97,6 +95,3 @@ export const MediaSchema = SchemaFactory.createForClass(Media);
 MediaSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 MediaSchema.plugin(accessibleRecordsPlugin);
 MediaSchema.plugin(mongoTenant);
-
-MediaSchema.index({ model_type: 1, model_id: 1, collection_name: 1 });
-MediaSchema.index({ tenant_id: 1, model_type: 1 });

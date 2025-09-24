@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsEnum,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Matches,
   MaxLength,
@@ -50,4 +51,13 @@ export class CreateUserDto {
   @IsEnum(UserType)
   @IsNotEmpty()
   user_type: UserType;
+
+  @ApiProperty({
+    example: '507f1f77bcf86cd799439011',
+    description: 'ID of the associated party (Landlord/Tenant/Contractor)',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  party_id?: string;
 }

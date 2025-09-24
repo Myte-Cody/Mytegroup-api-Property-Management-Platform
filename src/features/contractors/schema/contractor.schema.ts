@@ -17,11 +17,7 @@ export class Contractor extends Document implements SoftDelete {
 // plugin
 export const ContractorSchema = SchemaFactory.createForClass(Contractor);
 
-// Add compound unique index for multi-tenant uniqueness
-ContractorSchema.index(
-  { name: 1, tenant_id: 1 },
-  { unique: true, name: 'contractor_name_tenant_unique' },
-);
+ContractorSchema.index({ name: 1 }, { unique: true, name: 'contractor_name_tenant_unique' });
 
 ContractorSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 ContractorSchema.plugin(accessibleRecordsPlugin);

@@ -17,7 +17,7 @@ export class UsersService {
   ) {}
 
   async create(createUserDto: CreateUserDto, currentUser: UserDocument) {
-    const { username, email, password, user_type } = createUserDto;
+    const { username, email, password, user_type, party_id } = createUserDto;
 
     // Get tenantId from current user
     const landlordId =
@@ -63,7 +63,52 @@ export class UsersService {
       email,
       password: hashedPassword,
       user_type,
+      party_id, // Optional, can be set during creation
       tenantId: landlordId, // Set from current user
+    });
+
+    return await newUser.save();
+  }
+
+  async createFromInvitation(createUserDto: CreateUserDto, landlordId: string) {
+    const { username, email, password, user_type, party_id } = createUserDto;
+
+    // Check username uniqueness within the same landlord
+    const existingUsername = await this.userModel
+      .findOne({
+        username,
+        tenantId: landlordId,
+      })
+      .exec();
+    if (existingUsername) {
+      throw new UnprocessableEntityException(
+        `Username '${username}' is already taken within this organization`,
+      );
+    }
+
+    // Check email uniqueness within the same landlord
+    const existingEmail = await this.userModel
+      .findOne({
+        email,
+        tenantId: landlordId,
+      })
+      .exec();
+    if (existingEmail) {
+      throw new UnprocessableEntityException(
+        `Email '${email}' is already registered within this organization`,
+      );
+    }
+
+    const salt = await bcrypt.genSalt();
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const newUser = new this.userModel({
+      username,
+      email,
+      password: hashedPassword,
+      user_type,
+      party_id,
+      tenantId: landlordId,
     });
 
     return await newUser.save();
@@ -79,9 +124,7 @@ export class UsersService {
     }
 
     // Create ability for the current user with populated data
-    const ability = this.caslAuthorizationService.createAbilityForUser(
-      populatedUser as unknown as User & { isAdmin?: boolean },
-    );
+    const ability = this.caslAuthorizationService.createAbilityForUser(populatedUser);
 
     let baseQuery = (this.userModel.find() as any).accessibleBy(ability, Action.Read);
 

@@ -42,6 +42,27 @@ export class Unit extends Document implements SoftDelete {
 
 export const UnitSchema = SchemaFactory.createForClass(Unit);
 
+UnitSchema.virtual('media', {
+  ref: 'Media',
+  localField: '_id',
+  foreignField: 'model_id',
+  match: { model_type: 'Unit' },
+});
+
+UnitSchema.virtual('photos', {
+  ref: 'Media',
+  localField: '_id',
+  foreignField: 'model_id',
+  match: { model_type: 'Unit', collection_name: 'unit_photos' },
+});
+
+UnitSchema.virtual('documents', {
+  ref: 'Media',
+  localField: '_id',
+  foreignField: 'model_id',
+  match: { model_type: 'Unit', collection_name: 'documents' },
+});
+
 // Add compound unique index for unit number per property within landlordd
 UnitSchema.index(
   { unitNumber: 1, property: 1, tenantId: 1 },

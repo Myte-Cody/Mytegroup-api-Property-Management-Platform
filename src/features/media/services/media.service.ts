@@ -47,6 +47,7 @@ export class MediaService implements MediaServiceInterface {
     currentUser: User,
     collection: string = 'default',
     disk?: StorageDisk,
+    entityType?: string,
   ): Promise<Media> {
     // Validate file
     this.validateFile(file);
@@ -71,24 +72,29 @@ export class MediaService implements MediaServiceInterface {
     const originalName = file.originalname || file.originalName || file.name || 'unknown.jpg';
     const uniqueFilename = MediaUtils.generateUniqueFilename(originalName);
 
-    // Determine entity type
-    let entityType = entity?.constructor?.name || entity.model_type || 'UnknownModel';
-    if (entityType === 'MongoTenantModel' || entityType === 'model') {
+    // Determine entity type - use explicit parameter if provided
+    let determinedEntityType =
+      entityType || entity?.constructor?.name || entity.model_type || 'UnknownModel';
+    if (
+      determinedEntityType === 'MongoTenantModel' ||
+      determinedEntityType === 'model' ||
+      determinedEntityType === 'Object'
+    ) {
       // For mongo-tenant models, try to determine type from schema or properties
       if (entity?.address && entity?.name && !entity?.property) {
-        entityType = 'Property';
+        determinedEntityType = 'Property';
       } else if (entity?.property && entity?.unitNumber !== undefined) {
-        entityType = 'Unit';
+        determinedEntityType = 'Unit';
       } else if (entity?.email && entity?.user_type) {
-        entityType = 'User';
+        determinedEntityType = 'User';
       } else {
         // Fallback to a more generic approach
-        entityType = entity?.schema?.modelName || 'UnknownModel';
+        determinedEntityType = entity?.schema?.modelName || 'UnknownModel';
       }
     }
 
     const storagePath = MediaUtils.generateStoragePath(
-      entityType,
+      determinedEntityType,
       entity?._id?.toString() || 'unknown',
       uniqueFilename,
       collection,
@@ -104,7 +110,7 @@ export class MediaService implements MediaServiceInterface {
     const fileSize = file.size || file.length || 0;
 
     const mediaData = {
-      model_type: entityType,
+      model_type: determinedEntityType,
       model_id: entity?._id,
       tenantId: landlordId,
       name: originalName,
