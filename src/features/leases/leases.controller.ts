@@ -45,7 +45,7 @@ import {
   LeaseResponseDto,
   ManualRenewLeaseDto,
   PaginatedLeasesResponseDto,
-  RefundSecurityDepositDto,
+  ProcessDepositAssessmentDto,
   RentalPeriodResponseDto,
   TerminateLeaseDto,
   TransactionResponseDto,
@@ -257,39 +257,54 @@ export class LeasesController {
     };
   }
 
-  @Patch(':id/refund-security-deposit')
-  @CheckPolicies(new UpdateLeasePolicyHandler())
-  @ApiOperation({ summary: 'Refund security deposit for a lease' })
+  @Get(':id/deposit-assessment')
+  @CheckPolicies(new ReadLeasePolicyHandler())
+  @ApiOperation({ summary: 'Get deposit assessment status and details for a lease' })
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
-  @ApiBody({ type: RefundSecurityDepositDto })
   @ApiResponse({
     status: 200,
-    description: 'Security deposit refunded successfully',
-    type: LeaseResponseDto,
+    description: 'Deposit assessment details retrieved successfully',
   })
   @ApiResponse({
     status: 400,
-    description: 'Bad request - lease has no security deposit or already refunded',
+    description: 'Lease has no security deposit',
   })
   @ApiResponse({
     status: 404,
     description: 'Lease not found',
   })
-  async refundSecurityDeposit(
+  async getDepositAssessment(
     @Param('id', MongoIdValidationPipe) leaseId: string,
-    @Body() refundSecurityDepositDto: RefundSecurityDepositDto,
     @CurrentUser() user: User,
   ) {
-    const updatedLease = await this.leasesService.refundSecurityDeposit(
+    const assessment = await this.leasesService.getDepositAssessment(leaseId, user);
+
+    return {
+      success: true,
+      data: assessment,
+    };
+  }
+
+  @Post(':id/deposit-assessment')
+  @CheckPolicies(new UpdateLeasePolicyHandler())
+  @ApiOperation({ summary: 'Process deposit assessment and refund security deposit' })
+  @ApiParam({ name: 'id', description: 'Lease ID', type: String })
+  @ApiBody({ type: ProcessDepositAssessmentDto })
+  async processDepositAssessment(
+    @Param('id', MongoIdValidationPipe) leaseId: string,
+    @Body() processDepositAssessmentDto: ProcessDepositAssessmentDto,
+    @CurrentUser() user: User,
+  ) {
+    const updatedLease = await this.leasesService.processDepositAssessment(
       leaseId,
-      refundSecurityDepositDto.refundReason,
+      processDepositAssessmentDto,
       user,
     );
 
     return {
       success: true,
       data: updatedLease,
-      message: 'Security deposit refunded successfully',
+      message: 'Deposit assessment processed and security deposit refunded successfully',
     };
   }
 

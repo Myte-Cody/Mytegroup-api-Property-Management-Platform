@@ -10,6 +10,7 @@ import { Types } from 'mongoose';
 import {
   LeaseStatus,
   PaymentCycle,
+  PaymentMethod,
   PaymentStatus,
   PaymentType,
   RentalPeriodStatus,
@@ -783,9 +784,9 @@ export class LeasesService {
     }
   }
 
-  async refundSecurityDeposit(
+  async processDepositAssessment(
     leaseId: string,
-    refundReason: string,
+    assessmentDto: any,
     currentUser: UserDocument,
   ): Promise<any> {
     const landlordId = this.getLandlordId(currentUser);
@@ -804,13 +805,60 @@ export class LeasesService {
       throw new UnprocessableEntityException('Security deposit has already been refunded');
     }
 
+    // Validate that final refund amount doesn't exceed security deposit amount
+    if (assessmentDto.finalRefundAmount > lease.securityDepositAmount) {
+      throw new UnprocessableEntityException(
+        `Final refund amount (${assessmentDto.finalRefundAmount}) cannot exceed security deposit amount (${lease.securityDepositAmount})`
+      );
+    }
+
+    // Calculate total deductions
+    const damageTotal = assessmentDto.damageItems?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0;
+    const totalDeductions =
+      damageTotal +
+      (assessmentDto.cleaningCosts || 0) +
+      (assessmentDto.unpaidRent || 0) +
+      (assessmentDto.otherCharges || 0);
+
+    // Validate that finalRefundAmount matches calculation
+    const expectedRefundAmount = lease.securityDepositAmount - totalDeductions;
+    if (Math.abs(assessmentDto.finalRefundAmount - expectedRefundAmount) > 0.01) {
+      throw new UnprocessableEntityException(
+        `Final refund amount (${assessmentDto.finalRefundAmount}) does not match calculated amount (${expectedRefundAmount})`
+      );
+    }
+
+    // Create deposit assessment
+    const depositAssessment = {
+      assessmentDate: new Date(),
+      damageItems: assessmentDto.damageItems || [],
+      cleaningCosts: assessmentDto.cleaningCosts || 0,
+      unpaidRent: assessmentDto.unpaidRent || 0,
+      otherCharges: assessmentDto.otherCharges || 0,
+      totalDeductions,
+      finalRefundAmount: assessmentDto.finalRefundAmount,
+      assessmentNotes: assessmentDto.assessmentNotes,
+      status: 'completed'
+    };
+
+    // Create both refund and deduction transactions
+    await this.createDepositSettlementTransactions(
+      leaseId,
+      lease.securityDepositAmount,
+      totalDeductions,
+      assessmentDto,
+      landlordId,
+    );
+
+    // Update lease with assessment and refund information
     const updatedLease = await this.leaseModel
       .byTenant(landlordId)
       .findByIdAndUpdate(
         leaseId,
         {
+          depositAssessment,
           securityDepositRefundedAt: new Date(),
-          securityDepositRefundReason: refundReason,
+          securityDepositRefundReason: assessmentDto.refundReason,
         },
         { new: true },
       )
@@ -822,6 +870,32 @@ export class LeasesService {
       .exec();
 
     return updatedLease;
+  }
+
+  async getDepositAssessment(leaseId: string, currentUser: UserDocument): Promise<any> {
+    const landlordId = this.getLandlordId(currentUser);
+
+    const lease = await this.leaseModel
+      .byTenant(landlordId)
+      .findById(leaseId)
+      .select('isSecurityDeposit securityDepositAmount depositAssessment securityDepositRefundedAt')
+      .exec();
+
+    if (!lease) {
+      throw new NotFoundException('Lease not found');
+    }
+
+    if (!lease.isSecurityDeposit) {
+      throw new UnprocessableEntityException('This lease does not have a security deposit');
+    }
+
+    return {
+      hasDeposit: lease.isSecurityDeposit,
+      depositAmount: lease.securityDepositAmount,
+      assessment: lease.depositAssessment,
+      isRefunded: !!lease.securityDepositRefundedAt,
+      refundedAt: lease.securityDepositRefundedAt
+    };
   }
 
   private async handleStatusChange(
@@ -940,6 +1014,46 @@ export class LeasesService {
     });
 
     await securityDepositTransaction.save();
+  }
+
+  private async createDepositSettlementTransactions(
+    leaseId: string,
+    fullDepositAmount: number,
+    totalDeductions: number,
+    assessmentDto: any,
+    landlordId: any,
+  ): Promise<void> {
+    const TransactionWithTenant = this.transactionModel.byTenant(landlordId);
+
+    // Always create refund transaction (negative amount - money going TO tenant)
+    const refundTransaction = new TransactionWithTenant({
+      lease: leaseId,
+      amount: -fullDepositAmount, // Negative amount - money flowing to tenant
+      type: PaymentType.DEPOSIT_REFUND,
+      status: PaymentStatus.PROCESSED,
+      paidAt: new Date(),
+      notes: `Security deposit refund: ${assessmentDto.refundReason}`,
+      paymentMethod: PaymentMethod.BANK_TRANSFER, // Default method for refunds
+      // No dueDate for refunds since they're processed immediately
+    });
+
+    await refundTransaction.save();
+
+    // Create deduction transaction only if there are deductions (positive amount)
+    if (totalDeductions > 0) {
+      const deductionTransaction = new TransactionWithTenant({
+        lease: leaseId,
+        amount: totalDeductions, // Positive amount - money kept by landlord
+        type: PaymentType.DEPOSIT_DEDUCTION,
+        status: PaymentStatus.PROCESSED,
+        paidAt: new Date(),
+        notes: `Security deposit deductions`,
+        paymentMethod: PaymentMethod.OTHER, // No actual payment method for deductions
+        // No dueDate for deductions since they're processed immediately
+      });
+
+      await deductionTransaction.save();
+    }
   }
 
   private getLandlordId(currentUser: UserDocument): Types.ObjectId | null {

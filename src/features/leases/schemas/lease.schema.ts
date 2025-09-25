@@ -24,6 +24,56 @@ export class RentIncrease {
 
 const RentIncreaseSchema = SchemaFactory.createForClass(RentIncrease);
 
+@Schema()
+export class DamageItem {
+  @Prop({ required: true, maxlength: 200 })
+  description: string;
+
+  @Prop({ required: true, min: 0 })
+  cost: number;
+
+  @Prop({ maxlength: 500 })
+  notes?: string;
+}
+
+const DamageItemSchema = SchemaFactory.createForClass(DamageItem);
+
+@Schema()
+export class DepositAssessment {
+  @Prop()
+  assessmentDate: Date;
+
+  @Prop({ type: [DamageItemSchema], default: [] })
+  damageItems: DamageItem[];
+
+  @Prop({ min: 0, default: 0 })
+  cleaningCosts: number;
+
+  @Prop({ min: 0, default: 0 })
+  unpaidRent: number;
+
+  @Prop({ min: 0, default: 0 })
+  otherCharges: number;
+
+  @Prop({ required: true, min: 0 })
+  totalDeductions: number;
+
+  @Prop({ required: true, min: 0 })
+  finalRefundAmount: number;
+
+  @Prop({ maxlength: 1000 })
+  assessmentNotes?: string;
+
+  @Prop({
+    type: String,
+    enum: ['pending', 'completed', 'disputed'],
+    default: 'pending'
+  })
+  status: string;
+}
+
+const DepositAssessmentSchema = SchemaFactory.createForClass(DepositAssessment);
+
 @Schema({ timestamps: true })
 export class Lease extends Document implements SoftDelete {
   @Prop({
@@ -62,6 +112,9 @@ export class Lease extends Document implements SoftDelete {
 
   @Prop({ maxlength: 500 })
   securityDepositRefundReason?: string;
+
+  @Prop({ type: DepositAssessmentSchema })
+  depositAssessment?: DepositAssessment;
 
   @Prop({
     type: String,

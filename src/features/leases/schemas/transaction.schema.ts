@@ -23,11 +23,11 @@ export class Transaction extends Document implements SoftDelete {
   })
   rentalPeriod?: Types.ObjectId;
 
-  @Prop({ required: true, min: 0 })
+  @Prop({ required: true })
   amount: number;
 
-  @Prop({ required: true, index: true })
-  dueDate: Date;
+  @Prop({ index: true })
+  dueDate?: Date;
 
   @Prop({ index: true })
   paidAt?: Date;

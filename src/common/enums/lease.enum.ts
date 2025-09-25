@@ -37,6 +37,8 @@ export enum PaymentStatus {
 export enum PaymentType {
   RENT = 'RENT',
   DEPOSIT = 'DEPOSIT',
+  DEPOSIT_REFUND = 'DEPOSIT_REFUND',
+  DEPOSIT_DEDUCTION = 'DEPOSIT_DEDUCTION',
   LATE_FEE = 'LATE_FEE',
   FEES = 'FEES',
   MAINTENANCE = 'MAINTENANCE',
