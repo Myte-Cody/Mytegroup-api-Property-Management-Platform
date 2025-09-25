@@ -5,6 +5,7 @@ import { EmailService } from './email.service';
 import { EmailQueueProcessor } from './processors/email-queue.processor';
 import { AuthEmailService } from './services/auth-email.service';
 import { EmailQueueService } from './services/email-queue.service';
+import { InvitationEmailService } from './services/invitation-email.service';
 import { TemplateService } from './services/template.service';
 import { WelcomeEmailService } from './services/welcome-email.service';
 
@@ -30,6 +31,7 @@ import { WelcomeEmailService } from './services/welcome-email.service';
     EmailQueueService,
     WelcomeEmailService,
     AuthEmailService,
+    InvitationEmailService,
     EmailQueueProcessor,
   ],
   exports: [
@@ -38,6 +40,7 @@ import { WelcomeEmailService } from './services/welcome-email.service';
     EmailQueueService,
     WelcomeEmailService,
     AuthEmailService,
+    InvitationEmailService,
   ],
 })
 export class EmailModule {}
