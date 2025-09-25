@@ -5,7 +5,6 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-import { SchedulerModule } from './scheduler/scheduler.module';
 import { CommonModule } from './common/common.module';
 import configuration from './config/configuration';
 import renewalConfig from './config/renewal.config';
@@ -19,6 +18,7 @@ import { MediaModule } from './features/media/media.module';
 import { PropertiesModule } from './features/properties/properties.module';
 import { TenantsModule } from './features/tenants/tenant.module';
 import { UsersModule } from './features/users/users.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 
 @Module({
   imports: [

@@ -69,13 +69,13 @@
       </div>
       <div class='content'>
         <h2>Hello {{capitalize recipientName}}!</h2>
-        
+
         {{#if isTenant}}
           <p>Your lease for the following property has been activated:</p>
         {{else}}
           <p>A lease for the following property has been activated:</p>
         {{/if}}
-        
+
         <div class='info-box'>
           <h3>Lease Details</h3>
           <div class='property-details'>
@@ -89,7 +89,7 @@
             </div>
             <div class='detail-row'>
               <span class='detail-label'>Address:</span>
-              <span>{{propertyAddress}}</span>
+              <span>{{formatAddress propertyAddress}}</span>
             </div>
             <div class='detail-row'>
               <span class='detail-label'>Lease Start:</span>
@@ -101,13 +101,14 @@
             </div>
             <div class='detail-row'>
               <span class='detail-label'>Monthly Rent:</span>
-              <span>${{formatMoney monthlyRent}}</span>
+              <span>${{monthlyRent}}</span>
             </div>
           </div>
         </div>
 
         {{#if isTenant}}
-          <p>Welcome to your new home! Your lease is now active and you can access all tenant features on our platform.</p>
+          <p>Welcome to your new home! Your lease is now active and you can access all tenant
+            features on our platform.</p>
         {{else}}
           <p>The lease has been successfully activated and all parties have been notified.</p>
         {{/if}}

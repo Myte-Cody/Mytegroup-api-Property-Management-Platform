@@ -75,9 +75,9 @@
       </div>
       <div class='content'>
         <h2>Hello {{capitalize recipientName}}!</h2>
-        
+
         <p>This email is to confirm that the lease for the following property has been terminated:</p>
-        
+
         <div class='info-box'>
           <h3>Lease Details</h3>
           <div class='property-details'>
@@ -91,7 +91,7 @@
             </div>
             <div class='detail-row'>
               <span class='detail-label'>Address:</span>
-              <span>{{propertyAddress}}</span>
+              <span>{{formatAddress propertyAddress}}</span>
             </div>
             <div class='detail-row'>
               <span class='detail-label'>Original Lease End:</span>
@@ -116,7 +116,8 @@
               <li>Your move-out date is scheduled for {{formatDate moveOutDate}}</li>
               <li>A property inspection will be conducted on {{formatDate inspectionDate}}</li>
               <li>Please ensure all personal belongings are removed by the move-out date</li>
-              <li>Your security deposit will be processed according to the terms in your lease agreement</li>
+              <li>Your security deposit will be processed according to the terms in your lease
+                agreement</li>
             </ul>
           </div>
         {{else}}
@@ -139,7 +140,8 @@
           <p><a href='{{dashboardUrl}}' class='button'>Go to Dashboard</a></p>
         {{/if}}
 
-        <p>If you have any questions regarding this lease termination, please contact your property manager.</p>
+        <p>If you have any questions regarding this lease termination, please contact your property
+          manager.</p>
       </div>
       <div class='footer'>
         <p>Best regards,<br />The Property Management Team</p>

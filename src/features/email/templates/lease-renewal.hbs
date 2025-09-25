@@ -75,21 +75,24 @@
       </div>
       <div class='content'>
         <h2>Hello {{capitalize recipientName}}!</h2>
-        
+
         {{#if isAutoRenewal}}
           <div class='action-required'>
             <h3>Auto-Renewal Notice</h3>
-            <p>Your lease will be automatically renewed on {{formatDate renewalDate}} according to your lease agreement.</p>
+            <p>Your lease will be automatically renewed on
+              {{formatDate renewalDate}}
+              according to your lease agreement.</p>
           </div>
           <p>Your lease for the following property will be automatically renewed:</p>
         {{else}}
           <div class='action-required'>
             <h3>Action Required: Lease Renewal</h3>
-            <p>Your lease is coming up for renewal. Please review the details below and respond by {{formatDate responseDeadline}}.</p>
+            <p>Your lease is coming up for renewal. Please review the details below and respond by
+              {{formatDate responseDeadline}}.</p>
           </div>
           <p>We'd like to offer you the opportunity to renew your lease for the following property:</p>
         {{/if}}
-        
+
         <div class='info-box'>
           <h3>Lease Details</h3>
           <div class='property-details'>
@@ -116,25 +119,27 @@
             {{#if newMonthlyRent}}
               <div class='detail-row'>
                 <span class='detail-label'>Current Monthly Rent:</span>
-                <span>${{formatMoney currentMonthlyRent}}</span>
+                <span>${{currentMonthlyRent}}</span>
               </div>
               <div class='detail-row'>
                 <span class='detail-label'>New Monthly Rent:</span>
-                <span>${{formatMoney newMonthlyRent}}</span>
+                <span>${{newMonthlyRent}}</span>
               </div>
             {{else}}
               <div class='detail-row'>
                 <span class='detail-label'>Monthly Rent:</span>
-                <span>${{formatMoney currentMonthlyRent}}</span>
+                <span>${{currentMonthlyRent}}</span>
               </div>
             {{/if}}
           </div>
         </div>
 
         {{#if isAutoRenewal}}
-          <p>If you wish to opt out of the automatic renewal, please contact your property manager as soon as possible.</p>
+          <p>If you wish to opt out of the automatic renewal, please contact your property manager
+            as soon as possible.</p>
         {{else}}
-          <p>To accept this renewal offer, please log in to your account and follow the renewal process, or contact your property manager directly.</p>
+          <p>To accept this renewal offer, please log in to your account and follow the renewal
+            process, or contact your property manager directly.</p>
         {{/if}}
 
         {{#if dashboardUrl}}

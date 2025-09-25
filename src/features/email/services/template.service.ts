@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as handlebars from 'handlebars';
 import * as path from 'path';
+import { formatAddress } from '../../../common/utils/address-formatter';
 import { EmailTemplate, TemplateContext } from '../interfaces/email.interface';
 
 @Injectable()
@@ -37,6 +38,10 @@ export class TemplateService {
 
     handlebars.registerHelper('capitalize', (str: string) => {
       return str.charAt(0).toUpperCase() + str.slice(1);
+    });
+
+    handlebars.registerHelper('formatAddress', (address: any) => {
+      return formatAddress(address);
     });
   }
 
