@@ -5,15 +5,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { Types } from 'mongoose';
 import { PaymentStatus, PaymentType } from '../../../common/enums/lease.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
-import { createDateRangeFilter } from '../../../common/utils/date.utils';
+import { addDaysToDate, createDateRangeFilter } from '../../../common/utils/date.utils';
 import {
   createEmptyPaginatedResponse,
   createPaginatedResponse,
 } from '../../../common/utils/pagination.utils';
+import { PaymentEmailService } from '../../email/services/payment-email.service';
 import { MediaService } from '../../media/services/media.service';
-import { UserDocument } from '../../users/schemas/user.schema';
+import { User, UserDocument } from '../../users/schemas/user.schema';
 import { UploadTransactionProofDto } from '../dto';
 import { MarkTransactionAsPaidDto } from '../dto/mark-transaction-as-paid.dto';
 import { Lease } from '../schemas/lease.schema';
@@ -30,7 +32,10 @@ export class TransactionsService {
     private readonly leaseModel: AppModel<Lease>,
     @InjectModel(RentalPeriod.name)
     private readonly rentalPeriodModel: AppModel<RentalPeriod>,
+    @InjectModel(User.name)
+    private readonly userModel: AppModel<User>,
     private readonly mediaService: MediaService,
+    private readonly paymentEmailService: PaymentEmailService,
   ) {}
 
   async findAllPaginated(queryDto: any, currentUser: UserDocument): Promise<any> {
@@ -124,7 +129,7 @@ export class TransactionsService {
       .findById(id)
       .populate({
         path: 'lease',
-        select: 'unit tenant terms',
+        select: 'unit tenant terms tenantId',
         populate: [
           {
             path: 'unit',
@@ -475,6 +480,9 @@ export class TransactionsService {
 
     await transaction.save();
 
+    // Send payment confirmation email
+    await this.sendPaymentConfirmation(transaction._id.toString());
+
     return transaction;
   }
 
@@ -510,5 +518,277 @@ export class TransactionsService {
     return currentUser.tenantId && typeof currentUser.tenantId === 'object'
       ? (currentUser.tenantId as any)._id
       : currentUser.tenantId;
+  }
+
+  /**
+   * Send payment reminder emails for transactions due in 7 days
+   * @param baseDate Optional reference date (defaults to today)
+   */
+  async sendPaymentDueReminders(baseDate?: Date): Promise<void> {
+    try {
+      // Use provided baseDate or default to today
+      const referenceDate = baseDate ? new Date(baseDate) : new Date();
+
+      // Calculate the target due date (7 days from reference date)
+      const targetDueDate = addDaysToDate(referenceDate, 7);
+
+      // Set start and end of the target day
+      const startOfDay = new Date(targetDueDate);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(targetDueDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // Find all pending transactions due on the target date
+      const transactions = await this.transactionModel
+        .find({
+          status: PaymentStatus.PENDING,
+          dueDate: {
+            $gte: startOfDay,
+            $lte: endOfDay,
+          },
+        })
+        .populate({
+          path: 'lease',
+          select: 'unit tenant',
+          populate: [
+            {
+              path: 'unit',
+              select: 'unitNumber type',
+              populate: { path: 'property', select: 'name address' },
+            },
+            { path: 'tenant', select: 'name email' },
+          ],
+        })
+        .populate('rentalPeriod', 'startDate endDate rentAmount')
+        .exec();
+
+      if (transactions.length === 0) {
+        console.log(
+          `No payment reminders to send for due date ${targetDueDate.toISOString().split('T')[0]}`,
+        );
+        return;
+      }
+
+      // Process each transaction and send reminder
+      const reminderData = [];
+
+      for (const transaction of transactions) {
+        const lease = transaction.lease as any;
+        const tenant = lease.tenant as any;
+        const unit = lease.unit as any;
+        const property = unit.property as any;
+        const rentalPeriod = transaction.rentalPeriod as any;
+
+        // Find tenant users to notify
+        const users = await this.findTenantUsers(tenant._id, lease.tenantId);
+
+        // Send email to each tenant user
+        for (const user of users) {
+          reminderData.push({
+            recipientName: tenant.name,
+            recipientEmail: user.email,
+            propertyName: property.name,
+            unitIdentifier: unit.unitNumber,
+            amount: transaction.amount,
+            dueDate: transaction.dueDate,
+            periodStartDate: rentalPeriod.startDate,
+            periodEndDate: rentalPeriod.endDate,
+            paymentUrl: `${process.env.FRONTEND_URL}/tenant/payments/${transaction._id}`,
+          });
+        }
+      }
+
+      // Send all reminders
+      if (reminderData.length > 0) {
+        await this.paymentEmailService.sendBulkPaymentReminders(reminderData);
+        console.log(
+          `Sent ${reminderData.length} payment reminder emails for due date ${targetDueDate.toISOString().split('T')[0]}`,
+        );
+      }
+    } catch (error) {
+      console.error('Failed to send payment due reminders:', error);
+    }
+  }
+
+  /**
+   * Send payment overdue notices for transactions that are 2 days past due
+   * @param baseDate Optional reference date (defaults to today)
+   */
+  async sendPaymentOverdueNotices(baseDate?: Date): Promise<void> {
+    try {
+      // Use provided baseDate or default to today
+      const referenceDate = baseDate ? new Date(baseDate) : new Date();
+
+      // Calculate the target due date (2 days before reference date)
+      const targetDueDate = addDaysToDate(referenceDate, -2);
+
+      // Set start and end of the target day
+      const startOfDay = new Date(targetDueDate);
+      startOfDay.setHours(0, 0, 0, 0);
+
+      const endOfDay = new Date(targetDueDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // Find all pending transactions due on the target date
+      const transactions = await this.transactionModel
+        .find({
+          status: PaymentStatus.PENDING,
+          dueDate: {
+            $gte: startOfDay,
+            $lte: endOfDay,
+          },
+        })
+        .populate({
+          path: 'lease',
+          select: 'unit tenant lateFee tenantId',
+          populate: [
+            {
+              path: 'unit',
+              select: 'unitNumber type',
+              populate: { path: 'property', select: 'name address' },
+            },
+            { path: 'tenant', select: 'name email' },
+          ],
+        })
+        .populate('rentalPeriod', 'startDate endDate rentAmount')
+        .exec();
+
+      if (transactions.length === 0) {
+        console.log(
+          `No overdue notices to send for due date ${targetDueDate.toISOString().split('T')[0]}`,
+        );
+        return;
+      }
+
+      // Process each transaction and send overdue notice
+      const overdueData = [];
+
+      for (const transaction of transactions) {
+        const lease = transaction.lease as any;
+        const tenant = lease.tenant as any;
+        const unit = lease.unit as any;
+        const property = unit.property as any;
+        const rentalPeriod = transaction.rentalPeriod as any;
+
+        // Calculate days late
+        const daysLate = 2; // Fixed at 2 days for this notification
+
+        // Calculate late fee if applicable
+        const lateFee = lease.lateFee || 0;
+        const totalDue = transaction.amount + lateFee;
+
+        // Find tenant users to notify
+        const users = await this.findTenantUsers(tenant._id, lease.tenantId);
+
+        // Send email to each tenant user
+        for (const user of users) {
+          overdueData.push({
+            recipientName: tenant.name,
+            recipientEmail: user.email,
+            propertyName: property.name,
+            unitIdentifier: unit.unitNumber,
+            amount: transaction.amount,
+            dueDate: transaction.dueDate,
+            periodStartDate: rentalPeriod.startDate,
+            periodEndDate: rentalPeriod.endDate,
+            daysLate,
+            lateFee,
+            totalDue,
+            paymentUrl: `${process.env.FRONTEND_URL}/tenant/payments/${transaction._id}`,
+          });
+        }
+      }
+
+      // Send all overdue notices
+      if (overdueData.length > 0) {
+        await this.paymentEmailService.sendBulkPaymentOverdueNotices(overdueData);
+        console.log(
+          `Sent ${overdueData.length} payment overdue notices for due date ${targetDueDate.toISOString().split('T')[0]}`,
+        );
+      }
+    } catch (error) {
+      console.error('Failed to send payment overdue notices:', error);
+    }
+  }
+
+  /**
+   * Send payment confirmation email when a payment is processed
+   * @param transactionId ID of the processed transaction
+   */
+  async sendPaymentConfirmation(transactionId: string): Promise<void> {
+    try {
+      // Find the transaction
+      const transaction = await this.transactionModel
+        .findById(transactionId)
+        .populate({
+          path: 'lease',
+          select: 'unit tenant tenantId',
+          populate: [
+            {
+              path: 'unit',
+              select: 'unitNumber type',
+              populate: { path: 'property', select: 'name address' },
+            },
+            { path: 'tenant', select: 'name' },
+          ],
+        })
+        .populate('rentalPeriod', 'startDate endDate rentAmount')
+        .exec();
+
+      if (!transaction || transaction.status !== PaymentStatus.PAID) {
+        console.log(`No payment confirmation to send for transaction ${transactionId}`);
+        return;
+      }
+
+      const lease = transaction.lease as any;
+      const tenant = lease.tenant as any;
+      const unit = lease.unit as any;
+      const property = unit.property as any;
+      const rentalPeriod = transaction.rentalPeriod as any;
+
+      // Find tenant users to notify
+      const users = await this.findTenantUsers(tenant._id, lease.tenantId);
+      console.log(users);
+      // Send email to each tenant user
+      for (const user of users) {
+        await this.paymentEmailService.sendPaymentConfirmationEmail(
+          {
+            recipientName: tenant.name,
+            recipientEmail: user.email,
+            propertyName: property.name,
+            unitIdentifier: unit.unitNumber,
+            amount: transaction.amount,
+            paymentDate: transaction.paidAt || new Date(),
+            periodStartDate: rentalPeriod.startDate,
+            periodEndDate: rentalPeriod.endDate,
+            transactionId: transaction._id.toString(),
+            paymentMethod: transaction.paymentMethod || 'Online Payment',
+            paymentReference: transaction.notes,
+            dashboardUrl: `${process.env.FRONTEND_URL}/tenant/payments`,
+          },
+          { queue: true },
+        );
+      }
+
+      console.log(`Sent payment confirmation email for transaction ${transactionId}`);
+    } catch (error) {
+      console.error(`Failed to send payment confirmation for transaction ${transactionId}:`, error);
+    }
+  }
+
+  private async findTenantUsers(tenantId: string, landlordId: Types.ObjectId): Promise<any[]> {
+    try {
+      return this.userModel
+        .byTenant(landlordId)
+        .find({
+          party_id: tenantId,
+          user_type: 'Tenant',
+        })
+        .exec();
+    } catch (error) {
+      console.error('Failed to find tenant users:', error);
+      return [];
+    }
   }
 }

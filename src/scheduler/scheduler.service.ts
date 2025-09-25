@@ -3,6 +3,7 @@ import { InjectConnection } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Connection } from 'mongoose';
 import { LeasesService } from '../features/leases/services/leases.service';
+import { TransactionsService } from '../features/leases/services/transactions.service';
 import { StatusUpdaterService } from '../scripts/status-updater';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class SchedulerService {
   constructor(
     @InjectConnection() private readonly connection: Connection,
     private readonly leasesService: LeasesService,
+    private readonly transactionsService: TransactionsService,
   ) {}
 
   /**
@@ -97,6 +99,40 @@ export class SchedulerService {
         `❌ Failed to send 7-day lease expiration warning emails: ${error.message}`,
         error.stack,
       );
+    }
+  }
+
+  /**
+   * Send payment due reminders at 3:00 AM
+   * Sends reminders for payments due in 7 days
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_3AM)
+  async sendPaymentDueReminders() {
+    this.logger.log('💰 Sending payment due reminders...');
+
+    try {
+      const today = new Date();
+      await this.transactionsService.sendPaymentDueReminders(today);
+      this.logger.log('✅ Payment due reminders sent successfully');
+    } catch (error) {
+      this.logger.error(`❌ Failed to send payment due reminders: ${error.message}`, error.stack);
+    }
+  }
+
+  /**
+   * Send payment overdue notices at 3:30 AM
+   * Sends notices for payments that are 2 days past due
+   */
+  @Cron('30 3 * * *') // At 3:30 AM every day
+  async sendPaymentOverdueNotices() {
+    this.logger.log('⚠️ Sending payment overdue notices...');
+
+    try {
+      const today = new Date();
+      await this.transactionsService.sendPaymentOverdueNotices(today);
+      this.logger.log('✅ Payment overdue notices sent successfully');
+    } catch (error) {
+      this.logger.error(`❌ Failed to send payment overdue notices: ${error.message}`, error.stack);
     }
   }
 }

@@ -988,13 +988,7 @@ export class LeasesService {
       const unit = populatedLease.unit as any;
       const tenant = populatedLease.tenant as any;
       const property = unit.property as any;
-      const users = await this.userModel
-        .byTenant(landlordId)
-        .find({
-          party_id: tenant._id,
-          user_type: 'Tenant',
-        })
-        .exec();
+      const users = await this.findTenantUsers(tenant._id, landlordId);
       // Send email to tenants
       for (const user of users) {
         await this.leaseEmailService.sendLeaseActivatedEmail(
@@ -1072,13 +1066,7 @@ export class LeasesService {
       const inspectionDate = new Date(moveOutDate);
       inspectionDate.setDate(inspectionDate.getDate() - 2); // 2 days before move-out
 
-      const users = await this.userModel
-        .byTenant(landlordId)
-        .find({
-          party_id: tenant._id,
-          user_type: 'Tenant',
-        })
-        .exec();
+      const users = await this.findTenantUsers(tenant._id, landlordId);
       // Send email to tenants
       for (const user of users) {
         await this.leaseEmailService.sendLeaseTerminationEmail(
@@ -1164,13 +1152,7 @@ export class LeasesService {
       responseDeadline.setDate(responseDeadline.getDate() - 30);
 
       // Send email to tenants
-      const users = await this.userModel
-        .byTenant(landlordId)
-        .find({
-          party_id: tenant._id,
-          user_type: 'Tenant',
-        })
-        .exec();
+      const users = await this.findTenantUsers(tenant._id, landlordId);
       for (const user of users) {
         await this.leaseEmailService.sendLeaseRenewalEmail(
           {
@@ -1278,13 +1260,7 @@ export class LeasesService {
         decisionDeadline.setDate(decisionDeadline.getDate() - 15);
 
         // Send email to tenant
-        const users = await this.userModel
-          .byTenant(landlordId)
-          .find({
-            party_id: tenant._id,
-            user_type: 'Tenant',
-          })
-          .exec();
+        const users = await this.findTenantUsers(tenant._id, landlordId);
         for (const user of users) {
           await this.leaseEmailService.sendLeaseExpirationWarningEmail(
             {
@@ -1345,5 +1321,20 @@ export class LeasesService {
     return currentUser.tenantId && typeof currentUser.tenantId === 'object'
       ? (currentUser.tenantId as any)._id
       : new Types.ObjectId(currentUser.tenantId);
+  }
+
+  private async findTenantUsers(tenantId: string, landlordId: Types.ObjectId): Promise<any[]> {
+    try {
+      return this.userModel
+        .byTenant(landlordId)
+        .find({
+          party_id: tenantId,
+          user_type: 'Tenant',
+        })
+        .exec();
+    } catch (error) {
+      console.error('Failed to find tenant users:', error);
+      return [];
+    }
   }
 }

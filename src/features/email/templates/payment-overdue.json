@@ -1,0 +1,4 @@
+{
+  "subject": "URGENT: Payment Overdue Notice",
+  "text": "Hello {{recipientName}},\n\nYour rent payment of ${{amount}} was due on {{dueDate}} and is now {{daysLate}} days overdue.\n\nPayment Details:\nProperty: {{propertyName}} - {{unitIdentifier}}\nPayment Period: {{periodStartDate}} to {{periodEndDate}}\nAmount Due: ${{amount}}\nDue Date: {{dueDate}}\n{{#if lateFee}}Late Fee: ${{lateFee}}\nTotal Amount Due: ${{totalDue}}{{/if}}\n\nPlease make your payment as soon as possible to avoid additional late fees and potential legal action.\n\nIf you are experiencing financial difficulties, please contact your property manager immediately to discuss possible payment arrangements.\n\nBest regards,\nThe Property Management Team"
+}
