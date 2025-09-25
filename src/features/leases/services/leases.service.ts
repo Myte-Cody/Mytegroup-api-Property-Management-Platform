@@ -17,9 +17,10 @@ import {
 import { UnitAvailabilityStatus } from '../../../common/enums/unit.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { addDaysToDate, getToday } from '../../../common/utils/date.utils';
+import { LeaseEmailService } from '../../email/services/lease-email.service';
 import { Unit } from '../../properties/schemas/unit.schema';
 import { Tenant } from '../../tenants/schema/tenant.schema';
-import { UserDocument } from '../../users/schemas/user.schema';
+import { User, UserDocument } from '../../users/schemas/user.schema';
 import {
   CreateLeaseDto,
   ManualRenewLeaseDto,
@@ -56,7 +57,10 @@ export class LeasesService {
     private readonly unitModel: AppModel<Unit>,
     @InjectModel(Tenant.name)
     private readonly tenantModel: AppModel<Tenant>,
+    @InjectModel(User.name)
+    private readonly userModel: AppModel<User>,
     private readonly transactionsService: TransactionsService,
+    private readonly leaseEmailService: LeaseEmailService,
   ) {}
 
   async findAllPaginated(
@@ -331,7 +335,12 @@ export class LeasesService {
       availabilityStatus: UnitAvailabilityStatus.VACANT,
     });
 
-    return await lease.save();
+    const savedLease = await lease.save();
+
+    // Send lease termination email notifications
+    await this.sendLeaseTerminationEmails(savedLease, terminationData, landlordId);
+
+    return savedLease;
   }
 
   async renewLease(
@@ -436,9 +445,17 @@ export class LeasesService {
       );
 
       await currentRentalPeriod.save();
-      await lease.save();
+      const savedLease = await lease.save();
 
-      return { lease, newRentalPeriod: savedNewRentalPeriod };
+      // Send lease renewal email notifications
+      await this.sendLeaseRenewalEmails(
+        savedLease,
+        savedNewRentalPeriod,
+        currentRentalPeriod,
+        landlordId,
+      );
+
+      return { lease: savedLease, newRentalPeriod: savedNewRentalPeriod };
     } catch (error) {
       throw error;
     }
@@ -767,6 +784,9 @@ export class LeasesService {
       await this.unitModel.byTenant(landlordId).findByIdAndUpdate(lease.unit, {
         availabilityStatus: UnitAvailabilityStatus.OCCUPIED,
       });
+
+      // Send lease activation email notifications
+      await this.sendLeaseActivationEmails(lease, landlordId);
     } catch (error) {
       if (
         error.code === 11000 &&
@@ -940,6 +960,381 @@ export class LeasesService {
     });
 
     await securityDepositTransaction.save();
+  }
+
+  /**
+   * Send lease activation email notifications to both landlord and tenant
+   */
+  private async sendLeaseActivationEmails(lease: Lease, landlordId: Types.ObjectId): Promise<void> {
+    try {
+      // Populate lease with unit and tenant information
+      const populatedLease = await this.leaseModel
+        .byTenant(landlordId)
+        .findById(lease._id)
+        .populate({
+          path: 'unit',
+          select: 'unitNumber type',
+          populate: { path: 'property', select: 'name address' },
+        })
+        .populate('tenant', 'name')
+        .exec();
+      console.log(populatedLease);
+
+      if (!populatedLease || !populatedLease.unit || !populatedLease.tenant) {
+        console.error('Failed to send lease activation email: Missing lease details');
+        return;
+      }
+
+      const unit = populatedLease.unit as any;
+      const tenant = populatedLease.tenant as any;
+      const property = unit.property as any;
+      const users = await this.userModel
+        .byTenant(landlordId)
+        .find({
+          party_id: tenant._id,
+          user_type: 'Tenant',
+        })
+        .exec();
+      // Send email to tenants
+      for (const user of users) {
+        await this.leaseEmailService.sendLeaseActivatedEmail(
+          {
+            recipientName: tenant.name,
+            recipientEmail: user.email,
+            isTenant: true,
+            propertyName: property.name,
+            unitIdentifier: unit.unitNumber,
+            propertyAddress: property.address,
+            leaseStartDate: populatedLease.startDate,
+            leaseEndDate: populatedLease.endDate,
+            monthlyRent: populatedLease.rentAmount,
+          },
+          { queue: true },
+        );
+      }
+
+      // Find landlord users to notify
+      const landlordUser = await this.findLandlordUser(landlordId);
+
+      // Send email to each landlord user
+      await this.leaseEmailService.sendLeaseActivatedEmail(
+        {
+          recipientName: landlordUser.username,
+          recipientEmail: landlordUser.email,
+          isTenant: false,
+          propertyName: property.name,
+          unitIdentifier: unit.unitNumber,
+          propertyAddress: property.address,
+          leaseStartDate: populatedLease.startDate,
+          leaseEndDate: populatedLease.endDate,
+          monthlyRent: populatedLease.rentAmount,
+        },
+        { queue: true },
+      );
+    } catch (error) {
+      // Log error but don't fail the lease activation if email sending fails
+      console.error('Failed to send lease activation emails:', error);
+    }
+  }
+
+  /**
+   * Send lease termination email notifications to both landlord and tenant
+   */
+  private async sendLeaseTerminationEmails(
+    lease: Lease,
+    terminationData: TerminateLeaseDto,
+    landlordId: Types.ObjectId,
+  ): Promise<void> {
+    try {
+      // Populate lease with unit and tenant information
+      const populatedLease = await this.leaseModel
+        .byTenant(landlordId)
+        .findById(lease._id)
+        .populate({
+          path: 'unit',
+          select: 'unitNumber type',
+          populate: { path: 'property', select: 'name address' },
+        })
+        .populate('tenant', 'name')
+        .exec();
+
+      if (!populatedLease || !populatedLease.unit || !populatedLease.tenant) {
+        console.error('Failed to send lease termination email: Missing lease details');
+        return;
+      }
+
+      const unit = populatedLease.unit as any;
+      const tenant = populatedLease.tenant as any;
+      const property = unit.property as any;
+
+      // Calculate inspection date (typically 1-3 days before move-out)
+      const moveOutDate = new Date(lease.terminationDate);
+      const inspectionDate = new Date(moveOutDate);
+      inspectionDate.setDate(inspectionDate.getDate() - 2); // 2 days before move-out
+
+      const users = await this.userModel
+        .byTenant(landlordId)
+        .find({
+          party_id: tenant._id,
+          user_type: 'Tenant',
+        })
+        .exec();
+      // Send email to tenants
+      for (const user of users) {
+        await this.leaseEmailService.sendLeaseTerminationEmail(
+          {
+            recipientName: tenant.name,
+            recipientEmail: user.email,
+            isTenant: true,
+            propertyName: property.name,
+            unitIdentifier: unit.unitNumber,
+            propertyAddress: property.address,
+            originalLeaseEndDate: populatedLease.endDate,
+            terminationDate: lease.terminationDate,
+            terminationReason: lease.terminationReason || 'Mutual agreement',
+            moveOutDate: moveOutDate,
+            inspectionDate: inspectionDate,
+            additionalNotes: terminationData.terminationReason,
+          },
+          { queue: true },
+        );
+      }
+      // Find landlord users to notify
+      const landlordUser = await this.findLandlordUser(landlordId);
+
+      // Send email to each landlord user
+      await this.leaseEmailService.sendLeaseTerminationEmail(
+        {
+          recipientName: landlordUser.username,
+          recipientEmail: landlordUser.email,
+          isTenant: false,
+          propertyName: property.name,
+          unitIdentifier: unit.unitNumber,
+          propertyAddress: property.address,
+          originalLeaseEndDate: populatedLease.endDate,
+          terminationDate: lease.terminationDate,
+          terminationReason: lease.terminationReason || 'Mutual agreement',
+          moveOutDate: moveOutDate,
+          inspectionDate: inspectionDate,
+          additionalNotes: terminationData.terminationReason || lease.terminationReason,
+        },
+        { queue: true },
+      );
+    } catch (error) {
+      console.error('Failed to send lease termination emails:', error);
+    }
+  }
+
+  /**
+   * Send lease renewal email notifications to both landlord and tenant
+   */
+  private async sendLeaseRenewalEmails(
+    lease: Lease,
+    newRentalPeriod: RentalPeriod,
+    currentRentalPeriod: RentalPeriod,
+    landlordId: Types.ObjectId,
+  ): Promise<void> {
+    try {
+      // Populate lease with unit and tenant information
+      const populatedLease = await this.leaseModel
+        .byTenant(landlordId)
+        .findById(lease._id)
+        .populate({
+          path: 'unit',
+          select: 'unitNumber type',
+          populate: { path: 'property', select: 'name address' },
+        })
+        .populate('tenant', 'name')
+        .exec();
+
+      if (!populatedLease || !populatedLease.unit || !populatedLease.tenant) {
+        console.error('Failed to send lease renewal email: Missing lease details');
+        return;
+      }
+
+      const unit = populatedLease.unit as any;
+      const tenant = populatedLease.tenant as any;
+      const property = unit.property as any;
+
+      // Determine if this is an auto-renewal or manual renewal
+      const isAutoRenewal = lease.autoRenewal || false;
+
+      // Calculate response deadline (typically 30 days before current lease ends)
+      const responseDeadline = new Date(currentRentalPeriod.endDate);
+      responseDeadline.setDate(responseDeadline.getDate() - 30);
+
+      // Send email to tenants
+      const users = await this.userModel
+        .byTenant(landlordId)
+        .find({
+          party_id: tenant._id,
+          user_type: 'Tenant',
+        })
+        .exec();
+      for (const user of users) {
+        await this.leaseEmailService.sendLeaseRenewalEmail(
+          {
+            recipientName: tenant.name,
+            recipientEmail: user.email,
+            isAutoRenewal: isAutoRenewal,
+            propertyName: property.name,
+            unitIdentifier: unit.unitNumber,
+            currentLeaseEndDate: currentRentalPeriod.endDate,
+            newLeaseStartDate: newRentalPeriod.startDate,
+            newLeaseEndDate: newRentalPeriod.endDate,
+            currentMonthlyRent: currentRentalPeriod.rentAmount,
+            newMonthlyRent: newRentalPeriod.rentAmount,
+            renewalDate: newRentalPeriod.startDate,
+            responseDeadline: responseDeadline,
+          },
+          { queue: true },
+        );
+      }
+      // Find landlord users to notify
+      const landlordUser = await this.findLandlordUser(landlordId);
+
+      // Send email to each landlord user
+      await this.leaseEmailService.sendLeaseRenewalEmail(
+        {
+          recipientName: landlordUser.username,
+          recipientEmail: landlordUser.email,
+          isAutoRenewal: isAutoRenewal,
+          propertyName: property.name,
+          unitIdentifier: unit.unitNumber,
+          currentLeaseEndDate: currentRentalPeriod.endDate,
+          newLeaseStartDate: newRentalPeriod.startDate,
+          newLeaseEndDate: newRentalPeriod.endDate,
+          currentMonthlyRent: currentRentalPeriod.rentAmount,
+          newMonthlyRent: newRentalPeriod.rentAmount,
+          renewalDate: newRentalPeriod.startDate,
+          responseDeadline: responseDeadline,
+        },
+        { queue: true },
+      );
+    } catch (error) {
+      // Log error but don't fail the lease renewal if email sending fails
+      console.error('Failed to send lease renewal emails:', error);
+    }
+  }
+
+  /**
+   * Find all users associated with a landlord tenant ID
+   */
+  private async findLandlordUser(landlordId: Types.ObjectId): Promise<any> {
+    try {
+      // Use mongoose connection to get User model
+      const userModel = this.leaseModel.db.model('User');
+      const user = await userModel.findOne({ tenantId: landlordId, user_type: 'Landlord' }).exec();
+      return user;
+    } catch (error) {
+      console.error('Failed to find landlord user:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Send lease expiration warning emails to both landlord and tenant
+   * This method can be called by a scheduled job for different warning periods (30, 15, 7 days)
+   * @param daysRemaining Number of days remaining before lease expiration
+   * @param baseDate Optional date to use as the base for calculation (defaults to today)
+   */
+  async sendLeaseExpirationWarningEmails(daysRemaining: number, baseDate?: Date): Promise<void> {
+    // Use provided baseDate or default to today
+    const referenceDate = baseDate ? new Date(baseDate) : new Date();
+
+    try {
+      // Calculate the target expiration date (referenceDate + daysRemaining)
+      const expirationDate = new Date(referenceDate);
+      expirationDate.setDate(referenceDate.getDate() + daysRemaining);
+
+      // Find all active leases that expire on the target date
+      const expiringLeases = await this.leaseModel
+        .find({
+          status: LeaseStatus.ACTIVE,
+          endDate: {
+            $gte: new Date(expirationDate.setHours(0, 0, 0, 0)),
+            $lte: new Date(expirationDate.setHours(23, 59, 59, 999)),
+          },
+        })
+        .populate({
+          path: 'unit',
+          select: 'unitNumber type',
+          populate: { path: 'property', select: 'name address' },
+        })
+        .populate('tenant', 'name')
+        .exec();
+
+      // Process each expiring lease
+      for (const lease of expiringLeases) {
+        // Get the landlord ID from the lease
+        const landlordId =
+          typeof lease.tenant === 'object' ? (lease.tenant as any).tenantId : lease.tenant;
+        const unit = lease.unit as any;
+        const tenant = lease.tenant as any;
+        const property = unit.property as any;
+
+        // Calculate decision deadline (typically 15 days before lease expires)
+        const decisionDeadline = new Date(lease.endDate);
+        decisionDeadline.setDate(decisionDeadline.getDate() - 15);
+
+        // Send email to tenant
+        const users = await this.userModel
+          .byTenant(landlordId)
+          .find({
+            party_id: tenant._id,
+            user_type: 'Tenant',
+          })
+          .exec();
+        for (const user of users) {
+          await this.leaseEmailService.sendLeaseExpirationWarningEmail(
+            {
+              recipientName: tenant.name,
+              recipientEmail: user.email,
+              isTenant: true,
+              propertyName: property.name,
+              unitIdentifier: unit.unitNumber,
+              propertyAddress: property.address,
+              leaseStartDate: lease.startDate,
+              leaseEndDate: lease.endDate,
+              daysRemaining: daysRemaining,
+              decisionDeadline: decisionDeadline,
+            },
+            { queue: true },
+          );
+        }
+        // Find landlord users to notify
+        const landlordUser = await this.findLandlordUser(landlordId);
+
+        // Send email to each landlord user
+        await this.leaseEmailService.sendLeaseExpirationWarningEmail(
+          {
+            recipientName: landlordUser.username,
+            recipientEmail: landlordUser.email,
+            isTenant: false,
+            propertyName: property.name,
+            unitIdentifier: unit.unitNumber,
+            propertyAddress: property.address,
+            leaseStartDate: lease.startDate,
+            leaseEndDate: lease.endDate,
+            daysRemaining: daysRemaining,
+          },
+          { queue: true },
+        );
+      }
+
+      const referenceDateStr = referenceDate.toISOString().split('T')[0];
+      console.log(
+        `Sent ${expiringLeases.length} lease expiration warning emails for ${daysRemaining}-day notices (reference date: ${referenceDateStr})`,
+      );
+    } catch (error) {
+      const referenceDateStr = referenceDate
+        ? referenceDate.toISOString().split('T')[0]
+        : 'unknown';
+      console.error(
+        `Failed to send lease expiration warning emails for ${daysRemaining}-day notices (reference date: ${referenceDateStr}):`,
+        error,
+      );
+    }
   }
 
   private getLandlordId(currentUser: UserDocument): Types.ObjectId | null {

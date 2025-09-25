@@ -5,6 +5,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { SchedulerModule } from './scheduler/scheduler.module';
 import { CommonModule } from './common/common.module';
 import configuration from './config/configuration';
 import renewalConfig from './config/renewal.config';
@@ -57,6 +58,7 @@ import { UsersModule } from './features/users/users.module';
     PropertiesModule,
     LeasesModule,
     MediaModule,
+    SchedulerModule,
     MongooseModule.forRoot(process.env.DB_URL, {
       dbName: process.env.MONGO_DB_NAME,
     }),
