@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
+import { Action } from '../../../common/casl/casl-ability.factory';
+import { CaslAuthorizationService } from '../../../common/casl/services/casl-authorization.service';
 import {
   LeaseStatus,
   PaymentCycle,
@@ -16,9 +18,6 @@ import {
   RentalPeriodStatus,
 } from '../../../common/enums/lease.enum';
 import { UnitAvailabilityStatus } from '../../../common/enums/unit.enum';
-import { CaslAuthorizationService } from '../../../common/casl/services/casl-authorization.service';
-import { Action } from '../../../common/casl/casl-ability.factory';
-import { accessibleBy } from '@casl/mongoose';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { addDaysToDate, getToday } from '../../../common/utils/date.utils';
 import { Unit } from '../../properties/schemas/unit.schema';
@@ -814,12 +813,13 @@ export class LeasesService {
     // Validate that final refund amount doesn't exceed security deposit amount
     if (assessmentDto.finalRefundAmount > lease.securityDepositAmount) {
       throw new UnprocessableEntityException(
-        `Final refund amount (${assessmentDto.finalRefundAmount}) cannot exceed security deposit amount (${lease.securityDepositAmount})`
+        `Final refund amount (${assessmentDto.finalRefundAmount}) cannot exceed security deposit amount (${lease.securityDepositAmount})`,
       );
     }
 
     // Calculate total deductions
-    const damageTotal = assessmentDto.damageItems?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0;
+    const damageTotal =
+      assessmentDto.damageItems?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0;
     const totalDeductions =
       damageTotal +
       (assessmentDto.cleaningCosts || 0) +
@@ -830,7 +830,7 @@ export class LeasesService {
     const expectedRefundAmount = lease.securityDepositAmount - totalDeductions;
     if (Math.abs(assessmentDto.finalRefundAmount - expectedRefundAmount) > 0.01) {
       throw new UnprocessableEntityException(
-        `Final refund amount (${assessmentDto.finalRefundAmount}) does not match calculated amount (${expectedRefundAmount})`
+        `Final refund amount (${assessmentDto.finalRefundAmount}) does not match calculated amount (${expectedRefundAmount})`,
       );
     }
 
@@ -844,7 +844,7 @@ export class LeasesService {
       totalDeductions,
       finalRefundAmount: assessmentDto.finalRefundAmount,
       assessmentNotes: assessmentDto.assessmentNotes,
-      status: 'completed'
+      status: 'completed',
     };
 
     // Create both refund and deduction transactions
@@ -900,7 +900,7 @@ export class LeasesService {
       depositAmount: lease.securityDepositAmount,
       assessment: lease.depositAssessment,
       isRefunded: !!lease.securityDepositRefundedAt,
-      refundedAt: lease.securityDepositRefundedAt
+      refundedAt: lease.securityDepositRefundedAt,
     };
   }
 

@@ -67,7 +67,7 @@ export class DepositAssessment {
   @Prop({
     type: String,
     enum: ['pending', 'completed', 'disputed'],
-    default: 'pending'
+    default: 'pending',
   })
   status: string;
 }
