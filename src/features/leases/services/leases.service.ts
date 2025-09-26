@@ -16,6 +16,9 @@ import {
   RentalPeriodStatus,
 } from '../../../common/enums/lease.enum';
 import { UnitAvailabilityStatus } from '../../../common/enums/unit.enum';
+import { CaslAuthorizationService } from '../../../common/casl/services/casl-authorization.service';
+import { Action } from '../../../common/casl/casl-ability.factory';
+import { accessibleBy } from '@casl/mongoose';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { addDaysToDate, getToday } from '../../../common/utils/date.utils';
 import { Unit } from '../../properties/schemas/unit.schema';
@@ -58,6 +61,7 @@ export class LeasesService {
     @InjectModel(Tenant.name)
     private readonly tenantModel: AppModel<Tenant>,
     private readonly transactionsService: TransactionsService,
+    private readonly caslAuthorizationService: CaslAuthorizationService,
   ) {}
 
   async findAllPaginated(
@@ -93,7 +97,9 @@ export class LeasesService {
       };
     }
 
-    let baseQuery = this.leaseModel.byTenant(landlordId).find();
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    let baseQuery = this.leaseModel.byTenant(landlordId).find().accessibleBy(ability, Action.Read);
 
     if (search) {
       baseQuery = baseQuery.where({

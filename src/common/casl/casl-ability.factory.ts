@@ -179,10 +179,16 @@ export class CaslAbilityFactory {
       can(Action.Read, Tenant, { _id: tenantId });
     }
 
-    // Tenants can manage tenant users within their landlord's context
-    if (landlordId) {
+    // Tenants can manage tenant users with the same party_id (same tenant entity)
+    if (tenantPartyId) {
       can(Action.Manage, User, {
-        tenantId: landlordId,
+        party_id: tenantPartyId,
+        user_type: UserType.TENANT,
+      });
+
+      // Explicitly add read permission to ensure accessibleBy works correctly
+      can(Action.Read, User, {
+        party_id: tenantPartyId,
         user_type: UserType.TENANT,
       });
     }
