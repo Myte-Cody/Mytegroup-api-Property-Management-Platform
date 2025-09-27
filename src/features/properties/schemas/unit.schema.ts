@@ -4,7 +4,6 @@ import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enum';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
-const mongoTenant = require('mongo-tenant');
 
 @Schema({ timestamps: true })
 export class Unit extends Document implements SoftDelete {
@@ -63,12 +62,10 @@ UnitSchema.virtual('documents', {
   match: { model_type: 'Unit', collection_name: 'documents' },
 });
 
-// Add compound unique index for unit number per property within landlordd
 UnitSchema.index(
-  { unitNumber: 1, property: 1, tenantId: 1 },
-  { unique: true, name: 'unit_number_property_tenant_unique' },
+  { unitNumber: 1, property: 1 },
+  { unique: true, name: 'unit_number_property_unique' },
 );
 
 UnitSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 UnitSchema.plugin(accessibleRecordsPlugin);
-UnitSchema.plugin(mongoTenant);

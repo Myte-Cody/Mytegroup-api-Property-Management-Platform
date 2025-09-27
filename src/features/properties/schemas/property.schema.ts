@@ -3,7 +3,6 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
-const mongoTenant = require('mongo-tenant');
 
 @Schema()
 export class Address {
@@ -64,12 +63,8 @@ PropertySchema.virtual('documents', {
   match: { model_type: 'Property', collection_name: 'documents' },
 });
 
-// Add compound unique index for multi-tenant uniqueness
-PropertySchema.index(
-  { name: 1, tenantId: 1 },
-  { unique: true, name: 'property_name_tenant_unique' },
-);
+// Add unique index
+PropertySchema.index({ name: 1 }, { unique: true, name: 'property_name_unique' });
 
 PropertySchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 PropertySchema.plugin(accessibleRecordsPlugin);
-PropertySchema.plugin(mongoTenant);

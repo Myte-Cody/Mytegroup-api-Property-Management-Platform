@@ -144,7 +144,6 @@ export class SeedDevDataCommand extends CommandRunner {
         password: hashedPassword,
         user_type: UserType.LANDLORD,
         party_id: landlord._id,
-        tenantId: landlord._id,
       });
 
       const saved = await landlordUser.save();
@@ -202,10 +201,7 @@ export class SeedDevDataCommand extends CommandRunner {
       for (let j = 0; j < propertiesPerLandlord; j++) {
         const template = propertyTemplates[(i * 2 + j) % propertyTemplates.length];
 
-        // Correct way to use mongo-tenant
-        const PropertyWithTenant = (this.propertyModel as any).byTenant(landlord._id);
-        const property = new PropertyWithTenant({
-          tenantId: landlord._id,
+        const property = new this.propertyModel({
           name: `${template.name} (${landlord.name})`,
           address: template.address,
           description: template.description,
@@ -236,9 +232,8 @@ export class SeedDevDataCommand extends CommandRunner {
       const unitsPerProperty = Math.floor(Math.random() * 8) + 3; // 3-10 units per property
 
       for (let i = 1; i <= unitsPerProperty; i++) {
-        // Correct way to use mongo-tenant
-        const UnitWithTenant = (this.unitModel as any).byTenant(property.tenantId);
-        const unit = new UnitWithTenant({
+        // Create unit
+        const unit = new this.unitModel({
           property: property._id,
           unitNumber: `${i}${String.fromCharCode(65 + Math.floor(i / 10))}`, // 1A, 2A, etc.
           size: Math.floor(Math.random() * 1000) + 400, // 400-1400 sq ft
@@ -278,10 +273,8 @@ export class SeedDevDataCommand extends CommandRunner {
       for (let j = 0; j < tenantsPerLandlord; j++) {
         const name = tenantNames[(i * 4 + j) % tenantNames.length];
 
-        // Correct way to use mongo-tenant
-        const TenantWithTenant = (this.tenantModel as any).byTenant(landlord._id);
-        const tenant = new TenantWithTenant({
-          tenantId: landlord._id,
+        // Create tenant
+        const tenant = new this.tenantModel({
           name: name,
         });
 
@@ -317,10 +310,8 @@ export class SeedDevDataCommand extends CommandRunner {
       for (let j = 0; j < contractorsPerLandlord; j++) {
         const name = contractorNames[(i * 2 + j) % contractorNames.length];
 
-        // Correct way to use mongo-tenant
-        const ContractorWithTenant = (this.contractorModel as any).byTenant(landlord._id);
-        const contractor = new ContractorWithTenant({
-          tenantId: landlord._id,
+        // Create contractor
+        const contractor = new this.contractorModel({
           name: name,
         });
 
@@ -355,7 +346,6 @@ export class SeedDevDataCommand extends CommandRunner {
         password: hashedPassword,
         user_type: UserType.TENANT,
         party_id: tenant._id,
-        tenantId: tenant.tenantId,
       });
 
       await tenantUser.save();
@@ -372,7 +362,6 @@ export class SeedDevDataCommand extends CommandRunner {
         password: hashedPassword,
         user_type: UserType.CONTRACTOR,
         party_id: contractor._id,
-        tenantId: contractor.tenantId,
       });
 
       await contractorUser.save();
@@ -384,13 +373,10 @@ export class SeedDevDataCommand extends CommandRunner {
     console.log('\n🔍 Verifying data isolation...');
 
     for (const landlord of landlords) {
-      const tenantId = landlord._id;
-
-      // Test isolation using mongo-tenant - correct syntax
-      const properties = await (this.propertyModel as any).byTenant(tenantId).find();
-      const units = await (this.unitModel as any).byTenant(tenantId).find();
-      const tenants = await (this.tenantModel as any).byTenant(tenantId).find();
-      const contractors = await (this.contractorModel as any).byTenant(tenantId).find();
+      const properties = await this.propertyModel.find({});
+      const units = await this.unitModel.find({});
+      const tenants = await this.tenantModel.find({});
+      const contractors = await this.contractorModel.find({});
 
       console.log(`✅ ${landlord.name}:`);
       console.log(`   Properties: ${properties.length}`);
@@ -399,8 +385,7 @@ export class SeedDevDataCommand extends CommandRunner {
       console.log(`   Contractors: ${contractors.length}`);
 
       if (verbose) {
-        // Note: Tenant isolation is handled by mongo-tenant plugin
-        console.log(`   ✅ Tenant isolation handled by mongo-tenant plugin`);
+        console.log(`   ✅ Data created successfully`);
       }
     }
   }

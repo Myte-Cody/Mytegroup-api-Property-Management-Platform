@@ -1,15 +1,14 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsNotEmpty,
-  IsString,
   IsNumber,
   IsOptional,
-  IsArray,
-  ValidateNested,
+  IsString,
+  MaxLength,
   Min,
-  Max,
-  MaxLength
+  ValidateNested,
 } from 'class-validator';
 
 export class DamageItemDto {
@@ -24,7 +23,7 @@ export class DamageItemDto {
 
   @ApiProperty({
     description: 'Cost to repair the damage',
-    example: 150.00,
+    example: 150.0,
     minimum: 0,
   })
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -56,7 +55,7 @@ export class ProcessDepositAssessmentDto {
 
   @ApiProperty({
     description: 'Cleaning costs deducted from deposit',
-    example: 100.00,
+    example: 100.0,
     minimum: 0,
     required: false,
   })
@@ -78,7 +77,7 @@ export class ProcessDepositAssessmentDto {
 
   @ApiProperty({
     description: 'Other charges or fees',
-    example: 50.00,
+    example: 50.0,
     minimum: 0,
     required: false,
   })
@@ -99,7 +98,7 @@ export class ProcessDepositAssessmentDto {
 
   @ApiProperty({
     description: 'Final refund amount after deductions',
-    example: 450.00,
+    example: 450.0,
     minimum: 0,
   })
   @IsNumber({ maxDecimalPlaces: 2 })

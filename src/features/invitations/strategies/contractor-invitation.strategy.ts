@@ -31,11 +31,8 @@ export class ContractorInvitationStrategy implements IInvitationStrategy {
   }
 
   async validateInvitationData(invitation: Invitation): Promise<void> {
-    const landlordId = invitation.tenantId;
-
     // Check if email is already registered by any user
     const existingUserWithEmail = await this.userModel
-      .byTenant(landlordId)
       .findOne({ email: invitation.email.toLowerCase() })
       .exec();
 
@@ -51,11 +48,8 @@ export class ContractorInvitationStrategy implements IInvitationStrategy {
     acceptInvitationDto: AcceptInvitationDto,
     currentUser?: UserDocument,
   ): Promise<any> {
-    const landlordId = invitation.tenantId;
-
     // Double-check email availability before creating the entity
     const existingUserWithEmail = await this.userModel
-      .byTenant(landlordId)
       .findOne({ email: invitation.email.toLowerCase() })
       .exec();
 
@@ -67,7 +61,6 @@ export class ContractorInvitationStrategy implements IInvitationStrategy {
 
     // Check if username is already taken
     const existingUserWithUsername = await this.userModel
-      .byTenant(landlordId)
       .findOne({ username: acceptInvitationDto.username.toLowerCase() })
       .exec();
 

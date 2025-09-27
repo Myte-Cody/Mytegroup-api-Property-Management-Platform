@@ -46,17 +46,6 @@ export class ContractorsService {
       throw new ForbiddenException('You do not have permission to view contractors');
     }
 
-    // STEP 2: mongo-tenant - Apply tenant isolation (mandatory for all users)
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
-    if (!landlordId) {
-      // Users without tenantId cannot access any contractors
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     // Build query
     const query: any = {};
     if (search) {
@@ -71,14 +60,8 @@ export class ContractorsService {
 
     // Execute queries in parallel for better performance
     const [contractors, total] = await Promise.all([
-      this.contractorModel
-        .byTenant(landlordId)
-        .find(query)
-        .sort(sortOptions)
-        .skip(skip)
-        .limit(limit)
-        .exec(),
-      this.contractorModel.byTenant(landlordId).countDocuments(query).exec(),
+      this.contractorModel.find(query).sort(sortOptions).skip(skip).limit(limit).exec(),
+      this.contractorModel.countDocuments(query).exec(),
     ]);
 
     return createPaginatedResponse<Contractor>(contractors, total, page, limit);
@@ -99,17 +82,7 @@ export class ContractorsService {
       throw new ForbiddenException('You do not have permission to view contractors');
     }
 
-    // mongo-tenant: Apply tenant filtering (mandatory)
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
-    const contractor = await this.contractorModel.byTenant(landlordId).findById(id).exec();
+    const contractor = await this.contractorModel.findById(id).exec();
 
     if (!contractor) {
       throw new NotFoundException(`Contractor with ID ${id} not found`);
@@ -136,25 +109,12 @@ export class ContractorsService {
       throw new ForbiddenException('You do not have permission to view contractor profile');
     }
 
-    // mongo-tenant: Apply tenant filtering (mandatory)
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
     const contractorId = currentUser.party_id;
     if (!contractorId) {
       throw new ForbiddenException('No contractor profile associated with this user');
     }
 
-    const contractor = await this.contractorModel
-      .byTenant(landlordId)
-      .findById(contractorId)
-      .exec();
+    const contractor = await this.contractorModel.findById(contractorId).exec();
 
     if (!contractor) {
       throw new NotFoundException('Contractor profile not found');
@@ -176,24 +136,11 @@ export class ContractorsService {
       throw new ForbiddenException('You do not have permission to create contractors');
     }
 
-    // Ensure user has tenant context
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Cannot create contractor: No tenant context');
-    }
-
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
     // Extract user data from DTO
     const { email, password, name } = createContractorDto;
 
     // Check if contractor name already exists within this tenant
-    const existingContractor = await this.contractorModel
-      .byTenant(landlordId)
-      .findOne({ name })
-      .exec();
+    const existingContractor = await this.contractorModel.findOne({ name }).exec();
 
     if (existingContractor) {
       throw new UnprocessableEntityException(
@@ -208,12 +155,9 @@ export class ContractorsService {
     // Create the contractor first
     const contractorData = {
       name,
-      tenantId: landlordId, // Enforce tenant boundary
     };
 
-    // mongo-tenant: Create within tenant context
-    const ContractorWithTenant = this.contractorModel.byTenant(landlordId);
-    const newContractor = new ContractorWithTenant(contractorData);
+    const newContractor = new this.contractorModel(contractorData);
     const savedContractor = await newContractor.save();
 
     // Create the user account for the contractor
@@ -223,12 +167,9 @@ export class ContractorsService {
       password: hashedPassword,
       user_type: 'Contractor',
       party_id: savedContractor._id, // Link to the contractor
-      tenantId: landlordId, // Set tenant context
     };
 
-    // mongo-tenant: Create user within tenant context
-    const UserWithTenant = this.userModel.byTenant(landlordId);
-    const newUser = new UserWithTenant(userData);
+    const newUser = new this.userModel(userData);
     await newUser.save();
 
     return savedContractor;
@@ -238,18 +179,8 @@ export class ContractorsService {
     // CASL: Check update permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
-    // Ensure user has tenant context
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Cannot update contractor: No tenant context');
-    }
-
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
     // First, get the contractor to check permissions
-    const contractor = await this.contractorModel.byTenant(landlordId).findById(id).exec();
+    const contractor = await this.contractorModel.findById(id).exec();
 
     if (!contractor) {
       throw new NotFoundException(`Contractor with ID ${id} not found`);
@@ -260,13 +191,11 @@ export class ContractorsService {
       throw new ForbiddenException('You do not have permission to update this contractor');
     }
 
-    // Prevent modification of tenantId (tenant boundary)
-    const { ...allowedUpdates } = updateContractorDto;
+    const allowedUpdates = updateContractorDto;
 
     // Check for name uniqueness if name is being updated
     if (allowedUpdates.name && allowedUpdates.name !== contractor.name) {
       const existingContractor = await this.contractorModel
-        .byTenant(landlordId)
         .findOne({
           name: allowedUpdates.name,
           _id: { $ne: id }, // Exclude current contractor
@@ -280,9 +209,7 @@ export class ContractorsService {
       }
     }
 
-    // mongo-tenant: Update within tenant context
     const updatedContractor = await this.contractorModel
-      .byTenant(landlordId)
       .findByIdAndUpdate(id, allowedUpdates, { new: true })
       .exec();
 
@@ -297,18 +224,8 @@ export class ContractorsService {
     // CASL: Check delete permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
-    // Ensure user has tenant context
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Cannot delete contractor: No tenant context');
-    }
-
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
     // First, get the contractor to check permissions
-    const contractor = await this.contractorModel.byTenant(landlordId).findById(id).exec();
+    const contractor = await this.contractorModel.findById(id).exec();
 
     if (!contractor) {
       throw new NotFoundException(`Contractor with ID ${id} not found`);
@@ -319,9 +236,7 @@ export class ContractorsService {
       throw new ForbiddenException('You do not have permission to delete this contractor');
     }
 
-    // mongo-tenant: Soft delete within tenant context
     await this.contractorModel
-      .byTenant(landlordId)
       .findByIdAndUpdate(id, { deleted: true, deletedAt: new Date() })
       .exec();
   }

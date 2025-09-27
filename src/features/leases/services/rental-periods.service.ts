@@ -1,11 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { RentalPeriodStatus } from '../../../common/enums/lease.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
-import {
-  createEmptyPaginatedResponse,
-  createPaginatedResponse,
-} from '../../../common/utils/pagination.utils';
+import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { UserDocument } from '../../users/schemas/user.schema';
 import { RentalPeriodQueryDto } from '../dto/rental-period-query.dto';
 import { Lease } from '../schemas/lease.schema';
@@ -33,13 +30,7 @@ export class RentalPeriodsService {
       leaseId,
     } = queryDto;
 
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      return createEmptyPaginatedResponse(page, limit);
-    }
-
-    let baseQuery = this.rentalPeriodModel.byTenant(landlordId).find();
+    let baseQuery = this.rentalPeriodModel.find();
 
     // Add filters
     if (status) {
@@ -83,24 +74,16 @@ export class RentalPeriodsService {
   }
 
   async findOne(id: string, currentUser: UserDocument) {
-    // mongo-tenant: Apply tenant filtering (mandatory)
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     const rentalPeriod = await this.rentalPeriodModel
-      .byTenant(landlordId)
       .findById(id)
       .populate({
         path: 'lease',
-        select: 'unit tenant property terms',
-        populate: [
-          { path: 'unit', select: 'unitNumber type' },
-          { path: 'tenant', select: 'name' },
-          { path: 'property', select: 'name address' },
-        ],
+        populate: {
+          path: 'unit',
+          populate: {
+            path: 'property',
+          },
+        },
       })
       .populate('renewedFrom', 'startDate endDate rentAmount')
       .populate('renewedTo', 'startDate endDate rentAmount')
@@ -114,20 +97,13 @@ export class RentalPeriodsService {
   }
 
   async findByLease(leaseId: string, currentUser: UserDocument) {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     // Verify lease exists and user has access
-    const lease = await this.leaseModel.byTenant(landlordId).findById(leaseId).exec();
+    const lease = await this.leaseModel.findById(leaseId).exec();
     if (!lease) {
       throw new NotFoundException(`Lease with ID ${leaseId} not found`);
     }
 
     const rentalPeriods = await this.rentalPeriodModel
-      .byTenant(landlordId)
       .find({ lease: leaseId })
       .sort({ startDate: 1 })
       .populate('renewedFrom', 'startDate endDate rentAmount')
@@ -137,7 +113,6 @@ export class RentalPeriodsService {
     const rentalPeriodsWithPayments = await Promise.all(
       rentalPeriods.map(async (period) => {
         const transaction = await this.transactionModel
-          .byTenant(landlordId)
           .findOne({
             rentalPeriod: period._id,
             type: 'RENT',
@@ -166,13 +141,7 @@ export class RentalPeriodsService {
   }
 
   async findRenewalChain(id: string, currentUser: UserDocument) {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const rentalPeriod = await this.rentalPeriodModel.byTenant(landlordId).findById(id).exec();
+    const rentalPeriod = await this.rentalPeriodModel.findById(id).exec();
 
     if (!rentalPeriod) {
       throw new NotFoundException(`RentalPeriod with ID ${id} not found`);
@@ -181,7 +150,7 @@ export class RentalPeriodsService {
     // Find the root of the renewal chain
     let root = rentalPeriod;
     while (root.renewedFrom) {
-      root = await this.rentalPeriodModel.byTenant(landlordId).findById(root.renewedFrom).exec();
+      root = await this.rentalPeriodModel.findById(root.renewedFrom).exec();
       if (!root) break;
     }
 
@@ -192,10 +161,7 @@ export class RentalPeriodsService {
     while (current) {
       chain.push(current);
       if (current.renewedTo) {
-        current = await this.rentalPeriodModel
-          .byTenant(landlordId)
-          .findById(current.renewedTo)
-          .exec();
+        current = await this.rentalPeriodModel.findById(current.renewedTo).exec();
       } else {
         current = null;
       }
@@ -205,45 +171,30 @@ export class RentalPeriodsService {
   }
 
   async getCurrentRentalPeriod(leaseId: string, currentUser: UserDocument) {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     // Verify lease exists
-    const lease = await this.leaseModel.byTenant(landlordId).findById(leaseId).exec();
+    const lease = await this.leaseModel.findById(leaseId).exec();
     if (!lease) {
       throw new NotFoundException(`Lease with ID ${leaseId} not found`);
     }
 
     const currentRentalPeriod = await this.rentalPeriodModel
-      .byTenant(landlordId)
       .findOne({
         lease: leaseId,
         status: RentalPeriodStatus.ACTIVE,
       })
-      .populate('renewedFrom', 'startDate endDate rentAmount')
       .exec();
 
     return currentRentalPeriod;
   }
 
   async getRentHistory(leaseId: string, currentUser: UserDocument) {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     // Verify lease exists
-    const lease = await this.leaseModel.byTenant(landlordId).findById(leaseId).exec();
+    const lease = await this.leaseModel.findById(leaseId).exec();
     if (!lease) {
       throw new NotFoundException(`Lease with ID ${leaseId} not found`);
     }
 
     const rentalPeriods = await this.rentalPeriodModel
-      .byTenant(landlordId)
       .find({ lease: leaseId })
       .sort({ startDate: 1 })
       .select('startDate endDate rentAmount status appliedRentIncrease')
@@ -282,11 +233,5 @@ export class RentalPeriodsService {
         (rentalPeriods[0]?.rentAmount || 0),
       history: rentHistory,
     };
-  }
-
-  private getLandlordId(currentUser: UserDocument) {
-    return currentUser.tenantId && typeof currentUser.tenantId === 'object'
-      ? (currentUser.tenantId as any)._id
-      : currentUser.tenantId;
   }
 }

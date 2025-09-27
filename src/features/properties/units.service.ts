@@ -9,10 +9,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
-import {
-  createEmptyPaginatedResponse,
-  createPaginatedResponse,
-} from '../../common/utils/pagination.utils';
+import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { MediaService } from '../media/services/media.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateUnitDto } from './dto/create-unit.dto';
@@ -43,19 +40,7 @@ export class UnitsService {
       throw new ForbiddenException('You do not have permission to create units');
     }
 
-    // Ensure user has tenant context
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Cannot create unit: No tenant context');
-    }
-
-    // Extract landlord ID for tenant filtering
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
-    // mongo-tenant: Validate property exists within tenant context
-    const property = await this.propertyModel.byTenant(landlordId).findById(propertyId).exec();
+    const property = await this.propertyModel.findById(propertyId).exec();
 
     if (!property) {
       throw new UnprocessableEntityException(`Property with ID ${propertyId} not found`);
@@ -67,9 +52,7 @@ export class UnitsService {
       currentUser,
     });
 
-    // mongo-tenant: Create unit within tenant context
-    const UnitWithTenant = this.unitModel.byTenant(landlordId);
-    const newUnit = new UnitWithTenant({
+    const newUnit = new this.unitModel({
       ...createUnitDto,
       property: propertyId,
     });
@@ -116,27 +99,14 @@ export class UnitsService {
       maxSize,
     } = queryDto;
 
-    // STEP 1: CASL - Check if user can read units
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     if (!ability.can(Action.Read, Unit)) {
       throw new ForbiddenException('You do not have permission to view units');
     }
 
-    // STEP 2: mongo-tenant - Apply tenant isolation (mandatory for all users)
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
+    let baseQuery = this.unitModel.find();
 
-    if (!landlordId) {
-      // Users without tenantId cannot access any units
-      return createEmptyPaginatedResponse<Unit>(page, limit);
-    }
-
-    let baseQuery = this.unitModel.byTenant(landlordId).find();
-
-    // STEP 3: Apply CASL field-level filtering
     baseQuery = (baseQuery as any).accessibleBy(ability, Action.Read);
 
     // Filter by specific property if provided
@@ -212,17 +182,7 @@ export class UnitsService {
       throw new ForbiddenException('You do not have permission to view units');
     }
 
-    // mongo-tenant: Apply tenant filtering (mandatory)
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
-    const unit = await this.unitModel.byTenant(landlordId).findById(id).populate('property').exec();
+    const unit = await this.unitModel.findById(id).populate('property').exec();
 
     if (!unit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
@@ -256,22 +216,7 @@ export class UnitsService {
     // CASL: Check update permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
-    // Ensure user has tenant context
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
-    // mongo-tenant: Find within tenant context
-    const existingUnit = await this.unitModel
-      .byTenant(landlordId)
-      .findById(id)
-      .populate('property')
-      .exec();
+    const existingUnit = await this.unitModel.findById(id).populate('property').exec();
 
     if (!existingUnit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
@@ -302,18 +247,7 @@ export class UnitsService {
     // CASL: Check delete permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
-    // Ensure user has tenant context
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
-    // mongo-tenant: Find within tenant context
-    const unit = await this.unitModel.byTenant(landlordId).findById(id).populate('property').exec();
+    const unit = await this.unitModel.findById(id).populate('property').exec();
 
     if (!unit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
@@ -339,16 +273,5 @@ export class UnitsService {
       type: formData.type,
       availabilityStatus: formData.availabilityStatus,
     };
-  }
-
-  private validateUnitData(createUnitDto: CreateUnitDto): void {
-    const missingFields = [];
-    if (!createUnitDto.unitNumber) missingFields.push('unitNumber');
-    if (!createUnitDto.size) missingFields.push('size');
-    if (!createUnitDto.type) missingFields.push('type');
-
-    if (missingFields.length > 0) {
-      throw new BadRequestException(`Missing required fields: ${missingFields.join(', ')}`);
-    }
   }
 }

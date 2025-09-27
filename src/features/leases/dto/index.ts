@@ -1,9 +1,9 @@
 // Lease DTOs
 export * from './create-lease.dto';
+export * from './deposit-assessment.dto';
 export * from './lease-operations.dto';
 export * from './lease-query.dto';
 export * from './lease-response.dto';
-export * from './deposit-assessment.dto';
 export * from './update-lease.dto';
 
 // RentalPeriod DTOs

@@ -1,17 +1,11 @@
 import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { TenantAwareDocument } from 'mongo-tenant';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
-const mongoTenant = require('mongo-tenant');
 
-export type UserDocument = User &
-  Document &
-  TenantAwareDocument &
-  SoftDelete & {
-    tenantId?: Types.ObjectId;
-  };
+// todo check this type
+export type UserDocument = User & Document & SoftDelete;
 
 @Schema({ timestamps: true })
 export class User extends Document implements SoftDelete {
@@ -48,15 +42,9 @@ export class User extends Document implements SoftDelete {
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
-// Add compound unique indexes for multi-tenant uniqueness
-UserSchema.index({ username: 1, tenantId: 1 }, { unique: true, name: 'username_tenant_unique' });
-UserSchema.index({ email: 1, tenantId: 1 }, { unique: true, name: 'email_tenant_unique' });
+// Add unique indexes
+UserSchema.index({ username: 1 }, { unique: true, name: 'username_unique' });
+UserSchema.index({ email: 1 }, { unique: true, name: 'email_unique' });
 
 UserSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 UserSchema.plugin(accessibleRecordsPlugin);
-UserSchema.plugin(mongoTenant, {
-  tenantIdRequired: function () {
-    return this.user_type !== 'Admin';
-  },
-  tenantIdIndex: true,
-});

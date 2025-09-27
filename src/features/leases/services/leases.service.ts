@@ -1,12 +1,13 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
+import { Action } from '../../../common/casl/casl-ability.factory';
+import { CaslAuthorizationService } from '../../../common/casl/services/casl-authorization.service';
 import {
   LeaseStatus,
   PaymentCycle,
@@ -61,6 +62,7 @@ export class LeasesService {
     @InjectModel(User.name)
     private readonly userModel: AppModel<User>,
     private readonly transactionsService: TransactionsService,
+    private readonly caslAuthorizationService: CaslAuthorizationService,
     private readonly leaseEmailService: LeaseEmailService,
   ) {}
 
@@ -80,24 +82,9 @@ export class LeasesService {
       tenantId,
     } = leaseQueryDto;
 
-    const landlordId = this.getLandlordId(currentUser);
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
-    if (!landlordId) {
-      return {
-        data: [],
-        meta: {
-          total: 0,
-          page,
-          limit,
-          totalPages: 0,
-          hasNext: false,
-          hasPrev: false,
-        },
-        success: true,
-      };
-    }
-
-    let baseQuery = this.leaseModel.byTenant(landlordId).find();
+    let baseQuery = this.leaseModel.find().accessibleBy(ability, Action.Read);
 
     if (search) {
       baseQuery = baseQuery.where({
@@ -114,7 +101,6 @@ export class LeasesService {
 
     if (propertyId) {
       const unitsInProperty = await this.unitModel
-        .byTenant(landlordId)
         .find({ property: propertyId })
         .select('_id')
         .exec();
@@ -170,14 +156,7 @@ export class LeasesService {
   }
 
   async findOne(id: string, currentUser: UserDocument) {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     const lease = await this.leaseModel
-      .byTenant(landlordId)
       .findById(id)
       .populate({
         path: 'unit',
@@ -195,13 +174,7 @@ export class LeasesService {
   }
 
   async create(createLeaseDto: CreateLeaseDto, currentUser: UserDocument): Promise<Lease> {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Cannot create lease: No tenant context');
-    }
-
-    await this.validateLeaseCreation(createLeaseDto, landlordId);
+    await this.validateLeaseCreation(createLeaseDto);
 
     // Apply full cycle completion to ensure duration is a multiple of payment cycles
     const completedEndDate = completeFullCycle(
@@ -210,15 +183,15 @@ export class LeasesService {
       createLeaseDto.paymentCycle,
     );
 
-    const LeaseWithTenant = this.leaseModel.byTenant(landlordId);
-    const newLease = new LeaseWithTenant({
+    const newLease = new this.leaseModel({
       ...createLeaseDto,
       endDate: completedEndDate, // Use cycle-completed end date
     });
+
     const savedLease = await newLease.save();
 
     if (createLeaseDto.status === LeaseStatus.ACTIVE) {
-      await this.activateLease(savedLease, landlordId);
+      await this.activateLease(savedLease);
     }
 
     return savedLease;
@@ -233,26 +206,20 @@ export class LeasesService {
       throw new UnprocessableEntityException('Update data cannot be empty');
     }
 
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const existingLease = await this.leaseModel.byTenant(landlordId).findById(id).exec();
+    const existingLease = await this.leaseModel.findById(id).exec();
 
     if (!existingLease) {
       throw new NotFoundException(`Lease with ID ${id} not found`);
     }
 
-    await this.validateLeaseUpdate(existingLease, updateLeaseDto, landlordId);
+    await this.validateLeaseUpdate(existingLease, updateLeaseDto);
 
     if (updateLeaseDto.paymentCycle && updateLeaseDto.paymentCycle !== existingLease.paymentCycle) {
-      await this.handlePaymentCycleChange(existingLease, updateLeaseDto.paymentCycle, landlordId);
+      await this.handlePaymentCycleChange(existingLease, updateLeaseDto.paymentCycle);
     }
 
     if (updateLeaseDto.status && updateLeaseDto.status !== existingLease.status) {
-      await this.handleStatusChange(existingLease, updateLeaseDto.status, landlordId);
+      await this.handleStatusChange(existingLease, updateLeaseDto.status);
     }
 
     Object.assign(existingLease, updateLeaseDto);
@@ -264,13 +231,7 @@ export class LeasesService {
     terminationData: TerminateLeaseDto,
     currentUser: UserDocument,
   ): Promise<Lease> {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const lease = await this.leaseModel.byTenant(landlordId).findById(id).exec();
+    const lease = await this.leaseModel.findById(id).exec();
 
     if (!lease) {
       throw new NotFoundException(`Lease with ID ${id} not found`);
@@ -295,7 +256,6 @@ export class LeasesService {
 
     // Get current rental period first to use its start date for calculation
     const currentRentalPeriod = await this.rentalPeriodModel
-      .byTenant(landlordId)
       .findOne({ lease: id, status: RentalPeriodStatus.ACTIVE })
       .exec();
 
@@ -332,14 +292,14 @@ export class LeasesService {
       startDate: { $gt: terminationDate },
     });
 
-    await this.unitModel.byTenant(landlordId).findByIdAndUpdate(lease.unit, {
+    await this.unitModel.findByIdAndUpdate(lease.unit, {
       availabilityStatus: UnitAvailabilityStatus.VACANT,
     });
 
     const savedLease = await lease.save();
 
     // Send lease termination email notifications
-    await this.sendLeaseTerminationEmails(savedLease, terminationData, landlordId);
+    await this.sendLeaseTerminationEmails(savedLease, terminationData);
 
     return savedLease;
   }
@@ -350,13 +310,8 @@ export class LeasesService {
     currentUser: UserDocument,
   ): Promise<{ lease: Lease; newRentalPeriod: RentalPeriod }> {
     // todo DB transaction
-    const landlordId = this.getLandlordId(currentUser);
 
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const lease = await this.leaseModel.byTenant(landlordId).findById(id).exec();
+    const lease = await this.leaseModel.findById(id).exec();
 
     if (!lease) {
       throw new NotFoundException(`Lease with ID ${id} not found`);
@@ -364,7 +319,6 @@ export class LeasesService {
 
     // Get current active rental period
     const currentRentalPeriod = await this.rentalPeriodModel
-      .byTenant(landlordId)
       .findOne({ lease: id, status: RentalPeriodStatus.ACTIVE })
       .exec();
 
@@ -374,7 +328,6 @@ export class LeasesService {
 
     // Check if there are any future/pending rental periods (indicating lease already renewed)
     const futureRentalPeriod = await this.rentalPeriodModel
-      .byTenant(landlordId)
       .findOne({
         lease: id,
         status: RentalPeriodStatus.PENDING,
@@ -409,11 +362,8 @@ export class LeasesService {
       };
     }
 
-    // currentRentalPeriod.status = RentalPeriodStatus.RENEWED;
-
     try {
-      const RentalPeriodWithTenant = this.rentalPeriodModel.byTenant(landlordId);
-      const newRentalPeriod = new RentalPeriodWithTenant({
+      const newRentalPeriod = new this.rentalPeriodModel({
         lease: id,
         startDate: normalizeToUTCStartOfDay(renewalData.startDate),
         endDate: normalizeToUTCStartOfDay(renewalData.endDate),
@@ -439,10 +389,8 @@ export class LeasesService {
       await this.createTransactionsForSchedule(
         id,
         savedNewRentalPeriod._id.toString(),
-        lease.tenant.toString(),
         newRentAmount,
         transactionSchedule,
-        landlordId,
       );
 
       await currentRentalPeriod.save();
@@ -453,7 +401,6 @@ export class LeasesService {
         savedLease,
         savedNewRentalPeriod,
         currentRentalPeriod,
-        landlordId,
       );
 
       return { lease: savedLease, newRentalPeriod: savedNewRentalPeriod };
@@ -467,19 +414,8 @@ export class LeasesService {
     manualRenewalData: ManualRenewLeaseDto,
     currentUser: UserDocument,
   ): Promise<{ lease: Lease; newRentalPeriod: RentalPeriod }> {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     // Fetch the lease to get current endDate and rent increase configuration
-    const lease = await this.leaseModel
-      .byTenant(landlordId)
-      .findById(id)
-      .populate('unit')
-      .populate('tenant')
-      .exec();
+    const lease = await this.leaseModel.findById(id).populate('unit').populate('tenant').exec();
 
     if (!lease) {
       throw new NotFoundException('Lease not found');
@@ -498,7 +434,6 @@ export class LeasesService {
 
     // Get current active rental period to determine correct start date
     const currentRentalPeriod = await this.rentalPeriodModel
-      .byTenant(landlordId)
       .findOne({ lease: id, status: RentalPeriodStatus.ACTIVE })
       .exec();
 
@@ -508,7 +443,6 @@ export class LeasesService {
 
     // Check if there are any future/pending rental periods (indicating lease already renewed)
     const futureRentalPeriod = await this.rentalPeriodModel
-      .byTenant(landlordId)
       .findOne({
         lease: id,
         status: RentalPeriodStatus.PENDING,
@@ -541,13 +475,7 @@ export class LeasesService {
   }
 
   async remove(id: string, currentUser: UserDocument) {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const lease = await this.leaseModel.byTenant(landlordId).findById(id).exec();
+    const lease = await this.leaseModel.findById(id).exec();
 
     if (!lease) {
       throw new NotFoundException(`Lease with ID ${id} not found`);
@@ -564,23 +492,19 @@ export class LeasesService {
 
   // Helper Methods
 
-  private async validateLeaseCreation(createLeaseDto: CreateLeaseDto, landlordId: Types.ObjectId) {
-    const unit = await this.unitModel.byTenant(landlordId).findById(createLeaseDto.unit).exec();
+  private async validateLeaseCreation(createLeaseDto: CreateLeaseDto) {
+    const unit = await this.unitModel.findById(createLeaseDto.unit).exec();
     if (!unit) {
       throw new NotFoundException('Unit not found');
     }
 
-    const tenant = await this.tenantModel
-      .byTenant(landlordId)
-      .findById(createLeaseDto.tenant)
-      .exec();
+    const tenant = await this.tenantModel.findById(createLeaseDto.tenant).exec();
     if (!tenant) {
       throw new NotFoundException('Tenant not found');
     }
 
     if (unit.availabilityStatus === UnitAvailabilityStatus.OCCUPIED) {
       const existingActiveLease = await this.leaseModel
-        .byTenant(landlordId)
         .findOne({
           unit: createLeaseDto.unit,
           status: { $in: [LeaseStatus.ACTIVE] },
@@ -599,15 +523,10 @@ export class LeasesService {
       createLeaseDto.unit,
       new Date(createLeaseDto.startDate),
       new Date(createLeaseDto.endDate),
-      landlordId,
     );
   }
 
-  private async validateLeaseUpdate(
-    existingLease: Lease,
-    updateLeaseDto: UpdateLeaseDto,
-    landlordId: Types.ObjectId,
-  ) {
+  private async validateLeaseUpdate(existingLease: Lease, updateLeaseDto: UpdateLeaseDto) {
     // Validate status transition
     if (updateLeaseDto.status && updateLeaseDto.status !== existingLease.status) {
       this.validateStatusTransition(existingLease.status, updateLeaseDto.status);
@@ -641,14 +560,13 @@ export class LeasesService {
         unitIdToValidate,
         startDate,
         endDate,
-        landlordId,
         existingLease._id.toString(),
       );
     }
 
     // Validate unit if changing unit
     if (updateLeaseDto.unit) {
-      const unit = await this.unitModel.byTenant(landlordId).findById(updateLeaseDto.unit).exec();
+      const unit = await this.unitModel.findById(updateLeaseDto.unit).exec();
       if (!unit) {
         throw new NotFoundException('Unit not found');
       }
@@ -657,7 +575,6 @@ export class LeasesService {
       if (updateLeaseDto.unit !== existingLease.unit.toString()) {
         if (unit.availabilityStatus === UnitAvailabilityStatus.OCCUPIED) {
           const existingActiveLease = await this.leaseModel
-            .byTenant(landlordId)
             .findOne({
               unit: updateLeaseDto.unit,
               status: { $in: [LeaseStatus.ACTIVE] },
@@ -678,10 +595,9 @@ export class LeasesService {
   private validateStatusTransition(currentStatus: LeaseStatus, newStatus: LeaseStatus) {
     const validTransitions: Record<LeaseStatus, LeaseStatus[]> = {
       [LeaseStatus.DRAFT]: [LeaseStatus.ACTIVE, LeaseStatus.TERMINATED],
-      [LeaseStatus.ACTIVE]: [LeaseStatus.EXPIRED, LeaseStatus.TERMINATED, LeaseStatus.RENEWED],
-      [LeaseStatus.EXPIRED]: [], // Cannot change status from expired
-      [LeaseStatus.TERMINATED]: [], // Cannot change status from terminated
-      [LeaseStatus.RENEWED]: [LeaseStatus.EXPIRED, LeaseStatus.TERMINATED], // Renewed can expire or terminate
+      [LeaseStatus.ACTIVE]: [LeaseStatus.EXPIRED, LeaseStatus.TERMINATED],
+      [LeaseStatus.EXPIRED]: [],
+      [LeaseStatus.TERMINATED]: []
     };
 
     const allowedStatuses = validTransitions[currentStatus] || [];
@@ -697,7 +613,6 @@ export class LeasesService {
     unitId: string,
     startDate: Date,
     endDate: Date,
-    landlordId: Types.ObjectId,
     excludeLeaseId?: string,
   ) {
     const query: any = {
@@ -732,7 +647,7 @@ export class LeasesService {
       query._id = { $ne: excludeLeaseId };
     }
 
-    const overlappingLeases = await this.leaseModel.byTenant(landlordId).find(query).exec();
+    const overlappingLeases = await this.leaseModel.find(query).exec();
 
     if (overlappingLeases.length > 0) {
       const overlappingLease = overlappingLeases[0];
@@ -744,10 +659,9 @@ export class LeasesService {
     }
   }
 
-  private async activateLease(lease: Lease, landlordId: Types.ObjectId) {
+  private async activateLease(lease: Lease) {
     try {
-      const RentalPeriodWithTenant = this.rentalPeriodModel.byTenant(landlordId);
-      const initialRentalPeriod = new RentalPeriodWithTenant({
+      const initialRentalPeriod = new this.rentalPeriodModel({
         lease: lease._id,
         startDate: normalizeToUTCStartOfDay(lease.startDate),
         endDate: normalizeToUTCStartOfDay(lease.endDate),
@@ -767,10 +681,8 @@ export class LeasesService {
       await this.createTransactionsForSchedule(
         lease._id.toString(),
         initialRentalPeriod._id.toString(),
-        lease.tenant.toString(),
         lease.rentAmount,
         transactionSchedule,
-        landlordId,
       );
 
       if (lease.isSecurityDeposit && lease.securityDepositAmount) {
@@ -778,16 +690,15 @@ export class LeasesService {
           lease._id.toString(),
           lease.securityDepositAmount,
           lease.startDate,
-          landlordId,
         );
       }
 
-      await this.unitModel.byTenant(landlordId).findByIdAndUpdate(lease.unit, {
+      await this.unitModel.findByIdAndUpdate(lease.unit, {
         availabilityStatus: UnitAvailabilityStatus.OCCUPIED,
       });
 
       // Send lease activation email notifications
-      await this.sendLeaseActivationEmails(lease, landlordId);
+      await this.sendLeaseActivationEmails(lease);
     } catch (error) {
       if (
         error.code === 11000 &&
@@ -809,9 +720,7 @@ export class LeasesService {
     assessmentDto: any,
     currentUser: UserDocument,
   ): Promise<any> {
-    const landlordId = this.getLandlordId(currentUser);
-
-    const lease = await this.leaseModel.byTenant(landlordId).findById(leaseId).exec();
+    const lease = await this.leaseModel.findById(leaseId).exec();
 
     if (!lease) {
       throw new NotFoundException('Lease not found');
@@ -868,12 +777,10 @@ export class LeasesService {
       lease.securityDepositAmount,
       totalDeductions,
       assessmentDto,
-      landlordId,
     );
 
     // Update lease with assessment and refund information
     const updatedLease = await this.leaseModel
-      .byTenant(landlordId)
       .findByIdAndUpdate(
         leaseId,
         {
@@ -894,10 +801,7 @@ export class LeasesService {
   }
 
   async getDepositAssessment(leaseId: string, currentUser: UserDocument): Promise<any> {
-    const landlordId = this.getLandlordId(currentUser);
-
     const lease = await this.leaseModel
-      .byTenant(landlordId)
       .findById(leaseId)
       .select('isSecurityDeposit securityDepositAmount depositAssessment securityDepositRefundedAt')
       .exec();
@@ -919,21 +823,13 @@ export class LeasesService {
     };
   }
 
-  private async handleStatusChange(
-    lease: Lease,
-    newStatus: LeaseStatus,
-    landlordId: Types.ObjectId,
-  ) {
+  private async handleStatusChange(lease: Lease, newStatus: LeaseStatus) {
     if (newStatus === LeaseStatus.ACTIVE && lease.status === LeaseStatus.DRAFT) {
-      await this.activateLease(lease, landlordId);
+      await this.activateLease(lease);
     }
   }
 
-  private async handlePaymentCycleChange(
-    lease: Lease,
-    newPaymentCycle: PaymentCycle,
-    landlordId: Types.ObjectId,
-  ) {
+  private async handlePaymentCycleChange(lease: Lease, newPaymentCycle: PaymentCycle) {
     // Only handle payment cycle changes for active leases
     if (lease.status !== LeaseStatus.ACTIVE) {
       return;
@@ -941,7 +837,6 @@ export class LeasesService {
 
     // Get the current active rental period
     const currentRentalPeriod = await this.rentalPeriodModel
-      .byTenant(landlordId)
       .findOne({ lease: lease._id, status: RentalPeriodStatus.ACTIVE })
       .exec();
 
@@ -972,10 +867,8 @@ export class LeasesService {
     await this.createTransactionsForSchedule(
       lease._id.toString(),
       currentRentalPeriod._id.toString(),
-      lease.tenant.toString(),
       currentRentalPeriod.rentAmount,
       transactionSchedule,
-      landlordId,
     );
   }
 
@@ -994,18 +887,13 @@ export class LeasesService {
   private async createTransactionsForSchedule(
     leaseId: string,
     rentalPeriodId: string,
-    tenantId: string,
     amount: number,
     dueDates: Date[],
-    landlordId: any,
   ): Promise<void> {
-    const TransactionWithTenant = this.transactionModel.byTenant(landlordId);
-
     const transactionPromises = dueDates.map((dueDate) => {
-      const transaction = new TransactionWithTenant({
+      const transaction = new this.transactionModel({
         lease: leaseId,
         rentalPeriod: rentalPeriodId,
-        tenant: tenantId,
         amount: amount,
         type: PaymentType.RENT,
         status: PaymentStatus.PENDING,
@@ -1021,11 +909,8 @@ export class LeasesService {
     leaseId: string,
     amount: number,
     dueDate: Date,
-    landlordId: any,
   ): Promise<void> {
-    const TransactionWithTenant = this.transactionModel.byTenant(landlordId);
-
-    const securityDepositTransaction = new TransactionWithTenant({
+    const securityDepositTransaction = new this.transactionModel({
       lease: leaseId,
       amount: amount,
       type: PaymentType.DEPOSIT,
@@ -1040,11 +925,10 @@ export class LeasesService {
   /**
    * Send lease activation email notifications to both landlord and tenant
    */
-  private async sendLeaseActivationEmails(lease: Lease, landlordId: Types.ObjectId): Promise<void> {
+  private async sendLeaseActivationEmails(lease: Lease): Promise<void> {
     try {
       // Populate lease with unit and tenant information
       const populatedLease = await this.leaseModel
-        .byTenant(landlordId)
         .findById(lease._id)
         .populate({
           path: 'unit',
@@ -1063,7 +947,7 @@ export class LeasesService {
       const unit = populatedLease.unit as any;
       const tenant = populatedLease.tenant as any;
       const property = unit.property as any;
-      const users = await this.findTenantUsers(tenant._id, landlordId);
+      const users = await this.findTenantUsers(tenant._id);
       // Send email to tenants
       for (const user of users) {
         await this.leaseEmailService.sendLeaseActivatedEmail(
@@ -1083,7 +967,7 @@ export class LeasesService {
       }
 
       // Find landlord users to notify
-      const landlordUser = await this.findLandlordUser(landlordId);
+      const landlordUser = await this.findLandlordUser();
 
       // Send email to each landlord user
       await this.leaseEmailService.sendLeaseActivatedEmail(
@@ -1112,12 +996,10 @@ export class LeasesService {
   private async sendLeaseTerminationEmails(
     lease: Lease,
     terminationData: TerminateLeaseDto,
-    landlordId: Types.ObjectId,
   ): Promise<void> {
     try {
       // Populate lease with unit and tenant information
       const populatedLease = await this.leaseModel
-        .byTenant(landlordId)
         .findById(lease._id)
         .populate({
           path: 'unit',
@@ -1141,7 +1023,7 @@ export class LeasesService {
       const inspectionDate = new Date(moveOutDate);
       inspectionDate.setDate(inspectionDate.getDate() - 2); // 2 days before move-out
 
-      const users = await this.findTenantUsers(tenant._id, landlordId);
+      const users = await this.findTenantUsers(tenant._id);
       // Send email to tenants
       for (const user of users) {
         await this.leaseEmailService.sendLeaseTerminationEmail(
@@ -1163,7 +1045,7 @@ export class LeasesService {
         );
       }
       // Find landlord users to notify
-      const landlordUser = await this.findLandlordUser(landlordId);
+      const landlordUser = await this.findLandlordUser();
 
       // Send email to each landlord user
       await this.leaseEmailService.sendLeaseTerminationEmail(
@@ -1195,12 +1077,10 @@ export class LeasesService {
     lease: Lease,
     newRentalPeriod: RentalPeriod,
     currentRentalPeriod: RentalPeriod,
-    landlordId: Types.ObjectId,
   ): Promise<void> {
     try {
       // Populate lease with unit and tenant information
       const populatedLease = await this.leaseModel
-        .byTenant(landlordId)
         .findById(lease._id)
         .populate({
           path: 'unit',
@@ -1227,7 +1107,7 @@ export class LeasesService {
       responseDeadline.setDate(responseDeadline.getDate() - 30);
 
       // Send email to tenants
-      const users = await this.findTenantUsers(tenant._id, landlordId);
+      const users = await this.findTenantUsers(tenant._id);
       for (const user of users) {
         await this.leaseEmailService.sendLeaseRenewalEmail(
           {
@@ -1248,7 +1128,7 @@ export class LeasesService {
         );
       }
       // Find landlord users to notify
-      const landlordUser = await this.findLandlordUser(landlordId);
+      const landlordUser = await this.findLandlordUser();
 
       // Send email to each landlord user
       await this.leaseEmailService.sendLeaseRenewalEmail(
@@ -1277,11 +1157,11 @@ export class LeasesService {
   /**
    * Find all users associated with a landlord tenant ID
    */
-  private async findLandlordUser(landlordId: Types.ObjectId): Promise<any> {
+  private async findLandlordUser(): Promise<any> {
     try {
       // Use mongoose connection to get User model
       const userModel = this.leaseModel.db.model('User');
-      const user = await userModel.findOne({ tenantId: landlordId, user_type: 'Landlord' }).exec();
+      const user = await userModel.findOne({ user_type: 'Landlord' }).exec();
       return user;
     } catch (error) {
       console.error('Failed to find landlord user:', error);
@@ -1323,9 +1203,6 @@ export class LeasesService {
 
       // Process each expiring lease
       for (const lease of expiringLeases) {
-        // Get the landlord ID from the lease
-        const landlordId =
-          typeof lease.tenant === 'object' ? (lease.tenant as any).tenantId : lease.tenant;
         const unit = lease.unit as any;
         const tenant = lease.tenant as any;
         const property = unit.property as any;
@@ -1335,7 +1212,7 @@ export class LeasesService {
         decisionDeadline.setDate(decisionDeadline.getDate() - 15);
 
         // Send email to tenant
-        const users = await this.findTenantUsers(tenant._id, landlordId);
+        const users = await this.findTenantUsers(tenant._id);
         for (const user of users) {
           await this.leaseEmailService.sendLeaseExpirationWarningEmail(
             {
@@ -1354,7 +1231,7 @@ export class LeasesService {
           );
         }
         // Find landlord users to notify
-        const landlordUser = await this.findLandlordUser(landlordId);
+        const landlordUser = await this.findLandlordUser();
 
         // Send email to each landlord user
         await this.leaseEmailService.sendLeaseExpirationWarningEmail(
@@ -1393,12 +1270,9 @@ export class LeasesService {
     fullDepositAmount: number,
     totalDeductions: number,
     assessmentDto: any,
-    landlordId: any,
   ): Promise<void> {
-    const TransactionWithTenant = this.transactionModel.byTenant(landlordId);
-
     // Always create refund transaction (negative amount - money going TO tenant)
-    const refundTransaction = new TransactionWithTenant({
+    const refundTransaction = new this.transactionModel({
       lease: leaseId,
       amount: -fullDepositAmount, // Negative amount - money flowing to tenant
       type: PaymentType.DEPOSIT_REFUND,
@@ -1413,7 +1287,7 @@ export class LeasesService {
 
     // Create deduction transaction only if there are deductions (positive amount)
     if (totalDeductions > 0) {
-      const deductionTransaction = new TransactionWithTenant({
+      const deductionTransaction = new this.transactionModel({
         lease: leaseId,
         amount: totalDeductions, // Positive amount - money kept by landlord
         type: PaymentType.DEPOSIT_DEDUCTION,
@@ -1428,20 +1302,23 @@ export class LeasesService {
     }
   }
 
-  private getLandlordId(currentUser: UserDocument): Types.ObjectId | null {
-    if (!currentUser.tenantId) {
-      return null;
-    }
+  // Helper function for sorting rent roll data
+  private mapSortField(sortBy: string): string {
+    const fieldMappings: Record<string, string> = {
+      rentAmount: 'monthlyRent',
+      dueDate: 'dueDate',
+      tenantName: 'tenantName',
+      propertyName: 'propertyName',
+      amountCollected: 'amountCollected',
+      outstandingBalance: 'outstandingBalance',
+    };
 
-    return currentUser.tenantId && typeof currentUser.tenantId === 'object'
-      ? (currentUser.tenantId as any)._id
-      : new Types.ObjectId(currentUser.tenantId);
+    return fieldMappings[sortBy] || sortBy;
   }
 
-  private async findTenantUsers(tenantId: string, landlordId: Types.ObjectId): Promise<any[]> {
+  private async findTenantUsers(tenantId: string): Promise<any[]> {
     try {
       return this.userModel
-        .byTenant(landlordId)
         .find({
           party_id: tenantId,
           user_type: 'Tenant',

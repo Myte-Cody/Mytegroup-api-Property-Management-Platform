@@ -21,21 +21,10 @@ export class UsersService {
   async create(createUserDto: CreateUserDto, currentUser: UserDocument) {
     const { username, email, password, user_type, party_id } = createUserDto;
 
-    // Get tenantId from current user
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
-    if (!landlordId) {
-      throw new UnprocessableEntityException('Current user must have a tenantId to create users');
-    }
-
     // Check username uniqueness within the same landlord
     const existingUsername = await this.userModel
       .findOne({
         username,
-        tenantId: landlordId,
       })
       .exec();
     if (existingUsername) {
@@ -48,7 +37,6 @@ export class UsersService {
     const existingEmail = await this.userModel
       .findOne({
         email,
-        tenantId: landlordId,
       })
       .exec();
     if (existingEmail) {
@@ -66,7 +54,6 @@ export class UsersService {
       password: hashedPassword,
       user_type,
       party_id, // Optional, can be set during creation
-      tenantId: landlordId, // Set from current user
     });
 
     // Save the user first to ensure it exists in the database
@@ -88,14 +75,13 @@ export class UsersService {
     return savedUser;
   }
 
-  async createFromInvitation(createUserDto: CreateUserDto, landlordId: string) {
+  async createFromInvitation(createUserDto: CreateUserDto) {
     const { username, email, password, user_type, party_id } = createUserDto;
 
     // Check username uniqueness within the same landlord
     const existingUsername = await this.userModel
       .findOne({
         username,
-        tenantId: landlordId,
       })
       .exec();
     if (existingUsername) {
@@ -108,7 +94,6 @@ export class UsersService {
     const existingEmail = await this.userModel
       .findOne({
         email,
-        tenantId: landlordId,
       })
       .exec();
     if (existingEmail) {
@@ -126,7 +111,6 @@ export class UsersService {
       password: hashedPassword,
       user_type,
       party_id,
-      tenantId: landlordId,
     });
 
     // Save the user first to ensure it exists in the database
@@ -214,7 +198,6 @@ export class UsersService {
       const existingUsername = await this.userModel
         .findOne({
           username: updateUserDto.username,
-          tenantId: user.tenantId,
           _id: { $ne: id },
         })
         .exec();
@@ -230,7 +213,6 @@ export class UsersService {
       const existingEmail = await this.userModel
         .findOne({
           email: updateUserDto.email,
-          tenantId: user.tenantId,
           _id: { $ne: id },
         })
         .exec();

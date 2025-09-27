@@ -3,7 +3,6 @@ export enum LeaseStatus {
   ACTIVE = 'ACTIVE',
   EXPIRED = 'EXPIRED',
   TERMINATED = 'TERMINATED',
-  RENEWED = 'RENEWED',
 }
 
 export enum PaymentCycle {
@@ -22,7 +21,6 @@ export enum RentalPeriodStatus {
   PENDING = 'PENDING',
   ACTIVE = 'ACTIVE',
   EXPIRED = 'EXPIRED',
-  RENEWED = 'RENEWED',
 }
 
 export enum PaymentStatus {

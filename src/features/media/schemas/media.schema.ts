@@ -3,7 +3,6 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
-const mongoTenant = require('mongo-tenant');
 
 export enum MediaType {
   IMAGE = 'image',
@@ -94,4 +93,3 @@ export const MediaSchema = SchemaFactory.createForClass(Media);
 
 MediaSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 MediaSchema.plugin(accessibleRecordsPlugin);
-MediaSchema.plugin(mongoTenant);

@@ -3,7 +3,6 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { SoftDelete } from 'src/common/interfaces/soft-delete.interface';
-const mongoTenant = require('mongo-tenant');
 
 @Schema({ timestamps: true })
 export class Tenant extends Document implements SoftDelete {
@@ -29,4 +28,3 @@ TenantSchema.index(
 
 TenantSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 TenantSchema.plugin(accessibleRecordsPlugin);
-TenantSchema.plugin(mongoTenant);

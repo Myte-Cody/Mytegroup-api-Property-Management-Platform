@@ -19,8 +19,8 @@ export class AuthService {
     const user = await this.userModel
       .findOne({ email })
       .select('+password')
-      .populate('party_id') // Populate the party reference (Landlord/Tenant/Contractor)
-      .populate('tenantId', 'name') // Populate landlord info
+      // todo populate party ?
+      .populate('party_id')
       .exec();
 
     if (!user) {
@@ -33,18 +33,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Ensure user has required tenant context
-    if (!user.tenantId) {
-      throw new UnauthorizedException(
-        'User account is not properly configured - missing tenant context',
-      );
-    }
-
     const payload = {
       sub: user._id,
       email: user.email,
       user_type: user.user_type,
-      tenantId: user.tenantId,
       party_id: user.party_id,
     };
 
@@ -54,9 +46,7 @@ export class AuthService {
         username: user.username,
         email: user.email,
         user_type: user.user_type,
-        tenantId: user.tenantId,
         party_info: user.party_id,
-        landlord_info: user.tenantId,
       },
       accessToken: this.jwtService.sign(payload),
     };
@@ -65,18 +55,12 @@ export class AuthService {
   async getCurrentUser(userId: string) {
     const user = await this.userModel
       .findById(userId)
-      .select('_id username email user_type tenantId party_id')
+      .select('_id username email user_type party_id')
       .populate('party_id')
-      .populate('tenantId', 'name')
       .exec();
 
     if (!user) {
       throw new NotFoundException('User not found');
-    }
-
-    // Ensure user has tenant context
-    if (!user.tenantId) {
-      throw new UnauthorizedException('User account is missing tenant context');
     }
 
     return {
@@ -84,10 +68,8 @@ export class AuthService {
       username: user.username,
       email: user.email,
       user_type: user.user_type,
-      tenantId: user.tenantId,
       party_id: user.party_id,
       party_info: user.party_id, // Populated party data
-      landlord_info: user.tenantId, // Populated landlord data
     };
   }
 }

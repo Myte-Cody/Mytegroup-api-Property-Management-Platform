@@ -66,29 +66,6 @@ export class CaslAbilityFactory {
   createForUser(user: UserDocument): AppAbility {
     const { can, cannot, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
 
-    // Handle both populated and unpopulated tenantId
-    const landlordId =
-      user.tenantId && typeof user.tenantId === 'object'
-        ? (user.tenantId as any)._id
-        : user.tenantId;
-
-    // All users must have a tenant context
-    if (!landlordId) {
-      // Users without tenant context get no permissions
-      return build({
-        detectSubjectType: (item) => {
-          if (item && item.constructor && (item.constructor as any).modelName) {
-            const modelName = (item.constructor as any)
-              .modelName as keyof typeof SUBJECT_MODEL_MAPPING;
-            return (
-              SUBJECT_MODEL_MAPPING[modelName] || (item.constructor as ExtractSubjectType<Subjects>)
-            );
-          }
-          return item.constructor as ExtractSubjectType<Subjects>;
-        },
-      });
-    }
-
     switch (user.user_type) {
       case UserType.LANDLORD:
         this.defineLandlordPermissions(can, cannot, user);
@@ -122,13 +99,7 @@ export class CaslAbilityFactory {
   }
 
   private defineLandlordPermissions(can: any, cannot: any, user: UserDocument) {
-    // Get the tenantId for scoping permissions
-    const landlordId =
-      user.tenantId && typeof user.tenantId === 'object'
-        ? (user.tenantId as any)._id
-        : user.tenantId;
-
-    // Landlords can manage all resources within their tenant context
+    // Landlords can manage all resources
     can(Action.Manage, Property);
     can(Action.Manage, Unit);
     can(Action.Manage, Tenant);
@@ -138,20 +109,10 @@ export class CaslAbilityFactory {
     can(Action.Manage, Lease);
     can(Action.Manage, RentalPeriod);
     can(Action.Manage, Transaction);
-
-    // Landlords can manage all types of users within their context
-    if (landlordId) {
-      can(Action.Manage, User, { tenantId: landlordId });
-    }
+    can(Action.Manage, User);
   }
 
   private defineTenantPermissions(can: any, cannot: any, user: UserDocument) {
-    // Get the tenantId for scoping permissions
-    const landlordId =
-      user.tenantId && typeof user.tenantId === 'object'
-        ? (user.tenantId as any)._id
-        : user.tenantId;
-
     // Tenants can only read properties and units
     can(Action.Read, Property);
     can(Action.Read, Unit);
@@ -179,10 +140,16 @@ export class CaslAbilityFactory {
       can(Action.Read, Tenant, { _id: tenantId });
     }
 
-    // Tenants can manage tenant users within their landlord's context
-    if (landlordId) {
+    // Tenants can manage tenant users with the same party_id (same tenant entity)
+    if (tenantPartyId) {
       can(Action.Manage, User, {
-        tenantId: landlordId,
+        party_id: tenantPartyId,
+        user_type: UserType.TENANT,
+      });
+
+      // Explicitly add read permission to ensure accessibleBy works correctly
+      can(Action.Read, User, {
+        party_id: tenantPartyId,
         user_type: UserType.TENANT,
       });
     }
