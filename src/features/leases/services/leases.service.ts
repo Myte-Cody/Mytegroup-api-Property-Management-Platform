@@ -397,11 +397,7 @@ export class LeasesService {
       const savedLease = await lease.save();
 
       // Send lease renewal email notifications
-      await this.sendLeaseRenewalEmails(
-        savedLease,
-        savedNewRentalPeriod,
-        currentRentalPeriod,
-      );
+      await this.sendLeaseRenewalEmails(savedLease, savedNewRentalPeriod, currentRentalPeriod);
 
       return { lease: savedLease, newRentalPeriod: savedNewRentalPeriod };
     } catch (error) {
@@ -597,7 +593,7 @@ export class LeasesService {
       [LeaseStatus.DRAFT]: [LeaseStatus.ACTIVE, LeaseStatus.TERMINATED],
       [LeaseStatus.ACTIVE]: [LeaseStatus.EXPIRED, LeaseStatus.TERMINATED],
       [LeaseStatus.EXPIRED]: [],
-      [LeaseStatus.TERMINATED]: []
+      [LeaseStatus.TERMINATED]: [],
     };
 
     const allowedStatuses = validTransitions[currentStatus] || [];

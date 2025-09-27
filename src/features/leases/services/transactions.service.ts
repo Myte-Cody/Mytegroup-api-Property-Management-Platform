@@ -1,13 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Types } from 'mongoose';
 import { PaymentStatus, PaymentType } from '../../../common/enums/lease.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { addDaysToDate, createDateRangeFilter } from '../../../common/utils/date.utils';
-import {
-  createEmptyPaginatedResponse,
-  createPaginatedResponse,
-} from '../../../common/utils/pagination.utils';
+import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { PaymentEmailService } from '../../email/services/payment-email.service';
 import { MediaService } from '../../media/services/media.service';
 import { User, UserDocument } from '../../users/schemas/user.schema';
@@ -423,7 +419,6 @@ export class TransactionsService {
 
     return transaction;
   }
-
 
   /**
    * Send payment reminder emails for transactions due in 7 days
