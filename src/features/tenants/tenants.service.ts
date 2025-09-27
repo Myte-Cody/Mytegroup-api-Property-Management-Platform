@@ -5,7 +5,6 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Types } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { UserType } from '../../common/enums/user-type.enum';
@@ -46,27 +45,14 @@ export class TenantsService {
 
     const { page = 1, limit = 10, search, sortBy = 'createdAt', sortOrder = 'desc' } = queryDto;
 
-    // STEP 1: CASL - Check if user can read tenants
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     if (!ability.can(Action.Read, Tenant)) {
       throw new ForbiddenException('You do not have permission to view tenants');
     }
 
-    // STEP 2: mongo-tenant - Apply tenant isolation (mandatory for all users)
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
+    let baseQuery = this.tenantModel.find();
 
-    if (!landlordId) {
-      // Users without tenantId cannot access any tenants
-      return createPaginatedResponse<Tenant>([], 0, page, limit);
-    }
-
-    let baseQuery = this.tenantModel.byTenant(landlordId).find();
-
-    // STEP 3: Apply CASL field-level filtering
     baseQuery = (baseQuery as any).accessibleBy(ability, Action.Read);
 
     // Add search functionality
@@ -107,17 +93,7 @@ export class TenantsService {
       throw new ForbiddenException('You do not have permission to view tenants');
     }
 
-    // mongo-tenant: Apply tenant filtering (mandatory)
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
-    const tenant = await this.tenantModel.byTenant(landlordId).findById(id).exec();
+    const tenant = await this.tenantModel.findById(id).exec();
 
     if (!tenant) {
       throw new NotFoundException(`Tenant with ID ${id} not found`);
@@ -144,22 +120,12 @@ export class TenantsService {
       throw new ForbiddenException('You do not have permission to view tenant profile');
     }
 
-    // mongo-tenant: Apply tenant filtering (mandatory)
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
     const tenantId = currentUser.party_id;
     if (!tenantId) {
       throw new ForbiddenException('No tenant profile associated with this user');
     }
 
-    const tenant = await this.tenantModel.byTenant(landlordId).findById(tenantId).exec();
+    const tenant = await this.tenantModel.findById(tenantId).exec();
 
     if (!tenant) {
       throw new NotFoundException('Tenant profile not found');
@@ -182,32 +148,20 @@ export class TenantsService {
       throw new ForbiddenException('You do not have permission to create tenants');
     }
 
-    // Ensure user has tenant context
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Cannot create tenant: No tenant context');
-    }
-
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
     // Extract user data from DTO
     const { email, password, name, username, phoneNumber } = createTenantDto;
 
     // Validate tenant creation data
-    await this.validateTenantCreationData(name, email, username, landlordId);
+    await this.validateTenantCreationData(name, email, username);
 
     // Create tenant
     // todo start transaction
     const tenantData = {
       name,
       phoneNumber,
-      tenantId: landlordId,
     };
 
-    const TenantWithTenant = this.tenantModel.byTenant(landlordId);
-    const newTenant = new TenantWithTenant(tenantData);
+    const newTenant = new this.tenantModel(tenantData);
     const savedTenant = await newTenant.save();
 
     // Create user account
@@ -224,25 +178,20 @@ export class TenantsService {
     return savedTenant;
   }
 
-  async createFromInvitation(createTenantDto: CreateTenantDto, landlordId: string) {
+  async createFromInvitation(createTenantDto: CreateTenantDto) {
     // Extract user data from DTO
     const { email, password, name, username, phoneNumber } = createTenantDto;
 
-    // Convert landlordId to ObjectId
-    const landlordObjectId = new Types.ObjectId(landlordId);
-
     // Validate tenant creation data (no CASL authorization needed for invitations)
-    await this.validateTenantCreationData(name, email, username, landlordObjectId);
+    await this.validateTenantCreationData(name, email, username);
 
     // Create tenant
     const tenantData = {
       name,
       phoneNumber,
-      tenantId: landlordObjectId,
     };
 
-    const TenantWithTenant = this.tenantModel.byTenant(landlordObjectId);
-    const newTenant = new TenantWithTenant(tenantData);
+    const newTenant = new this.tenantModel(tenantData);
     const savedTenant = await newTenant.save();
 
     // Create user account (without current user context for invitations)
@@ -254,7 +203,7 @@ export class TenantsService {
       party_id: savedTenant._id.toString(),
     };
 
-    await this.usersService.createFromInvitation(userData, landlordObjectId.toString());
+    await this.usersService.createFromInvitation(userData);
 
     return savedTenant;
   }
@@ -262,19 +211,7 @@ export class TenantsService {
   async update(id: string, updateTenantDto: UpdateTenantDto, currentUser: UserDocument) {
     // CASL: Check update permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
-
-    // Ensure user has tenant context
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
-    // mongo-tenant: Find within tenant context
-    const tenant = await this.tenantModel.byTenant(landlordId).findById(id).exec();
+    const tenant = await this.tenantModel.findById(id).exec();
 
     if (!tenant) {
       throw new NotFoundException(`Tenant with ID ${id} not found`);
@@ -290,7 +227,7 @@ export class TenantsService {
 
     // Validate tenant name uniqueness if name is being updated
     if (filteredUpdateDto.name && filteredUpdateDto.name !== tenant.name) {
-      await this.validateTenantNameUniqueness(filteredUpdateDto.name, landlordId, id);
+      await this.validateTenantNameUniqueness(filteredUpdateDto.name, id);
     }
 
     const updatedTenant = await this.tenantModel
@@ -304,19 +241,7 @@ export class TenantsService {
     // CASL: Check delete permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
-    // todo do we need this verification each time
-    // Ensure user has tenant context
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
-    // mongo-tenant: Find within tenant context
-    const tenant = await this.tenantModel.byTenant(landlordId).findById(id).exec();
+    const tenant = await this.tenantModel.findById(id).exec();
 
     if (!tenant) {
       throw new NotFoundException(`Tenant with ID ${id} not found`);
@@ -402,15 +327,8 @@ export class TenantsService {
       );
     }
 
-    // Ensure user has tenant context
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const landlordId = this.getLandlordId(currentUser);
-
     // Verify the tenant exists and user has access
-    const tenant = await this.tenantModel.byTenant(landlordId).findById(tenantId).exec();
+    const tenant = await this.tenantModel.findById(tenantId).exec();
 
     if (!tenant) {
       throw new NotFoundException(`Tenant with ID ${tenantId} not found`);
@@ -426,13 +344,6 @@ export class TenantsService {
     return tenant;
   }
 
-  // Helper method to get landlord ID from user
-  private getLandlordId(currentUser: UserDocument) {
-    return currentUser.tenantId && typeof currentUser.tenantId === 'object'
-      ? (currentUser.tenantId as any)._id
-      : currentUser.tenantId;
-  }
-
   // Helper method to validate that a user belongs to a specific tenant
   private async validateUserBelongsToTenant(
     userId: string,
@@ -444,11 +355,8 @@ export class TenantsService {
       throw new UnprocessableEntityException('Invalid user ID format');
     }
 
-    const landlordId = this.getLandlordId(currentUser);
-
     // Find and verify the user belongs to the tenant
     const user = await this.userModel
-      .byTenant(landlordId)
       .findOne({
         _id: userId,
         user_type: 'Tenant',
@@ -494,15 +402,9 @@ export class TenantsService {
   }
 
   // Validation helper for tenant creation
-  private async validateTenantCreationData(
-    name: string,
-    email: string,
-    username: string,
-    landlordId: any,
-  ) {
+  private async validateTenantCreationData(name: string, email: string, username: string) {
     // Check if tenant name already exists
     const existingTenant = await this.tenantModel
-      .byTenant(landlordId)
       .findOne({ name: { $regex: new RegExp(`^${name}$`, 'i') } })
       .exec();
 
@@ -514,7 +416,6 @@ export class TenantsService {
 
     // Check if email is already registered
     const existingUserWithEmail = await this.userModel
-      .byTenant(landlordId)
       .findOne({ email: email.toLowerCase() })
       .exec();
 
@@ -526,7 +427,6 @@ export class TenantsService {
 
     // Check if username is already taken
     const existingUserWithUsername = await this.userModel
-      .byTenant(landlordId)
       .findOne({ username: username.toLowerCase() })
       .exec();
 
@@ -538,9 +438,8 @@ export class TenantsService {
   }
 
   // Validation helper for tenant name uniqueness during updates
-  private async validateTenantNameUniqueness(name: string, landlordId: any, excludeId: string) {
+  private async validateTenantNameUniqueness(name: string, excludeId: string) {
     const existingTenant = await this.tenantModel
-      .byTenant(landlordId)
       .findOne({
         name: { $regex: new RegExp(`^${name}$`, 'i') },
         _id: { $ne: excludeId },

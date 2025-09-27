@@ -58,16 +58,6 @@ export class MediaService implements MediaServiceInterface {
       throw new ForbiddenException('You do not have permission to upload media');
     }
 
-    // Ensure user has tenant context
-    if (!(currentUser as any).tenantId) {
-      throw new ForbiddenException('Cannot upload media: No tenant context');
-    }
-
-    const landlordId =
-      (currentUser as any).tenantId && typeof (currentUser as any).tenantId === 'object'
-        ? ((currentUser as any).tenantId as any)._id
-        : (currentUser as any).tenantId;
-
     // Generate unique filename and path - handle different file object structures
     const originalName = file.originalname || file.originalName || file.name || 'unknown.jpg';
     const uniqueFilename = MediaUtils.generateUniqueFilename(originalName);
@@ -75,12 +65,8 @@ export class MediaService implements MediaServiceInterface {
     // Determine entity type - use explicit parameter if provided
     let determinedEntityType =
       entityType || entity?.constructor?.name || entity.model_type || 'UnknownModel';
-    if (
-      determinedEntityType === 'MongoTenantModel' ||
-      determinedEntityType === 'model' ||
-      determinedEntityType === 'Object'
-    ) {
-      // For mongo-tenant models, try to determine type from schema or properties
+    if (determinedEntityType === 'model' || determinedEntityType === 'Object') {
+      // Try to determine type from schema or properties
       if (entity?.address && entity?.name && !entity?.property) {
         determinedEntityType = 'Property';
       } else if (entity?.property && entity?.unitNumber !== undefined) {
@@ -112,7 +98,6 @@ export class MediaService implements MediaServiceInterface {
     const mediaData = {
       model_type: determinedEntityType,
       model_id: entity?._id,
-      tenantId: landlordId,
       name: originalName,
       file_name: uniqueFilename,
       mime_type: mimeType,
@@ -126,9 +111,8 @@ export class MediaService implements MediaServiceInterface {
       metadata: this.extractMetadata(file),
     };
 
-    // Create within tenant context
-    const MediaWithTenant = this.mediaModel.byTenant(landlordId);
-    const newMedia = new MediaWithTenant(mediaData);
+    // Create media record
+    const newMedia = new this.mediaModel(mediaData);
 
     return await newMedia.save();
   }
@@ -153,18 +137,12 @@ export class MediaService implements MediaServiceInterface {
       query.media_type = filters.media_type;
     }
 
-    const media = await this.mediaModel
-      .byTenant((user as any).tenantId)
-      .find(query)
-      .exec();
+    const media = await this.mediaModel.find(query).exec();
     return this.enrichMediaArrayWithUrls(media);
   }
 
   async findOne(id: string, user: User): Promise<Media & { url: string }> {
-    const media = await this.mediaModel
-      .byTenant((user as any).tenantId)
-      .findById(id)
-      .exec();
+    const media = await this.mediaModel.findById(id).exec();
 
     if (!media) {
       throw new NotFoundException('Media not found');
@@ -181,10 +159,7 @@ export class MediaService implements MediaServiceInterface {
 
   async deleteMedia(id: string, user: User): Promise<void> {
     // Get media without URL enrichment for deletion (more efficient)
-    const media = await this.mediaModel
-      .byTenant((user as any).tenantId)
-      .findById(id)
-      .exec();
+    const media = await this.mediaModel.findById(id).exec();
 
     if (!media) {
       throw new NotFoundException('Media not found');
@@ -201,7 +176,7 @@ export class MediaService implements MediaServiceInterface {
     await driver.delete(media.path);
 
     // Delete from database
-    await this.mediaModel.byTenant((user as any).tenantId).findByIdAndDelete(id);
+    await this.mediaModel.findByIdAndDelete(id);
   }
 
   async getMediaUrl(media: Media): Promise<string> {

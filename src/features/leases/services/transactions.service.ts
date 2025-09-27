@@ -1,17 +1,9 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { PaymentStatus, PaymentType } from '../../../common/enums/lease.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { createDateRangeFilter } from '../../../common/utils/date.utils';
-import {
-  createEmptyPaginatedResponse,
-  createPaginatedResponse,
-} from '../../../common/utils/pagination.utils';
+import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { MediaService } from '../../media/services/media.service';
 import { UserDocument } from '../../users/schemas/user.schema';
 import { UploadTransactionProofDto } from '../dto';
@@ -48,13 +40,7 @@ export class TransactionsService {
       endDate,
     } = queryDto;
 
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      return createEmptyPaginatedResponse(page, limit);
-    }
-
-    let baseQuery = this.transactionModel.byTenant(landlordId).find();
+    let baseQuery = this.transactionModel.find();
 
     if (status) {
       baseQuery = baseQuery.where({ status });
@@ -113,26 +99,14 @@ export class TransactionsService {
   }
 
   async findOne(id: string, currentUser: UserDocument) {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     const transaction = await this.transactionModel
-      .byTenant(landlordId)
       .findById(id)
       .populate({
         path: 'lease',
-        select: 'unit tenant terms',
-        populate: [
-          {
-            path: 'unit',
-            select: 'unitNumber type',
-            populate: { path: 'property', select: 'name address' },
-          },
-          { path: 'tenant', select: 'name' },
-        ],
+        populate: {
+          path: 'unit tenant',
+          select: 'unitNumber name',
+        },
       })
       .populate('rentalPeriod', 'startDate endDate rentAmount')
       .exec();
@@ -145,22 +119,13 @@ export class TransactionsService {
   }
 
   async create(createTransactionDto: any, currentUser: UserDocument) {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Cannot create transaction: No tenant context');
-    }
-
-    await this.validateTransactionCreation(createTransactionDto, landlordId);
-
-    const TransactionWithTenant = this.transactionModel.byTenant(landlordId);
+    await this.validateTransactionCreation(createTransactionDto);
 
     // For manual transaction creation, create single transaction with provided or calculated due date
     let transactionData = { ...createTransactionDto };
 
     if (!createTransactionDto.dueDate && createTransactionDto.rentalPeriod) {
       const rentalPeriod = await this.rentalPeriodModel
-        .byTenant(landlordId)
         .findById(createTransactionDto.rentalPeriod)
         .populate('lease')
         .exec();
@@ -176,7 +141,7 @@ export class TransactionsService {
       }
     }
 
-    const newTransaction = new TransactionWithTenant(transactionData);
+    const newTransaction = new this.transactionModel(transactionData);
     return await newTransaction.save();
   }
 
@@ -185,17 +150,8 @@ export class TransactionsService {
       throw new BadRequestException('Update data cannot be empty');
     }
 
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     // Find existing transaction
-    const existingTransaction = await this.transactionModel
-      .byTenant(landlordId)
-      .findById(id)
-      .exec();
+    const existingTransaction = await this.transactionModel.findById(id).exec();
 
     if (!existingTransaction) {
       throw new NotFoundException(`Transaction with ID ${id} not found`);
@@ -211,13 +167,7 @@ export class TransactionsService {
   }
 
   async processTransaction(id: string, currentUser: UserDocument) {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const transaction = await this.transactionModel.byTenant(landlordId).findById(id).exec();
+    const transaction = await this.transactionModel.findById(id).exec();
 
     if (!transaction) {
       throw new NotFoundException(`Transaction with ID ${id} not found`);
@@ -236,14 +186,8 @@ export class TransactionsService {
   }
 
   async remove(id: string, currentUser: UserDocument) {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     // Find transaction
-    const transaction = await this.transactionModel.byTenant(landlordId).findById(id).exec();
+    const transaction = await this.transactionModel.findById(id).exec();
 
     if (!transaction) {
       throw new NotFoundException(`Transaction with ID ${id} not found`);
@@ -261,20 +205,13 @@ export class TransactionsService {
   // Analytics and Reporting Methods
 
   async getTransactionsByLease(leaseId: string, currentUser: UserDocument) {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     // Verify lease exists
-    const lease = await this.leaseModel.byTenant(landlordId).findById(leaseId).exec();
+    const lease = await this.leaseModel.findById(leaseId).exec();
     if (!lease) {
       throw new NotFoundException(`Lease with ID ${leaseId} not found`);
     }
 
     const transactions = await this.transactionModel
-      .byTenant(landlordId)
       .find({ lease: leaseId })
       .sort({ dueDate: 1 })
       .populate('rentalPeriod', 'startDate endDate rentAmount')
@@ -284,22 +221,13 @@ export class TransactionsService {
   }
 
   async getTransactionSummary(leaseId: string, currentUser: UserDocument) {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     // Verify lease exists
-    const lease = await this.leaseModel.byTenant(landlordId).findById(leaseId).exec();
+    const lease = await this.leaseModel.findById(leaseId).exec();
     if (!lease) {
       throw new NotFoundException(`Lease with ID ${leaseId} not found`);
     }
 
-    const transactions = await this.transactionModel
-      .byTenant(landlordId)
-      .find({ lease: leaseId })
-      .exec();
+    const transactions = await this.transactionModel.find({ lease: leaseId }).exec();
 
     const summary = {
       totalTransactions: transactions.length,
@@ -330,19 +258,15 @@ export class TransactionsService {
 
   // Helper Methods
 
-  private async validateTransactionCreation(createTransactionDto: any, landlordId: any) {
+  private async validateTransactionCreation(createTransactionDto: any) {
     // Validate lease exists
-    const lease = await this.leaseModel
-      .byTenant(landlordId)
-      .findById(createTransactionDto.lease)
-      .exec();
+    const lease = await this.leaseModel.findById(createTransactionDto.lease).exec();
     if (!lease) {
       throw new NotFoundException('Lease not found');
     }
 
     if (createTransactionDto.rentalPeriod) {
       const rentalPeriod = await this.rentalPeriodModel
-        .byTenant(landlordId)
         .findById(createTransactionDto.rentalPeriod)
         .exec();
       if (!rentalPeriod) {
@@ -371,10 +295,7 @@ export class TransactionsService {
     submitDto: UploadTransactionProofDto,
     currentUser: UserDocument,
   ): Promise<Transaction> {
-    const landlordId = this.getLandlordId(currentUser);
-
     const transaction = await this.transactionModel
-      .byTenant(landlordId)
       .findOne({
         lease: leaseId,
         rentalPeriod: rentalPeriodId,
@@ -397,7 +318,6 @@ export class TransactionsService {
     }
 
     const updatedTransaction = await this.transactionModel
-      .byTenant(landlordId)
       .findByIdAndUpdate(
         transaction._id,
         {
@@ -407,7 +327,6 @@ export class TransactionsService {
         },
         { new: true },
       )
-      .populate('lease rentalPeriod')
       .exec();
 
     if (submitDto.media_files && submitDto.media_files.length > 0) {
@@ -426,10 +345,7 @@ export class TransactionsService {
     rentalPeriodId: string,
     currentUser: UserDocument,
   ): Promise<Transaction> {
-    const landlordId = this.getLandlordId(currentUser);
-
     const transaction = await this.transactionModel
-      .byTenant(landlordId)
       .findOne({
         lease: leaseId,
         rentalPeriod: rentalPeriodId,
@@ -445,14 +361,7 @@ export class TransactionsService {
   }
 
   async markAsPaid(id: string, markAsPaidDto: MarkTransactionAsPaidDto, currentUser: UserDocument) {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     const transaction = await this.transactionModel
-      .byTenant(landlordId)
       .findById(id)
       .populate('lease rentalPeriod')
       .exec();
@@ -479,14 +388,7 @@ export class TransactionsService {
   }
 
   async markAsNotPaid(id: string, currentUser: UserDocument) {
-    const landlordId = this.getLandlordId(currentUser);
-
-    if (!landlordId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     const transaction = await this.transactionModel
-      .byTenant(landlordId)
       .findById(id)
       .populate('lease rentalPeriod')
       .exec();
@@ -504,11 +406,5 @@ export class TransactionsService {
     await transaction.save();
 
     return transaction;
-  }
-
-  private getLandlordId(currentUser: UserDocument) {
-    return currentUser.tenantId && typeof currentUser.tenantId === 'object'
-      ? (currentUser.tenantId as any)._id
-      : currentUser.tenantId;
   }
 }

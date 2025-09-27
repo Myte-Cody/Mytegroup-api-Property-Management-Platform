@@ -18,11 +18,9 @@ export interface RenewalResult {
   errors: Array<{
     leaseId: string;
     error: string;
-    tenantId: string;
   }>;
   details: Array<{
     leaseId: string;
-    tenantId: string;
     oldEndDate: Date;
     newEndDate: Date;
     oldRent: number;
@@ -145,15 +143,12 @@ export class AutoRenewalService {
       } catch (error) {
         this.logger.error(`Error processing lease ${lease._id}:`, error);
         result.failed++;
-        const tenantIdentifier = (lease as any).tenantId?.toString() || 'unknown';
         result.errors.push({
           leaseId: lease._id.toString(),
           error: error.message,
-          tenantId: tenantIdentifier,
         });
         result.details.push({
           leaseId: lease._id.toString(),
-          tenantId: tenantIdentifier,
           oldEndDate: lease.endDate,
           newEndDate: lease.endDate,
           oldRent: lease.rentAmount,
@@ -170,9 +165,7 @@ export class AutoRenewalService {
     config: RenewalConfig,
     result: RenewalResult,
   ): Promise<void> {
-    const tenantIdentifier = (lease as any).tenantId?.toString() || 'unknown';
-
-    this.logger.log(`Processing renewal for lease ${lease._id} (tenant: ${tenantIdentifier})`);
+    this.logger.log(`Processing renewal for lease ${lease._id}`);
 
     const { startDate: newStartDate, endDate: newEndDate } = calculateRenewalDates(
       lease.endDate,
@@ -190,7 +183,6 @@ export class AutoRenewalService {
       this.logger.log(`DRY RUN: Would renew lease ${lease._id} with new rent: ${newRentAmount}`);
       result.details.push({
         leaseId: lease._id.toString(),
-        tenantId: tenantIdentifier,
         oldEndDate: lease.endDate,
         newEndDate: newEndDate,
         oldRent: lease.rentAmount,
@@ -202,17 +194,8 @@ export class AutoRenewalService {
     }
 
     // Create a system user context for the renewal process
-    const leaseContext = (lease as any).tenantId;
-    this.logger.warn({ lease, leaseContext });
-
-    if (!leaseContext) {
-      this.logger.error(`No tenant context found for lease ${lease._id}`);
-      throw new Error('No tenant context found for lease');
-    }
-
     const systemUser = {
       _id: 'system-auto-renewal',
-      tenantId: leaseContext,
       role: 'system',
       email: 'system@auto-renewal.local',
       user_type: 'Admin',
@@ -229,7 +212,6 @@ export class AutoRenewalService {
       result.successful++;
       result.details.push({
         leaseId: lease._id.toString(),
-        tenantId: tenantIdentifier,
         oldEndDate: lease.endDate,
         newEndDate: renewalResult.newRentalPeriod.endDate,
         oldRent: lease.rentAmount,
@@ -245,7 +227,6 @@ export class AutoRenewalService {
         this.logger.warn(`Lease ${lease._id} appears to already be renewed, skipping`);
         result.details.push({
           leaseId: lease._id.toString(),
-          tenantId: tenantIdentifier,
           oldEndDate: lease.endDate,
           newEndDate: lease.endDate,
           oldRent: lease.rentAmount,

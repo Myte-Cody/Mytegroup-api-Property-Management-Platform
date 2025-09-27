@@ -36,18 +36,11 @@ export class InvitationsService {
       throw new ForbiddenException('You do not have permission to create invitations');
     }
 
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Cannot create invitation: No tenant context');
-    }
-
-    const landlordId = this.getLandlordId(currentUser);
-
     const strategy = this.invitationStrategyFactory.getStrategy(createInvitationDto.entityType);
 
     await strategy.validateEntityData(createInvitationDto.entityData);
 
     const existingInvitation = await this.invitationModel
-      .byTenant(landlordId)
       .findOne({
         email: createInvitationDto.email.toLowerCase(),
         entityType: createInvitationDto.entityType,
@@ -65,7 +58,6 @@ export class InvitationsService {
 
     // Create invitation
     const invitationData = {
-      tenantId: landlordId,
       invitedBy: currentUser._id,
       entityType: createInvitationDto.entityType,
       email: createInvitationDto.email.toLowerCase(),
@@ -75,8 +67,7 @@ export class InvitationsService {
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
     };
 
-    const InvitationWithTenant = this.invitationModel.byTenant(landlordId);
-    const newInvitation = new InvitationWithTenant(invitationData);
+    const newInvitation = new this.invitationModel(invitationData);
 
     await strategy.validateInvitationData(newInvitation);
 
@@ -95,11 +86,6 @@ export class InvitationsService {
       throw new ForbiddenException('You do not have permission to view invitations');
     }
 
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const landlordId = this.getLandlordId(currentUser);
     const {
       page = 1,
       limit = 10,
@@ -110,7 +96,7 @@ export class InvitationsService {
       sortOrder = 'desc',
     } = queryDto;
 
-    let baseQuery = this.invitationModel.byTenant(landlordId).find();
+    let baseQuery = this.invitationModel.find();
 
     baseQuery = (baseQuery as any).accessibleBy(ability, Action.Read);
 
@@ -201,9 +187,7 @@ export class InvitationsService {
       throw new ForbiddenException('You do not have permission to revoke invitations');
     }
 
-    const landlordId = this.getLandlordId(currentUser);
-
-    const invitation = await this.invitationModel.byTenant(landlordId).findById(id).exec();
+    const invitation = await this.invitationModel.findById(id).exec();
 
     if (!invitation) {
       throw new NotFoundException(`Invitation with ID ${id} not found`);
@@ -225,9 +209,7 @@ export class InvitationsService {
       throw new ForbiddenException('You do not have permission to delete invitations');
     }
 
-    const landlordId = this.getLandlordId(currentUser);
-
-    const invitation = await this.invitationModel.byTenant(landlordId).findById(id).exec();
+    const invitation = await this.invitationModel.findById(id).exec();
 
     if (!invitation) {
       throw new NotFoundException(`Invitation with ID ${id} not found`);
@@ -238,11 +220,5 @@ export class InvitationsService {
 
   private generateInvitationToken(): string {
     return crypto.randomBytes(32).toString('hex');
-  }
-
-  private getLandlordId(currentUser: UserDocument) {
-    return currentUser.tenantId && typeof currentUser.tenantId === 'object'
-      ? (currentUser.tenantId as any)._id
-      : currentUser.tenantId;
   }
 }

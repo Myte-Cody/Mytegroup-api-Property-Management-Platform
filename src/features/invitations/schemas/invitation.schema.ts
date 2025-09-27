@@ -3,7 +3,6 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { SoftDelete } from 'src/common/interfaces/soft-delete.interface';
-const mongoTenant = require('mongo-tenant');
 
 export enum InvitationStatus {
   PENDING = 'pending',
@@ -19,9 +18,6 @@ export enum EntityType {
 
 @Schema({ timestamps: true })
 export class Invitation extends Document implements SoftDelete {
-  @Prop({ required: true, type: Types.ObjectId })
-  tenantId: Types.ObjectId;
-
   @Prop({ required: true, type: Types.ObjectId })
   invitedBy: Types.ObjectId;
 
@@ -58,8 +54,7 @@ export class Invitation extends Document implements SoftDelete {
 
 export const InvitationSchema = SchemaFactory.createForClass(Invitation);
 
-InvitationSchema.index({ tenantId: 1, email: 1 }, { unique: true });
+InvitationSchema.index({ email: 1 }, { unique: true });
 
 InvitationSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 InvitationSchema.plugin(accessibleRecordsPlugin);
-InvitationSchema.plugin(mongoTenant);

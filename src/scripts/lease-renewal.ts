@@ -64,7 +64,6 @@ async function runRenewalProcess(options: any) {
         const status = detail.action === 'renewed' ? '✅' : detail.action === 'error' ? '❌' : '⏭️';
 
         logger.log(`${status} ${index + 1}. Lease ${detail.leaseId.substring(0, 8)}...`);
-        logger.log(`   Tenant: ${detail.tenantId.substring(0, 8)}...`);
         logger.log(
           `   End Date: ${detail.oldEndDate.toISOString().split('T')[0]} → ${detail.newEndDate.toISOString().split('T')[0]}`,
         );
@@ -80,9 +79,7 @@ async function runRenewalProcess(options: any) {
       logger.log('🚨 ERRORS ENCOUNTERED:');
       logger.log('-'.repeat(60));
       result.errors.forEach((error, index) => {
-        logger.error(
-          `${index + 1}. Lease ${error.leaseId.substring(0, 8)}... (Tenant: ${error.tenantId.substring(0, 8)}...)`,
-        );
+        logger.error(`${index + 1}. Lease ${error.leaseId.substring(0, 8)}`);
         logger.error(`   Error: ${error.error}`);
       });
       logger.log('');
@@ -137,7 +134,6 @@ async function runPreview(options: any) {
 
       result.details.forEach((detail, index) => {
         logger.log(`${index + 1}. Lease ${detail.leaseId.substring(0, 8)}...`);
-        logger.log(`   Tenant: ${detail.tenantId.substring(0, 8)}...`);
         logger.log(`   Current End: ${detail.oldEndDate.toISOString().split('T')[0]}`);
         logger.log(`   Would Extend To: ${detail.newEndDate.toISOString().split('T')[0]}`);
         logger.log(`   Rent Change: $${detail.oldRent} → $${detail.newRent}`);

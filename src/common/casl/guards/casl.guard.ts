@@ -41,15 +41,6 @@ export class CaslGuard implements CanActivate {
       return false;
     }
 
-    // Check if user has proper tenant context
-    const landlordId =
-      user.tenantId && typeof user.tenantId === 'object'
-        ? (user.tenantId as any)._id
-        : user.tenantId;
-
-    if (!landlordId) {
-      return false;
-    }
     const ability = this.caslAbilityFactory.createForUser(user);
 
     const resource = await this.getResource(request, context);

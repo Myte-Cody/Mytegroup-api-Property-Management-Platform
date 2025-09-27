@@ -44,18 +44,7 @@ export class PropertiesService {
       throw new ForbiddenException('You do not have permission to view properties');
     }
 
-    // STEP 2: mongo-tenant - Apply tenant isolation (mandatory for all users)
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
-    if (!landlordId) {
-      // Users without tenantId cannot access any properties
-      return createPaginatedResponse<Property>([], 0, page, limit);
-    }
-
-    let baseQuery = this.propertyModel.byTenant(landlordId).find(); // STEP 3: Apply CASL field-level filtering
+    let baseQuery = this.propertyModel.find();
     baseQuery = (baseQuery as any).accessibleBy(ability, Action.Read);
 
     // Add search functionality
@@ -125,12 +114,7 @@ export class PropertiesService {
       throw new ForbiddenException('You do not have permission to view properties');
     }
 
-    // mongo-tenant: Apply tenant filtering (mandatory)
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const property = await this.propertyModel.byTenant(currentUser.tenantId).findById(id).exec();
+    const property = await this.propertyModel.findById(id).exec();
 
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
@@ -164,19 +148,8 @@ export class PropertiesService {
       throw new ForbiddenException('You do not have permission to create properties');
     }
 
-    // Ensure user has tenant context
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Cannot create property: No tenant context');
-    }
-
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
     // Check property name uniqueness within the same landlord
     const existingProperty = await this.propertyModel
-      .byTenant(landlordId)
       .findOne({ name: createPropertyDto.name })
       .exec();
 
@@ -190,12 +163,9 @@ export class PropertiesService {
     const propertyData = {
       ...createPropertyDto,
       address: createPropertyDto.address,
-      tenantId: currentUser.tenantId, // Enforce tenant boundary
     };
 
-    // mongo-tenant: Create within tenant context
-    const PropertyWithTenant = this.propertyModel.byTenant(currentUser.tenantId);
-    const newProperty = new PropertyWithTenant(propertyData);
+    const newProperty = new this.propertyModel(propertyData);
 
     const property = await newProperty.save();
 
@@ -228,18 +198,7 @@ export class PropertiesService {
     // CASL: Check update permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
-    // Ensure user has tenant context
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const landlordId =
-      currentUser.tenantId && typeof currentUser.tenantId === 'object'
-        ? (currentUser.tenantId as any)._id
-        : currentUser.tenantId;
-
-    // mongo-tenant: Find within tenant context
-    const property = await this.propertyModel.byTenant(landlordId).findById(id).exec();
+    const property = await this.propertyModel.findById(id).exec();
 
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
@@ -253,7 +212,6 @@ export class PropertiesService {
     // Check for name uniqueness if name is being updated
     if (updatePropertyDto.name && updatePropertyDto.name !== property.name) {
       const existingProperty = await this.propertyModel
-        .byTenant(landlordId)
         .findOne({
           name: updatePropertyDto.name,
           _id: { $ne: id }, // Exclude current property from the check
@@ -281,13 +239,7 @@ export class PropertiesService {
     // CASL: Check delete permission
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
-    // Ensure user has tenant context
-    if (!currentUser.tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    // mongo-tenant: Find within tenant context
-    const property = await this.propertyModel.byTenant(currentUser.tenantId).findById(id).exec();
+    const property = await this.propertyModel.findById(id).exec();
 
     if (!property) {
       throw new NotFoundException(`Property with ID ${id} not found`);
@@ -298,9 +250,7 @@ export class PropertiesService {
       throw new ForbiddenException('You do not have permission to delete this property');
     }
 
-    // Check for active units using tenant-aware query
-    const activeUnits = await (this.unitModel as any)
-      .byTenant(currentUser.tenantId)
+    const activeUnits = await this.unitModel
       .find({
         property: id,
         deleted: { $ne: true },

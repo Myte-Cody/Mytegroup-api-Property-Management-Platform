@@ -23,11 +23,8 @@ export class TenantInvitationStrategy implements IInvitationStrategy {
   }
 
   async validateInvitationData(invitation: Invitation): Promise<void> {
-    const landlordId = invitation.tenantId;
-
     // Check if email is already registered by any user
     const existingUserWithEmail = await this.userModel
-      .byTenant(landlordId)
       .findOne({ email: invitation.email.toLowerCase() })
       .exec();
 
@@ -51,10 +48,7 @@ export class TenantInvitationStrategy implements IInvitationStrategy {
       phoneNumber: acceptInvitationDto.phoneNumber,
     };
 
-    // Get landlordId from invitation
-    const landlordId = invitation.tenantId.toString();
-
     // Create tenant using the invitation-specific method that doesn't require CASL authorization
-    return await this.tenantsService.createFromInvitation(createTenantDto, landlordId);
+    return await this.tenantsService.createFromInvitation(createTenantDto);
   }
 }

@@ -4,7 +4,6 @@ import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { RentIncreaseType, RentalPeriodStatus } from '../../../common/enums/lease.enum';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
-const mongoTenant = require('mongo-tenant');
 
 @Schema()
 export class AppliedRentIncrease {
@@ -94,4 +93,3 @@ RentalPeriodSchema.index(
 
 RentalPeriodSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 RentalPeriodSchema.plugin(accessibleRecordsPlugin);
-RentalPeriodSchema.plugin(mongoTenant);
