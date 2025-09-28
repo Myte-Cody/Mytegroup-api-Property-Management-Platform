@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import * as handlebars from 'handlebars';
 import * as path from 'path';
 import { formatAddress } from '../../../common/utils/address-formatter';
+import { formatCurrency } from '../../../common/utils/money';
+import { capitalize } from '../../../common/utils/string';
 import { EmailTemplate, TemplateContext } from '../interfaces/email.interface';
 
 @Injectable()
@@ -30,14 +32,11 @@ export class TemplateService {
     });
 
     handlebars.registerHelper('formatCurrency', (amount: number) => {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-      }).format(amount);
+      return formatCurrency(amount);
     });
 
     handlebars.registerHelper('capitalize', (str: string) => {
-      return str.charAt(0).toUpperCase() + str.slice(1);
+      return capitalize(str);
     });
 
     handlebars.registerHelper('formatAddress', (address: any) => {

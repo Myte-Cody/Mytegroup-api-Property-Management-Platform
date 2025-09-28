@@ -2,9 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Connection } from 'mongoose';
+import { PaymentEmailService } from '../features/email/services/payment-email.service';
 import { LeasesService } from '../features/leases/services/leases.service';
 import { TransactionsService } from '../features/leases/services/transactions.service';
 import { StatusUpdaterService } from '../scripts/status-updater';
+import { LeaseEmailService } from './../features/email/services/lease-email.service';
 
 @Injectable()
 export class SchedulerService {
@@ -14,6 +16,8 @@ export class SchedulerService {
     @InjectConnection() private readonly connection: Connection,
     private readonly leasesService: LeasesService,
     private readonly transactionsService: TransactionsService,
+    private readonly leaseEmailService: LeaseEmailService,
+    private readonly paymentEmailService: PaymentEmailService,
   ) {}
 
   /**
@@ -24,7 +28,11 @@ export class SchedulerService {
     this.logger.log('🚀 Running daily status updates...');
 
     try {
-      const updater = new StatusUpdaterService(this.connection);
+      const updater = new StatusUpdaterService(
+        this.connection,
+        this.leaseEmailService,
+        this.paymentEmailService,
+      );
       const summary = await updater.executeStatusUpdates();
 
       this.logger.log(`✅ Status updates completed in ${summary.duration}`);

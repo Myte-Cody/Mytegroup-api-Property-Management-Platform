@@ -5,6 +5,8 @@ import { AppModule } from '../app.module';
 import { LeaseStatus, PaymentStatus, RentalPeriodStatus } from '../common/enums/lease.enum';
 import { UnitAvailabilityStatus } from '../common/enums/unit.enum';
 import { getToday } from '../common/utils/date.utils';
+import { LeaseEmailService } from '../features/email/services/lease-email.service';
+import { PaymentEmailService } from '../features/email/services/payment-email.service';
 
 interface StatusUpdateSummary {
   executedAt: string;
@@ -29,9 +31,17 @@ interface StatusUpdateSummary {
 class StatusUpdaterService {
   private connection: Connection;
   private summary: StatusUpdateSummary;
+  private leaseEmailService: LeaseEmailService;
+  private paymentEmailService: PaymentEmailService;
 
-  constructor(connection: Connection) {
+  constructor(
+    connection: Connection,
+    leaseEmailService: LeaseEmailService,
+    paymentEmailService: PaymentEmailService,
+  ) {
     this.connection = connection;
+    this.leaseEmailService = leaseEmailService;
+    this.paymentEmailService = paymentEmailService;
     this.summary = {
       executedAt: new Date().toISOString(),
       rentalPeriods: { pendingToActive: 0, activeToExpired: 0 },
@@ -41,6 +51,105 @@ class StatusUpdaterService {
       errors: [],
       duration: '0s',
     };
+  }
+  private async notifyLeaseExpired(leaseId: string): Promise<void> {
+    try {
+      const lease = await this.connection
+        .model('Lease')
+        .findById(leaseId)
+        .populate('unit tenant')
+        .populate({
+          path: 'unit',
+          populate: { path: 'property' },
+        });
+
+      if (!lease) return;
+
+      const unit = lease.unit as any;
+      const property = unit?.property;
+      const tenant = lease.tenant as any;
+      const users = await this.connection
+        .model('User')
+        .find({
+          party_id: tenant._id,
+          user_type: 'Tenant',
+        })
+        .exec();
+      await Promise.all(
+        users.map((user) =>
+          this.leaseEmailService.sendLeaseExpirationWarningEmail(
+            {
+              recipientName: tenant.name,
+              recipientEmail: user.email,
+              isTenant: true,
+              propertyName: property?.name || 'Unknown Property',
+              unitIdentifier: unit?.unitNumber || 'Unknown Unit',
+              propertyAddress: property?.address || 'Unknown Address',
+              leaseStartDate: lease.startDate,
+              leaseEndDate: lease.endDate,
+              daysRemaining: 0, // Already expired
+            },
+            { queue: true },
+          ),
+        ),
+      );
+    } catch (error) {
+      console.error('Failed to send lease expired notification:', error);
+      this.summary.errors.push(`Lease expiration notification failed: ${error.message}`);
+    }
+  }
+
+  private async notifyPaymentOverdue(transactionId: string): Promise<void> {
+    try {
+      const transaction = await this.connection
+        .model('Transaction')
+        .findById(transactionId)
+        .populate({
+          path: 'lease',
+          populate: [{ path: 'unit', populate: 'property' }, { path: 'tenant' }],
+        });
+
+      if (!transaction?.lease) return;
+
+      const lease = transaction.lease as any;
+      const unit = lease.unit;
+      const property = unit?.property;
+      const tenant = lease.tenant;
+
+      const users = await this.connection
+        .model('User')
+        .find({
+          party_id: tenant._id,
+          user_type: 'Tenant',
+        })
+        .exec();
+      await Promise.all(
+        users.map((user) => {
+          const today = new Date();
+          const dueDate = new Date(transaction.dueDate);
+          const daysLate = Math.floor(
+            (today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24),
+          );
+          this.paymentEmailService.sendPaymentOverdueEmail(
+            {
+              recipientName: tenant.name,
+              recipientEmail: user.email,
+              propertyName: property?.name || 'Unknown Property',
+              unitIdentifier: unit?.unitNumber || 'Unknown Unit',
+              amount: transaction.amount,
+              dueDate: transaction.dueDate,
+              daysLate: daysLate > 0 ? daysLate : 1,
+              periodStartDate: transaction.periodStartDate,
+              periodEndDate: transaction.periodEndDate,
+            },
+            { queue: true },
+          );
+        }),
+      );
+    } catch (error) {
+      console.error('Failed to send payment overdue notification:', error);
+      this.summary.errors.push(`Payment overdue notification failed: ${error.message}`);
+    }
   }
 
   async executeStatusUpdates(): Promise<StatusUpdateSummary> {
@@ -124,7 +233,9 @@ class StatusUpdaterService {
       });
 
       let expiredCount = 0;
+      const expiredLeaseIds: string[] = [];
 
+      // First, identify all leases that need to be expired
       for (const lease of leasesToExpire) {
         // Check if lease has any active or pending rental periods
         const hasActiveOrPendingPeriods = await this.connection.model('RentalPeriod').exists({
@@ -132,13 +243,22 @@ class StatusUpdaterService {
           status: { $in: [RentalPeriodStatus.ACTIVE, RentalPeriodStatus.PENDING] },
         });
 
-        // If no active/pending periods, expire the lease
+        // If no active/pending periods, mark for expiration
         if (!hasActiveOrPendingPeriods) {
-          await this.connection
-            .model('Lease')
-            .updateOne({ _id: lease._id }, { $set: { status: LeaseStatus.EXPIRED } });
-          expiredCount++;
+          expiredLeaseIds.push(lease._id);
         }
+      }
+
+      // Update all expired leases in a single operation
+      if (expiredLeaseIds.length > 0) {
+        const updateResult = await this.connection
+          .model('Lease')
+          .updateMany({ _id: { $in: expiredLeaseIds } }, { $set: { status: LeaseStatus.EXPIRED } });
+
+        expiredCount = updateResult.modifiedCount;
+
+        // Send notifications for expired leases
+        await Promise.all(expiredLeaseIds.map((leaseId) => this.notifyLeaseExpired(leaseId)));
       }
 
       this.summary.leases.activeToExpired = expiredCount;
@@ -155,23 +275,30 @@ class StatusUpdaterService {
     try {
       const today = getToday();
 
-      // PENDING → OVERDUE (transactions past due date)
-      const overdueResult = await this.connection.model('Transaction').updateMany(
-        {
-          status: PaymentStatus.PENDING,
-          dueDate: { $lt: today },
-          // Only update transactions belonging to ACTIVE leases
-          lease: {
-            $in: await this.getActiveLeaseIds(),
-          },
-        },
-        {
-          $set: { status: PaymentStatus.OVERDUE },
-        },
-      );
+      // Find transactions that should be marked as OVERDUE
+      const overdueTransactions = await this.connection.model('Transaction').find({
+        status: PaymentStatus.PENDING,
+        dueDate: { $lt: today },
+        lease: { $in: await this.getActiveLeaseIds() },
+      });
 
-      this.summary.transactions.pendingToOverdue = overdueResult.modifiedCount;
-      console.log(`   → ${overdueResult.modifiedCount} transactions: PENDING → OVERDUE`);
+      if (overdueTransactions.length > 0) {
+        // Update all overdue transactions in a single operation
+        const updateResult = await this.connection
+          .model('Transaction')
+          .updateMany(
+            { _id: { $in: overdueTransactions.map((t) => t._id) } },
+            { $set: { status: PaymentStatus.OVERDUE } },
+          );
+
+        this.summary.transactions.pendingToOverdue = updateResult.modifiedCount;
+        console.log(`   → ${updateResult.modifiedCount} transactions: PENDING → OVERDUE`);
+
+        // Send notifications for overdue payments
+        await Promise.all(overdueTransactions.map((tx) => this.notifyPaymentOverdue(tx._id)));
+      } else {
+        console.log('   → No transactions to mark as overdue');
+      }
     } catch (error) {
       console.error('❌ Error updating transaction status:', error);
       this.summary.errors.push(`Transaction status update failed: ${error.message}`);
@@ -253,14 +380,23 @@ class StatusUpdaterService {
 }
 
 async function main() {
+  let app;
   try {
-    const app = await NestFactory.createApplicationContext(AppModule, {
+    app = await NestFactory.createApplicationContext(AppModule, {
       logger: false,
     });
 
+    // Get the database connection
     const connection = app.get(getConnectionToken());
-    const updater = new StatusUpdaterService(connection);
 
+    // Get the required services
+    const leaseEmailService = app.get(LeaseEmailService);
+    const paymentEmailService = app.get(PaymentEmailService);
+
+    // Initialize the status updater with all required dependencies
+    const updater = new StatusUpdaterService(connection, leaseEmailService, paymentEmailService);
+
+    // Execute the status updates
     const summary = await updater.executeStatusUpdates();
 
     console.log('\n📊 Update Summary:');

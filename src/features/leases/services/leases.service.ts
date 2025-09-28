@@ -84,7 +84,7 @@ export class LeasesService {
 
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
-    let baseQuery = this.leaseModel.find().accessibleBy(ability, Action.Read);
+    let baseQuery = (this.leaseModel.find() as any).accessibleBy(ability, Action.Read);
 
     if (search) {
       baseQuery = baseQuery.where({
@@ -944,7 +944,7 @@ export class LeasesService {
       const property = unit.property as any;
       const users = await this.findTenantUsers(tenant._id);
       // Send email to tenants
-      const emailPromises = users.map((user) =>
+      const tenantEmailPromises = users.map((user) =>
         this.leaseEmailService.sendLeaseActivatedEmail(
           {
             recipientName: tenant.name,
@@ -961,26 +961,28 @@ export class LeasesService {
         ),
       );
 
-      await Promise.all(emailPromises);
-
       // Find landlord users to notify
-      const landlordUser = await this.findLandlordUser();
+      const landlordUsers = await this.findLandlordUsers();
 
       // Send email to each landlord user
-      await this.leaseEmailService.sendLeaseActivatedEmail(
-        {
-          recipientName: landlordUser.username,
-          recipientEmail: landlordUser.email,
-          isTenant: false,
-          propertyName: property.name,
-          unitIdentifier: unit.unitNumber,
-          propertyAddress: property.address,
-          leaseStartDate: populatedLease.startDate,
-          leaseEndDate: populatedLease.endDate,
-          monthlyRent: populatedLease.rentAmount,
-        },
-        { queue: true },
+      const landlordEmailPromises = landlordUsers.map((user) =>
+        this.leaseEmailService.sendLeaseActivatedEmail(
+          {
+            recipientName: user.username,
+            recipientEmail: user.email,
+            isTenant: false,
+            propertyName: property.name,
+            unitIdentifier: unit.unitNumber,
+            propertyAddress: property.address,
+            leaseStartDate: populatedLease.startDate,
+            leaseEndDate: populatedLease.endDate,
+            monthlyRent: populatedLease.rentAmount,
+          },
+          { queue: true },
+        ),
       );
+
+      await Promise.all([...tenantEmailPromises, ...landlordEmailPromises]);
     } catch (error) {
       // Log error but don't fail the lease activation if email sending fails
       console.error('Failed to send lease activation emails:', error);
@@ -1019,46 +1021,49 @@ export class LeasesService {
 
       const users = await this.findTenantUsers(tenant._id);
       // Send email to tenants
-      await Promise.all(
-        users.map((user) =>
-          this.leaseEmailService.sendLeaseTerminationEmail(
-            {
-              recipientName: tenant.name,
-              recipientEmail: user.email,
-              isTenant: true,
-              propertyName: property.name,
-              unitIdentifier: unit.unitNumber,
-              propertyAddress: property.address,
-              originalLeaseEndDate: populatedLease.endDate,
-              terminationDate: lease.terminationDate,
-              terminationReason: lease.terminationReason || 'Mutual agreement',
-              moveOutDate: moveOutDate,
-              additionalNotes: terminationData.terminationReason,
-            },
-            { queue: true },
-          ),
+      const tenantEmailPromises = users.map((user) =>
+        this.leaseEmailService.sendLeaseTerminationEmail(
+          {
+            recipientName: tenant.name,
+            recipientEmail: user.email,
+            isTenant: true,
+            propertyName: property.name,
+            unitIdentifier: unit.unitNumber,
+            propertyAddress: property.address,
+            originalLeaseEndDate: populatedLease.endDate,
+            terminationDate: lease.terminationDate,
+            terminationReason: lease.terminationReason || 'Mutual agreement',
+            moveOutDate: moveOutDate,
+            additionalNotes: terminationData.terminationReason,
+          },
+          { queue: true },
         ),
       );
+
       // Find landlord users to notify
-      const landlordUser = await this.findLandlordUser();
+      const landlordUsers = await this.findLandlordUsers();
 
       // Send email to each landlord user
-      await this.leaseEmailService.sendLeaseTerminationEmail(
-        {
-          recipientName: landlordUser.username,
-          recipientEmail: landlordUser.email,
-          isTenant: false,
-          propertyName: property.name,
-          unitIdentifier: unit.unitNumber,
-          propertyAddress: property.address,
-          originalLeaseEndDate: populatedLease.endDate,
-          terminationDate: lease.terminationDate,
-          terminationReason: lease.terminationReason || 'Mutual agreement',
-          moveOutDate: moveOutDate,
-          additionalNotes: terminationData.terminationReason || lease.terminationReason,
-        },
-        { queue: true },
+      const landlordEmailPromises = landlordUsers.map((user) =>
+        this.leaseEmailService.sendLeaseTerminationEmail(
+          {
+            recipientName: user.username,
+            recipientEmail: user.email,
+            isTenant: false,
+            propertyName: property.name,
+            unitIdentifier: unit.unitNumber,
+            propertyAddress: property.address,
+            originalLeaseEndDate: populatedLease.endDate,
+            terminationDate: lease.terminationDate,
+            terminationReason: lease.terminationReason || 'Mutual agreement',
+            moveOutDate: moveOutDate,
+            additionalNotes: terminationData.terminationReason || lease.terminationReason,
+          },
+          { queue: true },
+        ),
       );
+
+      await Promise.all([...tenantEmailPromises, ...landlordEmailPromises]);
     } catch (error) {
       console.error('Failed to send lease termination emails:', error);
     }
@@ -1098,46 +1103,48 @@ export class LeasesService {
 
       // Send email to tenants
       const users = await this.findTenantUsers(tenant._id);
-      await Promise.all(
-        users.map((user) =>
-          this.leaseEmailService.sendLeaseRenewalEmail(
-            {
-              recipientName: tenant.name,
-              recipientEmail: user.email,
-              isAutoRenewal: isAutoRenewal,
-              propertyName: property.name,
-              unitIdentifier: unit.unitNumber,
-              currentLeaseEndDate: currentRentalPeriod.endDate,
-              newLeaseStartDate: newRentalPeriod.startDate,
-              newLeaseEndDate: newRentalPeriod.endDate,
-              currentMonthlyRent: currentRentalPeriod.rentAmount,
-              newMonthlyRent: newRentalPeriod.rentAmount,
-              renewalDate: newRentalPeriod.startDate,
-            },
-            { queue: true },
-          ),
+      const tenantEmailPromises = users.map((user) =>
+        this.leaseEmailService.sendLeaseRenewalEmail(
+          {
+            recipientName: tenant.name,
+            recipientEmail: user.email,
+            isAutoRenewal: isAutoRenewal,
+            propertyName: property.name,
+            unitIdentifier: unit.unitNumber,
+            currentLeaseEndDate: currentRentalPeriod.endDate,
+            newLeaseStartDate: newRentalPeriod.startDate,
+            newLeaseEndDate: newRentalPeriod.endDate,
+            currentMonthlyRent: currentRentalPeriod.rentAmount,
+            newMonthlyRent: newRentalPeriod.rentAmount,
+            renewalDate: newRentalPeriod.startDate,
+          },
+          { queue: true },
         ),
       );
       // Find landlord users to notify
-      const landlordUser = await this.findLandlordUser();
+      const landlordUsers = await this.findLandlordUsers();
 
       // Send email to each landlord user
-      await this.leaseEmailService.sendLeaseRenewalEmail(
-        {
-          recipientName: landlordUser.username,
-          recipientEmail: landlordUser.email,
-          isAutoRenewal: isAutoRenewal,
-          propertyName: property.name,
-          unitIdentifier: unit.unitNumber,
-          currentLeaseEndDate: currentRentalPeriod.endDate,
-          newLeaseStartDate: newRentalPeriod.startDate,
-          newLeaseEndDate: newRentalPeriod.endDate,
-          currentMonthlyRent: currentRentalPeriod.rentAmount,
-          newMonthlyRent: newRentalPeriod.rentAmount,
-          renewalDate: newRentalPeriod.startDate,
-        },
-        { queue: true },
+      const landlordEmailPromises = landlordUsers.map((user) =>
+        this.leaseEmailService.sendLeaseRenewalEmail(
+          {
+            recipientName: user.username,
+            recipientEmail: user.email,
+            isAutoRenewal: isAutoRenewal,
+            propertyName: property.name,
+            unitIdentifier: unit.unitNumber,
+            currentLeaseEndDate: currentRentalPeriod.endDate,
+            newLeaseStartDate: newRentalPeriod.startDate,
+            newLeaseEndDate: newRentalPeriod.endDate,
+            currentMonthlyRent: currentRentalPeriod.rentAmount,
+            newMonthlyRent: newRentalPeriod.rentAmount,
+            renewalDate: newRentalPeriod.startDate,
+          },
+          { queue: true },
+        ),
       );
+
+      await Promise.all([...tenantEmailPromises, ...landlordEmailPromises]);
     } catch (error) {
       // Log error but don't fail the lease renewal if email sending fails
       console.error('Failed to send lease renewal emails:', error);
@@ -1147,11 +1154,11 @@ export class LeasesService {
   /**
    * Find all users associated with a landlord tenant ID
    */
-  private async findLandlordUser(): Promise<any> {
+  private async findLandlordUsers(): Promise<any> {
     try {
       // Use mongoose connection to get User model
       const userModel = this.leaseModel.db.model('User');
-      const user = await userModel.findOne({ user_type: 'Landlord' }).exec();
+      const user = await userModel.find({ user_type: 'Landlord' }).exec();
       return user;
     } catch (error) {
       console.error('Failed to find landlord user:', error);
@@ -1199,44 +1206,44 @@ export class LeasesService {
 
         // Send email to tenant
         const users = await this.findTenantUsers(tenant._id);
-        await Promise.all(
-          users.map((user) =>
-            this.leaseEmailService.sendLeaseExpirationWarningEmail(
-              {
-                recipientName: tenant.name,
-                recipientEmail: user.email,
-                isTenant: true,
-                propertyName: property.name,
-                unitIdentifier: unit.unitNumber,
-                propertyAddress: property.address,
-                leaseStartDate: lease.startDate,
-                leaseEndDate: lease.endDate,
-                daysRemaining: daysRemaining,
-              },
-              { queue: true },
-            ),
+        const tenantEmailPromises = users.map((user) =>
+          this.leaseEmailService.sendLeaseExpirationWarningEmail(
+            {
+              recipientName: tenant.name,
+              recipientEmail: user.email,
+              isTenant: true,
+              propertyName: property.name,
+              unitIdentifier: unit.unitNumber,
+              propertyAddress: property.address,
+              leaseStartDate: lease.startDate,
+              leaseEndDate: lease.endDate,
+              daysRemaining: daysRemaining,
+            },
+            { queue: true },
           ),
         );
         // Find landlord users to notify
-        const landlordUser = await this.findLandlordUser();
+        const landlordUsers = await this.findLandlordUsers();
 
         // Send email to each landlord user
-        await this.leaseEmailService.sendLeaseExpirationWarningEmail(
-          {
-            recipientName: landlordUser.username,
-            recipientEmail: landlordUser.email,
-            isTenant: false,
-            propertyName: property.name,
-            unitIdentifier: unit.unitNumber,
-            propertyAddress: property.address,
-            leaseStartDate: lease.startDate,
-            leaseEndDate: lease.endDate,
-            daysRemaining: daysRemaining,
-          },
-          { queue: true },
+        const landlordEmailPromises = landlordUsers.map((user) =>
+          this.leaseEmailService.sendLeaseExpirationWarningEmail(
+            {
+              recipientName: user.username,
+              recipientEmail: user.email,
+              isTenant: false,
+              propertyName: property.name,
+              unitIdentifier: unit.unitNumber,
+              propertyAddress: property.address,
+              leaseStartDate: lease.startDate,
+              leaseEndDate: lease.endDate,
+              daysRemaining: daysRemaining,
+            },
+            { queue: true },
+          ),
         );
+        await Promise.all([...tenantEmailPromises, ...landlordEmailPromises]);
       }
-
       const referenceDateStr = referenceDate.toISOString().split('T')[0];
       console.log(
         `Sent ${expiringLeases.length} lease expiration warning emails for ${daysRemaining}-day notices (reference date: ${referenceDateStr})`,
