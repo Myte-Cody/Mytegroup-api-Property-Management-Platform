@@ -1,0 +1,4 @@
+{
+  "subject": "Lease Expiring in {{daysRemaining}} Days: {{propertyName}} - {{unitIdentifier}}",
+  "text": "Hello {{recipientName}}, Your lease for {{propertyName}} - {{unitIdentifier}} at {{propertyAddress}} will expire in {{daysRemaining}} days on {{leaseEndDate}}. Please decide whether you would like to renew your lease or move out by {{decisionDeadline}}."
+}

@@ -11,6 +11,7 @@ import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
+import { InvitationEmailService } from '../email/services/invitation-email.service';
 import type { UserDocument } from '../users/schemas/user.schema';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { CreateInvitationDto, InvitationQueryDto } from './dto/create-invitation.dto';
@@ -24,6 +25,7 @@ export class InvitationsService {
     private readonly invitationModel: AppModel<Invitation>,
     private readonly caslAuthorizationService: CaslAuthorizationService,
     private readonly invitationStrategyFactory: InvitationStrategyFactory,
+    private readonly invitationEmailService: InvitationEmailService,
   ) {}
 
   async create(
@@ -72,6 +74,31 @@ export class InvitationsService {
     await strategy.validateInvitationData(newInvitation);
 
     const savedInvitation = await newInvitation.save();
+
+    // Send invitation email
+    try {
+      // Additional info based on entity type
+      let additionalInfo;
+      if (createInvitationDto.entityType === 'tenant') {
+        additionalInfo = 'You will have access to property management features';
+      } else if (createInvitationDto.entityType === 'contractor') {
+        additionalInfo = 'You will have access to maintenance and service features';
+      }
+
+      await this.invitationEmailService.sendInvitationEmail(
+        savedInvitation.email,
+        savedInvitation.invitationToken,
+        savedInvitation.entityType,
+        savedInvitation.expiresAt,
+        {
+          additionalInfo,
+          queue: true, // Use queue for background processing
+        },
+      );
+    } catch (error) {
+      // Log error but don't fail the invitation creation if email sending fails
+      console.error('Failed to send invitation email:', error);
+    }
 
     return savedInvitation;
   }

@@ -1,0 +1,153 @@
+<html lang='en'>
+  <head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>Payment Overdue Notice</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        margin: 0;
+        padding: 0;
+        background-color: #f9f9f9;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-radius: 5px;
+        overflow: hidden;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+      .header {
+        background-color: #dc3545;
+        color: white;
+        padding: 20px;
+        text-align: center;
+      }
+      .content {
+        padding: 20px;
+      }
+      .footer {
+        background-color: #f5f5f5;
+        padding: 15px;
+        text-align: center;
+        font-size: 12px;
+        color: #666;
+      }
+      .info-box {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 5px;
+        padding: 15px;
+        margin: 20px 0;
+      }
+      .property-details {
+        margin-top: 10px;
+      }
+      .detail-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 8px;
+      }
+      .detail-label {
+        font-weight: bold;
+        color: #555;
+      }
+      .button {
+        display: inline-block;
+        background-color: #dc3545;
+        color: white;
+        padding: 10px 20px;
+        text-decoration: none;
+        border-radius: 4px;
+        margin-top: 15px;
+      }
+      .action-required {
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+        padding: 10px 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+      }
+      h2,
+      h3 {
+        color: #dc3545;
+      }
+      .overdue-notice {
+        background-color: #f8d7da;
+        color: #721c24;
+        font-size: 18px;
+        font-weight: bold;
+        text-align: center;
+        padding: 10px;
+        border-radius: 4px;
+        margin: 15px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class='container'>
+      <div class='header'>
+        <h1>Payment Overdue Notice</h1>
+      </div>
+      <div class='content'>
+        <h2>Hello {{capitalize recipientName}}!</h2>
+
+        <div class='action-required'>
+          <h3>URGENT: Payment Overdue</h3>
+          <p>Your rent payment of
+            <strong>${{amount}}</strong>
+            was due on
+            <strong>{{formatDate dueDate}}</strong>
+            and is now
+            <strong>{{daysLate}} days overdue</strong>.</p>
+        </div>
+
+        <div class='overdue-notice'>
+          Payment is
+          {{daysLate}}
+          Days Overdue
+        </div>
+
+        <div class='info-box'>
+          <h3>Payment Details</h3>
+          <div class='property-details'>
+            <div class='detail-row'>
+              <span class='detail-label'>Property:</span>
+              <span>{{propertyName}} - {{unitIdentifier}}</span>
+            </div>
+            <div class='detail-row'>
+              <span class='detail-label'>Payment Period:</span>
+              <span>{{formatDate periodStartDate}} to {{formatDate periodEndDate}}</span>
+            </div>
+            <div class='detail-row'>
+              <span class='detail-label'>Amount Due:</span>
+              <span>${{amount}}</span>
+            </div>
+            <div class='detail-row'>
+              <span class='detail-label'>Due Date:</span>
+              <span>{{formatDate dueDate}}</span>
+            </div>
+          </div>
+        </div>
+
+        <p>Please make your payment as soon as possible to avoid additional late fees and potential
+          legal action.</p>
+
+        <p>If you have already made this payment, please disregard this notice.</p>
+
+        <p>If you are experiencing financial difficulties, please contact your property manager
+          immediately to discuss possible payment arrangements.</p>
+      </div>
+      <div class='footer'>
+        <p>Best regards,<br />The Property Management Team</p>
+        <p>© {{currentYear}} Mytegroup Property Management</p>
+      </div>
+    </div>
+  </body>
+</html>

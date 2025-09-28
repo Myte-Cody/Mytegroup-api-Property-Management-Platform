@@ -1,0 +1,4 @@
+{
+  "subject": "Welcome to Property Management Platform, {{userName}}!",
+  "text": "Welcome {{userName}}! Thank you for joining our Property Management Platform. You can now access your dashboard and manage your properties. If you have any questions, please contact our support team."
+}

@@ -1,3 +1,7 @@
+import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
+import { ExpressAdapter } from '@bull-board/express';
+import { BullBoardModule } from '@bull-board/nestjs';
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -14,6 +18,7 @@ import { MediaModule } from './features/media/media.module';
 import { PropertiesModule } from './features/properties/properties.module';
 import { TenantsModule } from './features/tenants/tenant.module';
 import { UsersModule } from './features/users/users.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 
 @Module({
   imports: [
@@ -27,6 +32,21 @@ import { UsersModule } from './features/users/users.module';
         return env;
       },
     }),
+    BullModule.forRoot({
+      connection: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379', 10),
+        password: process.env.REDIS_PASSWORD,
+      },
+    }),
+    BullBoardModule.forRoot({
+      route: '/admin/queues',
+      adapter: ExpressAdapter,
+    }),
+    BullBoardModule.forFeature({
+      name: 'email',
+      adapter: BullMQAdapter,
+    }),
     CommonModule,
     AuthModule,
     EmailModule,
@@ -38,6 +58,7 @@ import { UsersModule } from './features/users/users.module';
     PropertiesModule,
     LeasesModule,
     MediaModule,
+    SchedulerModule,
     MongooseModule.forRoot(process.env.DB_URL, {
       dbName: process.env.MONGO_DB_NAME,
     }),

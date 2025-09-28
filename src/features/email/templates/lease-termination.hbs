@@ -1,0 +1,145 @@
+<html>
+  <head>
+    <meta charset='utf-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>Lease Termination - Property Management Platform</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .header {
+        background-color: #dc3545;
+        color: white;
+        padding: 20px;
+        text-align: center;
+      }
+      .content {
+        padding: 20px;
+        background-color: #f9f9f9;
+      }
+      .button {
+        display: inline-block;
+        padding: 10px 20px;
+        background-color: #6c757d;
+        color: white;
+        text-decoration: none;
+        border-radius: 5px;
+        margin: 15px 0;
+      }
+      .info-box {
+        background-color: #f8d7da;
+        padding: 15px;
+        border: 1px solid #f5c6cb;
+        border-radius: 5px;
+        margin: 15px 0;
+      }
+      .footer {
+        text-align: center;
+        padding: 20px;
+        font-size: 12px;
+        color: #666;
+      }
+      .property-details {
+        margin-top: 20px;
+        border-top: 1px solid #ddd;
+        padding-top: 15px;
+      }
+      .detail-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 5px;
+      }
+      .detail-label {
+        font-weight: bold;
+        color: #555;
+      }
+      .important-notice {
+        background-color: #fff3cd;
+        padding: 10px;
+        border-left: 4px solid #ffc107;
+        margin: 15px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class='container'>
+      <div class='header'>
+        <h1>Lease Termination Notice</h1>
+      </div>
+      <div class='content'>
+        <h2>Hello {{capitalize recipientName}}!</h2>
+
+        <p>This email is to confirm that the lease for the following property has been terminated:</p>
+
+        <div class='info-box'>
+          <h3>Lease Details</h3>
+          <div class='property-details'>
+            <div class='detail-row'>
+              <span class='detail-label'>Property:</span>
+              <span>{{propertyName}}</span>
+            </div>
+            <div class='detail-row'>
+              <span class='detail-label'>Unit:</span>
+              <span>{{unitIdentifier}}</span>
+            </div>
+            <div class='detail-row'>
+              <span class='detail-label'>Address:</span>
+              <span>{{formatAddress propertyAddress}}</span>
+            </div>
+            <div class='detail-row'>
+              <span class='detail-label'>Original Lease End:</span>
+              <span>{{formatDate originalLeaseEndDate}}</span>
+            </div>
+            <div class='detail-row'>
+              <span class='detail-label'>Termination Date:</span>
+              <span>{{formatDate terminationDate}}</span>
+            </div>
+            <div class='detail-row'>
+              <span class='detail-label'>Reason:</span>
+              <span>{{terminationReason}}</span>
+            </div>
+          </div>
+        </div>
+
+        {{#if isTenant}}
+          <div class='important-notice'>
+            <h3>Important Next Steps</h3>
+            <p>Please note the following important information:</p>
+            <ul>
+              <li>Your move-out date is scheduled for {{formatDate moveOutDate}}</li>
+              <li>Please ensure all personal belongings are removed by the move-out date</li>
+              <li>Your security deposit will be processed according to the terms in your lease
+                agreement</li>
+            </ul>
+          </div>
+        {{else}}
+          <div class='important-notice'>
+            <h3>Important Information</h3>
+            <p>The tenant has been notified of this termination with the following schedule:</p>
+            <ul>
+              <li>Move-out date: {{formatDate moveOutDate}}</li>
+            </ul>
+          </div>
+        {{/if}}
+
+        {{#if additionalNotes}}
+          <p><strong>Additional Notes:</strong> {{additionalNotes}}</p>
+        {{/if}}
+
+        <p>If you have any questions regarding this lease termination, please contact your property
+          manager.</p>
+      </div>
+      <div class='footer'>
+        <p>Best regards,<br />The Property Management Team</p>
+        <p>© 2025 Property Management Platform. All rights reserved.</p>
+      </div>
+    </div>
+  </body>
+</html>

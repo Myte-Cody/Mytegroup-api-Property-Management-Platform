@@ -5,6 +5,7 @@ import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
+import { WelcomeEmailService } from '../email/services/welcome-email.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
@@ -14,6 +15,7 @@ export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: AppModel<UserDocument>,
     private caslAuthorizationService: CaslAuthorizationService,
+    private welcomeEmailService: WelcomeEmailService,
   ) {}
 
   async create(createUserDto: CreateUserDto, currentUser: UserDocument) {
@@ -54,7 +56,23 @@ export class UsersService {
       party_id, // Optional, can be set during creation
     });
 
-    return await newUser.save();
+    // Save the user first to ensure it exists in the database
+    const savedUser = await newUser.save();
+
+    // Send welcome email using the WelcomeEmailService
+    try {
+      await this.welcomeEmailService.sendWelcomeEmail(
+        email,
+        username,
+        undefined, // dashboardUrl can be added later if needed
+        { queue: true }, // Use queue for background processing
+      );
+    } catch (error) {
+      // Log error but don't fail the user creation if email sending fails
+      console.error('Failed to send welcome email:', error);
+    }
+
+    return savedUser;
   }
 
   async createFromInvitation(createUserDto: CreateUserDto) {
@@ -95,7 +113,23 @@ export class UsersService {
       party_id,
     });
 
-    return await newUser.save();
+    // Save the user first to ensure it exists in the database
+    const savedUser = await newUser.save();
+
+    // Send welcome email using the WelcomeEmailService
+    try {
+      await this.welcomeEmailService.sendWelcomeEmail(
+        email,
+        username,
+        undefined, // dashboardUrl can be added later if needed
+        { queue: true }, // Use queue for background processing
+      );
+    } catch (error) {
+      // Log error but don't fail the user creation if email sending fails
+      console.error('Failed to send welcome email:', error);
+    }
+
+    return savedUser;
   }
 
   async findAllPaginated(queryDto: UserQueryDto, currentUser: User) {
