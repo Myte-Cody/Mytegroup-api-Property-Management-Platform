@@ -79,7 +79,7 @@ export class PaymentEmailService {
 
       const emailOptions = {
         to: data.recipientEmail,
-        subject: `Payment Reminder: Rent Due in 7 Days`,
+        subject,
         html,
         text,
       };
@@ -126,7 +126,7 @@ export class PaymentEmailService {
 
       const emailOptions = {
         to: data.recipientEmail,
-        subject: `URGENT: Payment Overdue Notice - ${data.daysLate} Days Late`,
+        subject,
         html,
         text,
       };
@@ -173,7 +173,7 @@ export class PaymentEmailService {
 
       const emailOptions = {
         to: data.recipientEmail,
-        subject: `Payment Confirmation - Receipt #${data.transactionId}`,
+        subject,
         html,
         text,
       };
@@ -194,80 +194,6 @@ export class PaymentEmailService {
         `Failed to ${options?.queue ? 'queue' : 'send'} payment confirmation email to ${data.recipientEmail}`,
         error,
       );
-      throw error;
-    }
-  }
-
-  /**
-   * Send bulk payment reminder emails
-   * @param dataList List of payment reminder data
-   */
-  async sendBulkPaymentReminders(dataList: PaymentReminderEmailData[]): Promise<void> {
-    try {
-      // Compile all templates first
-      const emailOptions = await Promise.all(
-        dataList.map(async (data) => {
-          const context = {
-            ...data,
-            currentYear: new Date().getFullYear(),
-          };
-
-          const { html, subject, text } = await this.templateService.compileTemplate(
-            'payment-reminder',
-            context,
-          );
-
-          return {
-            to: data.recipientEmail,
-            subject: `Payment Reminder: Rent Due in 7 Days`,
-            html,
-            text,
-          };
-        }),
-      );
-
-      // Queue all emails
-      await this.emailQueueService.queueBulkEmails(emailOptions);
-      this.logger.log(`Queued ${dataList.length} payment reminder emails`);
-    } catch (error) {
-      this.logger.error('Failed to send bulk payment reminder emails', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Send bulk payment overdue emails
-   * @param dataList List of payment overdue data
-   */
-  async sendBulkPaymentOverdueNotices(dataList: PaymentOverdueEmailData[]): Promise<void> {
-    try {
-      // Compile all templates first
-      const emailOptions = await Promise.all(
-        dataList.map(async (data) => {
-          const context = {
-            ...data,
-            currentYear: new Date().getFullYear(),
-          };
-
-          const { html, subject, text } = await this.templateService.compileTemplate(
-            'payment-overdue',
-            context,
-          );
-
-          return {
-            to: data.recipientEmail,
-            subject: `URGENT: Payment Overdue Notice - ${data.daysLate} Days Late`,
-            html,
-            text,
-          };
-        }),
-      );
-
-      // Queue all emails
-      await this.emailQueueService.queueBulkEmails(emailOptions);
-      this.logger.log(`Queued ${dataList.length} payment overdue emails`);
-    } catch (error) {
-      this.logger.error('Failed to send bulk payment overdue emails', error);
       throw error;
     }
   }

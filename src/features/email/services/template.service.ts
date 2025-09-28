@@ -5,7 +5,7 @@ import * as path from 'path';
 import { formatAddress } from '../../../common/utils/address-formatter';
 import { formatCurrency } from '../../../common/utils/money';
 import { capitalize } from '../../../common/utils/string';
-import { EmailTemplate, TemplateContext } from '../interfaces/email.interface';
+import { TemplateContext } from '../interfaces/email.interface';
 
 @Injectable()
 export class TemplateService {

@@ -28,6 +28,7 @@ interface StatusUpdateSummary {
   duration: string;
 }
 
+//TODO: fix manual command to send queue jobs
 class StatusUpdaterService {
   private connection: Connection;
   private summary: StatusUpdateSummary;

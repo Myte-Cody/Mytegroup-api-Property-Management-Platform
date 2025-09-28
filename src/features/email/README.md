@@ -91,7 +91,6 @@ export class NotificationService {
 }
 ```
 
-
 ## Background Queue Processing
 
 The email system automatically handles background processing through BullMQ. Templates are compiled before queuing for optimal performance.
@@ -250,28 +249,6 @@ export class AuthService {
 
     // Send password reset email
     await this.authEmailService.sendPasswordResetEmail(email, resetToken);
-  }
-}
-```
-
-### Bulk User Onboarding
-
-```typescript
-@Injectable()
-export class BulkUserService {
-  constructor(private welcomeEmailService: WelcomeEmailService) {}
-
-  async onboardUsers(userList: CreateUserDto[]) {
-    const createdUsers = await this.userRepository.createMany(userList);
-
-    // Send bulk welcome emails efficiently
-    const welcomeData = createdUsers.map((user) => ({
-      email: user.email,
-      name: user.name,
-      dashboardUrl: this.getDashboardUrl(),
-    }));
-
-    await this.welcomeEmailService.sendBulkWelcomeEmails(welcomeData);
   }
 }
 ```

@@ -244,43 +244,4 @@ export class LeaseEmailService {
       throw error;
     }
   }
-
-  /**
-   * Send bulk lease expiration warning emails
-   * Useful for scheduled tasks that send warnings to multiple users
-   */
-  async sendBulkLeaseExpirationWarnings(
-    dataList: LeaseExpirationWarningEmailData[],
-  ): Promise<void> {
-    try {
-      // Compile all templates first
-      const emailOptions = await Promise.all(
-        dataList.map(async (data) => {
-          const context = {
-            ...data,
-          };
-
-          const { html, subject, text } = await this.templateService.compileTemplate(
-            'lease-expiration-warning',
-            context,
-          );
-
-          return {
-            to: data.recipientEmail,
-            subject,
-            html,
-            text,
-          };
-        }),
-      );
-
-      await this.emailQueueService.queueBulkEmails(emailOptions);
-      this.logger.log(
-        `Bulk lease expiration warning emails queued for ${dataList.length} recipients`,
-      );
-    } catch (error) {
-      this.logger.error(`Failed to queue bulk lease expiration warning emails`, error);
-      throw error;
-    }
-  }
 }

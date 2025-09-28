@@ -45,28 +45,4 @@ export class WelcomeEmailService {
       throw error;
     }
   }
-
-  async sendBulkWelcomeEmails(
-    users: Array<{ email: string; name: string; dashboardUrl?: string }>,
-  ): Promise<void> {
-    try {
-      // Compile all templates first
-      const emailOptions = await Promise.all(
-        users.map(async (user) => {
-          const context = { userName: user.name, dashboardUrl: user.dashboardUrl };
-          const { html, subject, text } = await this.templateService.compileTemplate(
-            'welcome',
-            context,
-          );
-          return { to: user.email, subject, html, text };
-        }),
-      );
-
-      await this.emailQueueService.queueBulkEmails(emailOptions);
-      this.logger.log(`Bulk welcome emails queued for ${users.length} users`);
-    } catch (error) {
-      this.logger.error(`Failed to queue bulk welcome emails`, error);
-      throw error;
-    }
-  }
 }

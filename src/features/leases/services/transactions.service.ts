@@ -484,8 +484,8 @@ export class TransactionsService {
         const users = await this.findTenantUsers(tenant._id);
 
         // Send email to each tenant user
-        for (const user of users) {
-          reminderData.push({
+        const promises = users.map((user) => {
+          return this.paymentEmailService.sendPaymentReminderEmail({
             recipientName: tenant.name,
             recipientEmail: user.email,
             propertyName: property.name,
@@ -495,14 +495,12 @@ export class TransactionsService {
             periodStartDate: rentalPeriod.startDate,
             periodEndDate: rentalPeriod.endDate,
           });
-        }
-      }
+        });
 
-      // Send all reminders
-      if (reminderData.length > 0) {
-        await this.paymentEmailService.sendBulkPaymentReminders(reminderData);
+        await Promise.all(promises);
+
         console.log(
-          `Sent ${reminderData.length} payment reminder emails for due date ${targetDueDate.toISOString().split('T')[0]}`,
+          `Sent ${promises.length} payment reminder emails for due date ${targetDueDate.toISOString().split('T')[0]}`,
         );
       }
     } catch (error) {
@@ -577,8 +575,8 @@ export class TransactionsService {
         const users = await this.findTenantUsers(tenant._id);
 
         // Send email to each tenant user
-        for (const user of users) {
-          overdueData.push({
+        const promises = users.map((user) =>
+          this.paymentEmailService.sendPaymentOverdueEmail({
             recipientName: tenant.name,
             recipientEmail: user.email,
             propertyName: property.name,
@@ -588,16 +586,16 @@ export class TransactionsService {
             periodStartDate: rentalPeriod.startDate,
             periodEndDate: rentalPeriod.endDate,
             daysLate,
-          });
-        }
-      }
-
-      // Send all overdue notices
-      if (overdueData.length > 0) {
-        await this.paymentEmailService.sendBulkPaymentOverdueNotices(overdueData);
-        console.log(
-          `Sent ${overdueData.length} payment overdue notices for due date ${targetDueDate.toISOString().split('T')[0]}`,
+          }),
         );
+
+        // Send all overdue notices
+        if (promises.length > 0) {
+          await Promise.all(promises);
+          console.log(
+            `Sent ${promises.length} payment overdue notices for due date ${targetDueDate.toISOString().split('T')[0]}`,
+          );
+        }
       }
     } catch (error) {
       console.error('Failed to send payment overdue notices:', error);

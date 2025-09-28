@@ -65,43 +65,4 @@ export class InvitationEmailService {
       throw error;
     }
   }
-
-  async sendBulkInvitationEmails(
-    invitations: Array<{
-      email: string;
-      invitationToken: string;
-      entityType: string;
-      expiresAt: Date;
-      additionalInfo?: string;
-    }>,
-  ): Promise<void> {
-    try {
-      // Compile all templates first
-      const emailOptions = await Promise.all(
-        invitations.map(async (invitation) => {
-          const invitationUrl = `${this.frontendUrl}/invitations/accept/${invitation.invitationToken}`;
-
-          const context = {
-            entityType: invitation.entityType,
-            invitationUrl,
-            expiresAt: invitation.expiresAt,
-            additionalInfo: invitation.additionalInfo,
-          };
-
-          const { html, subject, text } = await this.templateService.compileTemplate(
-            'invitation',
-            context,
-          );
-
-          return { to: invitation.email, subject, html, text };
-        }),
-      );
-
-      await this.emailQueueService.queueBulkEmails(emailOptions);
-      this.logger.log(`Bulk invitation emails queued for ${invitations.length} recipients`);
-    } catch (error) {
-      this.logger.error(`Failed to queue bulk invitation emails`, error);
-      throw error;
-    }
-  }
 }
