@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
+import { ClientSession } from 'mongoose';
 import { MemoryStoredFile } from 'nestjs-form-data';
 import { Action, CaslAbilityFactory } from '../../../common/casl/casl-ability.factory';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
@@ -48,6 +49,7 @@ export class MediaService implements MediaServiceInterface {
     collection: string = 'default',
     disk?: StorageDisk,
     entityType?: string,
+    session?: ClientSession,
   ): Promise<Media> {
     // Validate file
     this.validateFile(file);
@@ -114,7 +116,7 @@ export class MediaService implements MediaServiceInterface {
     // Create media record
     const newMedia = new this.mediaModel(mediaData);
 
-    return await newMedia.save();
+    return session ? await newMedia.save({ session }) : await newMedia.save();
   }
 
   async getMediaForEntity(

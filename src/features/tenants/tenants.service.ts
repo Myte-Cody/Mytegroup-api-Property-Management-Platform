@@ -9,6 +9,7 @@ import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
+import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { UpdateUserDto } from '../users/dto/update-user.dto';
@@ -30,6 +31,7 @@ export class TenantsService {
     private readonly userModel: AppModel<User>,
     private caslAuthorizationService: CaslAuthorizationService,
     private usersService: UsersService,
+    private readonly sessionService: SessionService,
   ) {}
 
   async findAllPaginated(
@@ -156,26 +158,28 @@ export class TenantsService {
 
     // Create tenant
     // todo start transaction
-    const tenantData = {
-      name,
-      phoneNumber,
-    };
+    await this.sessionService.withSession(async (session) => {
+      const tenantData = {
+        name,
+        phoneNumber,
+      };
 
-    const newTenant = new this.tenantModel(tenantData);
-    const savedTenant = await newTenant.save();
+      const newTenant = new this.tenantModel(tenantData);
+      const savedTenant = await newTenant.save();
 
-    // Create user account
-    const userData = {
-      username,
-      email,
-      password,
-      user_type: UserType.TENANT,
-      party_id: savedTenant._id.toString(),
-    };
+      // Create user account
+      const userData = {
+        username,
+        email,
+        password,
+        user_type: UserType.TENANT,
+        party_id: savedTenant._id.toString(),
+      };
 
-    await this.usersService.create(userData, currentUser);
+      await this.usersService.create(userData, session);
 
-    return savedTenant;
+      return savedTenant;
+    });
   }
 
   async createFromInvitation(createTenantDto: CreateTenantDto) {
@@ -185,27 +189,29 @@ export class TenantsService {
     // Validate tenant creation data (no CASL authorization needed for invitations)
     await this.validateTenantCreationData(name, email, username);
 
-    // Create tenant
-    const tenantData = {
-      name,
-      phoneNumber,
-    };
+    return await this.sessionService.withSession(async (session) => {
+      // Create tenant
+      const tenantData = {
+        name,
+        phoneNumber,
+      };
 
-    const newTenant = new this.tenantModel(tenantData);
-    const savedTenant = await newTenant.save();
+      const newTenant = new this.tenantModel(tenantData);
+      const savedTenant = await newTenant.save({ session });
 
-    // Create user account (without current user context for invitations)
-    const userData = {
-      username,
-      email,
-      password,
-      user_type: UserType.TENANT,
-      party_id: savedTenant._id.toString(),
-    };
+      // Create user account (without current user context for invitations)
+      const userData = {
+        username,
+        email,
+        password,
+        user_type: UserType.TENANT,
+        party_id: savedTenant._id.toString(),
+      };
 
-    await this.usersService.createFromInvitation(userData);
+      await this.usersService.createFromInvitation(userData, session);
 
-    return savedTenant;
+      return savedTenant;
+    });
   }
 
   async update(id: string, updateTenantDto: UpdateTenantDto, currentUser: UserDocument) {
@@ -291,7 +297,7 @@ export class TenantsService {
       party_id: tenantId,
     };
 
-    return await this.usersService.create(userData, currentUser);
+    return await this.usersService.create(userData);
   }
 
   async updateTenantUser(
@@ -305,7 +311,7 @@ export class TenantsService {
 
     await this.validateUserBelongsToTenant(userId, tenantId, currentUser);
 
-    return await this.usersService.update(userId, updateUserDto, currentUser);
+    return await this.usersService.update(userId, updateUserDto);
   }
 
   async removeTenantUser(tenantId: string, userId: string, currentUser: UserDocument) {

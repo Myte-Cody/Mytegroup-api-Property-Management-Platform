@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
+import { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
+import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { WelcomeEmailService } from '../email/services/welcome-email.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -16,9 +18,10 @@ export class UsersService {
     @InjectModel(User.name) private userModel: AppModel<UserDocument>,
     private caslAuthorizationService: CaslAuthorizationService,
     private welcomeEmailService: WelcomeEmailService,
+    private readonly sessionService: SessionService,
   ) {}
 
-  async create(createUserDto: CreateUserDto, currentUser: UserDocument) {
+  async create(createUserDto: CreateUserDto, session?: ClientSession) {
     const { username, email, password, user_type, party_id } = createUserDto;
 
     // Check username uniqueness within the same landlord
@@ -57,7 +60,7 @@ export class UsersService {
     });
 
     // Save the user first to ensure it exists in the database
-    const savedUser = await newUser.save();
+    const savedUser = session ? await newUser.save({ session }) : await newUser.save();
 
     // Send welcome email using the WelcomeEmailService
     try {
@@ -75,7 +78,7 @@ export class UsersService {
     return savedUser;
   }
 
-  async createFromInvitation(createUserDto: CreateUserDto) {
+  async createFromInvitation(createUserDto: CreateUserDto, session?: ClientSession) {
     const { username, email, password, user_type, party_id } = createUserDto;
 
     // Check username uniqueness within the same landlord
@@ -114,7 +117,7 @@ export class UsersService {
     });
 
     // Save the user first to ensure it exists in the database
-    const savedUser = await newUser.save();
+    const savedUser = session ? await newUser.save({ session }) : await newUser.save();
 
     // Send welcome email using the WelcomeEmailService
     try {
@@ -188,53 +191,61 @@ export class UsersService {
     return await this.userModel.findOne({ email }).exec();
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto, currentUser?: User) {
-    const user = await this.userModel.findById(id).exec();
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
-    }
-
-    if (updateUserDto.username && updateUserDto.username !== user.username) {
-      const existingUsername = await this.userModel
-        .findOne({
-          username: updateUserDto.username,
-          _id: { $ne: id },
-        })
-        .exec();
-
-      if (existingUsername) {
-        throw new UnprocessableEntityException(
-          `Username '${updateUserDto.username}' is already taken within this organization`,
-        );
+  async update(id: string, updateUserDto: UpdateUserDto) {
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      const user = await this.userModel.findById(id, null, { session }).exec();
+      if (!user) {
+        throw new NotFoundException(`User with ID ${id} not found`);
       }
-    }
 
-    if (updateUserDto.email && updateUserDto.email !== user.email) {
-      const existingEmail = await this.userModel
-        .findOne({
-          email: updateUserDto.email,
-          _id: { $ne: id },
-        })
-        .exec();
+      if (updateUserDto.username && updateUserDto.username !== user.username) {
+        const existingUsername = await this.userModel
+          .findOne(
+            {
+              username: updateUserDto.username,
+              _id: { $ne: id },
+            },
+            null,
+            { session },
+          )
+          .exec();
 
-      if (existingEmail) {
-        throw new UnprocessableEntityException(
-          `Email '${updateUserDto.email}' is already registered within this organization`,
-        );
+        if (existingUsername) {
+          throw new UnprocessableEntityException(
+            `Username '${updateUserDto.username}' is already taken within this organization`,
+          );
+        }
       }
-    }
 
-    if (updateUserDto.password) {
-      const salt = await bcrypt.genSalt();
+      if (updateUserDto.email && updateUserDto.email !== user.email) {
+        const existingEmail = await this.userModel
+          .findOne(
+            {
+              email: updateUserDto.email,
+              _id: { $ne: id },
+            },
+            null,
+            { session },
+          )
+          .exec();
 
-      updateUserDto.password = await bcrypt.hash(updateUserDto.password, salt);
-    }
+        if (existingEmail) {
+          throw new UnprocessableEntityException(
+            `Email '${updateUserDto.email}' is already registered within this organization`,
+          );
+        }
+      }
 
-    const updatedUser = await this.userModel
-      .findByIdAndUpdate(id, updateUserDto, { new: true })
-      .exec();
+      if (updateUserDto.password) {
+        const salt = await bcrypt.genSalt();
 
-    return updatedUser;
+        updateUserDto.password = await bcrypt.hash(updateUserDto.password, salt);
+      }
+
+      return await this.userModel
+        .findByIdAndUpdate(id, updateUserDto, { new: true, session })
+        .exec();
+    });
   }
 
   async remove(id: string) {
