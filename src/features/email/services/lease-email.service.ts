@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../email.service';
 import { EmailQueueService } from './email-queue.service';
 import { TemplateService } from './template.service';
@@ -59,16 +58,12 @@ export interface LeaseExpirationWarningEmailData {
 @Injectable()
 export class LeaseEmailService {
   private readonly logger = new Logger(LeaseEmailService.name);
-  private readonly frontendUrl: string;
 
   constructor(
     private readonly emailService: EmailService,
     private readonly templateService: TemplateService,
     private readonly emailQueueService: EmailQueueService,
-    private readonly configService: ConfigService,
-  ) {
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
-  }
+  ) {}
 
   /**
    * Send lease activated email notification
@@ -81,7 +76,6 @@ export class LeaseEmailService {
       // Prepare template context
       const context = {
         ...data,
-        homeUrl: this.frontendUrl,
       };
 
       // Compile the template
@@ -126,7 +120,6 @@ export class LeaseEmailService {
       // Prepare template context
       const context = {
         ...data,
-        homeUrl: this.frontendUrl,
       };
 
       // Compile the template
@@ -171,7 +164,6 @@ export class LeaseEmailService {
       // Prepare template context
       const context = {
         ...data,
-        homeUrl: this.frontendUrl,
       };
 
       // Compile the template
@@ -216,7 +208,6 @@ export class LeaseEmailService {
       // Prepare template context
       const context = {
         ...data,
-        homeUrl: this.frontendUrl,
       };
 
       // Compile the template
@@ -267,7 +258,6 @@ export class LeaseEmailService {
         dataList.map(async (data) => {
           const context = {
             ...data,
-            homeUrl: this.frontendUrl,
           };
 
           const { html, subject, text } = await this.templateService.compileTemplate(

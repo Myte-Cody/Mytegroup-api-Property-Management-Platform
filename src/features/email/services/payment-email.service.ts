@@ -39,7 +39,6 @@ export interface PaymentConfirmationEmailData {
   transactionId: string;
   paymentMethod: string;
   paymentReference?: string;
-  dashboardUrl?: string;
 }
 
 @Injectable()
@@ -160,13 +159,9 @@ export class PaymentEmailService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
-      // Add dashboard URL if not provided
-      const dashboardUrl = data.dashboardUrl || `${this.frontendUrl}/tenant/payments`;
-
       // Add current year for copyright in footer
       const context = {
         ...data,
-        dashboardUrl,
         currentYear: new Date().getFullYear(),
       };
 

@@ -1,4 +1,4 @@
 {
   "subject": "Lease Activated: {{propertyName}} - {{unitIdentifier}}",
-  "text": "Hello {{recipientName}}, Your lease for {{propertyName}} - {{unitIdentifier}} at {{propertyAddress}} has been activated. Lease period: {{leaseStartDate}} to {{leaseEndDate}}. Monthly rent: ${{monthlyRent}}. Visit your dashboard at {{dashboardUrl}} for more details."
+  "text": "Hello {{recipientName}}, Your lease for {{propertyName}} - {{unitIdentifier}} at {{propertyAddress}} has been activated. Lease period: {{leaseStartDate}} to {{leaseEndDate}}. Monthly rent: ${{monthlyRent}}."
 }

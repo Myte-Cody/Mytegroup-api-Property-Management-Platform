@@ -656,7 +656,6 @@ export class TransactionsService {
             transactionId: transaction._id.toString(),
             paymentMethod: transaction.paymentMethod || 'Online Payment',
             paymentReference: transaction.notes,
-            dashboardUrl: `${process.env.FRONTEND_URL}/tenant/payments`,
           },
           { queue: true },
         );

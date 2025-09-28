@@ -143,7 +143,7 @@ async sendMonthlyReports(baseDate: Date = new Date()) {
 @Cron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT)
 async runMonthlyReports() {
   this.logger.log('📊 Generating monthly reports...');
-  
+
   try {
     const today = new Date();
     await this.reportsService.sendMonthlyReports(today);
@@ -206,7 +206,10 @@ describe('SchedulerService', () => {
 
   it('should send 30-day lease expiration warnings', async () => {
     await schedulerService.send30DayLeaseExpirationWarnings();
-    expect(leasesService.sendLeaseExpirationWarningEmails).toHaveBeenCalledWith(30, expect.any(Date));
+    expect(leasesService.sendLeaseExpirationWarningEmails).toHaveBeenCalledWith(
+      30,
+      expect.any(Date),
+    );
   });
 });
 ```
