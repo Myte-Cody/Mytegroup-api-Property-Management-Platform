@@ -13,7 +13,6 @@ export interface PaymentReminderEmailData {
   dueDate: Date;
   periodStartDate: Date;
   periodEndDate: Date;
-  paymentUrl?: string;
 }
 
 export interface PaymentOverdueEmailData {
@@ -26,9 +25,6 @@ export interface PaymentOverdueEmailData {
   periodStartDate: Date;
   periodEndDate: Date;
   daysLate: number;
-  lateFee?: number;
-  totalDue?: number;
-  paymentUrl?: string;
 }
 
 export interface PaymentConfirmationEmailData {
@@ -121,8 +117,6 @@ export class PaymentEmailService {
       const context = {
         ...data,
         currentYear: new Date().getFullYear(),
-        // Calculate total due if not provided
-        totalDue: data.totalDue || data.amount + (data.lateFee || 0),
       };
 
       // Compile the template
@@ -258,7 +252,6 @@ export class PaymentEmailService {
           const context = {
             ...data,
             currentYear: new Date().getFullYear(),
-            totalDue: data.totalDue || data.amount + (data.lateFee || 0),
           };
 
           const { html, subject, text } = await this.templateService.compileTemplate(

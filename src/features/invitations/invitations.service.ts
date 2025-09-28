@@ -77,12 +77,6 @@ export class InvitationsService {
 
     // Send invitation email
     try {
-      // Get inviter's name if available
-      const inviterName = currentUser.username || 'The administrator';
-
-      // Get organization name from entity data if available
-      const organizationName = createInvitationDto.entityData?.organizationName || undefined;
-
       // Additional info based on entity type
       let additionalInfo;
       if (createInvitationDto.entityType === 'tenant') {
@@ -97,8 +91,6 @@ export class InvitationsService {
         savedInvitation.entityType,
         savedInvitation.expiresAt,
         {
-          inviterName,
-          organizationName,
           additionalInfo,
           queue: true, // Use queue for background processing
         },

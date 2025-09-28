@@ -57,17 +57,10 @@
         <h2>Hello!</h2>
         <p>You have been invited to join the Property Management Platform as a {{entityType}}.</p>
 
-        {{#if inviterName}}
-          <p>{{inviterName}} has invited you to collaborate on our platform.</p>
-        {{/if}}
-
         <div class='info'>
           <p><strong>Invitation Details:</strong></p>
           <ul>
             <li>Role: {{capitalize entityType}}</li>
-            {{#if organizationName}}
-              <li>Organization: {{organizationName}}</li>
-            {{/if}}
             {{#if additionalInfo}}
               <li>Additional Info: {{additionalInfo}}</li>
             {{/if}}

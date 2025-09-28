@@ -1,0 +1,4 @@
+{
+  "subject": "Lease Termination Notice: {{propertyName}} - {{unitIdentifier}}",
+  "text": "Hello {{recipientName}}, This email confirms that the lease for {{propertyName}} - {{unitIdentifier}} at {{propertyAddress}} has been terminated. Original lease end date: {{originalLeaseEndDate}}. Termination date: {{terminationDate}}. Reason: {{terminationReason}}. Move-out date: {{moveOutDate}}. Property inspection: {{inspectionDate}}. {{#if additionalNotes}}Additional notes: {{additionalNotes}}{{/if}} Visit your dashboard at {{dashboardUrl}} for more details."
+}

@@ -133,26 +133,11 @@
               <span class='detail-label'>Due Date:</span>
               <span>{{formatDate dueDate}}</span>
             </div>
-            {{#if lateFee}}
-              <div class='detail-row'>
-                <span class='detail-label'>Late Fee:</span>
-                <span>${{lateFee}}</span>
-              </div>
-              <div class='detail-row'>
-                <span class='detail-label'>Total Amount Due:</span>
-                <span>${{totalDue}}</span>
-              </div>
-            {{/if}}
           </div>
         </div>
 
         <p>Please make your payment as soon as possible to avoid additional late fees and potential
           legal action.</p>
-
-        {{#if paymentUrl}}
-          <p>You can make your payment online by clicking the button below:</p>
-          <p><a href='{{paymentUrl}}' class='button'>Make Payment Now</a></p>
-        {{/if}}
 
         <p>If you have already made this payment, please disregard this notice.</p>
 

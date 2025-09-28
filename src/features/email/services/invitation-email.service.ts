@@ -24,8 +24,6 @@ export class InvitationEmailService {
     entityType: string,
     expiresAt: Date,
     options?: {
-      inviterName?: string;
-      organizationName?: string;
       additionalInfo?: string;
       queue?: boolean;
     },
@@ -39,8 +37,6 @@ export class InvitationEmailService {
         entityType,
         invitationUrl,
         expiresAt,
-        inviterName: options?.inviterName,
-        organizationName: options?.organizationName,
         additionalInfo: options?.additionalInfo,
       };
 
@@ -76,8 +72,6 @@ export class InvitationEmailService {
       invitationToken: string;
       entityType: string;
       expiresAt: Date;
-      inviterName?: string;
-      organizationName?: string;
       additionalInfo?: string;
     }>,
   ): Promise<void> {
@@ -91,8 +85,6 @@ export class InvitationEmailService {
             entityType: invitation.entityType,
             invitationUrl,
             expiresAt: invitation.expiresAt,
-            inviterName: invitation.inviterName,
-            organizationName: invitation.organizationName,
             additionalInfo: invitation.additionalInfo,
           };
 

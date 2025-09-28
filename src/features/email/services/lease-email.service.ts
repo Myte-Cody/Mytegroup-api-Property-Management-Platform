@@ -14,7 +14,6 @@ export interface LeaseActivatedEmailData {
   leaseStartDate: Date;
   leaseEndDate: Date;
   monthlyRent: number;
-  dashboardUrl?: string;
 }
 
 export interface LeaseRenewalEmailData {
@@ -29,8 +28,6 @@ export interface LeaseRenewalEmailData {
   currentMonthlyRent: number;
   newMonthlyRent?: number;
   renewalDate?: Date;
-  responseDeadline?: Date;
-  dashboardUrl?: string;
 }
 
 export interface LeaseTerminationEmailData {
@@ -44,9 +41,7 @@ export interface LeaseTerminationEmailData {
   terminationDate: Date;
   terminationReason: string;
   moveOutDate: Date;
-  inspectionDate: Date;
   additionalNotes?: string;
-  dashboardUrl?: string;
 }
 
 export interface LeaseExpirationWarningEmailData {
@@ -59,8 +54,6 @@ export interface LeaseExpirationWarningEmailData {
   leaseStartDate: Date;
   leaseEndDate: Date;
   daysRemaining: number;
-  decisionDeadline?: Date;
-  dashboardUrl?: string;
 }
 
 @Injectable()
@@ -85,14 +78,10 @@ export class LeaseEmailService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
-      // If dashboard URL is provided, use it, otherwise construct one
-      const dashboardUrl =
-        data.dashboardUrl || `${this.frontendUrl}/${data.isTenant ? 'tenant' : 'landlord'}/leases`;
-
       // Prepare template context
       const context = {
         ...data,
-        dashboardUrl,
+        homeUrl: this.frontendUrl,
       };
 
       // Compile the template
@@ -103,7 +92,7 @@ export class LeaseEmailService {
 
       const emailOptions = {
         to: data.recipientEmail,
-        subject: `Lease Activated: ${data.propertyName} - ${data.unitIdentifier}`,
+        subject,
         html,
         text,
       };
@@ -134,13 +123,10 @@ export class LeaseEmailService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
-      // If dashboard URL is provided, use it, otherwise construct one
-      const dashboardUrl = data.dashboardUrl || `${this.frontendUrl}/leases/renewal`;
-
       // Prepare template context
       const context = {
         ...data,
-        dashboardUrl,
+        homeUrl: this.frontendUrl,
       };
 
       // Compile the template
@@ -151,7 +137,7 @@ export class LeaseEmailService {
 
       const emailOptions = {
         to: data.recipientEmail,
-        subject: `Lease ${data.isAutoRenewal ? 'Auto-Renewal Notice' : 'Renewal Opportunity'}: ${data.propertyName} - ${data.unitIdentifier}`,
+        subject,
         html,
         text,
       };
@@ -182,14 +168,10 @@ export class LeaseEmailService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
-      // If dashboard URL is provided, use it, otherwise construct one
-      const dashboardUrl =
-        data.dashboardUrl || `${this.frontendUrl}/${data.isTenant ? 'tenant' : 'landlord'}/leases`;
-
       // Prepare template context
       const context = {
         ...data,
-        dashboardUrl,
+        homeUrl: this.frontendUrl,
       };
 
       // Compile the template
@@ -200,7 +182,7 @@ export class LeaseEmailService {
 
       const emailOptions = {
         to: data.recipientEmail,
-        subject: `Lease Termination Notice: ${data.propertyName} - ${data.unitIdentifier}`,
+        subject,
         html,
         text,
       };
@@ -231,14 +213,10 @@ export class LeaseEmailService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
-      // If dashboard URL is provided, use it, otherwise construct one
-      const dashboardUrl =
-        data.dashboardUrl || `${this.frontendUrl}/${data.isTenant ? 'tenant' : 'landlord'}/leases`;
-
       // Prepare template context
       const context = {
         ...data,
-        dashboardUrl,
+        homeUrl: this.frontendUrl,
       };
 
       // Compile the template
@@ -249,7 +227,7 @@ export class LeaseEmailService {
 
       const emailOptions = {
         to: data.recipientEmail,
-        subject: `Lease Expiring in ${data.daysRemaining} Days: ${data.propertyName} - ${data.unitIdentifier}`,
+        subject,
         html,
         text,
       };
@@ -287,13 +265,9 @@ export class LeaseEmailService {
       // Compile all templates first
       const emailOptions = await Promise.all(
         dataList.map(async (data) => {
-          const dashboardUrl =
-            data.dashboardUrl ||
-            `${this.frontendUrl}/${data.isTenant ? 'tenant' : 'landlord'}/leases`;
-
           const context = {
             ...data,
-            dashboardUrl,
+            homeUrl: this.frontendUrl,
           };
 
           const { html, subject, text } = await this.templateService.compileTemplate(
@@ -303,7 +277,7 @@ export class LeaseEmailService {
 
           return {
             to: data.recipientEmail,
-            subject: `Lease Expiring in ${data.daysRemaining} Days: ${data.propertyName} - ${data.unitIdentifier}`,
+            subject,
             html,
             text,
           };

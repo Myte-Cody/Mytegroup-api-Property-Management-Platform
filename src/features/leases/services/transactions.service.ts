@@ -494,7 +494,6 @@ export class TransactionsService {
             dueDate: transaction.dueDate,
             periodStartDate: rentalPeriod.startDate,
             periodEndDate: rentalPeriod.endDate,
-            paymentUrl: `${process.env.FRONTEND_URL}/tenant/payments/${transaction._id}`,
           });
         }
       }
@@ -541,7 +540,7 @@ export class TransactionsService {
         })
         .populate({
           path: 'lease',
-          select: 'unit tenant lateFee tenantId',
+          select: 'unit tenant tenantId',
           populate: [
             {
               path: 'unit',
@@ -574,10 +573,6 @@ export class TransactionsService {
         // Calculate days late
         const daysLate = 2; // Fixed at 2 days for this notification
 
-        // Calculate late fee if applicable
-        const lateFee = lease.lateFee || 0;
-        const totalDue = transaction.amount + lateFee;
-
         // Find tenant users to notify
         const users = await this.findTenantUsers(tenant._id);
 
@@ -593,9 +588,6 @@ export class TransactionsService {
             periodStartDate: rentalPeriod.startDate,
             periodEndDate: rentalPeriod.endDate,
             daysLate,
-            lateFee,
-            totalDue,
-            paymentUrl: `${process.env.FRONTEND_URL}/tenant/payments/${transaction._id}`,
           });
         }
       }
@@ -649,7 +641,6 @@ export class TransactionsService {
 
       // Find tenant users to notify
       const users = await this.findTenantUsers(tenant._id);
-      console.log(users);
       // Send email to each tenant user
       for (const user of users) {
         await this.paymentEmailService.sendPaymentConfirmationEmail(

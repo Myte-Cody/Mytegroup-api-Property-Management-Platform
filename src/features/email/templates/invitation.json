@@ -1,0 +1,4 @@
+{
+  "subject": "You've Been Invited to Property Management Platform",
+  "text": "You have been invited to join the Property Management Platform as a {{entityType}}. Please visit {{invitationUrl}} to accept this invitation. This invitation will expire on {{expiresAt}}."
+}

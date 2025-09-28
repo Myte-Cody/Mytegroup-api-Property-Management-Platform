@@ -933,7 +933,6 @@ export class LeasesService {
         })
         .populate('tenant', 'name')
         .exec();
-      console.log(populatedLease);
 
       if (!populatedLease || !populatedLease.unit || !populatedLease.tenant) {
         console.error('Failed to send lease activation email: Missing lease details');
@@ -945,8 +944,8 @@ export class LeasesService {
       const property = unit.property as any;
       const users = await this.findTenantUsers(tenant._id);
       // Send email to tenants
-      for (const user of users) {
-        await this.leaseEmailService.sendLeaseActivatedEmail(
+      const emailPromises = users.map((user) =>
+        this.leaseEmailService.sendLeaseActivatedEmail(
           {
             recipientName: tenant.name,
             recipientEmail: user.email,
@@ -959,8 +958,10 @@ export class LeasesService {
             monthlyRent: populatedLease.rentAmount,
           },
           { queue: true },
-        );
-      }
+        ),
+      );
+
+      await Promise.all(emailPromises);
 
       // Find landlord users to notify
       const landlordUser = await this.findLandlordUser();
@@ -1014,32 +1015,30 @@ export class LeasesService {
       const tenant = populatedLease.tenant as any;
       const property = unit.property as any;
 
-      // Calculate inspection date (typically 1-3 days before move-out)
       const moveOutDate = new Date(lease.terminationDate);
-      const inspectionDate = new Date(moveOutDate);
-      inspectionDate.setDate(inspectionDate.getDate() - 2); // 2 days before move-out
 
       const users = await this.findTenantUsers(tenant._id);
       // Send email to tenants
-      for (const user of users) {
-        await this.leaseEmailService.sendLeaseTerminationEmail(
-          {
-            recipientName: tenant.name,
-            recipientEmail: user.email,
-            isTenant: true,
-            propertyName: property.name,
-            unitIdentifier: unit.unitNumber,
-            propertyAddress: property.address,
-            originalLeaseEndDate: populatedLease.endDate,
-            terminationDate: lease.terminationDate,
-            terminationReason: lease.terminationReason || 'Mutual agreement',
-            moveOutDate: moveOutDate,
-            inspectionDate: inspectionDate,
-            additionalNotes: terminationData.terminationReason,
-          },
-          { queue: true },
-        );
-      }
+      await Promise.all(
+        users.map((user) =>
+          this.leaseEmailService.sendLeaseTerminationEmail(
+            {
+              recipientName: tenant.name,
+              recipientEmail: user.email,
+              isTenant: true,
+              propertyName: property.name,
+              unitIdentifier: unit.unitNumber,
+              propertyAddress: property.address,
+              originalLeaseEndDate: populatedLease.endDate,
+              terminationDate: lease.terminationDate,
+              terminationReason: lease.terminationReason || 'Mutual agreement',
+              moveOutDate: moveOutDate,
+              additionalNotes: terminationData.terminationReason,
+            },
+            { queue: true },
+          ),
+        ),
+      );
       // Find landlord users to notify
       const landlordUser = await this.findLandlordUser();
 
@@ -1056,7 +1055,6 @@ export class LeasesService {
           terminationDate: lease.terminationDate,
           terminationReason: lease.terminationReason || 'Mutual agreement',
           moveOutDate: moveOutDate,
-          inspectionDate: inspectionDate,
           additionalNotes: terminationData.terminationReason || lease.terminationReason,
         },
         { queue: true },
@@ -1098,31 +1096,28 @@ export class LeasesService {
       // Determine if this is an auto-renewal or manual renewal
       const isAutoRenewal = lease.autoRenewal || false;
 
-      // Calculate response deadline (typically 30 days before current lease ends)
-      const responseDeadline = new Date(currentRentalPeriod.endDate);
-      responseDeadline.setDate(responseDeadline.getDate() - 30);
-
       // Send email to tenants
       const users = await this.findTenantUsers(tenant._id);
-      for (const user of users) {
-        await this.leaseEmailService.sendLeaseRenewalEmail(
-          {
-            recipientName: tenant.name,
-            recipientEmail: user.email,
-            isAutoRenewal: isAutoRenewal,
-            propertyName: property.name,
-            unitIdentifier: unit.unitNumber,
-            currentLeaseEndDate: currentRentalPeriod.endDate,
-            newLeaseStartDate: newRentalPeriod.startDate,
-            newLeaseEndDate: newRentalPeriod.endDate,
-            currentMonthlyRent: currentRentalPeriod.rentAmount,
-            newMonthlyRent: newRentalPeriod.rentAmount,
-            renewalDate: newRentalPeriod.startDate,
-            responseDeadline: responseDeadline,
-          },
-          { queue: true },
-        );
-      }
+      await Promise.all(
+        users.map((user) =>
+          this.leaseEmailService.sendLeaseRenewalEmail(
+            {
+              recipientName: tenant.name,
+              recipientEmail: user.email,
+              isAutoRenewal: isAutoRenewal,
+              propertyName: property.name,
+              unitIdentifier: unit.unitNumber,
+              currentLeaseEndDate: currentRentalPeriod.endDate,
+              newLeaseStartDate: newRentalPeriod.startDate,
+              newLeaseEndDate: newRentalPeriod.endDate,
+              currentMonthlyRent: currentRentalPeriod.rentAmount,
+              newMonthlyRent: newRentalPeriod.rentAmount,
+              renewalDate: newRentalPeriod.startDate,
+            },
+            { queue: true },
+          ),
+        ),
+      );
       // Find landlord users to notify
       const landlordUser = await this.findLandlordUser();
 
@@ -1140,7 +1135,6 @@ export class LeasesService {
           currentMonthlyRent: currentRentalPeriod.rentAmount,
           newMonthlyRent: newRentalPeriod.rentAmount,
           renewalDate: newRentalPeriod.startDate,
-          responseDeadline: responseDeadline,
         },
         { queue: true },
       );
@@ -1203,29 +1197,26 @@ export class LeasesService {
         const tenant = lease.tenant as any;
         const property = unit.property as any;
 
-        // Calculate decision deadline (typically 15 days before lease expires)
-        const decisionDeadline = new Date(lease.endDate);
-        decisionDeadline.setDate(decisionDeadline.getDate() - 15);
-
         // Send email to tenant
         const users = await this.findTenantUsers(tenant._id);
-        for (const user of users) {
-          await this.leaseEmailService.sendLeaseExpirationWarningEmail(
-            {
-              recipientName: tenant.name,
-              recipientEmail: user.email,
-              isTenant: true,
-              propertyName: property.name,
-              unitIdentifier: unit.unitNumber,
-              propertyAddress: property.address,
-              leaseStartDate: lease.startDate,
-              leaseEndDate: lease.endDate,
-              daysRemaining: daysRemaining,
-              decisionDeadline: decisionDeadline,
-            },
-            { queue: true },
-          );
-        }
+        await Promise.all(
+          users.map((user) =>
+            this.leaseEmailService.sendLeaseExpirationWarningEmail(
+              {
+                recipientName: tenant.name,
+                recipientEmail: user.email,
+                isTenant: true,
+                propertyName: property.name,
+                unitIdentifier: unit.unitNumber,
+                propertyAddress: property.address,
+                leaseStartDate: lease.startDate,
+                leaseEndDate: lease.endDate,
+                daysRemaining: daysRemaining,
+              },
+              { queue: true },
+            ),
+          ),
+        );
         // Find landlord users to notify
         const landlordUser = await this.findLandlordUser();
 
