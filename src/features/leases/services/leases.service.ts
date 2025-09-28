@@ -1032,7 +1032,7 @@ export class LeasesService {
             propertyAddress: property.address,
             originalLeaseEndDate: populatedLease.endDate,
             terminationDate: lease.terminationDate,
-            terminationReason: lease.terminationReason || 'Mutual agreement',
+            terminationReason: lease.terminationReason,
             moveOutDate: moveOutDate,
             additionalNotes: terminationData.terminationReason,
           },
