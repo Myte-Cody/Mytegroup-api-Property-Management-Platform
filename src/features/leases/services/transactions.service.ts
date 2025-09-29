@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { PaymentStatus, PaymentType } from '../../../common/enums/lease.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
+import { SessionService } from '../../../common/services/session.service';
 import { addDaysToDate, createDateRangeFilter } from '../../../common/utils/date.utils';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { PaymentEmailService } from '../../email/services/payment-email.service';
@@ -27,6 +28,7 @@ export class TransactionsService {
     private readonly userModel: AppModel<User>,
     private readonly mediaService: MediaService,
     private readonly paymentEmailService: PaymentEmailService,
+    private readonly sessionService: SessionService,
   ) {}
 
   async findAllPaginated(queryDto: any, currentUser: UserDocument): Promise<any> {
@@ -304,49 +306,63 @@ export class TransactionsService {
     submitDto: UploadTransactionProofDto,
     currentUser: UserDocument,
   ): Promise<Transaction> {
-    const transaction = await this.transactionModel
-      .findOne({
-        lease: leaseId,
-        rentalPeriod: rentalPeriodId,
-      })
-      .populate('lease rentalPeriod')
-      .exec();
+    return await this.sessionService.withSession(async (session) => {
+      const transaction = await this.transactionModel
+        .findOne(
+          {
+            lease: leaseId,
+            rentalPeriod: rentalPeriodId,
+          },
+          null,
+          { session },
+        )
+        .populate('lease rentalPeriod')
+        .exec();
 
-    if (!transaction) {
-      throw new NotFoundException('Transaction not found for this rental period');
-    }
+      if (!transaction) {
+        throw new NotFoundException('Transaction not found for this rental period');
+      }
 
-    if (transaction.status !== PaymentStatus.PENDING) {
-      throw new BadRequestException(
-        'Transaction proof can only be submitted for pending transactions',
-      );
-    }
+      if (transaction.status !== PaymentStatus.PENDING) {
+        throw new BadRequestException(
+          'Transaction proof can only be submitted for pending transactions',
+        );
+      }
 
-    if (new Date(submitDto.paidAt) > new Date()) {
-      throw new BadRequestException('Transaction date cannot be in the future');
-    }
+      if (new Date(submitDto.paidAt) > new Date()) {
+        throw new BadRequestException('Transaction date cannot be in the future');
+      }
 
-    const updatedTransaction = await this.transactionModel
-      .findByIdAndUpdate(
-        transaction._id,
-        {
-          paymentMethod: submitDto.paymentMethod,
-          paidAt: submitDto.paidAt,
-          status: PaymentStatus.PAID,
-        },
-        { new: true },
-      )
-      .exec();
+      const updatedTransaction = await this.transactionModel
+        .findByIdAndUpdate(
+          transaction._id,
+          {
+            paymentMethod: submitDto.paymentMethod,
+            paidAt: submitDto.paidAt,
+            status: PaymentStatus.PAID,
+          },
+          { new: true, session },
+        )
+        .exec();
 
-    if (submitDto.media_files && submitDto.media_files.length > 0) {
-      const uploadPromises = submitDto.media_files.map(async (file) => {
-        return this.mediaService.upload(file, updatedTransaction, currentUser, 'transaction_proof');
-      });
+      if (submitDto.media_files && submitDto.media_files.length > 0) {
+        const uploadPromises = submitDto.media_files.map(async (file) => {
+          return this.mediaService.upload(
+            file,
+            updatedTransaction,
+            currentUser,
+            'transaction_proof',
+            undefined,
+            undefined,
+            session,
+          );
+        });
 
-      await Promise.all(uploadPromises);
-    }
+        await Promise.all(uploadPromises);
+      }
 
-    return updatedTransaction;
+      return updatedTransaction;
+    });
   }
 
   async getTransactionForRentalPeriod(

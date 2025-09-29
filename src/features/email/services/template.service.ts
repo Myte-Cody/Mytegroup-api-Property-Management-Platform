@@ -28,7 +28,7 @@ export class TemplateService {
 
   private registerHelpers(): void {
     handlebars.registerHelper('formatDate', (date: Date) => {
-      return date.toLocaleDateString();
+      return date?.toLocaleDateString();
     });
 
     handlebars.registerHelper('formatCurrency', (amount: number) => {

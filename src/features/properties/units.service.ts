@@ -6,9 +6,11 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
+import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { MediaService } from '../media/services/media.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
@@ -30,6 +32,7 @@ export class UnitsService {
     private readonly unitBusinessValidator: UnitBusinessValidator,
     private caslAuthorizationService: CaslAuthorizationService,
     private readonly mediaService: MediaService,
+    private readonly sessionService: SessionService,
   ) {}
 
   async create(createUnitDto: CreateUnitDto, propertyId: string, currentUser: UserDocument) {
@@ -40,48 +43,58 @@ export class UnitsService {
       throw new ForbiddenException('You do not have permission to create units');
     }
 
-    const property = await this.propertyModel.findById(propertyId).exec();
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      const property = await this.propertyModel.findById(propertyId, null, { session }).exec();
 
-    if (!property) {
-      throw new UnprocessableEntityException(`Property with ID ${propertyId} not found`);
-    }
+      if (!property) {
+        throw new UnprocessableEntityException(`Property with ID ${propertyId} not found`);
+      }
 
-    await this.unitBusinessValidator.validateCreate({
-      createDto: createUnitDto,
-      propertyId,
-      currentUser,
-    });
-
-    const newUnit = new this.unitModel({
-      ...createUnitDto,
-      property: propertyId,
-    });
-
-    const unit = await newUnit.save();
-
-    // If media files are provided, upload them
-    if (createUnitDto.media_files && createUnitDto.media_files.length > 0) {
-      const uploadPromises = createUnitDto.media_files.map(async (file) => {
-        return this.mediaService.upload(file, unit, currentUser, 'unit_photos');
+      await this.unitBusinessValidator.validateCreate({
+        createDto: createUnitDto,
+        propertyId,
+        currentUser,
       });
 
-      const uploadedMedia = await Promise.all(uploadPromises);
+      const newUnit = new this.unitModel({
+        ...createUnitDto,
+        property: propertyId,
+      });
+
+      const unit = await newUnit.save({ session });
+
+      // If media files are provided, upload them
+      if (createUnitDto.media_files && createUnitDto.media_files.length > 0) {
+        const uploadPromises = createUnitDto.media_files.map(async (file) => {
+          return this.mediaService.upload(
+            file,
+            unit,
+            currentUser,
+            'unit_photos',
+            undefined,
+            undefined,
+            session,
+          );
+        });
+
+        const uploadedMedia = await Promise.all(uploadPromises);
+
+        return {
+          success: true,
+          data: {
+            unit,
+            media: uploadedMedia,
+          },
+          message: `Unit created successfully with ${uploadedMedia.length} media file(s)`,
+        };
+      }
 
       return {
         success: true,
-        data: {
-          unit,
-          media: uploadedMedia,
-        },
-        message: `Unit created successfully with ${uploadedMedia.length} media file(s)`,
+        data: { unit },
+        message: 'Unit created successfully',
       };
-    }
-
-    return {
-      success: true,
-      data: { unit },
-      message: 'Unit created successfully',
-    };
+    });
   }
 
   async findAllPaginated(
@@ -263,15 +276,5 @@ export class UnitsService {
     });
     await this.unitModel.deleteById(id);
     return { message: 'Unit deleted successfully' };
-  }
-
-  private parseFormData(formData: any): CreateUnitDto {
-    return {
-      propertyId: formData.propertyId || formData.property,
-      unitNumber: formData.unitNumber,
-      size: formData.size ? parseFloat(formData.size) : undefined,
-      type: formData.type,
-      availabilityStatus: formData.availabilityStatus,
-    };
   }
 }

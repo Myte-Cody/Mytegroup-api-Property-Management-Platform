@@ -183,13 +183,13 @@ export class TenantsService {
   }
 
   async createFromInvitation(createTenantDto: CreateTenantDto) {
-    // Extract user data from DTO
-    const { email, password, name, username, phoneNumber } = createTenantDto;
-
-    // Validate tenant creation data (no CASL authorization needed for invitations)
-    await this.validateTenantCreationData(name, email, username);
-
     return await this.sessionService.withSession(async (session) => {
+      // Extract user data from DTO
+      const { email, password, name, username, phoneNumber } = createTenantDto;
+
+      // Validate tenant creation data (no CASL authorization needed for invitations)
+      await this.validateTenantCreationData(name, email, username);
+
       // Create tenant
       const tenantData = {
         name,
