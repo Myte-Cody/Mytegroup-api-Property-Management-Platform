@@ -191,7 +191,7 @@ export class UsersService {
     return await this.userModel.findOne({ email }).exec();
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto) {
+  async update(id: string, updateUserDto: UpdateUserDto, currentUser?: User) {
     return await this.sessionService.withSession(async (session: ClientSession) => {
       const user = await this.userModel.findById(id, null, { session }).exec();
       if (!user) {
