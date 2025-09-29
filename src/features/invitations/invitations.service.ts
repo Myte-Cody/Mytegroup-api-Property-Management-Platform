@@ -189,6 +189,8 @@ export class InvitationsService {
       throw new NotFoundException('Invitation not found');
     }
 
+    // TODO: TRANSACTION NEEDED - This operation creates entity and updates invitation status
+
     const strategy = this.invitationStrategyFactory.getStrategy(invitation.entityType);
 
     const createdEntity = await strategy.createEntity(invitation, acceptInvitationDto);

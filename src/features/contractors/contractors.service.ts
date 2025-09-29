@@ -152,6 +152,8 @@ export class ContractorsService {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
+    // TODO: TRANSACTION NEEDED - This operation creates both contractor and user records
+
     // Create the contractor first
     const contractorData = {
       name,
