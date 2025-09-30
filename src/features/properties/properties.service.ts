@@ -47,47 +47,102 @@ export class PropertiesService {
       throw new ForbiddenException('You do not have permission to view properties');
     }
 
-    let baseQuery = this.propertyModel.find();
-    baseQuery = (baseQuery as any).accessibleBy(ability, Action.Read);
+    const pipeline: any[] = [];
+
+    // Step 1: Build initial match conditions
+    const matchConditions: any = {};
+
+    // Add CASL conditions
+    const caslConditions = (this.propertyModel as any).accessibleBy(ability, Action.Read).getQuery();
+    Object.assign(matchConditions, caslConditions);
 
     // Add search functionality
     if (search) {
-      baseQuery = baseQuery.where({
-        $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { description: { $regex: search, $options: 'i' } },
-          { 'address.street': { $regex: search, $options: 'i' } },
-          { 'address.city': { $regex: search, $options: 'i' } },
-          { 'address.state': { $regex: search, $options: 'i' } },
-          { 'address.postalCode': { $regex: search, $options: 'i' } },
-        ],
-      });
+      matchConditions.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { 'address.street': { $regex: search, $options: 'i' } },
+        { 'address.city': { $regex: search, $options: 'i' } },
+        { 'address.state': { $regex: search, $options: 'i' } },
+        { 'address.postalCode': { $regex: search, $options: 'i' } },
+      ];
     }
 
-    // Add filters
-    const cityFilters = queryDto['filters[city]'];
-    const stateFilters = queryDto['filters[state]'];
 
-    if (cityFilters && cityFilters.length > 0) {
-      baseQuery = baseQuery.where({ 'address.city': { $in: cityFilters } });
-    }
+    pipeline.push({ $match: matchConditions });
 
-    if (stateFilters && stateFilters.length > 0) {
-      baseQuery = baseQuery.where({ 'address.state': { $in: stateFilters } });
-    }
+    // Step 2: Lookup units and calculate unit count and occupancy
+    pipeline.push({
+      $lookup: {
+        from: 'units',
+        localField: '_id',
+        foreignField: 'property',
+        as: 'units'
+      }
+    });
 
-    // Build sort object
+    // Step 3: Calculate unit statistics
+    pipeline.push({
+      $addFields: {
+        unitCount: { $size: '$units' },
+        occupiedUnits: {
+          $size: {
+            $filter: {
+              input: '$units',
+              cond: { $eq: ['$$this.availabilityStatus', 'OCCUPIED'] }
+            }
+          }
+        }
+      }
+    });
+
+    // Step 4: Calculate occupancy rate
+    pipeline.push({
+      $addFields: {
+        occupancyRate: {
+          $cond: {
+            if: { $gt: ['$unitCount', 0] },
+            then: {
+              $multiply: [
+                { $divide: ['$occupiedUnits', '$unitCount'] },
+                100
+              ]
+            },
+            else: 0
+          }
+        }
+      }
+    });
+
+    // Step 5: Remove the units array as we don't need it in the response
+    pipeline.push({
+      $project: {
+        units: 0,
+        occupiedUnits: 0
+      }
+    });
+
+    // Step 6: Add sorting
     const sortObj: any = {};
     sortObj[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    pipeline.push({ $sort: sortObj });
 
-    // Calculate pagination
+    // Step 7: Create separate pipeline for counting
+    const countPipeline = [...pipeline, { $count: 'total' }];
+
+    // Step 8: Add pagination to main pipeline
     const skip = (page - 1) * limit;
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: limit });
 
     // Execute queries
-    const [properties, total] = await Promise.all([
-      baseQuery.clone().sort(sortObj).skip(skip).limit(limit).exec(),
-      baseQuery.clone().countDocuments().exec(),
+    const [propertiesResult, countResult] = await Promise.all([
+      this.propertyModel.aggregate(pipeline).exec(),
+      this.propertyModel.aggregate(countPipeline).exec(),
     ]);
+
+    const properties = propertiesResult;
+    const total = countResult.length > 0 ? countResult[0].total : 0;
 
     // Fetch media for each property
     const propertiesWithMedia = await Promise.all(
@@ -100,7 +155,7 @@ export class PropertiesService {
           {}, // filters (get all media)
         );
         return {
-          ...property.toObject(),
+          ...property,
           media,
         };
       }),
