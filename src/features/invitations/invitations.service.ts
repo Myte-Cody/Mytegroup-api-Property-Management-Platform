@@ -10,6 +10,7 @@ import * as crypto from 'crypto';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
+import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
 import { InvitationEmailService } from '../email/services/invitation-email.service';
 import type { UserDocument } from '../users/schemas/user.schema';
@@ -26,6 +27,7 @@ export class InvitationsService {
     private readonly caslAuthorizationService: CaslAuthorizationService,
     private readonly invitationStrategyFactory: InvitationStrategyFactory,
     private readonly invitationEmailService: InvitationEmailService,
+    private readonly sessionService: SessionService,
   ) {}
 
   async create(
@@ -189,23 +191,28 @@ export class InvitationsService {
       throw new NotFoundException('Invitation not found');
     }
 
-    // TODO: TRANSACTION NEEDED - This operation creates entity and updates invitation status
+    return await this.sessionService.withSession(async (session) => {
+      const strategy = this.invitationStrategyFactory.getStrategy(invitation.entityType);
 
-    const strategy = this.invitationStrategyFactory.getStrategy(invitation.entityType);
+      const createdEntity = await strategy.createEntity(
+        invitation,
+        acceptInvitationDto,
+        null,
+        session,
+      );
 
-    const createdEntity = await strategy.createEntity(invitation, acceptInvitationDto);
+      // Mark invitation as accepted
+      invitation.status = InvitationStatus.ACCEPTED;
+      invitation.acceptedAt = new Date();
+      await invitation.save({ session });
 
-    // Mark invitation as accepted
-    invitation.status = InvitationStatus.ACCEPTED;
-    invitation.acceptedAt = new Date();
-    await invitation.save();
-
-    return {
-      success: true,
-      entityType: invitation.entityType,
-      entity: createdEntity,
-      message: `${invitation.entityType} account created successfully`,
-    };
+      return {
+        success: true,
+        entityType: invitation.entityType,
+        entity: createdEntity,
+        message: `${invitation.entityType} account created successfully`,
+      };
+    });
   }
 
   async revokeInvitation(id: string, currentUser: UserDocument): Promise<void> {

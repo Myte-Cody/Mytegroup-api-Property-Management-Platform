@@ -1,3 +1,4 @@
+import { ClientSession } from 'mongoose';
 import { UserDocument } from '../../users/schemas/user.schema';
 import { AcceptInvitationDto } from '../dto/accept-invitation.dto';
 import { Invitation } from '../schemas/invitation.schema';
@@ -15,6 +16,7 @@ export interface IInvitationStrategy {
     invitation: Invitation,
     acceptInvitationDto: AcceptInvitationDto,
     currentUser?: UserDocument,
+    session?: ClientSession,
   ): Promise<any>;
 
   /**

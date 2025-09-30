@@ -9,6 +9,7 @@ import * as bcrypt from 'bcrypt';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
+import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { ContractorQueryDto, PaginatedContractorsResponse } from './dto/contractor-query.dto';
@@ -24,6 +25,7 @@ export class ContractorsService {
     @InjectModel(User.name)
     private readonly userModel: AppModel<User>,
     private caslAuthorizationService: CaslAuthorizationService,
+    private readonly sessionService: SessionService,
   ) {}
 
   async findAllPaginated(
@@ -151,30 +153,29 @@ export class ContractorsService {
     // Hash the password for the user account
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
+    return await this.sessionService.withSession(async (session) => {
+      // Create the contractor first
+      const contractorData = {
+        name,
+      };
 
-    // TODO: TRANSACTION NEEDED - This operation creates both contractor and user records
+      const newContractor = new this.contractorModel(contractorData);
+      const savedContractor = await newContractor.save({ session });
 
-    // Create the contractor first
-    const contractorData = {
-      name,
-    };
+      // Create the user account for the contractor
+      const userData = {
+        username: email, // Use email as username
+        email,
+        password: hashedPassword,
+        user_type: 'Contractor',
+        party_id: savedContractor._id, // Link to the contractor
+      };
 
-    const newContractor = new this.contractorModel(contractorData);
-    const savedContractor = await newContractor.save();
+      const newUser = new this.userModel(userData);
+      await newUser.save({ session });
 
-    // Create the user account for the contractor
-    const userData = {
-      username: email, // Use email as username
-      email,
-      password: hashedPassword,
-      user_type: 'Contractor',
-      party_id: savedContractor._id, // Link to the contractor
-    };
-
-    const newUser = new this.userModel(userData);
-    await newUser.save();
-
-    return savedContractor;
+      return savedContractor;
+    });
   }
 
   async update(id: string, updateContractorDto: UpdateContractorDto, currentUser: UserDocument) {

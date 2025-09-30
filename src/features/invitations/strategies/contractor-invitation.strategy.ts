@@ -1,5 +1,6 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { ClientSession } from 'mongoose';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { User, UserDocument } from '../../users/schemas/user.schema';
 import { AcceptInvitationDto } from '../dto/accept-invitation.dto';
@@ -47,10 +48,11 @@ export class ContractorInvitationStrategy implements IInvitationStrategy {
     invitation: Invitation,
     acceptInvitationDto: AcceptInvitationDto,
     currentUser?: UserDocument,
+    session?: ClientSession,
   ): Promise<any> {
     // Double-check email availability before creating the entity
     const existingUserWithEmail = await this.userModel
-      .findOne({ email: invitation.email.toLowerCase() })
+      .findOne({ email: invitation.email.toLowerCase() }, null, { session: session ?? null })
       .exec();
 
     if (existingUserWithEmail) {
@@ -61,7 +63,9 @@ export class ContractorInvitationStrategy implements IInvitationStrategy {
 
     // Check if username is already taken
     const existingUserWithUsername = await this.userModel
-      .findOne({ username: acceptInvitationDto.username.toLowerCase() })
+      .findOne({ username: acceptInvitationDto.username.toLowerCase() }, null, {
+        session: session ?? null,
+      })
       .exec();
 
     if (existingUserWithUsername) {

@@ -5,6 +5,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { UserType } from '../../common/enums/user-type.enum';
@@ -157,7 +158,6 @@ export class TenantsService {
     await this.validateTenantCreationData(name, email, username);
 
     // Create tenant
-    // todo start transaction
     await this.sessionService.withSession(async (session) => {
       const tenantData = {
         name,
@@ -165,7 +165,7 @@ export class TenantsService {
       };
 
       const newTenant = new this.tenantModel(tenantData);
-      const savedTenant = await newTenant.save();
+      const savedTenant = await newTenant.save({ session });
 
       // Create user account
       const userData = {
@@ -182,36 +182,34 @@ export class TenantsService {
     });
   }
 
-  async createFromInvitation(createTenantDto: CreateTenantDto) {
-    return await this.sessionService.withSession(async (session) => {
-      // Extract user data from DTO
-      const { email, password, name, username, phoneNumber } = createTenantDto;
+  async createFromInvitation(createTenantDto: CreateTenantDto, session?: ClientSession) {
+    // Extract user data from DTO
+    const { email, password, name, username, phoneNumber } = createTenantDto;
 
-      // Validate tenant creation data (no CASL authorization needed for invitations)
-      await this.validateTenantCreationData(name, email, username);
+    // Validate tenant creation data (no CASL authorization needed for invitations)
+    await this.validateTenantCreationData(name, email, username);
 
-      // Create tenant
-      const tenantData = {
-        name,
-        phoneNumber,
-      };
+    // Create tenant
+    const tenantData = {
+      name,
+      phoneNumber,
+    };
 
-      const newTenant = new this.tenantModel(tenantData);
-      const savedTenant = await newTenant.save({ session });
+    const newTenant = new this.tenantModel(tenantData);
+    const savedTenant = await newTenant.save({ session: session ?? null });
 
-      // Create user account (without current user context for invitations)
-      const userData = {
-        username,
-        email,
-        password,
-        user_type: UserType.TENANT,
-        party_id: savedTenant._id.toString(),
-      };
+    // Create user account (without current user context for invitations)
+    const userData = {
+      username,
+      email,
+      password,
+      user_type: UserType.TENANT,
+      party_id: savedTenant._id.toString(),
+    };
 
-      await this.usersService.createFromInvitation(userData, session);
+    await this.usersService.createFromInvitation(userData, session);
 
-      return savedTenant;
-    });
+    return savedTenant;
   }
 
   async update(id: string, updateTenantDto: UpdateTenantDto, currentUser: UserDocument) {
