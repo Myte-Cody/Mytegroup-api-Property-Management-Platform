@@ -6,9 +6,11 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
+import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { MediaService } from '../media/services/media.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
@@ -29,6 +31,7 @@ export class PropertiesService {
     private readonly userModel: AppModel<UserDocument>,
     private caslAuthorizationService: CaslAuthorizationService,
     private readonly mediaService: MediaService,
+    private readonly sessionService: SessionService,
   ) {}
 
   async findAllPaginated(
@@ -148,50 +151,60 @@ export class PropertiesService {
       throw new ForbiddenException('You do not have permission to create properties');
     }
 
-    // Check property name uniqueness within the same landlord
-    const existingProperty = await this.propertyModel
-      .findOne({ name: createPropertyDto.name })
-      .exec();
+    await this.sessionService.withSession(async (session: ClientSession) => {
+      // Check property name uniqueness within the same landlord
+      const existingProperty = await this.propertyModel
+        .findOne({ name: createPropertyDto.name })
+        .exec();
 
-    if (existingProperty) {
-      throw new UnprocessableEntityException(
-        `Property name '${createPropertyDto.name}' already exists in this organization`,
-      );
-    }
+      if (existingProperty) {
+        throw new UnprocessableEntityException(
+          `Property name '${createPropertyDto.name}' already exists in this organization`,
+        );
+      }
 
-    // Ensure the property is created within the user's tenant context
-    const propertyData = {
-      ...createPropertyDto,
-      address: createPropertyDto.address,
-    };
+      // Ensure the property is created within the user's tenant context
+      const propertyData = {
+        ...createPropertyDto,
+        address: createPropertyDto.address,
+      };
 
-    const newProperty = new this.propertyModel(propertyData);
+      const newProperty = new this.propertyModel(propertyData);
 
-    const property = await newProperty.save();
+      const property = await newProperty.save();
 
-    // If media files are provided, upload them
-    if (createPropertyDto.media_files && createPropertyDto.media_files.length > 0) {
-      const uploadPromises = createPropertyDto.media_files.map(async (file) => {
-        return this.mediaService.upload(file, property, currentUser, 'property_photos');
-      });
+      // If media files are provided, upload them
+      if (createPropertyDto.media_files && createPropertyDto.media_files.length > 0) {
+        const uploadPromises = createPropertyDto.media_files.map(async (file) => {
+          return this.mediaService.upload(
+            file,
+            property,
+            currentUser,
+            'property_photos',
+            undefined,
+            undefined,
+            session,
+          );
+        });
 
-      const uploadedMedia = await Promise.all(uploadPromises);
+        const uploadedMedia = await Promise.all(uploadPromises);
+
+        return {
+          success: true,
+          data: {
+            property,
+            media: uploadedMedia,
+          },
+          message: `Property created successfully with ${uploadedMedia.length} media file(s)`,
+        };
+      }
 
       return {
         success: true,
-        data: {
-          property,
-          media: uploadedMedia,
-        },
-        message: `Property created successfully with ${uploadedMedia.length} media file(s)`,
+        data: { property },
+        message: 'Property created successfully',
       };
-    }
-
-    return {
-      success: true,
-      data: { property },
-      message: 'Property created successfully',
-    };
+    });
   }
 
   async update(id: string, updatePropertyDto: UpdatePropertyDto, currentUser: UserDocument) {

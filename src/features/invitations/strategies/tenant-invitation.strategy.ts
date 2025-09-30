@@ -1,5 +1,6 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { ClientSession } from 'mongoose';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { TenantsService } from '../../tenants/tenants.service';
 import { User, UserDocument } from '../../users/schemas/user.schema';
@@ -39,6 +40,7 @@ export class TenantInvitationStrategy implements IInvitationStrategy {
     invitation: Invitation,
     acceptInvitationDto: AcceptInvitationDto,
     currentUser?: UserDocument,
+    session?: ClientSession,
   ): Promise<any> {
     const createTenantDto = {
       name: acceptInvitationDto.name,
@@ -49,6 +51,6 @@ export class TenantInvitationStrategy implements IInvitationStrategy {
     };
 
     // Create tenant using the invitation-specific method that doesn't require CASL authorization
-    return await this.tenantsService.createFromInvitation(createTenantDto);
+    return await this.tenantsService.createFromInvitation(createTenantDto, session);
   }
 }

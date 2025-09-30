@@ -5,7 +5,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Types } from 'mongoose';
+import { ClientSession, Types } from 'mongoose';
 import { Action } from '../../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../../common/casl/services/casl-authorization.service';
 import {
@@ -18,6 +18,7 @@ import {
 } from '../../../common/enums/lease.enum';
 import { UnitAvailabilityStatus } from '../../../common/enums/unit.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
+import { SessionService } from '../../../common/services/session.service';
 import { addDaysToDate, getToday } from '../../../common/utils/date.utils';
 import { LeaseEmailService } from '../../email/services/lease-email.service';
 import { Unit } from '../../properties/schemas/unit.schema';
@@ -64,6 +65,7 @@ export class LeasesService {
     private readonly transactionsService: TransactionsService,
     private readonly caslAuthorizationService: CaslAuthorizationService,
     private readonly leaseEmailService: LeaseEmailService,
+    private readonly sessionService: SessionService,
   ) {}
 
   async findAllPaginated(
@@ -174,27 +176,29 @@ export class LeasesService {
   }
 
   async create(createLeaseDto: CreateLeaseDto, currentUser: UserDocument): Promise<Lease> {
-    await this.validateLeaseCreation(createLeaseDto);
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      await this.validateLeaseCreation(createLeaseDto);
 
-    // Apply full cycle completion to ensure duration is a multiple of payment cycles
-    const completedEndDate = completeFullCycle(
-      createLeaseDto.startDate,
-      createLeaseDto.endDate,
-      createLeaseDto.paymentCycle,
-    );
+      // Apply full cycle completion to ensure duration is a multiple of payment cycles
+      const completedEndDate = completeFullCycle(
+        createLeaseDto.startDate,
+        createLeaseDto.endDate,
+        createLeaseDto.paymentCycle,
+      );
 
-    const newLease = new this.leaseModel({
-      ...createLeaseDto,
-      endDate: completedEndDate, // Use cycle-completed end date
+      const newLease = new this.leaseModel({
+        ...createLeaseDto,
+        endDate: completedEndDate, // Use cycle-completed end date
+      });
+
+      const savedLease = await newLease.save({ session });
+
+      if (createLeaseDto.status === LeaseStatus.ACTIVE) {
+        await this.activateLease(savedLease, session);
+      }
+
+      return savedLease;
     });
-
-    const savedLease = await newLease.save();
-
-    if (createLeaseDto.status === LeaseStatus.ACTIVE) {
-      await this.activateLease(savedLease);
-    }
-
-    return savedLease;
   }
 
   async update(
@@ -202,28 +206,33 @@ export class LeasesService {
     updateLeaseDto: UpdateLeaseDto,
     currentUser: UserDocument,
   ): Promise<Lease> {
-    if (!updateLeaseDto || Object.keys(updateLeaseDto).length === 0) {
-      throw new UnprocessableEntityException('Update data cannot be empty');
-    }
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      if (!updateLeaseDto || Object.keys(updateLeaseDto).length === 0) {
+        throw new UnprocessableEntityException('Update data cannot be empty');
+      }
 
-    const existingLease = await this.leaseModel.findById(id).exec();
+      const existingLease = await this.leaseModel.findById(id, null, { session }).exec();
 
-    if (!existingLease) {
-      throw new NotFoundException(`Lease with ID ${id} not found`);
-    }
+      if (!existingLease) {
+        throw new NotFoundException(`Lease with ID ${id} not found`);
+      }
 
-    await this.validateLeaseUpdate(existingLease, updateLeaseDto);
+      await this.validateLeaseUpdate(existingLease, updateLeaseDto);
 
-    if (updateLeaseDto.paymentCycle && updateLeaseDto.paymentCycle !== existingLease.paymentCycle) {
-      await this.handlePaymentCycleChange(existingLease, updateLeaseDto.paymentCycle);
-    }
+      if (
+        updateLeaseDto.paymentCycle &&
+        updateLeaseDto.paymentCycle !== existingLease.paymentCycle
+      ) {
+        await this.handlePaymentCycleChange(existingLease, updateLeaseDto.paymentCycle, session);
+      }
 
-    if (updateLeaseDto.status && updateLeaseDto.status !== existingLease.status) {
-      await this.handleStatusChange(existingLease, updateLeaseDto.status);
-    }
+      if (updateLeaseDto.status && updateLeaseDto.status !== existingLease.status) {
+        await this.handleStatusChange(existingLease, updateLeaseDto.status, session);
+      }
 
-    Object.assign(existingLease, updateLeaseDto);
-    return await existingLease.save();
+      Object.assign(existingLease, updateLeaseDto);
+      return await existingLease.save({ session });
+    });
   }
 
   async terminate(
@@ -231,77 +240,89 @@ export class LeasesService {
     terminationData: TerminateLeaseDto,
     currentUser: UserDocument,
   ): Promise<Lease> {
-    const lease = await this.leaseModel.findById(id).exec();
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      const lease = await this.leaseModel.findById(id, null, { session }).exec();
 
-    if (!lease) {
-      throw new NotFoundException(`Lease with ID ${id} not found`);
-    }
+      if (!lease) {
+        throw new NotFoundException(`Lease with ID ${id} not found`);
+      }
 
-    // Validate that lease is active
-    if (lease.status !== LeaseStatus.ACTIVE) {
-      throw new BadRequestException(
-        `Cannot terminate lease with status '${lease.status}'. Only active leases can be terminated.`,
+      // Validate that lease is active
+      if (lease.status !== LeaseStatus.ACTIVE) {
+        throw new BadRequestException(
+          `Cannot terminate lease with status '${lease.status}'. Only active leases can be terminated.`,
+        );
+      }
+
+      const terminationDate = normalizeToUTCStartOfDay(terminationData.terminationDate);
+      const leaseEndDate = normalizeToUTCStartOfDay(new Date(lease.endDate));
+
+      // Validate that termination date is not after lease end date
+      if (terminationDate > leaseEndDate) {
+        throw new BadRequestException(
+          `Termination date cannot be after lease end date (${leaseEndDate.toISOString().split('T')[0]})`,
+        );
+      }
+
+      // Get current rental period first to use its start date for calculation
+      const currentRentalPeriod = await this.rentalPeriodModel
+        .findOne({ lease: id, status: RentalPeriodStatus.ACTIVE }, null, { session })
+        .exec();
+
+      if (!currentRentalPeriod) {
+        throw new BadRequestException('No active rental period found for termination');
+      }
+
+      const calculatedEndDate = completeFullCycle(
+        currentRentalPeriod.startDate,
+        terminationDate,
+        lease.paymentCycle,
       );
-    }
 
-    const terminationDate = normalizeToUTCStartOfDay(terminationData.terminationDate);
-    const leaseEndDate = normalizeToUTCStartOfDay(new Date(lease.endDate));
+      lease.status = LeaseStatus.TERMINATED;
+      lease.terminationDate = terminationDate;
 
-    // Validate that termination date is not after lease end date
-    if (terminationDate > leaseEndDate) {
-      throw new BadRequestException(
-        `Termination date cannot be after lease end date (${leaseEndDate.toISOString().split('T')[0]})`,
+      if (terminationData.terminationReason) {
+        lease.terminationReason = terminationData.terminationReason;
+      }
+
+      currentRentalPeriod.endDate = calculatedEndDate;
+      currentRentalPeriod.status = RentalPeriodStatus.EXPIRED;
+      await currentRentalPeriod.save({ session });
+
+      await this.transactionModel.deleteMany(
+        {
+          lease: id,
+          status: PaymentStatus.PENDING,
+          dueDate: { $gt: terminationDate },
+        },
+        { session },
       );
-    }
 
-    // Get current rental period first to use its start date for calculation
-    const currentRentalPeriod = await this.rentalPeriodModel
-      .findOne({ lease: id, status: RentalPeriodStatus.ACTIVE })
-      .exec();
+      // Delete rental periods that start after the termination date
+      await this.rentalPeriodModel.deleteMany(
+        {
+          lease: id,
+          startDate: { $gt: terminationDate },
+        },
+        { session },
+      );
 
-    if (!currentRentalPeriod) {
-      throw new BadRequestException('No active rental period found for termination');
-    }
+      await this.unitModel.findByIdAndUpdate(
+        lease.unit,
+        {
+          availabilityStatus: UnitAvailabilityStatus.VACANT,
+        },
+        { session },
+      );
 
-    const calculatedEndDate = completeFullCycle(
-      currentRentalPeriod.startDate,
-      terminationDate,
-      lease.paymentCycle,
-    );
+      const savedLease = await lease.save({ session });
 
-    lease.status = LeaseStatus.TERMINATED;
-    lease.terminationDate = terminationDate;
+      // Send lease termination email notifications
+      await this.sendLeaseTerminationEmails(savedLease, terminationData);
 
-    if (terminationData.terminationReason) {
-      lease.terminationReason = terminationData.terminationReason;
-    }
-
-    currentRentalPeriod.endDate = calculatedEndDate;
-    currentRentalPeriod.status = RentalPeriodStatus.EXPIRED;
-    await currentRentalPeriod.save();
-
-    await this.transactionModel.delete({
-      lease: id,
-      status: PaymentStatus.PENDING,
-      dueDate: { $gt: terminationDate },
+      return savedLease;
     });
-
-    // Delete rental periods that start after the termination date
-    await this.rentalPeriodModel.delete({
-      lease: id,
-      startDate: { $gt: terminationDate },
-    });
-
-    await this.unitModel.findByIdAndUpdate(lease.unit, {
-      availabilityStatus: UnitAvailabilityStatus.VACANT,
-    });
-
-    const savedLease = await lease.save();
-
-    // Send lease termination email notifications
-    await this.sendLeaseTerminationEmails(savedLease, terminationData);
-
-    return savedLease;
   }
 
   async renewLease(
@@ -309,100 +330,105 @@ export class LeasesService {
     renewalData: RenewLeaseDto,
     currentUser: UserDocument,
   ): Promise<{ lease: Lease; newRentalPeriod: RentalPeriod }> {
-    // todo DB transaction
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      const lease = await this.leaseModel.findById(id, null, { session }).exec();
 
-    const lease = await this.leaseModel.findById(id).exec();
+      if (!lease) {
+        throw new NotFoundException(`Lease with ID ${id} not found`);
+      }
 
-    if (!lease) {
-      throw new NotFoundException(`Lease with ID ${id} not found`);
-    }
+      // Get current active rental period
+      const currentRentalPeriod = await this.rentalPeriodModel
+        .findOne({ lease: id, status: RentalPeriodStatus.ACTIVE }, null, { session })
+        .exec();
 
-    // Get current active rental period
-    const currentRentalPeriod = await this.rentalPeriodModel
-      .findOne({ lease: id, status: RentalPeriodStatus.ACTIVE })
-      .exec();
+      if (!currentRentalPeriod) {
+        throw new UnprocessableEntityException('No active rental period found for renewal');
+      }
 
-    if (!currentRentalPeriod) {
-      throw new UnprocessableEntityException('No active rental period found for renewal');
-    }
+      // Check if there are any future/pending rental periods (indicating lease already renewed)
+      const futureRentalPeriod = await this.rentalPeriodModel
+        .findOne(
+          {
+            lease: id,
+            status: RentalPeriodStatus.PENDING,
+            startDate: { $gt: currentRentalPeriod.endDate },
+          },
+          null,
+          { session },
+        )
+        .exec();
 
-    // Check if there are any future/pending rental periods (indicating lease already renewed)
-    const futureRentalPeriod = await this.rentalPeriodModel
-      .findOne({
-        lease: id,
-        status: RentalPeriodStatus.PENDING,
-        startDate: { $gt: currentRentalPeriod.endDate },
-      })
-      .exec();
+      if (futureRentalPeriod) {
+        throw new BadRequestException(
+          'Cannot renew lease: A future rental period already exists. The lease has already been renewed.',
+        );
+      }
 
-    if (futureRentalPeriod) {
-      throw new BadRequestException(
-        'Cannot renew lease: A future rental period already exists. The lease has already been renewed.',
-      );
-    }
+      try {
+        validateRenewalStartDate(
+          new Date(renewalData.startDate),
+          new Date(currentRentalPeriod.endDate),
+        );
+      } catch (error) {
+        throw new UnprocessableEntityException(error.message);
+      }
 
-    try {
-      validateRenewalStartDate(
-        new Date(renewalData.startDate),
-        new Date(currentRentalPeriod.endDate),
-      );
-    } catch (error) {
-      throw new UnprocessableEntityException(error.message);
-    }
+      const rentCalculation = calculateRentIncrease(lease);
+      const newRentAmount = rentCalculation.newRentAmount;
+      let appliedRentIncrease = null;
 
-    const rentCalculation = calculateRentIncrease(lease);
-    const newRentAmount = rentCalculation.newRentAmount;
-    let appliedRentIncrease = null;
+      if (rentCalculation.rentIncrease) {
+        appliedRentIncrease = {
+          type: rentCalculation.rentIncrease.type,
+          amount: rentCalculation.rentIncrease.amount,
+          previousRent: currentRentalPeriod.rentAmount,
+        };
+      }
 
-    if (rentCalculation.rentIncrease) {
-      appliedRentIncrease = {
-        type: rentCalculation.rentIncrease.type,
-        amount: rentCalculation.rentIncrease.amount,
-        previousRent: currentRentalPeriod.rentAmount,
-      };
-    }
+      try {
+        const newRentalPeriod = new this.rentalPeriodModel({
+          lease: id,
+          startDate: normalizeToUTCStartOfDay(renewalData.startDate),
+          endDate: normalizeToUTCStartOfDay(renewalData.endDate),
+          rentAmount: newRentAmount,
+          status: RentalPeriodStatus.PENDING,
+          appliedRentIncrease,
+          renewedFrom: currentRentalPeriod._id,
+        });
 
-    try {
-      const newRentalPeriod = new this.rentalPeriodModel({
-        lease: id,
-        startDate: normalizeToUTCStartOfDay(renewalData.startDate),
-        endDate: normalizeToUTCStartOfDay(renewalData.endDate),
-        rentAmount: newRentAmount,
-        status: RentalPeriodStatus.PENDING,
-        appliedRentIncrease,
-        renewedFrom: currentRentalPeriod._id,
-      });
+        const savedNewRentalPeriod = await newRentalPeriod.save({ session });
 
-      const savedNewRentalPeriod = await newRentalPeriod.save();
+        currentRentalPeriod.renewedTo = new Types.ObjectId(savedNewRentalPeriod._id.toString());
 
-      currentRentalPeriod.renewedTo = new Types.ObjectId(savedNewRentalPeriod._id.toString());
+        lease.endDate = renewalData.endDate;
+        lease.rentAmount = newRentAmount;
 
-      lease.endDate = renewalData.endDate;
-      lease.rentAmount = newRentAmount;
+        const transactionSchedule = generateTransactionSchedule(
+          renewalData.startDate,
+          renewalData.endDate,
+          lease.paymentCycle,
+        );
 
-      const transactionSchedule = generateTransactionSchedule(
-        renewalData.startDate,
-        renewalData.endDate,
-        lease.paymentCycle,
-      );
+        await this.createTransactionsForSchedule(
+          id,
+          savedNewRentalPeriod._id.toString(),
+          newRentAmount,
+          transactionSchedule,
+          session,
+        );
 
-      await this.createTransactionsForSchedule(
-        id,
-        savedNewRentalPeriod._id.toString(),
-        newRentAmount,
-        transactionSchedule,
-      );
+        await currentRentalPeriod.save({ session });
+        const savedLease = await lease.save({ session });
 
-      await currentRentalPeriod.save();
-      const savedLease = await lease.save();
+        // Send lease renewal email notifications
+        await this.sendLeaseRenewalEmails(savedLease, savedNewRentalPeriod, currentRentalPeriod);
 
-      // Send lease renewal email notifications
-      await this.sendLeaseRenewalEmails(savedLease, savedNewRentalPeriod, currentRentalPeriod);
-
-      return { lease: savedLease, newRentalPeriod: savedNewRentalPeriod };
-    } catch (error) {
-      throw error;
-    }
+        return { lease: savedLease, newRentalPeriod: savedNewRentalPeriod };
+      } catch (error) {
+        throw error;
+      }
+    });
   }
 
   async manualRenewLease(
@@ -655,7 +681,7 @@ export class LeasesService {
     }
   }
 
-  private async activateLease(lease: Lease) {
+  private async activateLease(lease: Lease, session?: ClientSession) {
     try {
       const initialRentalPeriod = new this.rentalPeriodModel({
         lease: lease._id,
@@ -665,7 +691,7 @@ export class LeasesService {
         status: RentalPeriodStatus.ACTIVE,
       });
 
-      await initialRentalPeriod.save();
+      await initialRentalPeriod.save({ session: session ?? null });
 
       // Create payment schedule for the initial rental period
       const transactionSchedule = generateTransactionSchedule(
@@ -679,6 +705,7 @@ export class LeasesService {
         initialRentalPeriod._id.toString(),
         lease.rentAmount,
         transactionSchedule,
+        session,
       );
 
       if (lease.isSecurityDeposit && lease.securityDepositAmount) {
@@ -686,12 +713,17 @@ export class LeasesService {
           lease._id.toString(),
           lease.securityDepositAmount,
           lease.startDate,
+          session,
         );
       }
 
-      await this.unitModel.findByIdAndUpdate(lease.unit, {
-        availabilityStatus: UnitAvailabilityStatus.OCCUPIED,
-      });
+      await this.unitModel.findByIdAndUpdate(
+        lease.unit,
+        {
+          availabilityStatus: UnitAvailabilityStatus.OCCUPIED,
+        },
+        { session: session ?? null },
+      );
 
       // Send lease activation email notifications
       await this.sendLeaseActivationEmails(lease);
@@ -819,13 +851,17 @@ export class LeasesService {
     };
   }
 
-  private async handleStatusChange(lease: Lease, newStatus: LeaseStatus) {
+  private async handleStatusChange(lease: Lease, newStatus: LeaseStatus, session?: ClientSession) {
     if (newStatus === LeaseStatus.ACTIVE && lease.status === LeaseStatus.DRAFT) {
-      await this.activateLease(lease);
+      await this.activateLease(lease, session);
     }
   }
 
-  private async handlePaymentCycleChange(lease: Lease, newPaymentCycle: PaymentCycle) {
+  private async handlePaymentCycleChange(
+    lease: Lease,
+    newPaymentCycle: PaymentCycle,
+    session?: ClientSession,
+  ) {
     // Only handle payment cycle changes for active leases
     if (lease.status !== LeaseStatus.ACTIVE) {
       return;
@@ -833,7 +869,9 @@ export class LeasesService {
 
     // Get the current active rental period
     const currentRentalPeriod = await this.rentalPeriodModel
-      .findOne({ lease: lease._id, status: RentalPeriodStatus.ACTIVE })
+      .findOne({ lease: lease._id, status: RentalPeriodStatus.ACTIVE }, null, {
+        session: session ?? null,
+      })
       .exec();
 
     if (!currentRentalPeriod) {
@@ -841,11 +879,14 @@ export class LeasesService {
     }
 
     // Delete all pending transactions for the current rental period
-    await this.transactionModel.delete({
-      lease: lease._id,
-      rentalPeriod: currentRentalPeriod._id,
-      status: PaymentStatus.PENDING,
-    });
+    await this.transactionModel.deleteMany(
+      {
+        lease: lease._id,
+        rentalPeriod: currentRentalPeriod._id,
+        status: PaymentStatus.PENDING,
+      },
+      { session: session ?? null },
+    );
 
     // Generate new transaction schedule based on the new payment cycle
     // Calculate remaining period: from today to end of current rental period
@@ -865,6 +906,7 @@ export class LeasesService {
       currentRentalPeriod._id.toString(),
       currentRentalPeriod.rentAmount,
       transactionSchedule,
+      session,
     );
   }
 
@@ -885,6 +927,7 @@ export class LeasesService {
     rentalPeriodId: string,
     amount: number,
     dueDates: Date[],
+    session?: ClientSession,
   ): Promise<void> {
     const transactionPromises = dueDates.map((dueDate) => {
       const transaction = new this.transactionModel({
@@ -895,7 +938,7 @@ export class LeasesService {
         status: PaymentStatus.PENDING,
         dueDate: dueDate,
       });
-      return transaction.save();
+      return transaction.save({ session: session ?? null });
     });
 
     await Promise.all(transactionPromises);
@@ -905,6 +948,7 @@ export class LeasesService {
     leaseId: string,
     amount: number,
     dueDate: Date,
+    session?: ClientSession,
   ): Promise<void> {
     const securityDepositTransaction = new this.transactionModel({
       lease: leaseId,
@@ -915,7 +959,7 @@ export class LeasesService {
       notes: 'Security deposit for lease activation',
     });
 
-    await securityDepositTransaction.save();
+    await securityDepositTransaction.save({ session: session ?? null });
   }
 
   /**

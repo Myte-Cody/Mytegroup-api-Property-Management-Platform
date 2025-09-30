@@ -17,8 +17,64 @@ Enterprise-grade property management platform built with modern technologies:
 ### Prerequisites
 
 - Node.js >= 18
-- MongoDB >= 5.0
+- MongoDB >= 5.0 (must be configured as replica set for transactions)
 - npm or yarn
+
+### MongoDB Replica Set Setup
+
+**Important**: This application requires MongoDB to be configured as a replica set to support transactions.
+
+#### Development Environment (Local)
+
+1. Stop existing MongoDB instance:
+
+   ```bash
+   # Find and kill existing mongod process
+   ps aux | grep mongod
+   kill <process_id>
+   ```
+
+2. Start MongoDB with replica set configuration:
+
+   ```bash
+   # Start MongoDB with replica set named "rs0"
+   mongod --dbpath /usr/local/var/mongodb --replSet "rs0"
+   ```
+
+3. Initialize the replica set:
+
+   ```bash
+   # In a new terminal, connect to MongoDB and initialize
+   mongosh --eval "rs.initiate()"
+   ```
+
+4. Verify replica set status:
+   ```bash
+   mongosh --eval "rs.status()"
+   ```
+
+#### Production Environment
+
+1. **For MongoDB Atlas (Cloud)**:
+   - MongoDB Atlas automatically provides replica set configuration
+   - No additional setup required - just use your Atlas connection string
+
+2. **For Self-Hosted MongoDB**:
+   - Configure replica set in `/etc/mongod.conf`:
+     ```yaml
+     replication:
+       replSetName: 'rs0'
+     ```
+   - Restart MongoDB service:
+     ```bash
+     sudo systemctl restart mongod
+     ```
+   - Initialize replica set:
+     ```bash
+     mongosh --eval "rs.initiate()"
+     ```
+
+**Note**: Without replica set configuration, you'll encounter the error: "Transaction numbers are only allowed on a replica set member or mongos"
 
 ### Installation
 
