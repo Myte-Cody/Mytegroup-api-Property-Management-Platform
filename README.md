@@ -27,6 +27,7 @@ Enterprise-grade property management platform built with modern technologies:
 #### Development Environment (Local)
 
 1. Stop existing MongoDB instance:
+
    ```bash
    # Find and kill existing mongod process
    ps aux | grep mongod
@@ -34,12 +35,14 @@ Enterprise-grade property management platform built with modern technologies:
    ```
 
 2. Start MongoDB with replica set configuration:
+
    ```bash
    # Start MongoDB with replica set named "rs0"
    mongod --dbpath /usr/local/var/mongodb --replSet "rs0"
    ```
 
 3. Initialize the replica set:
+
    ```bash
    # In a new terminal, connect to MongoDB and initialize
    mongosh --eval "rs.initiate()"
@@ -60,7 +63,7 @@ Enterprise-grade property management platform built with modern technologies:
    - Configure replica set in `/etc/mongod.conf`:
      ```yaml
      replication:
-       replSetName: "rs0"
+       replSetName: 'rs0'
      ```
    - Restart MongoDB service:
      ```bash
