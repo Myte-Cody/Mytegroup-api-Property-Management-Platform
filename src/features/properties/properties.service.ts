@@ -150,7 +150,7 @@ export class PropertiesService {
       throw new ForbiddenException('You do not have permission to create properties');
     }
 
-    return await this.sessionService.withSession(async (session: ClientSession) => {
+    return await this.sessionService.withSession(async (session: ClientSession | null) => {
       // Check property name uniqueness within the same landlord
       const existingProperty = await this.propertyModel
         .findOne({ name: createPropertyDto.name })

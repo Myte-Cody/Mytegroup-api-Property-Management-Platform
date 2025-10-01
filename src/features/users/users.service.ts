@@ -192,7 +192,7 @@ export class UsersService {
   }
 
   async update(id: string, updateUserDto: UpdateUserDto, currentUser?: User) {
-    return await this.sessionService.withSession(async (session: ClientSession) => {
+    return await this.sessionService.withSession(async (session: ClientSession | null) => {
       const user = await this.userModel.findById(id, null, { session }).exec();
       if (!user) {
         throw new NotFoundException(`User with ID ${id} not found`);

@@ -43,7 +43,7 @@ export class UnitsService {
       throw new ForbiddenException('You do not have permission to create units');
     }
 
-    return await this.sessionService.withSession(async (session: ClientSession) => {
+    return await this.sessionService.withSession(async (session: ClientSession | null) => {
       const property = await this.propertyModel.findById(propertyId, null, { session }).exec();
 
       if (!property) {

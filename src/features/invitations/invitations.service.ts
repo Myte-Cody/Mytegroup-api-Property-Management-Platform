@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as crypto from 'crypto';
+import { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
@@ -191,7 +192,7 @@ export class InvitationsService {
       throw new NotFoundException('Invitation not found');
     }
 
-    return await this.sessionService.withSession(async (session) => {
+    return await this.sessionService.withSession(async (session: ClientSession | null) => {
       const strategy = this.invitationStrategyFactory.getStrategy(invitation.entityType);
 
       const createdEntity = await strategy.createEntity(
