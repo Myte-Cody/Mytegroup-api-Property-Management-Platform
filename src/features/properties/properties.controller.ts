@@ -43,6 +43,7 @@ import { User } from '../users/schemas/user.schema';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { PropertyQueryDto } from './dto/property-query.dto';
+import { PropertyStatisticsDto } from './dto/property-statistics.dto';
 import { UnitQueryDto } from './dto/unit-query.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { UploadMediaDto } from './dto/upload-media.dto';
@@ -87,6 +88,18 @@ export class PropertiesController {
   ) {
     queryDto.propertyId = id;
     return this.unitsService.findAllPaginated(queryDto, user);
+  }
+
+  @Get(':id/statistics')
+  @CheckPolicies(new ReadPropertyPolicyHandler())
+  @ApiOperation({ summary: 'Get comprehensive statistics for a property' })
+  @ApiParam({ name: 'id', description: 'Property ID', type: String })
+  @ApiResponse({ status: 200, type: PropertyStatisticsDto })
+  async getPropertyStatistics(
+    @Param('id', MongoIdValidationPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    return this.unitsService.getPropertyStatistics(id, user);
   }
 
   @Get(':id')

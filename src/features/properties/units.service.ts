@@ -16,6 +16,7 @@ import { MediaService } from '../media/services/media.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { PaginatedUnitsResponse, UnitQueryDto } from './dto/unit-query.dto';
+import { PropertyStatisticsDto, UnitStatusCount, UnitTypeCount } from './dto/property-statistics.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { Property } from './schemas/property.schema';
 import { Unit } from './schemas/unit.schema';
@@ -142,17 +143,12 @@ export class UnitsService {
     }
 
 
-    // Add filters
-    const typeFilters = queryDto['filters[type]'];
-    const statusFilters = queryDto['filters[availabilityStatus]'];
+    const type = queryDto.type;
+    const status = queryDto.availabilityStatus;
 
-    if (typeFilters && typeFilters.length > 0) {
-      matchConditions.type = { $in: typeFilters };
-    }
+    if(type) matchConditions.type = type;
+    if(status) matchConditions.availabilityStatus = status;
 
-    if (statusFilters && statusFilters.length > 0) {
-      matchConditions.availabilityStatus = { $in: statusFilters };
-    }
 
     // Add size range filtering
     if (minSize !== undefined || maxSize !== undefined) {
@@ -359,5 +355,143 @@ export class UnitsService {
     });
     await this.unitModel.deleteById(id);
     return { message: 'Unit deleted successfully' };
+  }
+
+  /**
+   * Get key statistics for a property
+   * This method calculates the following statistics:
+   * - Total units count
+   * - Occupancy rate
+   * - Monthly revenue
+   */
+  async getPropertyStatistics(propertyId: string, currentUser: UserDocument) {
+    // CASL: Check read permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    if (!ability.can(Action.Read, Unit)) {
+      throw new ForbiddenException('You do not have permission to view units');
+    }
+
+    // First verify the property exists
+    const property = await this.propertyModel.findById(propertyId).exec();
+    if (!property) {
+      throw new NotFoundException(`Property with ID ${propertyId} not found`);
+    }
+
+    // Check if user has access to this property
+    if (!ability.can(Action.Read, property)) {
+      throw new ForbiddenException('You do not have permission to view this property');
+    }
+
+    const mongoose = require('mongoose');
+    const propertyObjectId = new mongoose.Types.ObjectId(propertyId);
+
+    // Use MongoDB aggregation pipeline for all calculations
+    const pipeline = [
+      // Match units for this property
+      { 
+        $match: { 
+          property: propertyObjectId,
+          // Add CASL conditions
+          ...((this.unitModel as any).accessibleBy(ability, Action.Read).getQuery())
+        } 
+      },
+      // Lookup active lease with rent amount
+      {
+        $lookup: {
+          from: 'leases',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$unit', '$$unitId'] },
+                    { $eq: ['$status', 'ACTIVE'] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'activeLease'
+        }
+      },
+      // Unwind activeLease (since there can only be one active lease per unit)
+      {
+        $unwind: {
+          path: '$activeLease',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      // Add calculated fields
+      {
+        $addFields: {
+          isOccupied: { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+          effectiveRent: {
+            $cond: [
+              { $and: [
+                { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+                { $ne: [{ $ifNull: ['$activeLease.rentAmount', null] }, null] }
+              ]},
+              '$activeLease.rentAmount',
+              { $cond: [
+                { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+                { $ifNull: ['$monthlyRent', 0] },
+                0
+              ]}
+            ]
+          }
+        }
+      },
+      // Group and calculate statistics
+      {
+        $group: {
+          _id: null,
+          totalUnits: { $sum: 1 },
+          occupiedUnits: { $sum: { $cond: ['$isOccupied', 1, 0] } },
+          totalMonthlyRevenue: { $sum: '$effectiveRent' }
+        }
+      },
+      // Calculate derived statistics
+      {
+        $project: {
+          _id: 0,
+          totalUnits: 1,
+          occupiedUnits: 1,
+          totalMonthlyRevenue: 1,
+          occupancyRate: {
+            $cond: [
+              { $gt: ['$totalUnits', 0] },
+              { $round: [{ $multiply: [{ $divide: ['$occupiedUnits', '$totalUnits'] }, 100] }, 0] },
+              0
+            ]
+          }
+        }
+      }
+    ];
+
+    const result = await this.unitModel.aggregate(pipeline).exec();
+    
+    // If no units found, return default values
+    if (!result || result.length === 0) {
+      return {
+        success: true,
+        data: {
+          propertyId,
+          totalUnits: 0,
+          occupiedUnits: 0,
+          occupancyRate: 0,
+          totalMonthlyRevenue: 0
+        }
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        propertyId,
+        ...result[0]
+      }
+    };
   }
 }
