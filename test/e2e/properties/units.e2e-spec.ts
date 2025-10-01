@@ -329,9 +329,7 @@ describe('Units (e2e)', () => {
         size: 1300,
       };
 
-      await requestHelper
-        .patch(`/units/${unitId}`, firstUpdateData, landlordToken)
-        .expect(200);
+      await requestHelper.patch(`/units/${unitId}`, firstUpdateData, landlordToken).expect(200);
 
       // Then update only the type
       const secondUpdateData = {
