@@ -64,7 +64,7 @@ export class AuthHelper {
   }
 
   generateToken(userId: string, role: string) {
-    return this.jwtService.sign({ sub: userId, role });
+    return this.jwtService.sign({ sub: userId, role }, { expiresIn: '1h' });
   }
 
   async createAndLoginUser(role: string = 'admin') {

@@ -158,7 +158,7 @@ export class TenantsService {
     await this.validateTenantCreationData(name, email, username);
 
     // Create tenant
-    await this.sessionService.withSession(async (session) => {
+    return await this.sessionService.withSession(async (session) => {
       const tenantData = {
         name,
         phoneNumber,

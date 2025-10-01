@@ -146,12 +146,11 @@ export class PropertiesService {
   async create(createPropertyDto: CreatePropertyDto, currentUser: UserDocument) {
     // Create the property first
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
-
     if (!ability.can(Action.Create, Property)) {
       throw new ForbiddenException('You do not have permission to create properties');
     }
 
-    await this.sessionService.withSession(async (session: ClientSession) => {
+    return await this.sessionService.withSession(async (session: ClientSession) => {
       // Check property name uniqueness within the same landlord
       const existingProperty = await this.propertyModel
         .findOne({ name: createPropertyDto.name })
