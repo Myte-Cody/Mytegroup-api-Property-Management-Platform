@@ -112,35 +112,46 @@ export class UnitsService {
       maxSize,
     } = queryDto;
 
+
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     if (!ability.can(Action.Read, Unit)) {
       throw new ForbiddenException('You do not have permission to view units');
     }
 
-    let baseQuery = this.unitModel.find();
+    const pipeline: any[] = [];
 
-    baseQuery = (baseQuery as any).accessibleBy(ability, Action.Read);
+    // Step 1: Build initial match conditions
+    const matchConditions: any = {};
+
+    // Add CASL conditions
+    // todo verify below
+    const caslConditions = (this.unitModel as any).accessibleBy(ability, Action.Read).getQuery();
+    Object.assign(matchConditions, caslConditions);
 
     // Filter by specific property if provided
     if (propertyId) {
-      baseQuery = baseQuery.where({ property: propertyId });
+      // Convert string property ID to ObjectId for proper matching
+      const mongoose = require('mongoose');
+      const propertyObjectId = new mongoose.Types.ObjectId(propertyId);
+      matchConditions.property = propertyObjectId;
     }
 
     if (search) {
-      baseQuery = baseQuery.where({ unitNumber: { $regex: search, $options: 'i' } });
+      matchConditions.unitNumber = { $regex: search, $options: 'i' };
     }
+
 
     // Add filters
     const typeFilters = queryDto['filters[type]'];
     const statusFilters = queryDto['filters[availabilityStatus]'];
 
     if (typeFilters && typeFilters.length > 0) {
-      baseQuery = baseQuery.where({ type: { $in: typeFilters } });
+      matchConditions.type = { $in: typeFilters };
     }
 
     if (statusFilters && statusFilters.length > 0) {
-      baseQuery = baseQuery.where({ availabilityStatus: { $in: statusFilters } });
+      matchConditions.availabilityStatus = { $in: statusFilters };
     }
 
     // Add size range filtering
@@ -152,20 +163,92 @@ export class UnitsService {
       if (maxSize !== undefined) {
         sizeQuery.$lte = maxSize;
       }
-      baseQuery = baseQuery.where({ size: sizeQuery });
+      matchConditions.size = sizeQuery;
     }
 
-    // Build sort object
+    pipeline.push({ $match: matchConditions });
+
+    // Step 2: Lookup property
+    pipeline.push({
+      $lookup: {
+        from: 'properties',
+        localField: 'property',
+        foreignField: '_id',
+        as: 'property'
+      }
+    });
+
+    pipeline.push({
+      $unwind: {
+        path: '$property',
+        preserveNullAndEmptyArrays: true
+      }
+    });
+
+    // Step 3: Lookup active lease with tenant
+    pipeline.push({
+      $lookup: {
+        from: 'leases',
+        let: { unitId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$unit', '$$unitId'] },
+                  { $eq: ['$status', 'ACTIVE'] }
+                ]
+              }
+            }
+          },
+          {
+            $lookup: {
+              from: 'tenants',
+              localField: 'tenant',
+              foreignField: '_id',
+              as: 'tenant'
+            }
+          },
+          {
+            $unwind: {
+              path: '$tenant',
+              preserveNullAndEmptyArrays: true
+            }
+          }
+        ],
+        as: 'activeLease'
+      }
+    });
+
+    // Step 4: Unwind activeLease (since there can only be one active lease per unit)
+    pipeline.push({
+      $unwind: {
+        path: '$activeLease',
+        preserveNullAndEmptyArrays: true
+      }
+    });
+
+    // Step 5: Add sorting
     const sortObj: any = {};
     sortObj[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    pipeline.push({ $sort: sortObj });
 
+    // Step 6: Create separate pipeline for counting
+    const countPipeline = [...pipeline, { $count: 'total' }];
+
+    // Step 7: Add pagination to main pipeline
     const skip = (page - 1) * limit;
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: limit });
 
-    // Create separate queries for data and count to avoid interference
-    const dataQuery = baseQuery.clone().sort(sortObj).skip(skip).limit(limit).populate('property');
-    const countQuery = baseQuery.clone().countDocuments();
+    // Execute queries
+    const [unitsResult, countResult] = await Promise.all([
+      this.unitModel.aggregate(pipeline).exec(),
+      this.unitModel.aggregate(countPipeline).exec(),
+    ]);
 
-    const [units, total] = await Promise.all([dataQuery.exec(), countQuery.exec()]);
+    const units = unitsResult;
+    const total = countResult.length > 0 ? countResult[0].total : 0;
 
     // Fetch media for each unit
     const unitsWithMedia = await Promise.all(
@@ -178,7 +261,7 @@ export class UnitsService {
           {}, // filters (get all media)
         );
         return {
-          ...unit.toObject(),
+          ...unit,
           media,
         };
       }),
