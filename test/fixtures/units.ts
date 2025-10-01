@@ -15,10 +15,6 @@ export const testUnit = {
   size: 1000,
   type: UnitType.APARTMENT,
   availabilityStatus: UnitAvailabilityStatus.VACANT,
-  bedrooms: 2,
-  bathrooms: 1,
-  rentAmount: 1500,
-  description: 'A test unit for E2E testing',
 };
 
 export const testUnit2 = {
@@ -26,10 +22,6 @@ export const testUnit2 = {
   size: 800,
   type: UnitType.STUDIO,
   availabilityStatus: UnitAvailabilityStatus.OCCUPIED,
-  bedrooms: 1,
-  bathrooms: 1,
-  rentAmount: 1200,
-  description: 'Another test unit for E2E testing',
 };
 
 export const testUnit3 = {
@@ -37,8 +29,11 @@ export const testUnit3 = {
   size: 1500,
   type: UnitType.APARTMENT,
   availabilityStatus: UnitAvailabilityStatus.AVAILABLE_FOR_RENT,
-  bedrooms: 3,
-  bathrooms: 2,
-  rentAmount: 2000,
-  description: 'A third test unit for E2E testing',
 };
+
+export const createTestUnit = (timestamp: number) => ({
+  unitNumber: `${timestamp}-101`,
+  size: 1000,
+  type: UnitType.APARTMENT,
+  availabilityStatus: UnitAvailabilityStatus.VACANT,
+});
