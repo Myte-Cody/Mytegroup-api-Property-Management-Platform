@@ -24,13 +24,6 @@ The Audit Log Service provides comprehensive activity tracking and logging for t
   userId: string;              // User ID or 'system' for automated tasks
   action: string;              // Action/event name
   details?: Record<string, any>; // Additional context and data
-  ip?: string;                 // Client IP address (for HTTP requests)
-  userAgent?: string;          // User agent (for HTTP requests)
-  path?: string;               // Request path (for HTTP requests)
-  method?: string;             // HTTP method (for HTTP requests)
-  statusCode?: number;         // Response status code (for HTTP requests)
-  responseTime?: number;       // Response time in ms (for HTTP requests)
-  createdAt: Date;             // Timestamp
 }
 ```
 
@@ -74,14 +67,13 @@ export class CommonModule {}
     "body": {
       "name": "Sunset Apartments",
       "address": { "street": "123 Main St" }
-    }
+    },
+    "ip": "192.168.1.100",
+    "userAgent": "Mozilla/5.0...",
+    "path": "/properties",
+    "method": "POST",
+    "statusCode": 201
   },
-  "ip": "192.168.1.100",
-  "userAgent": "Mozilla/5.0...",
-  "path": "/properties",
-  "method": "POST",
-  "statusCode": 201,
-  "responseTime": 145,
   "createdAt": "2025-10-02T14:30:00.000Z"
 }
 ```
@@ -239,57 +231,6 @@ const failedLogins = await this.auditLogService.getLogs(
 
 ---
 
-## Admin API Endpoints
-
-### Get Audit Logs
-
-```http
-GET /audit-logs?limit=50&skip=0&userId=123&action=login
-Authorization: Bearer {admin-token}
-```
-
-**Query Parameters:**
-
-- `limit` (optional): Number of logs to return (default: 50)
-- `skip` (optional): Number of logs to skip (default: 0)
-- `userId` (optional): Filter by user ID
-- `action` (optional): Filter by action name
-- `startDate` (optional): Filter by start date
-- `endDate` (optional): Filter by end date
-
-**Response:**
-
-```json
-{
-  "data": [
-    {
-      "_id": "...",
-      "userId": "507f1f77bcf86cd799439011",
-      "action": "PropertiesController.create",
-      "details": { ... },
-      "ip": "192.168.1.100",
-      "path": "/properties",
-      "method": "POST",
-      "statusCode": 201,
-      "responseTime": 145,
-      "createdAt": "2025-10-02T14:30:00.000Z"
-    }
-  ],
-  "total": 1250,
-  "page": 1,
-  "limit": 50
-}
-```
-
-### Get User Activity
-
-```http
-GET /audit-logs/user/{userId}?limit=100
-Authorization: Bearer {admin-token}
-```
-
----
-
 ## Use Cases
 
 ### 1. Security Monitoring
@@ -330,20 +271,7 @@ const dataAccess = await this.auditLogService.getLogs({
 });
 ```
 
-### 4. Performance Monitoring
-
-Find slow requests:
-
-```typescript
-const slowRequests = await this.auditLogService.getLogs(
-  {
-    responseTime: { $gte: 1000 }, // > 1 second
-  },
-  { limit: 50, sort: { responseTime: -1 } },
-);
-```
-
-### 5. Debugging
+### 4. Debugging
 
 Track specific user's journey:
 
@@ -454,141 +382,6 @@ await this.auditLogService.createLog({
 await this.auditLogService.createLog({
   userId: adminUser._id, // ❌ Misleading
   action: 'SchedulerService.sendPaymentReminders',
-});
-```
-
----
-
-## Performance Considerations
-
-### 1. Indexing
-
-Ensure proper indexes on frequently queried fields:
-
-```typescript
-// In audit-log.schema.ts
-@Schema({ timestamps: true })
-export class AuditLog {
-  @Prop({ index: true })
-  userId: string;
-
-  @Prop({ index: true })
-  action: string;
-
-  @Prop({ index: true })
-  createdAt: Date;
-}
-```
-
-### 2. Pagination
-
-Always use pagination for large result sets:
-
-```typescript
-// ✅ Good - paginated
-const logs = await this.auditLogService.getLogs(filter, { limit: 50, skip: page * 50 });
-
-// ❌ Bad - loads all logs
-const allLogs = await this.auditLogService.getLogs(filter);
-```
-
-### 3. Archiving
-
-Consider archiving old logs:
-
-```typescript
-// Archive logs older than 90 days
-const archiveDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-await this.auditLogModel.deleteMany({
-  createdAt: { $lt: archiveDate },
-});
-```
-
----
-
-## Monitoring & Alerts
-
-### Track Critical Events
-
-```typescript
-// Monitor for security events
-const criticalEvents = await this.auditLogService.getLogs({
-  action: {
-    $in: ['AuthController.login', 'UserService.deleteUser', 'PropertyService.deleteProperty'],
-  },
-  statusCode: { $gte: 400 },
-});
-
-if (criticalEvents.length > threshold) {
-  // Send alert
-}
-```
-
-### Dashboard Metrics
-
-```typescript
-// Get activity summary
-const today = new Date();
-today.setHours(0, 0, 0, 0);
-
-const todayLogs = await this.auditLogService.getLogs({
-  createdAt: { $gte: today },
-});
-
-const metrics = {
-  totalRequests: todayLogs.length,
-  uniqueUsers: new Set(todayLogs.map((log) => log.userId)).size,
-  errors: todayLogs.filter((log) => log.statusCode >= 400).length,
-  avgResponseTime:
-    todayLogs.reduce((sum, log) => sum + (log.responseTime || 0), 0) / todayLogs.length,
-};
-```
-
----
-
-## Testing
-
-### Unit Tests
-
-```typescript
-describe('AuditLogService', () => {
-  it('should create audit log', async () => {
-    const log = await service.createLog({
-      userId: 'user123',
-      action: 'test.action',
-      details: { test: true },
-    });
-
-    expect(log.userId).toBe('user123');
-    expect(log.action).toBe('test.action');
-  });
-
-  it('should filter logs by user', async () => {
-    const logs = await service.getUserLogs('user123');
-
-    expect(logs.every((log) => log.userId === 'user123')).toBe(true);
-  });
-});
-```
-
-### Integration Tests
-
-```typescript
-describe('Audit Log Interceptor', () => {
-  it('should log authenticated requests', async () => {
-    const response = await request(app.getHttpServer())
-      .get('/properties')
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
-
-    const logs = await auditLogService.getLogs({
-      action: 'PropertiesController.findAll',
-    });
-
-    expect(logs.length).toBeGreaterThan(0);
-    expect(logs[0].method).toBe('GET');
-    expect(logs[0].path).toBe('/properties');
-  });
 });
 ```
 
