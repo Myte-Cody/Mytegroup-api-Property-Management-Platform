@@ -57,11 +57,10 @@ export class RentalPeriodsService {
         .limit(limit)
         .populate({
           path: 'lease',
-          select: 'unit tenant property',
+          select: 'unit tenant',
           populate: [
             { path: 'unit', select: 'unitNumber type' },
             { path: 'tenant', select: 'name' },
-            { path: 'property', select: 'name address' },
           ],
         })
         .populate('renewedFrom', 'startDate endDate rentAmount')

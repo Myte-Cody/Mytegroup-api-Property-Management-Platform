@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
+import { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
@@ -153,7 +154,7 @@ export class ContractorsService {
     // Hash the password for the user account
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
-    return await this.sessionService.withSession(async (session) => {
+    return await this.sessionService.withSession(async (session: ClientSession | null) => {
       // Create the contractor first
       const contractorData = {
         name,

@@ -176,7 +176,7 @@ export class LeasesService {
   }
 
   async create(createLeaseDto: CreateLeaseDto, currentUser: UserDocument): Promise<Lease> {
-    return await this.sessionService.withSession(async (session: ClientSession) => {
+    return await this.sessionService.withSession(async (session: ClientSession | null) => {
       await this.validateLeaseCreation(createLeaseDto);
 
       // Apply full cycle completion to ensure duration is a multiple of payment cycles
@@ -206,7 +206,7 @@ export class LeasesService {
     updateLeaseDto: UpdateLeaseDto,
     currentUser: UserDocument,
   ): Promise<Lease> {
-    return await this.sessionService.withSession(async (session: ClientSession) => {
+    return await this.sessionService.withSession(async (session: ClientSession | null) => {
       if (!updateLeaseDto || Object.keys(updateLeaseDto).length === 0) {
         throw new UnprocessableEntityException('Update data cannot be empty');
       }
@@ -240,7 +240,7 @@ export class LeasesService {
     terminationData: TerminateLeaseDto,
     currentUser: UserDocument,
   ): Promise<Lease> {
-    return await this.sessionService.withSession(async (session: ClientSession) => {
+    return await this.sessionService.withSession(async (session: ClientSession | null) => {
       const lease = await this.leaseModel.findById(id, null, { session }).exec();
 
       if (!lease) {
@@ -330,7 +330,7 @@ export class LeasesService {
     renewalData: RenewLeaseDto,
     currentUser: UserDocument,
   ): Promise<{ lease: Lease; newRentalPeriod: RentalPeriod }> {
-    return await this.sessionService.withSession(async (session: ClientSession) => {
+    return await this.sessionService.withSession(async (session: ClientSession | null) => {
       const lease = await this.leaseModel.findById(id, null, { session }).exec();
 
       if (!lease) {

@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { ClientSession } from 'mongoose';
 import { PaymentStatus, PaymentType } from '../../../common/enums/lease.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { SessionService } from '../../../common/services/session.service';
@@ -306,7 +307,7 @@ export class TransactionsService {
     submitDto: UploadTransactionProofDto,
     currentUser: UserDocument,
   ): Promise<Transaction> {
-    return await this.sessionService.withSession(async (session) => {
+    return await this.sessionService.withSession(async (session: ClientSession | null) => {
       const transaction = await this.transactionModel
         .findOne(
           {
