@@ -26,3 +26,15 @@ export const createTestProperty = (timestamp: number) => ({
   country: 'Test Country',
   description: `A test property created at ${timestamp}`,
 });
+
+export const createScriptTestProperty = (timestamp: number) => ({
+  name: `Test Property ${timestamp}`,
+  address: {
+    street: '123 Test St',
+    city: 'Test City',
+    state: 'TS',
+    postalCode: '12345',
+    country: 'Test Country',
+  },
+  description: `A test property created at ${timestamp}`,
+});
