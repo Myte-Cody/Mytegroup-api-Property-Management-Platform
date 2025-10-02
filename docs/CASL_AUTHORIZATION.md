@@ -7,10 +7,9 @@
 3. [Core Concepts](#core-concepts)
 4. [Implementation Details](#implementation-details)
 5. [Usage Guidelines](#usage-guidelines)
-6. [Role-Based Permissions](#role-based-permissions)
-7. [Best Practices](#best-practices)
-8. [Examples](#examples)
-9. [Troubleshooting](#troubleshooting)
+6. [Best Practices](#best-practices)
+7. [Examples](#examples)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -320,119 +319,6 @@ export class CanManageLeaseForPropertyPolicyHandler implements IPolicyHandler {
 }
 ```
 
----
-
-## Role-Based Permissions
-
-### Landlord Permissions
-
-Landlords have **full control** over all resources:
-
-```typescript
-private defineLandlordPermissions(can: any, cannot: any, user: UserDocument) {
-  can(Action.Manage, Property);
-  can(Action.Manage, Unit);
-  can(Action.Manage, Tenant);
-  can(Action.Manage, Contractor);
-  can(Action.Manage, Invitation);
-  can(Action.Manage, Media);
-  can(Action.Manage, Lease);
-  can(Action.Manage, RentalPeriod);
-  can(Action.Manage, Transaction);
-  can(Action.Manage, User);
-}
-```
-
-**Can do:**
-
-- ✅ Create, read, update, delete all properties and units
-- ✅ Manage all tenants and contractors
-- ✅ Create and manage leases
-- ✅ View and process transactions
-- ✅ Upload and manage media
-- ✅ Invite and manage users
-
-### Tenant Permissions
-
-Tenants have **limited read access** to their own data:
-
-```typescript
-private defineTenantPermissions(can: any, cannot: any, user: UserDocument) {
-  // Read-only access to properties and units
-  can(Action.Read, Property);
-  can(Action.Read, Unit);
-  can(Action.Read, Media);
-
-  // Can read their own leases
-  can(Action.Read, Lease, { tenant: user.party_id });
-  can(Action.Read, RentalPeriod, { lease: { tenant: user.party_id } });
-  can(Action.Read, Transaction, { lease: { tenant: user.party_id } });
-
-  // Can read their own tenant record
-  can(Action.Read, Tenant, { _id: user.party_id });
-
-  // Can manage other tenant users with same party_id
-  can(Action.Manage, User, {
-    party_id: user.party_id,
-    user_type: UserType.TENANT,
-  });
-
-  // Explicit denials
-  cannot(Action.Create, Property);
-  cannot(Action.Update, Property);
-  cannot(Action.Delete, Property);
-  // ... (see full implementation)
-}
-```
-
-**Can do:**
-
-- ✅ View properties and units
-- ✅ View their own leases and rental periods
-- ✅ View their own payment transactions
-- ✅ View their tenant profile
-- ✅ Manage other users under the same tenant account
-- ❌ Cannot create, update, or delete most resources
-
-### Contractor Permissions
-
-Contractors have **specialized access** for maintenance work:
-
-```typescript
-private defineContractorPermissions(can: any, cannot: any, user: UserDocument) {
-  // Read access for work purposes
-  can(Action.Read, Property);
-  can(Action.Read, Unit);
-  can(Action.Read, Media);
-  can(Action.Read, Lease);
-  can(Action.Read, RentalPeriod);
-
-  // Can update specific unit fields
-  can(Action.Update, Unit, ['maintenanceStatus', 'notes']);
-
-  // Can create/update media for documentation
-  can(Action.Create, Media);
-  can(Action.Update, Media);
-
-  // Can read their own contractor record
-  can(Action.Read, Contractor, { _id: user.party_id });
-
-  // Cannot access financial data
-  cannot(Action.Read, Transaction);
-  // ... (see full implementation)
-}
-```
-
-**Can do:**
-
-- ✅ View properties, units, and leases
-- ✅ Update unit maintenance status
-- ✅ Upload work documentation (photos, reports)
-- ✅ View their contractor profile
-- ❌ Cannot access financial/payment information
-- ❌ Cannot create or delete resources
-
----
 
 ## Best Practices
 
