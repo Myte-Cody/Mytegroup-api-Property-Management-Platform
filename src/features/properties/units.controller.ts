@@ -40,6 +40,7 @@ import { User } from '../users/schemas/user.schema';
 import { UnitQueryDto } from './dto/unit-query.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { UploadMediaDto } from './dto/upload-media.dto';
+import { UnitStatsResponseDto } from './dto/unit-stats.dto';
 import { UnitsService } from './units.service';
 
 @ApiTags('Units')
@@ -65,6 +66,14 @@ export class UnitsController {
   @ApiParam({ name: 'id', description: 'Unit ID', type: String })
   findOne(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
     return this.unitsService.findOne(id, user);
+  }
+
+  @Get(':id/stats')
+  @CheckPolicies(new ReadUnitPolicyHandler())
+  @ApiOperation({ summary: 'Get unit statistics and KPIs' })
+  @ApiParam({ name: 'id', description: 'Unit ID', type: String })
+  getUnitStats(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
+    return this.unitsService.getUnitStats(id, user);
   }
 
   @Patch(':id')

@@ -18,6 +18,7 @@ import { CreateUnitDto } from './dto/create-unit.dto';
 import { PaginatedUnitsResponse, UnitQueryDto } from './dto/unit-query.dto';
 import { PropertyStatisticsDto, UnitStatusCount, UnitTypeCount } from './dto/property-statistics.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
+import { UnitStatsDto } from './dto/unit-stats.dto';
 import { Property } from './schemas/property.schema';
 import { Unit } from './schemas/unit.schema';
 import { UnitBusinessValidator } from './validators/unit-business-validator';
@@ -552,6 +553,223 @@ export class UnitsService {
       data: {
         propertyId,
         ...result[0]
+      }
+    };
+  }
+
+  async getUnitStats(unitId: string, currentUser: UserDocument): Promise<{ success: boolean; data: UnitStatsDto }> {
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    if (!ability.can(Action.Read, Unit)) {
+      throw new ForbiddenException('You do not have permission to view units');
+    }
+
+    const mongoose = require('mongoose');
+    const unitObjectId = new mongoose.Types.ObjectId(unitId);
+
+    // Build aggregation pipeline to calculate unit stats
+    const pipeline = [
+      { $match: { _id: unitObjectId } },
+
+      // Lookup property
+      {
+        $lookup: {
+          from: 'properties',
+          localField: 'property',
+          foreignField: '_id',
+          as: 'property'
+        }
+      },
+      {
+        $unwind: {
+          path: '$property',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+
+      // Lookup active lease
+      {
+        $lookup: {
+          from: 'leases',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$unit', '$$unitId'] },
+                    { $eq: ['$status', 'ACTIVE'] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'activeLease'
+        }
+      },
+      {
+        $unwind: {
+          path: '$activeLease',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+
+      // Calculate YTD revenue from transactions via active lease
+      {
+        $lookup: {
+          from: 'transactions',
+          let: { leaseId: '$activeLease._id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$lease', '$$leaseId'] },
+                    { $gte: ['$paidAt', new Date(new Date().getFullYear(), 0, 1)] },
+                    { $eq: ['$status', 'PAID'] }
+                  ]
+                }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: '$amount' },
+                lastPaymentDate: { $max: '$paidAt' }
+              }
+            }
+          ],
+          as: 'ytdTransactions'
+        }
+      },
+
+      // Get outstanding balance from pending/overdue transactions
+      {
+        $lookup: {
+          from: 'transactions',
+          let: { leaseId: '$activeLease._id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$lease', '$$leaseId'] },
+                    { $in: ['$status', ['OVERDUE']] }
+                  ]
+                }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                totalOwed: { $sum: '$amount' }
+              }
+            }
+          ],
+          as: 'outstandingTransactions'
+        }
+      },
+
+      // Get next payment due (future transactions with smallest due date)
+      {
+        $lookup: {
+          from: 'transactions',
+          let: { leaseId: '$activeLease._id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$lease', '$$leaseId'] },
+                    { $gt: ['$dueDate', new Date()] },
+                    { $ne: [{ $ifNull: ['$dueDate', null] }, null] }
+                  ]
+                }
+              }
+            },
+            {
+              $sort: { dueDate: 1 }
+            },
+            {
+              $limit: 1
+            },
+            {
+              $project: {
+                nextDueDate: '$dueDate'
+              }
+            }
+          ],
+          as: 'nextPayment'
+        }
+      },
+
+      // Count maintenance requests (we'll use a mock count for now since maintenance module doesn't exist)
+      {
+        $addFields: {
+          maintenanceRequestsCount: 5 // Mock value - todo replace when maintenance module exists
+        }
+      },
+
+      // Calculate final fields
+      {
+        $project: {
+          _id: 1,
+          ytdRevenue: {
+            $cond: [
+              { $gt: [{ $size: '$ytdTransactions' }, 0] },
+              { $arrayElemAt: ['$ytdTransactions.totalRevenue', 0] },
+              0
+            ]
+          },
+          maintenanceRequestsCount: '$maintenanceRequestsCount',
+          currentBalance: {
+            $cond: [
+              { $gt: [{ $size: '$outstandingTransactions' }, 0] },
+              { $arrayElemAt: ['$outstandingTransactions.totalOwed', 0] },
+              0
+            ]
+          },
+          lastPaymentDate: {
+            $cond: [
+              { $gt: [{ $size: '$ytdTransactions' }, 0] },
+              { $arrayElemAt: ['$ytdTransactions.lastPaymentDate', 0] },
+              null
+            ]
+          },
+          nextPaymentDue: {
+            $cond: [
+              { $gt: [{ $size: '$nextPayment' }, 0] },
+              { $arrayElemAt: ['$nextPayment.nextDueDate', 0] },
+              null
+            ]
+          }
+        }
+      }
+    ];
+
+    const result = await this.unitModel.aggregate(pipeline).exec();
+
+    if (!result || result.length === 0) {
+      throw new NotFoundException(`Unit with ID ${unitId} not found`);
+    }
+
+    const stats = result[0];
+
+    // Check CASL permission on the found unit
+    const unit = await this.unitModel.findById(unitId).populate('property').exec();
+    if (!ability.can(Action.Read, unit)) {
+      throw new ForbiddenException('You do not have permission to view this unit');
+    }
+
+    return {
+      success: true,
+      data: {
+        unitId: stats._id.toString(),
+        ytdRevenue: stats.ytdRevenue || 0,
+        maintenanceRequestsCount: stats.maintenanceRequestsCount || 0,
+        currentBalance: stats.currentBalance || 0,
+        lastPaymentDate: stats.lastPaymentDate ? stats.lastPaymentDate.toISOString().split('T')[0] : null,
+        nextPaymentDue: stats.nextPaymentDue ? stats.nextPaymentDue.toISOString().split('T')[0] : null
       }
     };
   }
