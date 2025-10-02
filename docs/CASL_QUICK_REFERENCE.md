@@ -17,40 +17,6 @@
 
 ## Common Patterns
 
-### Controller Pattern
-
-```typescript
-@Controller('resource')
-@UseGuards(JwtAuthGuard, CaslGuard)
-@ApiBearerAuth()
-export class ResourceController {
-  
-  @Get()
-  @CheckPolicies(new ReadResourcePolicyHandler())
-  findAll(@CurrentUser() user: User) {
-    return this.service.findAll(user);
-  }
-
-  @Post()
-  @CheckPolicies(new CreateResourcePolicyHandler())
-  create(@Body() dto: CreateDto, @CurrentUser() user: User) {
-    return this.service.create(dto, user);
-  }
-
-  @Patch(':id')
-  @CheckPolicies(new UpdateResourcePolicyHandler())
-  update(@Param('id') id: string, @Body() dto: UpdateDto, @CurrentUser() user: User) {
-    return this.service.update(id, dto, user);
-  }
-
-  @Delete(':id')
-  @CheckPolicies(new DeleteResourcePolicyHandler())
-  remove(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.service.remove(id, user);
-  }
-}
-```
-
 ### Service Pattern
 
 ```typescript
@@ -143,6 +109,42 @@ export class DeleteResourcePolicyHandler implements IPolicyHandler {
       return ability.can(Action.Delete, resource);
     }
     return ability.can(Action.Delete, Resource);
+  }
+}
+```
+
+#### Using Policy Handlers in Controllers
+
+Policy handlers are applied to controller methods using the `@CheckPolicies()` decorator along with the `CaslGuard`:
+
+```typescript
+@Controller('resource')
+@UseGuards(JwtAuthGuard, CaslGuard)
+@ApiBearerAuth()
+export class ResourceController {
+  
+  @Get()
+  @CheckPolicies(new ReadResourcePolicyHandler())
+  findAll(@CurrentUser() user: User) {
+    return this.service.findAll(user);
+  }
+
+  @Post()
+  @CheckPolicies(new CreateResourcePolicyHandler())
+  create(@Body() dto: CreateDto, @CurrentUser() user: User) {
+    return this.service.create(dto, user);
+  }
+
+  @Patch(':id')
+  @CheckPolicies(new UpdateResourcePolicyHandler())
+  update(@Param('id') id: string, @Body() dto: UpdateDto, @CurrentUser() user: User) {
+    return this.service.update(id, dto, user);
+  }
+
+  @Delete(':id')
+  @CheckPolicies(new DeleteResourcePolicyHandler())
+  remove(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.service.remove(id, user);
   }
 }
 ```
