@@ -148,25 +148,6 @@ export class ResourceController {
 }
 ```
 
-### Schema Pattern
-
-```typescript
-import { accessibleRecordsPlugin } from '@casl/mongoose';
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
-
-@Schema({ timestamps: true })
-export class Resource extends Document {
-  @Prop({ required: true })
-  name: string;
-
-  // ... other fields
-}
-
-export const ResourceSchema = SchemaFactory.createForClass(Resource);
-ResourceSchema.plugin(accessibleRecordsPlugin); // ✅ Required
-```
-
 ---
 
 ## Permission Definitions
@@ -330,42 +311,6 @@ describe('Properties (e2e)', () => {
       .expect(200);
   });
 });
-```
-
----
-
-## Debugging Tips
-
-### Enable CASL Debug Mode
-
-```typescript
-// In development, log ability checks
-const ability = factory.createForUser(user);
-console.log('Can read Property?', ability.can(Action.Read, Property));
-console.log('Can create Property?', ability.can(Action.Create, Property));
-```
-
-### Check Ability Rules
-
-```typescript
-const ability = factory.createForUser(user);
-console.log('All rules:', ability.rules);
-```
-
-### Verify Subject Detection
-
-```typescript
-const resource = await this.model.findById(id);
-console.log('Subject type:', ability.detectSubjectType(resource));
-```
-
-### Test Conditions
-
-```typescript
-const lease = await this.leaseModel.findById(id).populate('tenant');
-console.log('Lease tenant:', lease.tenant);
-console.log('User party_id:', user.party_id);
-console.log('Can read?', ability.can(Action.Read, lease));
 ```
 
 ---
