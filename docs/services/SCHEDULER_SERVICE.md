@@ -249,16 +249,6 @@ All scheduled jobs log their execution to the `AuditLog` collection.
 }
 ```
 
-### Viewing Audit Logs
-
-```bash
-# Via API (admin only)
-GET /audit-logs?action=SchedulerService
-
-# Via MongoDB
-db.auditlogs.find({ action: /SchedulerService/ })
-```
-
 ---
 
 ## Error Handling

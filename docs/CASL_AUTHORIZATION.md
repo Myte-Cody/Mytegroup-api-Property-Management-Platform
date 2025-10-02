@@ -319,7 +319,6 @@ export class CanManageLeaseForPropertyPolicyHandler implements IPolicyHandler {
 }
 ```
 
-
 ## Best Practices
 
 ### 1. Always Use Guards
