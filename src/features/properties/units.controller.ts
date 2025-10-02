@@ -41,6 +41,7 @@ import { UnitQueryDto } from './dto/unit-query.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { UploadMediaDto } from './dto/upload-media.dto';
 import { UnitStatsResponseDto } from './dto/unit-stats.dto';
+import { UnitsOverviewStatsResponseDto } from './dto/units-overview-stats.dto';
 import { UnitsService } from './units.service';
 
 @ApiTags('Units')
@@ -58,6 +59,18 @@ export class UnitsController {
   @ApiOperation({ summary: 'Get all units with pagination, filtering, and sorting' })
   findAll(@Query() queryDto: UnitQueryDto, @CurrentUser() user: User) {
     return this.unitsService.findAllPaginated(queryDto, user);
+  }
+
+  @Get('stats/overview')
+  @CheckPolicies(new ReadUnitPolicyHandler())
+  @ApiOperation({ summary: 'Get overview statistics for all units' })
+  @ApiResponse({
+    status: 200,
+    description: 'Units overview statistics retrieved successfully',
+    type: UnitsOverviewStatsResponseDto
+  })
+  getUnitsOverviewStats(@CurrentUser() user: User) {
+    return this.unitsService.getUnitsOverviewStats(user);
   }
 
   @Get(':id')

@@ -19,6 +19,7 @@ import { PaginatedUnitsResponse, UnitQueryDto } from './dto/unit-query.dto';
 import { PropertyStatisticsDto, UnitStatusCount, UnitTypeCount } from './dto/property-statistics.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { UnitStatsDto } from './dto/unit-stats.dto';
+import { UnitsOverviewStatsResponseDto } from './dto/units-overview-stats.dto';
 import { Property } from './schemas/property.schema';
 import { Unit } from './schemas/unit.schema';
 import { UnitBusinessValidator } from './validators/unit-business-validator';
@@ -417,6 +418,130 @@ export class UnitsService {
     });
     await this.unitModel.deleteById(id);
     return { message: 'Unit deleted successfully' };
+  }
+
+  /**
+   * Get overview statistics for all units across properties
+   * This method calculates the following statistics:
+   * - Total units count
+   * - Occupied units count
+   * - Available units count
+   * - Occupancy rate
+   * - Total monthly revenue from active leases
+   */
+  async getUnitsOverviewStats(currentUser: UserDocument): Promise<UnitsOverviewStatsResponseDto> {
+    // CASL: Check read permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    if (!ability.can(Action.Read, Unit)) {
+      throw new ForbiddenException('You do not have permission to view units');
+    }
+
+    // Use MongoDB aggregation pipeline for all calculations
+    const pipeline = [
+      // Match units accessible to the user
+      { 
+        $match: { 
+          ...((this.unitModel as any).accessibleBy(ability, Action.Read).getQuery())
+        } 
+      },
+      // Lookup active lease with rent amount
+      {
+        $lookup: {
+          from: 'leases',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$unit', '$$unitId'] },
+                    { $eq: ['$status', 'ACTIVE'] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'activeLease'
+        }
+      },
+      // Unwind activeLease (since there can only be one active lease per unit)
+      {
+        $unwind: {
+          path: '$activeLease',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      // Add calculated fields
+      {
+        $addFields: {
+          isOccupied: { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+          isAvailable: { $eq: ['$availabilityStatus', 'VACANT'] },
+          effectiveRent: {
+            $cond: [
+              { $and: [
+                { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+                { $ne: [{ $ifNull: ['$activeLease.rentAmount', null] }, null] }
+              ]},
+              '$activeLease.rentAmount',
+              { $cond: [
+                { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+                { $ifNull: ['$monthlyRent', 0] },
+                0
+              ]}
+            ]
+          }
+        }
+      },
+      // Group and calculate statistics
+      {
+        $group: {
+          _id: null,
+          totalUnits: { $sum: 1 },
+          occupiedUnits: { $sum: { $cond: ['$isOccupied', 1, 0] } },
+          availableUnits: { $sum: { $cond: ['$isAvailable', 1, 0] } },
+          totalMonthlyRevenue: { $sum: '$effectiveRent' }
+        }
+      },
+      // Calculate derived statistics
+      {
+        $project: {
+          _id: 0,
+          totalUnits: 1,
+          occupiedUnits: 1,
+          availableUnits: 1,
+          totalMonthlyRevenue: 1,
+          occupancyRate: {
+            $cond: [
+              { $gt: ['$totalUnits', 0] },
+              { $round: [{ $multiply: [{ $divide: ['$occupiedUnits', '$totalUnits'] }, 100] }, 1] },
+              0
+            ]
+          }
+        }
+      }
+    ];
+
+    const result = await this.unitModel.aggregate(pipeline).exec();
+    
+    // If no units found, return default values
+    if (!result || result.length === 0) {
+      return {
+        success: true,
+        data: {
+          totalUnits: 0,
+          occupiedUnits: 0,
+          availableUnits: 0,
+          occupancyRate: 0,
+          totalMonthlyRevenue: 0
+        }
+      };
+    }
+
+    return {
+      success: true,
+      data: result[0]
+    };
   }
 
   /**
