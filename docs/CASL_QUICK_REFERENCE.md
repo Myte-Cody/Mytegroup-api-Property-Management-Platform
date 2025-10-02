@@ -35,30 +35,30 @@ export class ResourceService {
   async findOne(id: string, user: User): Promise<Resource> {
     const ability = this.caslService.createAbilityForUser(user);
     const resource = await this.model.findById(id).exec();
-    
+
     if (!resource) {
       throw new NotFoundException('Resource not found');
     }
-    
+
     if (!ability.can(Action.Read, resource)) {
       throw new ForbiddenException('Access denied');
     }
-    
+
     return resource;
   }
 
   async update(id: string, dto: UpdateDto, user: User): Promise<Resource> {
     const ability = this.caslService.createAbilityForUser(user);
     const resource = await this.model.findById(id).exec();
-    
+
     if (!resource) {
       throw new NotFoundException('Resource not found');
     }
-    
+
     if (!ability.can(Action.Update, resource)) {
       throw new ForbiddenException('Access denied');
     }
-    
+
     Object.assign(resource, dto);
     return resource.save();
   }
@@ -122,7 +122,6 @@ Policy handlers are applied to controller methods using the `@CheckPolicies()` d
 @UseGuards(JwtAuthGuard, CaslGuard)
 @ApiBearerAuth()
 export class ResourceController {
-  
   @Get()
   @CheckPolicies(new ReadResourcePolicyHandler())
   findAll(@CurrentUser() user: User) {
@@ -160,12 +159,12 @@ import { Document } from 'mongoose';
 export class Resource extends Document {
   @Prop({ required: true })
   name: string;
-  
+
   // ... other fields
 }
 
 export const ResourceSchema = SchemaFactory.createForClass(Resource);
-ResourceSchema.plugin(accessibleRecordsPlugin);  // ✅ Required
+ResourceSchema.plugin(accessibleRecordsPlugin); // ✅ Required
 ```
 
 ---
@@ -184,10 +183,10 @@ private defineLandlordPermissions(can: any, cannot: any, user: UserDocument) {
 private defineTenantPermissions(can: any, cannot: any, user: UserDocument) {
   // Read-only
   can(Action.Read, Resource);
-  
+
   // Conditional access
   can(Action.Read, Resource, { owner: user.party_id });
-  
+
   // Explicit denials
   cannot(Action.Create, Resource);
   cannot(Action.Update, Resource);
@@ -198,10 +197,10 @@ private defineTenantPermissions(can: any, cannot: any, user: UserDocument) {
 private defineContractorPermissions(can: any, cannot: any, user: UserDocument) {
   // Read access
   can(Action.Read, Resource);
-  
+
   // Field-level permissions
   can(Action.Update, Resource, ['status', 'notes']);
-  
+
   // Denials
   cannot(Action.Delete, Resource);
 }
@@ -227,9 +226,9 @@ can(Action.Read, Transaction, { lease: { tenant: user.party_id } });
 ### By User Type
 
 ```typescript
-can(Action.Manage, User, { 
+can(Action.Manage, User, {
   party_id: user.party_id,
-  user_type: UserType.TENANT 
+  user_type: UserType.TENANT,
 });
 ```
 
@@ -376,6 +375,7 @@ console.log('Can read?', ability.can(Action.Read, lease));
 ### Error: "Access denied" but user should have access
 
 **Check:**
+
 1. Is the guard applied? `@UseGuards(JwtAuthGuard, CaslGuard)`
 2. Is the policy handler registered in `casl.module.ts`?
 3. Are permissions defined in `CaslAbilityFactory`?
@@ -384,6 +384,7 @@ console.log('Can read?', ability.can(Action.Read, lease));
 ### Error: `accessibleBy` returns empty array
 
 **Check:**
+
 1. Is `accessibleRecordsPlugin` added to schema?
 2. Are permissions defined for the action?
 3. Is the ability created correctly?
@@ -391,6 +392,7 @@ console.log('Can read?', ability.can(Action.Read, lease));
 ### Error: Type error with subject
 
 **Solution:**
+
 ```typescript
 // ✅ Use class import
 import { Property } from './schemas/property.schema';
@@ -411,13 +413,11 @@ ability.can(Action.Read, 'Property');
 
 ```typescript
 // ✅ Good: Database filters
-const items = await this.model
-  .accessibleBy(ability, Action.Read)
-  .find();
+const items = await this.model.accessibleBy(ability, Action.Read).find();
 
 // ❌ Bad: Application filters (slow)
 const allItems = await this.model.find();
-const filtered = allItems.filter(item => ability.can(Action.Read, item));
+const filtered = allItems.filter((item) => ability.can(Action.Read, item));
 ```
 
 ---

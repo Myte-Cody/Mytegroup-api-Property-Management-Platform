@@ -1,6 +1,7 @@
 # CASL Authorization Documentation
 
 ## Table of Contents
+
 1. [Overview](#overview)
 2. [Architecture](#architecture)
 3. [Core Concepts](#core-concepts)
@@ -69,11 +70,11 @@ The application defines five core actions:
 
 ```typescript
 export enum Action {
-  Manage = 'manage',  // Full control (includes all other actions)
-  Create = 'create',  // Create new resources
-  Read = 'read',      // View/read resources
-  Update = 'update',  // Modify existing resources
-  Delete = 'delete',  // Remove resources
+  Manage = 'manage', // Full control (includes all other actions)
+  Create = 'create', // Create new resources
+  Read = 'read', // View/read resources
+  Update = 'update', // Modify existing resources
+  Delete = 'delete', // Remove resources
 }
 ```
 
@@ -95,17 +96,19 @@ Subjects are the resources being protected:
 ### Abilities
 
 An **ability** is a combination of:
+
 - **Action**: What the user wants to do
 - **Subject**: The resource type or instance
 - **Conditions**: Optional attribute-based conditions
 
 Example:
+
 ```typescript
 // Can read any property
-ability.can(Action.Read, Property)
+ability.can(Action.Read, Property);
 
 // Can read leases where tenant matches user's party_id
-ability.can(Action.Read, Lease, { tenant: user.party_id })
+ability.can(Action.Read, Lease, { tenant: user.party_id });
 ```
 
 ---
@@ -174,10 +177,8 @@ The guard enforces policies on controller routes:
 @Injectable()
 export class CaslGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const policyHandlers = this.reflector.get<PolicyHandler[]>(
-      CHECK_POLICIES_KEY,
-      context.getHandler()
-    ) || [];
+    const policyHandlers =
+      this.reflector.get<PolicyHandler[]>(CHECK_POLICIES_KEY, context.getHandler()) || [];
 
     if (policyHandlers.length === 0) {
       return true; // No policies = allow access
@@ -222,9 +223,7 @@ This enables filtering queries based on user abilities:
 
 ```typescript
 // Only returns properties the user can read
-const properties = await this.propertyModel
-  .accessibleBy(ability, Action.Read)
-  .find();
+const properties = await this.propertyModel.accessibleBy(ability, Action.Read).find();
 ```
 
 ---
@@ -240,7 +239,6 @@ Apply the `@CheckPolicies` decorator to protect routes:
 @UseGuards(JwtAuthGuard, CaslGuard)
 @ApiBearerAuth()
 export class PropertiesController {
-  
   @Get()
   @CheckPolicies(new ReadPropertyPolicyHandler())
   async findAll(@CurrentUser() user: User) {
@@ -255,11 +253,7 @@ export class PropertiesController {
 
   @Patch(':id')
   @CheckPolicies(new UpdatePropertyPolicyHandler())
-  async update(
-    @Param('id') id: string,
-    @Body() dto: UpdatePropertyDto,
-    @CurrentUser() user: User
-  ) {
+  async update(@Param('id') id: string, @Body() dto: UpdatePropertyDto, @CurrentUser() user: User) {
     return this.propertiesService.update(id, dto, user);
   }
 
@@ -285,19 +279,16 @@ export class PropertiesService {
 
   async findAll(user: User): Promise<Property[]> {
     const ability = this.caslAuthorizationService.createAbilityForUser(user);
-    
+
     // Only returns properties the user can read
-    return this.propertyModel
-      .accessibleBy(ability, Action.Read)
-      .find()
-      .exec();
+    return this.propertyModel.accessibleBy(ability, Action.Read).find().exec();
   }
 
   async findOne(id: string, user: User): Promise<Property> {
     const ability = this.caslAuthorizationService.createAbilityForUser(user);
-    
+
     const property = await this.propertyModel.findById(id).exec();
-    
+
     if (!property) {
       throw new NotFoundException('Property not found');
     }
@@ -353,6 +344,7 @@ private defineLandlordPermissions(can: any, cannot: any, user: UserDocument) {
 ```
 
 **Can do:**
+
 - ✅ Create, read, update, delete all properties and units
 - ✅ Manage all tenants and contractors
 - ✅ Create and manage leases
@@ -394,6 +386,7 @@ private defineTenantPermissions(can: any, cannot: any, user: UserDocument) {
 ```
 
 **Can do:**
+
 - ✅ View properties and units
 - ✅ View their own leases and rental periods
 - ✅ View their own payment transactions
@@ -431,6 +424,7 @@ private defineContractorPermissions(can: any, cannot: any, user: UserDocument) {
 ```
 
 **Can do:**
+
 - ✅ View properties, units, and leases
 - ✅ Update unit maintenance status
 - ✅ Upload work documentation (photos, reports)
@@ -448,7 +442,7 @@ Protect all routes with both authentication and authorization:
 
 ```typescript
 @Controller('resource')
-@UseGuards(JwtAuthGuard, CaslGuard)  // ✅ Both guards
+@UseGuards(JwtAuthGuard, CaslGuard) // ✅ Both guards
 @ApiBearerAuth()
 export class ResourceController {
   // ...
@@ -473,9 +467,7 @@ Always use `accessibleBy` when querying collections:
 
 ```typescript
 // ✅ Good: Filtered by user abilities
-const items = await this.model
-  .accessibleBy(ability, Action.Read)
-  .find();
+const items = await this.model.accessibleBy(ability, Action.Read).find();
 
 // ❌ Bad: Returns all items regardless of permissions
 const items = await this.model.find();
@@ -488,7 +480,8 @@ Verify permissions on specific instances:
 ```typescript
 const resource = await this.model.findById(id);
 
-if (!ability.can(Action.Update, resource)) {  // ✅ Check specific instance
+if (!ability.can(Action.Update, resource)) {
+  // ✅ Check specific instance
   throw new ForbiddenException('Access denied');
 }
 ```
@@ -499,10 +492,10 @@ Always use the imported class, not strings:
 
 ```typescript
 // ✅ Good: Type-safe
-ability.can(Action.Read, Property)
+ability.can(Action.Read, Property);
 
 // ❌ Bad: String-based, error-prone
-ability.can(Action.Read, 'Property')
+ability.can(Action.Read, 'Property');
 ```
 
 ### 6. Test Authorization Logic
@@ -514,14 +507,14 @@ describe('CaslAbilityFactory', () => {
   it('should allow landlords to manage properties', () => {
     const user = createLandlordUser();
     const ability = factory.createForUser(user);
-    
+
     expect(ability.can(Action.Manage, Property)).toBe(true);
   });
 
   it('should prevent tenants from creating properties', () => {
     const user = createTenantUser();
     const ability = factory.createForUser(user);
-    
+
     expect(ability.can(Action.Create, Property)).toBe(false);
   });
 });
@@ -549,12 +542,12 @@ For nested resources, check parent permissions:
 ```typescript
 async createUnit(propertyId: string, dto: CreateUnitDto, user: User) {
   const property = await this.propertyModel.findById(propertyId);
-  
+
   // Check if user can manage the parent property
   if (!ability.can(Action.Manage, property)) {
     throw new ForbiddenException('Cannot create unit in this property');
   }
-  
+
   // Proceed with creation
 }
 ```
@@ -579,11 +572,8 @@ export class TenantsController {
   @CheckPolicies(new ReadTenantPolicyHandler())
   async findAll(@CurrentUser() user: User) {
     const ability = this.caslAuthorizationService.createAbilityForUser(user);
-    
-    return this.tenantModel
-      .accessibleBy(ability, Action.Read)
-      .find()
-      .exec();
+
+    return this.tenantModel.accessibleBy(ability, Action.Read).find().exec();
   }
 
   @Post()
@@ -604,7 +594,7 @@ export class UpdateUnitPolicyHandler implements IPolicyHandler {
       // Contractors can only update specific fields
       return ability.can(Action.Update, Unit, ['maintenanceStatus', 'notes']);
     }
-    
+
     // Landlords can update any field
     return ability.can(Action.Update, Unit);
   }
@@ -619,10 +609,10 @@ private defineTenantPermissions(can: any, cannot: any, user: UserDocument) {
 
   // Tenant can only read leases associated with their tenant record
   can(Action.Read, Lease, { tenant: tenantId });
-  
+
   // Tenant can only read transactions for their leases
-  can(Action.Read, Transaction, { 
-    lease: { tenant: tenantId } 
+  can(Action.Read, Transaction, {
+    lease: { tenant: tenantId }
   });
 }
 ```
@@ -661,6 +651,7 @@ export class LeasesService {
 **Cause**: Policy handler not registered or incorrect ability definition
 
 **Solution**:
+
 1. Verify the policy handler is in `casl.module.ts` providers
 2. Check ability definition in `CaslAbilityFactory`
 3. Ensure the guard is applied: `@UseGuards(JwtAuthGuard, CaslGuard)`
@@ -670,11 +661,12 @@ export class LeasesService {
 **Cause**: Schema missing `accessibleRecordsPlugin`
 
 **Solution**:
+
 ```typescript
 import { accessibleRecordsPlugin } from '@casl/mongoose';
 
 export const YourSchema = SchemaFactory.createForClass(YourClass);
-YourSchema.plugin(accessibleRecordsPlugin);  // ✅ Add this
+YourSchema.plugin(accessibleRecordsPlugin); // ✅ Add this
 ```
 
 ### Issue: Nested conditions not working
@@ -682,6 +674,7 @@ YourSchema.plugin(accessibleRecordsPlugin);  // ✅ Add this
 **Cause**: Mongoose population required for nested checks
 
 **Solution**:
+
 ```typescript
 // ✅ Populate nested fields
 const lease = await this.leaseModel
@@ -699,6 +692,7 @@ ability.can(Action.Read, lease);
 **Cause**: Incorrect subject type
 
 **Solution**:
+
 ```typescript
 // ✅ Use imported class
 import { Property } from './schemas/property.schema';
