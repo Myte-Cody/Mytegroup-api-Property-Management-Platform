@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
-import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enum';
+import { UnitType } from '../../../common/enums/unit.enum';
 
 export class UpdateUnitDto {
   @ApiProperty({
@@ -35,13 +35,4 @@ export class UpdateUnitDto {
   @IsEnum(UnitType)
   type?: UnitType;
 
-  @ApiProperty({
-    example: UnitAvailabilityStatus.AVAILABLE_FOR_RENT,
-    description: 'Current availability status of the unit',
-    enum: UnitAvailabilityStatus,
-    required: false,
-  })
-  @IsOptional()
-  @IsEnum(UnitAvailabilityStatus)
-  availabilityStatus?: UnitAvailabilityStatus;
 }

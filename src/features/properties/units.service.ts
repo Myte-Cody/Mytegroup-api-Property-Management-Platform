@@ -274,16 +274,77 @@ export class UnitsService {
       throw new ForbiddenException('You do not have permission to view units');
     }
 
-    const unit = await this.unitModel.findById(id).populate('property').exec();
+    const mongoose = require('mongoose');
+    const unitObjectId = new mongoose.Types.ObjectId(id);
 
-    if (!unit) {
+    // Use aggregation pipeline to include active lease with tenant
+    const pipeline = [
+      { $match: { _id: unitObjectId } },
+      // Lookup property
+      {
+        $lookup: {
+          from: 'properties',
+          localField: 'property',
+          foreignField: '_id',
+          as: 'property'
+        }
+      },
+      {
+        $unwind: {
+          path: '$property',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      // Lookup active lease with tenant
+      {
+        $lookup: {
+          from: 'leases',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$unit', '$$unitId'] },
+                    { $eq: ['$status', 'ACTIVE'] }
+                  ]
+                }
+              }
+            },
+            {
+              $lookup: {
+                from: 'tenants',
+                localField: 'tenant',
+                foreignField: '_id',
+                as: 'tenant'
+              }
+            },
+            {
+              $unwind: {
+                path: '$tenant',
+                preserveNullAndEmptyArrays: true
+              }
+            }
+          ],
+          as: 'activeLease'
+        }
+      },
+      // Unwind activeLease (since there can only be one active lease per unit)
+      {
+        $unwind: {
+          path: '$activeLease',
+          preserveNullAndEmptyArrays: true
+        }
+      }
+    ];
+
+    const result = await this.unitModel.aggregate(pipeline).exec();
+
+    if (!result || result.length === 0) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
 
-    // CASL: Final permission check on the specific record
-    if (!ability.can(Action.Read, unit)) {
-      throw new ForbiddenException('You do not have permission to view this unit');
-    }
+    const unit = result[0];
 
     // Fetch media for the unit
     const media = await this.mediaService.getMediaForEntity(
@@ -295,7 +356,7 @@ export class UnitsService {
     );
 
     return {
-      ...unit.toObject(),
+      ...unit,
       media,
     };
   }
