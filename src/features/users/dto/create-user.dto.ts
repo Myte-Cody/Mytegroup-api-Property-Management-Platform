@@ -23,6 +23,24 @@ export class CreateUserDto {
   username: string;
 
   @ApiProperty({
+    example: 'John',
+    description: 'First name of the user',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(50)
+  firstName: string;
+
+  @ApiProperty({
+    example: 'Doe',
+    description: 'Last name of the user',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(50)
+  lastName: string;
+
+  @ApiProperty({
     example: 'john.doe@example.com',
     description: 'Email address of the user',
   })

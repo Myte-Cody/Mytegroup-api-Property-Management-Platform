@@ -22,7 +22,7 @@ export class UsersService {
   ) {}
 
   async create(createUserDto: CreateUserDto, session?: ClientSession) {
-    const { username, email, phone, password, user_type, party_id, isPrimary } = createUserDto;
+    const { username, firstName, lastName, email, phone, password, user_type, party_id, isPrimary } = createUserDto;
 
     // Check username uniqueness within the same landlord
     const existingUsername = await this.userModel
@@ -61,6 +61,8 @@ export class UsersService {
 
     const newUser = new this.userModel({
       username,
+      firstName,
+      lastName,
       email,
       phone,
       password: hashedPassword,
@@ -89,7 +91,7 @@ export class UsersService {
   }
 
   async createFromInvitation(createUserDto: CreateUserDto, session?: ClientSession) {
-    const { username, email, phone, password, user_type, party_id, isPrimary } = createUserDto;
+    const { username, firstName, lastName, email, phone, password, user_type, party_id, isPrimary } = createUserDto;
 
     // Check username uniqueness within the same landlord
     const existingUsername = await this.userModel
@@ -128,6 +130,8 @@ export class UsersService {
 
     const newUser = new this.userModel({
       username,
+      firstName,
+      lastName,
       email,
       phone,
       password: hashedPassword,

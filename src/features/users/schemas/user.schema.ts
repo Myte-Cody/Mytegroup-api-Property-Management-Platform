@@ -12,6 +12,12 @@ export class User extends Document implements SoftDelete {
   @Prop({ required: true, trim: true, maxlength: 64 })
   username: string;
 
+  @Prop({ required: true, trim: true, maxlength: 50 })
+  firstName: string;
+
+  @Prop({ required: true, trim: true, maxlength: 50 })
+  lastName: string;
+
   @Prop({
     required: true,
     trim: true,
