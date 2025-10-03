@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsMongoId, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { UserType } from '../../../common/enums/user-type.enum';
 
 export class UserQueryDto {
@@ -41,4 +41,11 @@ export class UserQueryDto {
   @IsOptional()
   @IsEnum(UserType)
   user_type?: UserType;
+
+  @ApiPropertyOptional({
+    description: 'Filter by party ID (landlord, tenant, or contractor ID)',
+  })
+  @IsOptional()
+  @IsMongoId()
+  party_id?: string;
 }

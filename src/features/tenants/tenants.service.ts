@@ -280,6 +280,7 @@ export class TenantsService {
     const tenantUserQuery: UserQueryDto = {
       ...queryDto,
       user_type: UserType.TENANT,
+      party_id: tenantId, // Add party_id to the query
     };
 
     // Use UserService for consistent business logic and CASL authorization

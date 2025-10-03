@@ -194,7 +194,7 @@ export class UsersService {
   }
 
   async findAllPaginated(queryDto: UserQueryDto, currentUser: User) {
-    const { page, limit, sortBy, sortOrder, search, user_type } = queryDto;
+    const { page, limit, sortBy, sortOrder, search, user_type, party_id } = queryDto;
 
     const populatedUser = await this.userModel.findById(currentUser._id).exec();
 
@@ -219,6 +219,11 @@ export class UsersService {
 
     if (user_type) {
       baseQuery = baseQuery.where({ user_type });
+    }
+    
+    // Filter by party_id if provided
+    if (party_id) {
+      baseQuery = baseQuery.where({ party_id });
     }
 
     const skip = (page - 1) * limit;
