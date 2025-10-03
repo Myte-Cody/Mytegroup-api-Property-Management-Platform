@@ -64,14 +64,12 @@ export class TransactionsService {
     }
 
     if (unitId) {
-      // Find all leases for the given unit
       const leasesForUnit = await this.leaseModel.find({ unit: unitId }).select('_id').lean();
       const leaseIds = leasesForUnit.map(lease => lease._id);
       baseQuery = baseQuery.where({ lease: { $in: leaseIds } });
     }
     
     if (tenantId) {
-      // Find all leases for the given tenant
       const leasesForTenant = await this.leaseModel.find({ tenant: tenantId }).select('_id').lean();
       const leaseIds = leasesForTenant.map(lease => lease._id);
       baseQuery = baseQuery.where({ lease: { $in: leaseIds } });
@@ -185,10 +183,6 @@ export class TransactionsService {
       throw new NotFoundException(`Transaction with ID ${id} not found`);
     }
 
-    if (existingTransaction.status === PaymentStatus.PROCESSED) {
-      throw new BadRequestException('Cannot modify processed transactions');
-    }
-
     // Update the transaction
     Object.assign(existingTransaction, updateTransactionDto);
     return await existingTransaction.save();
@@ -205,7 +199,6 @@ export class TransactionsService {
       throw new BadRequestException('Only pending transactions can be processed');
     }
 
-    transaction.status = PaymentStatus.PROCESSED;
 
     // TODO: After transaction is processed and marked as PAID, calculate and update
     // the nextTransactionDueDate in the associated lease based on payment cycle
@@ -260,9 +253,6 @@ export class TransactionsService {
     const summary = {
       totalTransactions: transactions.length,
       totalAmount: transactions.reduce((sum, p) => sum + p.amount, 0),
-      processedAmount: transactions
-        .filter((p) => p.status === PaymentStatus.PROCESSED)
-        .reduce((sum, p) => sum + p.amount, 0),
       pendingAmount: transactions
         .filter((p) => p.status === PaymentStatus.PENDING)
         .reduce((sum, p) => sum + p.amount, 0),
@@ -276,8 +266,6 @@ export class TransactionsService {
       },
       byStatus: {
         pending: transactions.filter((p) => p.status === PaymentStatus.PENDING).length,
-        processed: transactions.filter((p) => p.status === PaymentStatus.PROCESSED).length,
-        failed: transactions.filter((p) => p.status === PaymentStatus.FAILED).length,
       },
     };
 

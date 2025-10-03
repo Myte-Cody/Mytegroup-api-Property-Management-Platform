@@ -1314,7 +1314,7 @@ export class LeasesService {
       lease: leaseId,
       amount: -fullDepositAmount, // Negative amount - money flowing to tenant
       type: PaymentType.DEPOSIT_REFUND,
-      status: PaymentStatus.PROCESSED,
+      status: PaymentStatus.PAID,
       paidAt: new Date(),
       notes: `Security deposit refund: ${assessmentDto.refundReason}`,
       paymentMethod: PaymentMethod.BANK_TRANSFER, // Default method for refunds
@@ -1329,7 +1329,7 @@ export class LeasesService {
         lease: leaseId,
         amount: totalDeductions, // Positive amount - money kept by landlord
         type: PaymentType.DEPOSIT_DEDUCTION,
-        status: PaymentStatus.PROCESSED,
+        status: PaymentStatus.PAID,
         paidAt: new Date(),
         notes: `Security deposit deductions`,
         paymentMethod: PaymentMethod.OTHER, // No actual payment method for deductions

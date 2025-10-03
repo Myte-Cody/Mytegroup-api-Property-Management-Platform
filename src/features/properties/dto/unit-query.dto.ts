@@ -60,7 +60,7 @@ export class UnitQueryDto {
   sortOrder?: 'asc' | 'desc' = 'desc';
 
   @ApiPropertyOptional({
-    description: 'Filter by unit type (simple format)',
+    description: 'Filter by unit type',
     example: UnitType.STUDIO,
     enum: UnitType,
   })
@@ -69,7 +69,7 @@ export class UnitQueryDto {
   type?: UnitType;
 
   @ApiPropertyOptional({
-    description: 'Filter by availability status (simple format)',
+    description: 'Filter by availability status',
     example: UnitAvailabilityStatus.VACANT,
     enum: UnitAvailabilityStatus,
   })
