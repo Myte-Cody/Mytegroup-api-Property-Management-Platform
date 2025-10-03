@@ -84,6 +84,14 @@ export class TransactionQueryDto {
   unitId?: string;
 
   @ApiPropertyOptional({
+    description: 'Filter by tenant ID (shows all transactions for a tenant regardless of lease)',
+    example: '673d8b8f123456789abcdef3',
+  })
+  @IsOptional()
+  @IsMongoId()
+  tenantId?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter by rental period ID',
     example: '673d8b8f123456789abcdef1',
   })

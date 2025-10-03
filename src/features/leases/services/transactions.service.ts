@@ -41,6 +41,7 @@ export class TransactionsService {
       type,
       leaseId,
       unitId,
+      tenantId,
       rentalPeriodId,
       paymentMethod,
       startDate,
@@ -65,6 +66,13 @@ export class TransactionsService {
       // Find all leases for the given unit
       const leasesForUnit = await this.leaseModel.find({ unit: unitId }).select('_id').lean();
       const leaseIds = leasesForUnit.map(lease => lease._id);
+      baseQuery = baseQuery.where({ lease: { $in: leaseIds } });
+    }
+    
+    if (tenantId) {
+      // Find all leases for the given tenant
+      const leasesForTenant = await this.leaseModel.find({ tenant: tenantId }).select('_id').lean();
+      const leaseIds = leasesForTenant.map(lease => lease._id);
       baseQuery = baseQuery.where({ lease: { $in: leaseIds } });
     }
 
