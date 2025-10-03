@@ -171,7 +171,7 @@ export class UsersService {
       password: hashedPassword,
       user_type,
       party_id,
-      isPrimary: isPrimary || false,
+      isPrimary: shouldBePrimary
     });
 
     // Save the user first to ensure it exists in the database

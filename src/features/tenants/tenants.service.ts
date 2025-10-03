@@ -405,14 +405,13 @@ export class TenantsService {
     const savedTenant = await newTenant.save({ session: session ?? null });
 
     // Create user account (without current user context for invitations)
-    // todo
     const userData = {
       username,
       email,
       phone,
       password,
-      firstName: username, // Use username as firstName if not provided
-      lastName: '', // Use empty string as lastName if not provided
+      firstName,
+      lastName,
       user_type: UserType.TENANT,
       party_id: savedTenant._id.toString(),
     };
