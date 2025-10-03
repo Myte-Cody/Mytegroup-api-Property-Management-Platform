@@ -658,9 +658,9 @@ export class TenantsService {
             },
           },
         },
-      }
+      },
     ]);
-    console.log(pipeline)
+    console.log(pipeline);
 
     const stats = pipeline[0] || {
       activeLeases: 0,

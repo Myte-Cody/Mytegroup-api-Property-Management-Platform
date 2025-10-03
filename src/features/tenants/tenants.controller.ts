@@ -73,7 +73,10 @@ export class TenantsController {
   @CheckPolicies(new ReadTenantPolicyHandler())
   @ApiOperation({ summary: 'Get tenant statistics' })
   @ApiParam({ name: 'id', description: 'Tenant ID', type: String })
-  getTenantStats(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User): Promise<TenantStatsDto> {
+  getTenantStats(
+    @Param('id', MongoIdValidationPipe) id: string,
+    @CurrentUser() user: User,
+  ): Promise<TenantStatsDto> {
     return this.tenantsService.getTenantStats(id, user);
   }
 

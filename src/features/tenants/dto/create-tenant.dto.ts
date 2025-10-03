@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreateTenantDto {
   @ApiProperty({
@@ -63,7 +71,8 @@ export class CreateTenantDto {
   phone?: string;
 
   @ApiProperty({
-    description: 'Password for the tenant user account (min 8 chars with uppercase, lowercase, and number/special char)',
+    description:
+      'Password for the tenant user account (min 8 chars with uppercase, lowercase, and number/special char)',
     example: 'StrongP@ss123',
     minLength: 8,
   })
@@ -71,7 +80,8 @@ export class CreateTenantDto {
   @IsString()
   @MinLength(8)
   @Matches(/((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, {
-    message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number or special character',
+    message:
+      'Password must contain at least one uppercase letter, one lowercase letter, and one number or special character',
   })
   password: string;
 }

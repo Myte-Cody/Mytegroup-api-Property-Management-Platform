@@ -34,5 +34,4 @@ export class UpdateUnitDto {
   @IsOptional()
   @IsEnum(UnitType)
   type?: UnitType;
-
 }

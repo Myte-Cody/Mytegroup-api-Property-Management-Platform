@@ -52,7 +52,8 @@ export class TenantQueryDto {
   sortOrder?: 'asc' | 'desc' = 'desc';
 
   @ApiPropertyOptional({
-    description: 'Include enriched statistics (activeLeasesCount, hasActiveLeases, outstandingBalance)',
+    description:
+      'Include enriched statistics (activeLeasesCount, hasActiveLeases, outstandingBalance)',
     example: true,
   })
   @IsOptional()

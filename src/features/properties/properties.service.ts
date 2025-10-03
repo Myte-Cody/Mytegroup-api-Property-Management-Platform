@@ -53,7 +53,9 @@ export class PropertiesService {
     const matchConditions: any = {};
 
     // Add CASL conditions
-    const caslConditions = (this.propertyModel as any).accessibleBy(ability, Action.Read).getQuery();
+    const caslConditions = (this.propertyModel as any)
+      .accessibleBy(ability, Action.Read)
+      .getQuery();
     Object.assign(matchConditions, caslConditions);
 
     // Add search functionality
@@ -68,7 +70,6 @@ export class PropertiesService {
       ];
     }
 
-
     pipeline.push({ $match: matchConditions });
 
     // Step 2: Lookup units and calculate unit count and occupancy
@@ -77,8 +78,8 @@ export class PropertiesService {
         from: 'units',
         localField: '_id',
         foreignField: 'property',
-        as: 'units'
-      }
+        as: 'units',
+      },
     });
 
     // Step 3: Calculate unit statistics
@@ -89,11 +90,11 @@ export class PropertiesService {
           $size: {
             $filter: {
               input: '$units',
-              cond: { $eq: ['$$this.availabilityStatus', 'OCCUPIED'] }
-            }
-          }
-        }
-      }
+              cond: { $eq: ['$$this.availabilityStatus', 'OCCUPIED'] },
+            },
+          },
+        },
+      },
     });
 
     // Step 4: Calculate occupancy rate
@@ -103,23 +104,20 @@ export class PropertiesService {
           $cond: {
             if: { $gt: ['$unitCount', 0] },
             then: {
-              $multiply: [
-                { $divide: ['$occupiedUnits', '$unitCount'] },
-                100
-              ]
+              $multiply: [{ $divide: ['$occupiedUnits', '$unitCount'] }, 100],
             },
-            else: 0
-          }
-        }
-      }
+            else: 0,
+          },
+        },
+      },
     });
 
     // Step 5: Remove the units array as we don't need it in the response
     pipeline.push({
       $project: {
         units: 0,
-        occupiedUnits: 0
-      }
+        occupiedUnits: 0,
+      },
     });
 
     // Step 6: Add sorting

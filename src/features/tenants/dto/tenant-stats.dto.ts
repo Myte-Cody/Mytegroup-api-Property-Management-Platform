@@ -9,13 +9,13 @@ export class TenantStatsDto {
 
   @ApiProperty({
     description: 'Total monthly rent amount from all active leases',
-    example: 2500.00,
+    example: 2500.0,
   })
   totalMonthlyRent: number;
 
   @ApiProperty({
     description: 'Total outstanding amount from overdue transactions',
-    example: 850.00,
+    example: 850.0,
   })
   outstanding: number;
 

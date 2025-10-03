@@ -65,13 +65,13 @@ export class TransactionsService {
 
     if (unitId) {
       const leasesForUnit = await this.leaseModel.find({ unit: unitId }).select('_id').lean();
-      const leaseIds = leasesForUnit.map(lease => lease._id);
+      const leaseIds = leasesForUnit.map((lease) => lease._id);
       baseQuery = baseQuery.where({ lease: { $in: leaseIds } });
     }
-    
+
     if (tenantId) {
       const leasesForTenant = await this.leaseModel.find({ tenant: tenantId }).select('_id').lean();
-      const leaseIds = leasesForTenant.map(lease => lease._id);
+      const leaseIds = leasesForTenant.map((lease) => lease._id);
       baseQuery = baseQuery.where({ lease: { $in: leaseIds } });
     }
 
@@ -198,7 +198,6 @@ export class TransactionsService {
     if (transaction.status !== PaymentStatus.PENDING) {
       throw new BadRequestException('Only pending transactions can be processed');
     }
-
 
     // TODO: After transaction is processed and marked as PAID, calculate and update
     // the nextTransactionDueDate in the associated lease based on payment cycle
