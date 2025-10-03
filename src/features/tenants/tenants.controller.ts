@@ -28,6 +28,7 @@ import { User } from '../users/schemas/user.schema';
 import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { TenantQueryDto } from './dto/tenant-query.dto';
+import { TenantStatsDto } from './dto/tenant-stats.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { TenantsService } from './tenants.service';
 
@@ -66,6 +67,14 @@ export class TenantsController {
   @ApiParam({ name: 'id', description: 'Tenant ID', type: String })
   findOne(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
     return this.tenantsService.findOne(id, user);
+  }
+
+  @Get(':id/stats')
+  @CheckPolicies(new ReadTenantPolicyHandler())
+  @ApiOperation({ summary: 'Get tenant statistics' })
+  @ApiParam({ name: 'id', description: 'Tenant ID', type: String })
+  getTenantStats(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User): Promise<TenantStatsDto> {
+    return this.tenantsService.getTenantStats(id, user);
   }
 
   @Patch(':id')

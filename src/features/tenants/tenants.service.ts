@@ -5,13 +5,16 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { ClientSession } from 'mongoose';
+import mongoose, { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
+import { LeaseStatus, PaymentStatus } from '../../common/enums/lease.enum';
 import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
+import { Lease } from '../leases/schemas/lease.schema';
+import { Transaction } from '../leases/schemas/transaction.schema';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { UpdateUserDto } from '../users/dto/update-user.dto';
 import { UserQueryDto } from '../users/dto/user-query.dto';
@@ -20,6 +23,7 @@ import { UsersService } from '../users/users.service';
 import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { PaginatedTenantsResponse, TenantQueryDto } from './dto/tenant-query.dto';
+import { TenantStatsDto } from './dto/tenant-stats.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { Tenant } from './schema/tenant.schema';
 
@@ -30,6 +34,10 @@ export class TenantsService {
     private readonly tenantModel: AppModel<Tenant>,
     @InjectModel(User.name)
     private readonly userModel: AppModel<User>,
+    @InjectModel(Lease.name)
+    private readonly leaseModel: AppModel<Lease>,
+    @InjectModel(Transaction.name)
+    private readonly transactionModel: AppModel<Transaction>,
     private caslAuthorizationService: CaslAuthorizationService,
     private usersService: UsersService,
     private readonly sessionService: SessionService,
@@ -390,6 +398,77 @@ export class TenantsService {
     }
 
     return filteredDto;
+  }
+
+  async getTenantStats(id: string, currentUser: UserDocument): Promise<TenantStatsDto> {
+    // Check if tenant exists and user has access
+    await this.findOne(id, currentUser);
+
+    const now = new Date();
+
+    // Use a single aggregation pipeline to get all stats efficiently
+    const pipeline = await this.leaseModel.aggregate([
+      {
+        $match: {
+          tenant: new mongoose.Types.ObjectId(id),
+          status: LeaseStatus.ACTIVE,
+        },
+      },
+      {
+        $lookup: {
+          from: 'transactions',
+          let: { leaseId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$lease', '$$leaseId'] },
+                    { $lt: ['$dueDate', now] },
+                    { $ne: ['$status', PaymentStatus.PAID] },
+                  ],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalOverdue: { $sum: '$amount' },
+              },
+            },
+          ],
+          as: 'overdueTransactions',
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          activeLeases: { $sum: 1 },
+          totalMonthlyRent: { $sum: '$rentAmount' },
+          nextExpiry: { $min: '$endDate' },
+          outstanding: {
+            $sum: {
+              $ifNull: [{ $arrayElemAt: ['$overdueTransactions.totalOverdue', 0] }, 0],
+            },
+          },
+        },
+      }
+    ]);
+    console.log(pipeline)
+
+    const stats = pipeline[0] || {
+      activeLeases: 0,
+      totalMonthlyRent: 0,
+      outstanding: 0,
+      nextExpiry: null,
+    };
+
+    return {
+      activeLeases: stats.activeLeases,
+      totalMonthlyRent: stats.totalMonthlyRent,
+      outstanding: stats.outstanding,
+      nextExpiry: stats.nextExpiry,
+    };
   }
 
   private getAllowedUpdateFields(currentUser: UserDocument): string[] {
