@@ -20,6 +20,9 @@ export class User extends Document implements SoftDelete {
   })
   email: string;
 
+  @Prop({ required: false, trim: true })
+  phone?: string;
+
   @Prop({ required: true, select: false })
   password: string;
 
@@ -35,6 +38,9 @@ export class User extends Document implements SoftDelete {
     refPath: 'user_type', // Dynamic reference based on user_type
   })
   party_id: Types.ObjectId; // Points to Landlord/Tenant/Contractor
+
+  @Prop({ type: Boolean, required: true, default: false })
+  isPrimary: boolean;
 
   deleted: boolean;
   deletedAt?: Date;

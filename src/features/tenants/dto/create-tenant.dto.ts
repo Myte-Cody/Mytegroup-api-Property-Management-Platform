@@ -43,12 +43,4 @@ export class CreateTenantDto {
   @IsString()
   @MinLength(6)
   password: string;
-
-  @ApiPropertyOptional({
-    description: 'Phone number for the tenant',
-    example: '+1234567890',
-  })
-  @IsOptional()
-  @IsString()
-  phoneNumber?: string;
 }

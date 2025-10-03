@@ -22,7 +22,7 @@ export class UsersService {
   ) {}
 
   async create(createUserDto: CreateUserDto, session?: ClientSession) {
-    const { username, email, password, user_type, party_id } = createUserDto;
+    const { username, email, phone, password, user_type, party_id, isPrimary } = createUserDto;
 
     // Check username uniqueness within the same landlord
     const existingUsername = await this.userModel
@@ -48,15 +48,25 @@ export class UsersService {
       );
     }
 
+    await this.validatePrimaryUserConstraint(
+        isPrimary || false,
+        party_id,
+        user_type,
+        undefined,
+        session,
+    );
+
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const newUser = new this.userModel({
       username,
       email,
+      phone,
       password: hashedPassword,
       user_type,
-      party_id, // Optional, can be set during creation
+      party_id,
+      isPrimary: isPrimary || false,
     });
 
     // Save the user first to ensure it exists in the database
@@ -79,7 +89,7 @@ export class UsersService {
   }
 
   async createFromInvitation(createUserDto: CreateUserDto, session?: ClientSession) {
-    const { username, email, password, user_type, party_id } = createUserDto;
+    const { username, email, phone, password, user_type, party_id, isPrimary } = createUserDto;
 
     // Check username uniqueness within the same landlord
     const existingUsername = await this.userModel
@@ -105,15 +115,25 @@ export class UsersService {
       );
     }
 
+    await this.validatePrimaryUserConstraint(
+        isPrimary || false,
+        party_id,
+        user_type,
+        undefined,
+        session,
+      );
+
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const newUser = new this.userModel({
       username,
       email,
+      phone,
       password: hashedPassword,
       user_type,
       party_id,
+      isPrimary: isPrimary || false,
     });
 
     // Save the user first to ensure it exists in the database
@@ -236,6 +256,17 @@ export class UsersService {
         }
       }
 
+      // Validate primary user constraint if isPrimary is being set
+      if (updateUserDto.isPrimary !== undefined && user.party_id) {
+        await this.validatePrimaryUserConstraint(
+          updateUserDto.isPrimary,
+          user.party_id.toString(),
+          user.user_type,
+          id,
+          session,
+        );
+      }
+
       if (updateUserDto.password) {
         const salt = await bcrypt.genSalt();
 
@@ -257,5 +288,39 @@ export class UsersService {
     await this.userModel.deleteById(id);
 
     return null;
+  }
+
+  private async validatePrimaryUserConstraint(
+    isPrimary: boolean,
+    party_id: string,
+    user_type: string,
+    excludeUserId?: string,
+    session?: ClientSession,
+  ) {
+    if (!isPrimary || !party_id) {
+      return; // No validation needed if not setting as primary or no party_id
+    }
+
+    // Check if there's already a primary user for this party
+    const query: any = {
+      party_id,
+      user_type,
+      isPrimary: true,
+    };
+
+    // Exclude current user when updating
+    if (excludeUserId) {
+      query._id = { $ne: excludeUserId };
+    }
+
+    const existingPrimaryUser = await this.userModel
+      .findOne(query, null, { session })
+      .exec();
+
+    if (existingPrimaryUser) {
+      throw new UnprocessableEntityException(
+        `A primary user already exists for this ${user_type.toLowerCase()}. Only one primary user is allowed per party.`,
+      );
+    }
   }
 }

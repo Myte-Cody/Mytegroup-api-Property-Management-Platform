@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class CreateTenantUserDto {
   @ApiProperty({
@@ -20,6 +20,15 @@ export class CreateTenantUserDto {
   email: string;
 
   @ApiProperty({
+    example: '+1234567890',
+    description: 'Phone number of the tenant user',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  phone?: string;
+
+  @ApiProperty({
     example: 'StrongP@ss123',
     description:
       'Password must contain at least 8 characters, including uppercase, lowercase, and numbers or special characters',
@@ -31,4 +40,13 @@ export class CreateTenantUserDto {
     message: 'Password is too weak',
   })
   password: string;
+
+  @ApiProperty({
+    example: false,
+    description: 'Whether this user is the primary user',
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isPrimary?: boolean;
 }

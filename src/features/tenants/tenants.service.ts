@@ -160,7 +160,7 @@ export class TenantsService {
     }
 
     // Extract user data from DTO
-    const { email, password, name, username, phoneNumber } = createTenantDto;
+    const { email, password, name, username } = createTenantDto;
 
     // Validate tenant creation data
     await this.validateTenantCreationData(name, email, username);
@@ -169,7 +169,6 @@ export class TenantsService {
     await this.sessionService.withSession(async (session) => {
       const tenantData = {
         name,
-        phoneNumber,
       };
 
       const newTenant = new this.tenantModel(tenantData);
@@ -192,7 +191,7 @@ export class TenantsService {
 
   async createFromInvitation(createTenantDto: CreateTenantDto, session?: ClientSession) {
     // Extract user data from DTO
-    const { email, password, name, username, phoneNumber } = createTenantDto;
+    const { email, password, name, username } = createTenantDto;
 
     // Validate tenant creation data (no CASL authorization needed for invitations)
     await this.validateTenantCreationData(name, email, username);
@@ -200,7 +199,6 @@ export class TenantsService {
     // Create tenant
     const tenantData = {
       name,
-      phoneNumber,
     };
 
     const newTenant = new this.tenantModel(tenantData);
@@ -298,9 +296,11 @@ export class TenantsService {
     const userData: CreateUserDto = {
       username: createTenantUserDto.username,
       email: createTenantUserDto.email,
+      phone: createTenantUserDto.phone,
       password: createTenantUserDto.password,
       user_type: UserType.TENANT,
       party_id: tenantId,
+      isPrimary: createTenantUserDto.isPrimary,
     };
 
     return await this.usersService.create(userData);
@@ -474,7 +474,7 @@ export class TenantsService {
   private getAllowedUpdateFields(currentUser: UserDocument): string[] {
     switch (currentUser.user_type) {
       case 'Landlord':
-        return ['name', 'phoneNumber']; // Landlords can update tenant details
+        return ['name']; // Landlords can update tenant details
       case 'Tenant':
         return []; // Tenants cannot update tenant records
       case 'Contractor':
