@@ -13,12 +13,4 @@ export class UpdateTenantDto {
   @MinLength(2)
   @MaxLength(100)
   name?: string;
-
-  @ApiPropertyOptional({
-    description: 'Phone number for the tenant',
-    example: '+1234567890',
-  })
-  @IsOptional()
-  @IsString()
-  phoneNumber?: string;
 }

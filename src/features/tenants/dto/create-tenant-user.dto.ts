@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class CreateTenantUserDto {
   @ApiProperty({
@@ -12,12 +12,39 @@ export class CreateTenantUserDto {
   username: string;
 
   @ApiProperty({
+    example: 'John',
+    description: 'First name of the tenant user',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(50)
+  firstName: string;
+
+  @ApiProperty({
+    example: 'Doe',
+    description: 'Last name of the tenant user',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(50)
+  lastName: string;
+
+  @ApiProperty({
     example: 'john.doe@example.com',
     description: 'Email address of the tenant user',
   })
   @IsEmail()
   @IsNotEmpty()
   email: string;
+
+  @ApiProperty({
+    example: '+1234567890',
+    description: 'Phone number of the tenant user',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  phone?: string;
 
   @ApiProperty({
     example: 'StrongP@ss123',
@@ -31,4 +58,13 @@ export class CreateTenantUserDto {
     message: 'Password is too weak',
   })
   password: string;
+
+  @ApiProperty({
+    example: false,
+    description: 'Whether this user is the primary user',
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isPrimary?: boolean;
 }

@@ -16,7 +16,10 @@ import { MediaService } from '../media/services/media.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { PaginatedUnitsResponse, UnitQueryDto } from './dto/unit-query.dto';
+import { PropertyStatisticsDto, UnitStatusCount, UnitTypeCount } from './dto/property-statistics.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
+import { UnitStatsDto } from './dto/unit-stats.dto';
+import { UnitsOverviewStatsResponseDto } from './dto/units-overview-stats.dto';
 import { Property } from './schemas/property.schema';
 import { Unit } from './schemas/unit.schema';
 import { UnitBusinessValidator } from './validators/unit-business-validator';
@@ -112,36 +115,42 @@ export class UnitsService {
       maxSize,
     } = queryDto;
 
+
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     if (!ability.can(Action.Read, Unit)) {
       throw new ForbiddenException('You do not have permission to view units');
     }
 
-    let baseQuery = this.unitModel.find();
+    const pipeline: any[] = [];
 
-    baseQuery = (baseQuery as any).accessibleBy(ability, Action.Read);
+    // Step 1: Build initial match conditions
+    const matchConditions: any = {};
+
+    // Add CASL conditions
+    // todo verify below
+    const caslConditions = (this.unitModel as any).accessibleBy(ability, Action.Read).getQuery();
+    Object.assign(matchConditions, caslConditions);
 
     // Filter by specific property if provided
     if (propertyId) {
-      baseQuery = baseQuery.where({ property: propertyId });
+      // Convert string property ID to ObjectId for proper matching
+      const mongoose = require('mongoose');
+      const propertyObjectId = new mongoose.Types.ObjectId(propertyId);
+      matchConditions.property = propertyObjectId;
     }
 
     if (search) {
-      baseQuery = baseQuery.where({ unitNumber: { $regex: search, $options: 'i' } });
+      matchConditions.unitNumber = { $regex: search, $options: 'i' };
     }
 
-    // Add filters
-    const typeFilters = queryDto['filters[type]'];
-    const statusFilters = queryDto['filters[availabilityStatus]'];
 
-    if (typeFilters && typeFilters.length > 0) {
-      baseQuery = baseQuery.where({ type: { $in: typeFilters } });
-    }
+    const type = queryDto.type;
+    const status = queryDto.availabilityStatus;
 
-    if (statusFilters && statusFilters.length > 0) {
-      baseQuery = baseQuery.where({ availabilityStatus: { $in: statusFilters } });
-    }
+    if(type) matchConditions.type = type;
+    if(status) matchConditions.availabilityStatus = status;
+
 
     // Add size range filtering
     if (minSize !== undefined || maxSize !== undefined) {
@@ -152,20 +161,92 @@ export class UnitsService {
       if (maxSize !== undefined) {
         sizeQuery.$lte = maxSize;
       }
-      baseQuery = baseQuery.where({ size: sizeQuery });
+      matchConditions.size = sizeQuery;
     }
 
-    // Build sort object
+    pipeline.push({ $match: matchConditions });
+
+    // Step 2: Lookup property
+    pipeline.push({
+      $lookup: {
+        from: 'properties',
+        localField: 'property',
+        foreignField: '_id',
+        as: 'property'
+      }
+    });
+
+    pipeline.push({
+      $unwind: {
+        path: '$property',
+        preserveNullAndEmptyArrays: true
+      }
+    });
+
+    // Step 3: Lookup active lease with tenant
+    pipeline.push({
+      $lookup: {
+        from: 'leases',
+        let: { unitId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$unit', '$$unitId'] },
+                  { $eq: ['$status', 'ACTIVE'] }
+                ]
+              }
+            }
+          },
+          {
+            $lookup: {
+              from: 'tenants',
+              localField: 'tenant',
+              foreignField: '_id',
+              as: 'tenant'
+            }
+          },
+          {
+            $unwind: {
+              path: '$tenant',
+              preserveNullAndEmptyArrays: true
+            }
+          }
+        ],
+        as: 'activeLease'
+      }
+    });
+
+    // Step 4: Unwind activeLease (since there can only be one active lease per unit)
+    pipeline.push({
+      $unwind: {
+        path: '$activeLease',
+        preserveNullAndEmptyArrays: true
+      }
+    });
+
+    // Step 5: Add sorting
     const sortObj: any = {};
     sortObj[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    pipeline.push({ $sort: sortObj });
 
+    // Step 6: Create separate pipeline for counting
+    const countPipeline = [...pipeline, { $count: 'total' }];
+
+    // Step 7: Add pagination to main pipeline
     const skip = (page - 1) * limit;
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: limit });
 
-    // Create separate queries for data and count to avoid interference
-    const dataQuery = baseQuery.clone().sort(sortObj).skip(skip).limit(limit).populate('property');
-    const countQuery = baseQuery.clone().countDocuments();
+    // Execute queries
+    const [unitsResult, countResult] = await Promise.all([
+      this.unitModel.aggregate(pipeline).exec(),
+      this.unitModel.aggregate(countPipeline).exec(),
+    ]);
 
-    const [units, total] = await Promise.all([dataQuery.exec(), countQuery.exec()]);
+    const units = unitsResult;
+    const total = countResult.length > 0 ? countResult[0].total : 0;
 
     // Fetch media for each unit
     const unitsWithMedia = await Promise.all(
@@ -178,7 +259,7 @@ export class UnitsService {
           {}, // filters (get all media)
         );
         return {
-          ...unit.toObject(),
+          ...unit,
           media,
         };
       }),
@@ -195,16 +276,77 @@ export class UnitsService {
       throw new ForbiddenException('You do not have permission to view units');
     }
 
-    const unit = await this.unitModel.findById(id).populate('property').exec();
+    const mongoose = require('mongoose');
+    const unitObjectId = new mongoose.Types.ObjectId(id);
 
-    if (!unit) {
+    // Use aggregation pipeline to include active lease with tenant
+    const pipeline = [
+      { $match: { _id: unitObjectId } },
+      // Lookup property
+      {
+        $lookup: {
+          from: 'properties',
+          localField: 'property',
+          foreignField: '_id',
+          as: 'property'
+        }
+      },
+      {
+        $unwind: {
+          path: '$property',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      // Lookup active lease with tenant
+      {
+        $lookup: {
+          from: 'leases',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$unit', '$$unitId'] },
+                    { $eq: ['$status', 'ACTIVE'] }
+                  ]
+                }
+              }
+            },
+            {
+              $lookup: {
+                from: 'tenants',
+                localField: 'tenant',
+                foreignField: '_id',
+                as: 'tenant'
+              }
+            },
+            {
+              $unwind: {
+                path: '$tenant',
+                preserveNullAndEmptyArrays: true
+              }
+            }
+          ],
+          as: 'activeLease'
+        }
+      },
+      // Unwind activeLease (since there can only be one active lease per unit)
+      {
+        $unwind: {
+          path: '$activeLease',
+          preserveNullAndEmptyArrays: true
+        }
+      }
+    ];
+
+    const result = await this.unitModel.aggregate(pipeline).exec();
+
+    if (!result || result.length === 0) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
 
-    // CASL: Final permission check on the specific record
-    if (!ability.can(Action.Read, unit)) {
-      throw new ForbiddenException('You do not have permission to view this unit');
-    }
+    const unit = result[0];
 
     // Fetch media for the unit
     const media = await this.mediaService.getMediaForEntity(
@@ -216,7 +358,7 @@ export class UnitsService {
     );
 
     return {
-      ...unit.toObject(),
+      ...unit,
       media,
     };
   }
@@ -276,5 +418,484 @@ export class UnitsService {
     });
     await this.unitModel.deleteById(id);
     return { message: 'Unit deleted successfully' };
+  }
+
+  /**
+   * Get overview statistics for all units across properties
+   * This method calculates the following statistics:
+   * - Total units count
+   * - Occupied units count
+   * - Available units count
+   * - Occupancy rate
+   * - Total monthly revenue from active leases
+   */
+  async getUnitsOverviewStats(currentUser: UserDocument): Promise<UnitsOverviewStatsResponseDto> {
+    // CASL: Check read permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    if (!ability.can(Action.Read, Unit)) {
+      throw new ForbiddenException('You do not have permission to view units');
+    }
+
+    // Use MongoDB aggregation pipeline for all calculations
+    const pipeline = [
+      // Match units accessible to the user
+      { 
+        $match: { 
+          ...((this.unitModel as any).accessibleBy(ability, Action.Read).getQuery())
+        } 
+      },
+      // Lookup active lease with rent amount
+      {
+        $lookup: {
+          from: 'leases',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$unit', '$$unitId'] },
+                    { $eq: ['$status', 'ACTIVE'] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'activeLease'
+        }
+      },
+      // Unwind activeLease (since there can only be one active lease per unit)
+      {
+        $unwind: {
+          path: '$activeLease',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      // Add calculated fields
+      {
+        $addFields: {
+          isOccupied: { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+          isAvailable: { $eq: ['$availabilityStatus', 'VACANT'] },
+          effectiveRent: {
+            $cond: [
+              { $and: [
+                { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+                { $ne: [{ $ifNull: ['$activeLease.rentAmount', null] }, null] }
+              ]},
+              '$activeLease.rentAmount',
+              { $cond: [
+                { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+                { $ifNull: ['$monthlyRent', 0] },
+                0
+              ]}
+            ]
+          }
+        }
+      },
+      // Group and calculate statistics
+      {
+        $group: {
+          _id: null,
+          totalUnits: { $sum: 1 },
+          occupiedUnits: { $sum: { $cond: ['$isOccupied', 1, 0] } },
+          availableUnits: { $sum: { $cond: ['$isAvailable', 1, 0] } },
+          totalMonthlyRevenue: { $sum: '$effectiveRent' }
+        }
+      },
+      // Calculate derived statistics
+      {
+        $project: {
+          _id: 0,
+          totalUnits: 1,
+          occupiedUnits: 1,
+          availableUnits: 1,
+          totalMonthlyRevenue: 1,
+          occupancyRate: {
+            $cond: [
+              { $gt: ['$totalUnits', 0] },
+              { $round: [{ $multiply: [{ $divide: ['$occupiedUnits', '$totalUnits'] }, 100] }, 1] },
+              0
+            ]
+          }
+        }
+      }
+    ];
+
+    const result = await this.unitModel.aggregate(pipeline).exec();
+    
+    // If no units found, return default values
+    if (!result || result.length === 0) {
+      return {
+        success: true,
+        data: {
+          totalUnits: 0,
+          occupiedUnits: 0,
+          availableUnits: 0,
+          occupancyRate: 0,
+          totalMonthlyRevenue: 0
+        }
+      };
+    }
+
+    return {
+      success: true,
+      data: result[0]
+    };
+  }
+
+  /**
+   * Get key statistics for a property
+   * This method calculates the following statistics:
+   * - Total units count
+   * - Occupancy rate
+   * - Monthly revenue
+   */
+  async getPropertyStatistics(propertyId: string, currentUser: UserDocument) {
+    // CASL: Check read permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    if (!ability.can(Action.Read, Unit)) {
+      throw new ForbiddenException('You do not have permission to view units');
+    }
+
+    // First verify the property exists
+    const property = await this.propertyModel.findById(propertyId).exec();
+    if (!property) {
+      throw new NotFoundException(`Property with ID ${propertyId} not found`);
+    }
+
+    // Check if user has access to this property
+    if (!ability.can(Action.Read, property)) {
+      throw new ForbiddenException('You do not have permission to view this property');
+    }
+
+    const mongoose = require('mongoose');
+    const propertyObjectId = new mongoose.Types.ObjectId(propertyId);
+
+    // Use MongoDB aggregation pipeline for all calculations
+    const pipeline = [
+      // Match units for this property
+      { 
+        $match: { 
+          property: propertyObjectId,
+          // Add CASL conditions
+          ...((this.unitModel as any).accessibleBy(ability, Action.Read).getQuery())
+        } 
+      },
+      // Lookup active lease with rent amount
+      {
+        $lookup: {
+          from: 'leases',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$unit', '$$unitId'] },
+                    { $eq: ['$status', 'ACTIVE'] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'activeLease'
+        }
+      },
+      // Unwind activeLease (since there can only be one active lease per unit)
+      {
+        $unwind: {
+          path: '$activeLease',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      // Add calculated fields
+      {
+        $addFields: {
+          isOccupied: { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+          effectiveRent: {
+            $cond: [
+              { $and: [
+                { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+                { $ne: [{ $ifNull: ['$activeLease.rentAmount', null] }, null] }
+              ]},
+              '$activeLease.rentAmount',
+              { $cond: [
+                { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+                { $ifNull: ['$monthlyRent', 0] },
+                0
+              ]}
+            ]
+          }
+        }
+      },
+      // Group and calculate statistics
+      {
+        $group: {
+          _id: null,
+          totalUnits: { $sum: 1 },
+          occupiedUnits: { $sum: { $cond: ['$isOccupied', 1, 0] } },
+          totalMonthlyRevenue: { $sum: '$effectiveRent' }
+        }
+      },
+      // Calculate derived statistics
+      {
+        $project: {
+          _id: 0,
+          totalUnits: 1,
+          occupiedUnits: 1,
+          totalMonthlyRevenue: 1,
+          occupancyRate: {
+            $cond: [
+              { $gt: ['$totalUnits', 0] },
+              { $round: [{ $multiply: [{ $divide: ['$occupiedUnits', '$totalUnits'] }, 100] }, 0] },
+              0
+            ]
+          }
+        }
+      }
+    ];
+
+    const result = await this.unitModel.aggregate(pipeline).exec();
+    
+    // If no units found, return default values
+    if (!result || result.length === 0) {
+      return {
+        success: true,
+        data: {
+          propertyId,
+          totalUnits: 0,
+          occupiedUnits: 0,
+          occupancyRate: 0,
+          totalMonthlyRevenue: 0
+        }
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        propertyId,
+        ...result[0]
+      }
+    };
+  }
+
+  async getUnitStats(unitId: string, currentUser: UserDocument): Promise<{ success: boolean; data: UnitStatsDto }> {
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    if (!ability.can(Action.Read, Unit)) {
+      throw new ForbiddenException('You do not have permission to view units');
+    }
+
+    const mongoose = require('mongoose');
+    const unitObjectId = new mongoose.Types.ObjectId(unitId);
+
+    // Build aggregation pipeline to calculate unit stats
+    const pipeline = [
+      { $match: { _id: unitObjectId } },
+
+      // Lookup property
+      {
+        $lookup: {
+          from: 'properties',
+          localField: 'property',
+          foreignField: '_id',
+          as: 'property'
+        }
+      },
+      {
+        $unwind: {
+          path: '$property',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+
+      // Lookup active lease
+      {
+        $lookup: {
+          from: 'leases',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$unit', '$$unitId'] },
+                    { $eq: ['$status', 'ACTIVE'] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'activeLease'
+        }
+      },
+      {
+        $unwind: {
+          path: '$activeLease',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+
+      // Calculate YTD revenue from transactions via active lease
+      {
+        $lookup: {
+          from: 'transactions',
+          let: { leaseId: '$activeLease._id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$lease', '$$leaseId'] },
+                    { $gte: ['$paidAt', new Date(new Date().getFullYear(), 0, 1)] },
+                    { $eq: ['$status', 'PAID'] }
+                  ]
+                }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: '$amount' },
+                lastPaymentDate: { $max: '$paidAt' }
+              }
+            }
+          ],
+          as: 'ytdTransactions'
+        }
+      },
+
+      // Get outstanding balance from pending/overdue transactions
+      {
+        $lookup: {
+          from: 'transactions',
+          let: { leaseId: '$activeLease._id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$lease', '$$leaseId'] },
+                    { $in: ['$status', ['OVERDUE']] }
+                  ]
+                }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                totalOwed: { $sum: '$amount' }
+              }
+            }
+          ],
+          as: 'outstandingTransactions'
+        }
+      },
+
+      // Get next payment due (future transactions with smallest due date)
+      {
+        $lookup: {
+          from: 'transactions',
+          let: { leaseId: '$activeLease._id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$lease', '$$leaseId'] },
+                    { $gt: ['$dueDate', new Date()] },
+                    { $ne: [{ $ifNull: ['$dueDate', null] }, null] }
+                  ]
+                }
+              }
+            },
+            {
+              $sort: { dueDate: 1 }
+            },
+            {
+              $limit: 1
+            },
+            {
+              $project: {
+                nextDueDate: '$dueDate'
+              }
+            }
+          ],
+          as: 'nextPayment'
+        }
+      },
+
+      // Count maintenance requests (we'll use a mock count for now since maintenance module doesn't exist)
+      {
+        $addFields: {
+          maintenanceRequestsCount: 5 // Mock value - todo replace when maintenance module exists
+        }
+      },
+
+      // Calculate final fields
+      {
+        $project: {
+          _id: 1,
+          ytdRevenue: {
+            $cond: [
+              { $gt: [{ $size: '$ytdTransactions' }, 0] },
+              { $arrayElemAt: ['$ytdTransactions.totalRevenue', 0] },
+              0
+            ]
+          },
+          maintenanceRequestsCount: '$maintenanceRequestsCount',
+          currentBalance: {
+            $cond: [
+              { $gt: [{ $size: '$outstandingTransactions' }, 0] },
+              { $arrayElemAt: ['$outstandingTransactions.totalOwed', 0] },
+              0
+            ]
+          },
+          lastPaymentDate: {
+            $cond: [
+              { $gt: [{ $size: '$ytdTransactions' }, 0] },
+              { $arrayElemAt: ['$ytdTransactions.lastPaymentDate', 0] },
+              null
+            ]
+          },
+          nextPaymentDue: {
+            $cond: [
+              { $gt: [{ $size: '$nextPayment' }, 0] },
+              { $arrayElemAt: ['$nextPayment.nextDueDate', 0] },
+              null
+            ]
+          }
+        }
+      }
+    ];
+
+    const result = await this.unitModel.aggregate(pipeline).exec();
+
+    if (!result || result.length === 0) {
+      throw new NotFoundException(`Unit with ID ${unitId} not found`);
+    }
+
+    const stats = result[0];
+
+    // Check CASL permission on the found unit
+    const unit = await this.unitModel.findById(unitId).populate('property').exec();
+    if (!ability.can(Action.Read, unit)) {
+      throw new ForbiddenException('You do not have permission to view this unit');
+    }
+
+    return {
+      success: true,
+      data: {
+        unitId: stats._id.toString(),
+        ytdRevenue: stats.ytdRevenue || 0,
+        maintenanceRequestsCount: stats.maintenanceRequestsCount || 0,
+        currentBalance: stats.currentBalance || 0,
+        lastPaymentDate: stats.lastPaymentDate ? stats.lastPaymentDate.toISOString().split('T')[0] : null,
+        nextPaymentDue: stats.nextPaymentDue ? stats.nextPaymentDue.toISOString().split('T')[0] : null
+      }
+    };
   }
 }

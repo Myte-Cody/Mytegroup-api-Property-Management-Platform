@@ -12,6 +12,12 @@ export class User extends Document implements SoftDelete {
   @Prop({ required: true, trim: true, maxlength: 64 })
   username: string;
 
+  @Prop({ required: true, trim: true, maxlength: 50 })
+  firstName: string;
+
+  @Prop({ required: true, trim: true, maxlength: 50 })
+  lastName: string;
+
   @Prop({
     required: true,
     trim: true,
@@ -19,6 +25,9 @@ export class User extends Document implements SoftDelete {
     match: /.+\@.+\..+/,
   })
   email: string;
+
+  @Prop({ required: false, trim: true })
+  phone?: string;
 
   @Prop({ required: true, select: false })
   password: string;
@@ -35,6 +44,9 @@ export class User extends Document implements SoftDelete {
     refPath: 'user_type', // Dynamic reference based on user_type
   })
   party_id: Types.ObjectId; // Points to Landlord/Tenant/Contractor
+
+  @Prop({ type: Boolean, required: true, default: false })
+  isPrimary: boolean;
 
   deleted: boolean;
   deletedAt?: Date;

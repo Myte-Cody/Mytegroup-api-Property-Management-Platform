@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class UpdateUserDto {
   @ApiProperty({
@@ -12,6 +12,26 @@ export class UpdateUserDto {
   username?: string;
 
   @ApiProperty({
+    example: 'John',
+    description: 'First name of the user',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  firstName?: string;
+
+  @ApiProperty({
+    example: 'Doe',
+    description: 'Last name of the user',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  lastName?: string;
+
+  @ApiProperty({
     example: 'john.doe@example.com',
     description: 'Email address of the user',
     required: false,
@@ -19,6 +39,15 @@ export class UpdateUserDto {
   @IsOptional()
   @IsEmail()
   email?: string;
+
+  @ApiProperty({
+    example: '+1234567890',
+    description: 'Phone number of the user',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  phone?: string;
 
   @ApiProperty({
     example: 'StrongP@ss123',
@@ -33,4 +62,13 @@ export class UpdateUserDto {
     message: 'Password is too weak',
   })
   password?: string;
+
+  @ApiProperty({
+    example: false,
+    description: 'Whether this user is the primary user for the party',
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isPrimary?: boolean;
 }

@@ -46,8 +46,10 @@ export class TenantInvitationStrategy implements IInvitationStrategy {
       name: acceptInvitationDto.name,
       email: invitation.email,
       username: acceptInvitationDto.username,
+      firstName: acceptInvitationDto.firstName,
+      lastName: acceptInvitationDto.lastName,
       password: acceptInvitationDto.password,
-      phoneNumber: acceptInvitationDto.phoneNumber,
+      phone: acceptInvitationDto.phone,
     };
 
     // Create tenant using the invitation-specific method that doesn't require CASL authorization

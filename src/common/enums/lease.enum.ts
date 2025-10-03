@@ -25,11 +25,8 @@ export enum RentalPeriodStatus {
 
 export enum PaymentStatus {
   PENDING = 'PENDING',
-  PROCESSED = 'PROCESSED',
   PAID = 'PAID',
   OVERDUE = 'OVERDUE',
-  PARTIAL = 'PARTIAL',
-  FAILED = 'FAILED',
 }
 
 export enum PaymentType {
