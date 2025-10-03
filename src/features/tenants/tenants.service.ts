@@ -357,7 +357,7 @@ export class TenantsService {
     }
 
     // Extract user data from DTO
-    const { email, password, name, username, firstName, lastName } = createTenantDto;
+    const { email, password, name, username, firstName, lastName, phone } = createTenantDto;
 
     // Validate tenant creation data
     await this.validateTenantCreationData(name, email, username);
@@ -377,6 +377,7 @@ export class TenantsService {
         firstName,
         lastName,
         email,
+        phone,
         password,
         user_type: UserType.TENANT,
         party_id: savedTenant._id.toString(),
@@ -390,7 +391,7 @@ export class TenantsService {
 
   async createFromInvitation(createTenantDto: CreateTenantDto, session?: ClientSession) {
     // Extract user data from DTO
-    const { email, password, name, username, firstName, lastName } = createTenantDto;
+    const { email, password, name, username, firstName, lastName, phone } = createTenantDto;
 
     // Validate tenant creation data (no CASL authorization needed for invitations)
     await this.validateTenantCreationData(name, email, username);
@@ -408,6 +409,7 @@ export class TenantsService {
     const userData = {
       username,
       email,
+      phone,
       password,
       firstName: username, // Use username as firstName if not provided
       lastName: '', // Use empty string as lastName if not provided
