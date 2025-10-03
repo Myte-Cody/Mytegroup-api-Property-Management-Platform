@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsOptional, IsPositive, IsString, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsOptional, IsPositive, IsString, Max, Min } from 'class-validator';
 
 export class TenantQueryDto {
   @ApiPropertyOptional({
@@ -50,6 +50,28 @@ export class TenantQueryDto {
   @IsOptional()
   @IsString()
   sortOrder?: 'asc' | 'desc' = 'desc';
+
+  @ApiPropertyOptional({
+    description: 'Include enriched statistics (activeLeasesCount, hasActiveLeases, outstandingBalance)',
+    example: true,
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  includeStats?: boolean = false;
+
+  @ApiPropertyOptional({
+    description: 'Filter by active leases status (true/false)',
+    example: true,
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
+  @IsBoolean()
+  hasActiveLeases?: boolean;
 }
 
 export interface PaginatedTenantsResponse<T> {
