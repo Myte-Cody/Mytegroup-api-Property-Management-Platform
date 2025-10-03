@@ -48,8 +48,25 @@ export class UsersService {
       );
     }
 
+    // Check if this is the first user for this party
+    let shouldBePrimary = isPrimary || false;
+    if (party_id) {
+      const existingUsersCount = await this.userModel
+        .countDocuments({
+          party_id,
+          user_type,
+          deleted: { $ne: true }, // Exclude soft-deleted users
+        })
+        .exec();
+      
+      // If this is the first user for this party, make them primary
+      if (existingUsersCount === 0) {
+        shouldBePrimary = true;
+      }
+    }
+
     await this.validatePrimaryUserConstraint(
-        isPrimary || false,
+        shouldBePrimary,
         party_id,
         user_type,
         undefined,
@@ -68,7 +85,7 @@ export class UsersService {
       password: hashedPassword,
       user_type,
       party_id,
-      isPrimary: isPrimary || false,
+      isPrimary: shouldBePrimary,
     });
 
     // Save the user first to ensure it exists in the database
@@ -117,8 +134,25 @@ export class UsersService {
       );
     }
 
+    // Check if this is the first user for this party
+    let shouldBePrimary = isPrimary || false;
+    if (party_id) {
+      const existingUsersCount = await this.userModel
+        .countDocuments({
+          party_id,
+          user_type,
+          deleted: { $ne: true }, // Exclude soft-deleted users
+        })
+        .exec();
+      
+      // If this is the first user for this party, make them primary
+      if (existingUsersCount === 0) {
+        shouldBePrimary = true;
+      }
+    }
+
     await this.validatePrimaryUserConstraint(
-        isPrimary || false,
+        shouldBePrimary,
         party_id,
         user_type,
         undefined,
@@ -260,15 +294,32 @@ export class UsersService {
         }
       }
 
-      // Validate primary user constraint if isPrimary is being set
+      // Handle primary user logic
       if (updateUserDto.isPrimary !== undefined && user.party_id) {
-        await this.validatePrimaryUserConstraint(
-          updateUserDto.isPrimary,
-          user.party_id.toString(),
-          user.user_type,
-          id,
-          session,
-        );
+        if (updateUserDto.isPrimary === true) {
+          // If setting this user as primary, remove primary status from other users
+          await this.userModel
+            .updateMany(
+              {
+                party_id: user.party_id,
+                user_type: user.user_type,
+                _id: { $ne: id },
+                isPrimary: true,
+              },
+              { $set: { isPrimary: false } },
+              { session },
+            )
+            .exec();
+        } else {
+          // If removing primary status, validate that there's at least one primary user
+          await this.validatePrimaryUserConstraint(
+            updateUserDto.isPrimary,
+            user.party_id.toString(),
+            user.user_type,
+            id,
+            session,
+          );
+        }
       }
 
       if (updateUserDto.password) {
