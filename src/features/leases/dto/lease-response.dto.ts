@@ -166,6 +166,13 @@ export class LeaseResponseDto {
   @Expose()
   @Type(() => Date)
   updatedAt: Date;
+
+  @ApiPropertyOptional({
+    description: 'Date when the lease was activated',
+  })
+  @Expose()
+  @Type(() => Date)
+  activatedAt?: Date;
 }
 
 export class PaginationMetaDto {

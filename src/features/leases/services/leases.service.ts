@@ -143,8 +143,17 @@ export class LeasesService {
     const hasNext = page < totalPages;
     const hasPrev = page > 1;
 
+    // Transform leases to include property at the top level
+    const transformedLeases = leases.map((lease: any) => {
+      const leaseObj = lease.toObject ? lease.toObject() : lease;
+      return {
+        ...leaseObj,
+        property: leaseObj.unit?.property || null,
+      };
+    });
+
     return {
-      data: leases as any[],
+      data: transformedLeases,
       meta: {
         total,
         page,
@@ -162,7 +171,7 @@ export class LeasesService {
       .findById(id)
       .populate({
         path: 'unit',
-        select: 'unitNumber type availabilityStatus',
+        select: 'unitNumber type availabilityStatus size',
         populate: { path: 'property', select: 'name address' },
       })
       .populate('tenant', 'name')
@@ -683,6 +692,10 @@ export class LeasesService {
 
   private async activateLease(lease: Lease, session?: ClientSession) {
     try {
+      if (!lease.activatedAt) {
+        lease.activatedAt = new Date();
+        await lease.save({ session: session ?? null });
+      }
       const initialRentalPeriod = new this.rentalPeriodModel({
         lease: lease._id,
         startDate: normalizeToUTCStartOfDay(lease.startDate),

@@ -145,6 +145,9 @@ export class Lease extends Document implements SoftDelete {
   @Prop({ default: false })
   autoRenewal: boolean;
 
+  @Prop()
+  activatedAt?: Date;
+
   // Soft delete
   deleted: boolean;
   deletedAt?: Date;
