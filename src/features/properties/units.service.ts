@@ -9,9 +9,11 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
+import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
+import { Lease } from '../leases/schemas/lease.schema';
 import { MediaService } from '../media/services/media.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateUnitDto } from './dto/create-unit.dto';
@@ -29,6 +31,8 @@ export class UnitsService {
     @InjectModel(Unit.name) private readonly unitModel: AppModel<Unit>,
     @InjectModel(Property.name)
     private readonly propertyModel: AppModel<Property>,
+    @InjectModel(Lease.name)
+    private readonly leaseModel: AppModel<Lease>,
     @InjectModel(User.name)
     private readonly userModel: AppModel<UserDocument>,
     private readonly unitBusinessValidator: UnitBusinessValidator,
@@ -103,6 +107,11 @@ export class UnitsService {
     queryDto: UnitQueryDto,
     currentUser: UserDocument,
   ): Promise<PaginatedUnitsResponse<Unit>> {
+    // If user is a tenant, use special tenant units logic
+    if (currentUser.user_type === UserType.TENANT) {
+      return this.getTenantUnits(currentUser, queryDto);
+    }
+
     const {
       page = 1,
       limit = 10,
@@ -259,6 +268,157 @@ export class UnitsService {
     );
 
     return createPaginatedResponse<any>(unitsWithMedia, total, page, limit);
+  }
+
+  /**
+   * Get units for a tenant based on their leases (no pagination)
+   * This is called internally when a tenant user accesses /units endpoint
+   */
+  private async getTenantUnits(
+    currentUser: UserDocument,
+    queryDto: UnitQueryDto,
+  ): Promise<PaginatedUnitsResponse<Unit>> {
+    const mongoose = require('mongoose');
+
+    // Get tenant ID - handle both string and ObjectId formats
+    let tenantId;
+    if (currentUser.party_id) {
+      if (typeof currentUser.party_id === 'object' && (currentUser.party_id as any)._id) {
+        tenantId = (currentUser.party_id as any)._id;
+      } else {
+        tenantId = currentUser.party_id;
+      }
+    }
+
+    if (!tenantId) {
+      throw new ForbiddenException('No tenant profile associated with this user');
+    }
+
+    // Convert to ObjectId if it's a string
+    const tenantObjectId =
+      typeof tenantId === 'string' ? new mongoose.Types.ObjectId(tenantId) : tenantId;
+
+    // Build lease match conditions
+    const leaseMatchConditions: any = {
+      tenant: tenantObjectId,
+    };
+
+    // Get all units for this tenant based on their leases
+    const pipeline = [
+      // Match leases for this tenant
+      {
+        $match: leaseMatchConditions,
+      },
+      // Group by unit to get unique units
+      {
+        $group: {
+          _id: '$unit',
+        },
+      },
+      // Lookup unit details
+      {
+        $lookup: {
+          from: 'units',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'unit',
+        },
+      },
+      {
+        $unwind: '$unit',
+      },
+      // Lookup property details
+      {
+        $lookup: {
+          from: 'properties',
+          localField: 'unit.property',
+          foreignField: '_id',
+          as: 'unit.property',
+        },
+      },
+      {
+        $unwind: {
+          path: '$unit.property',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      // Lookup active lease for this unit
+      {
+        $lookup: {
+          from: 'leases',
+          let: { unitId: '$unit._id', tenantId: tenantObjectId },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$unit', '$$unitId'] },
+                    { $eq: ['$tenant', '$$tenantId'] },
+                    { $eq: ['$status', 'ACTIVE'] },
+                  ],
+                },
+              },
+            },
+            {
+              $lookup: {
+                from: 'tenants',
+                localField: 'tenant',
+                foreignField: '_id',
+                as: 'tenant',
+              },
+            },
+            {
+              $unwind: {
+                path: '$tenant',
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+          ],
+          as: 'unit.activeLease',
+        },
+      },
+      {
+        $unwind: {
+          path: '$unit.activeLease',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      // Replace root with unit
+      {
+        $replaceRoot: {
+          newRoot: '$unit',
+        },
+      },
+    ];
+
+    const units = await this.leaseModel.aggregate(pipeline).exec();
+
+    // Fetch media for each unit
+    const unitsWithMedia = await Promise.all(
+      units.map(async (unit) => {
+        const media = await this.mediaService.getMediaForEntity(
+          'Unit',
+          unit._id.toString(),
+          currentUser,
+          undefined,
+          {},
+        );
+        return {
+          ...unit,
+          media,
+        };
+      }),
+    );
+
+    return {
+      data: unitsWithMedia,
+      total: unitsWithMedia.length,
+      page: 1,
+      limit: unitsWithMedia.length,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPrevPage: false,
+    };
   }
 
   async findOne(id: string, currentUser: UserDocument) {
