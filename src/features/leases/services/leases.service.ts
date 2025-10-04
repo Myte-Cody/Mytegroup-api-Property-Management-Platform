@@ -527,7 +527,6 @@ export class LeasesService {
     queryDto: RentRollQueryDto,
     currentUser: UserDocument,
   ): Promise<RentRollResponseDto> {
-
     const propertyFilter = queryDto.propertyId
       ? { property: new Types.ObjectId(queryDto.propertyId) }
       : {};
@@ -623,7 +622,6 @@ export class LeasesService {
     const totalUnits = unitAggregation[0]?.totalUnits || 0;
     const vacantUnits = unitAggregation[0]?.vacantUnits || 0;
 
-
     // Calculate outstanding from non-active leases (expired, terminated)
     const nonActiveOutstandingAggregation = await this.transactionModel
       .aggregate([
@@ -675,7 +673,6 @@ export class LeasesService {
     const totalExpected = collectedAmount + outstandingAmount;
     const collectionRate = totalExpected > 0 ? (collectedAmount / totalExpected) * 100 : 0;
 
-
     const summary = {
       totalMonthlyRent,
       collectedAmount,
@@ -685,7 +682,6 @@ export class LeasesService {
       vacantUnits,
       totalUnits,
     };
-
 
     // Build rent roll items aggregation
     const rentRollPipeline: any[] = [
@@ -734,10 +730,7 @@ export class LeasesService {
             {
               $match: {
                 $expr: {
-                  $and: [
-                    { $eq: ['$party_id', '$$tenantId'] },
-                    { $eq: ['$isPrimary', true] },
-                  ],
+                  $and: [{ $eq: ['$party_id', '$$tenantId'] }, { $eq: ['$isPrimary', true] }],
                 },
               },
             },
@@ -848,10 +841,7 @@ export class LeasesService {
       const searchRegex = new RegExp(queryDto.search, 'i');
       rentRollPipeline.push({
         $match: {
-          $or: [
-            { 'propertyData.name': searchRegex },
-            { 'tenantData.name': searchRegex },
-          ],
+          $or: [{ 'propertyData.name': searchRegex }, { 'tenantData.name': searchRegex }],
         },
       });
     }
@@ -909,7 +899,6 @@ export class LeasesService {
       hasNext: queryDto.page < totalPages,
       hasPrev: queryDto.page > 1,
     };
-
 
     return {
       summary,
@@ -1762,8 +1751,6 @@ export class LeasesService {
       await deductionTransaction.save();
     }
   }
-
-
 
   private async findTenantUsers(tenantId: string): Promise<any[]> {
     try {
