@@ -51,6 +51,8 @@ import {
   TransactionResponseDto,
   UpdateLeaseDto,
 } from './dto';
+import { RentRollQueryDto } from './dto/rent-roll-query.dto';
+import { RentRollResponseDto } from './dto/rent-roll-response.dto';
 import { LeasesService } from './services/leases.service';
 import { RentalPeriodsService } from './services/rental-periods.service';
 import { TransactionsService } from './services/transactions.service';
@@ -77,6 +79,18 @@ export class LeasesController {
   })
   findAll(@Query() queryDto: LeaseQueryDto, @CurrentUser() user: User) {
     return this.leasesService.findAllPaginated(queryDto, user);
+  }
+
+  @Get('rent-roll')
+  @CheckPolicies(new ReadLeasePolicyHandler())
+  @ApiOperation({ summary: 'Get rent roll data with payment status and financial summary' })
+  @ApiResponse({
+    status: 200,
+    description: 'Rent roll data with summary statistics',
+    type: RentRollResponseDto,
+  })
+  getRentRoll(@Query() queryDto: RentRollQueryDto, @CurrentUser() user: User) {
+    return this.leasesService.getRentRoll(queryDto, user);
   }
 
   @Get(':id')

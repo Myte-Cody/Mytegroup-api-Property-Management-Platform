@@ -55,14 +55,14 @@ export class RentRollItemDto {
 }
 
 export class RentRollSummaryDto {
-  @ApiProperty({ description: 'Total expected monthly rent across all units' })
-  totalMonthlyRent: number;
-
   @ApiProperty({ description: 'Total amount collected for the month' })
   collectedAmount: number;
 
-  @ApiProperty({ description: 'Total outstanding amount' })
+  @ApiProperty({ description: 'Total outstanding amount from active leases' })
   outstandingAmount: number;
+
+  @ApiProperty({ description: 'Total outstanding amount from non-active leases' })
+  outstandingAmountNonActive: number;
 
   @ApiProperty({ description: 'Collection rate as percentage' })
   collectionRate: number;
@@ -72,6 +72,23 @@ export class RentRollSummaryDto {
 
   @ApiProperty({ description: 'Total number of units' })
   totalUnits: number;
+}
+
+export class RentRollMetaDto {
+  @ApiProperty()
+  page: number;
+
+  @ApiProperty()
+  limit: number;
+
+  @ApiProperty()
+  totalPages: number;
+
+  @ApiProperty()
+  hasNext: boolean;
+
+  @ApiProperty()
+  hasPrev: boolean;
 }
 
 export class RentRollResponseDto {
@@ -85,4 +102,8 @@ export class RentRollResponseDto {
 
   @ApiProperty()
   total: number;
+
+  @ApiProperty({ type: RentRollMetaDto })
+  @Type(() => RentRollMetaDto)
+  meta: RentRollMetaDto;
 }

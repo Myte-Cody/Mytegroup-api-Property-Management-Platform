@@ -33,6 +33,8 @@ import {
 } from '../dto';
 import { LeaseQueryDto } from '../dto/lease-query.dto';
 import { PaginatedLeasesResponseDto } from '../dto/lease-response.dto';
+import { RentRollQueryDto } from '../dto/rent-roll-query.dto';
+import { RentRollResponseDto } from '../dto/rent-roll-response.dto';
 import { Lease } from '../schemas/lease.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
 import { Transaction } from '../schemas/transaction.schema';
@@ -519,6 +521,189 @@ export class LeasesService {
     lease.deleted = true;
     await lease.save();
     return { message: 'Lease deleted successfully' };
+  }
+
+  async getRentRoll(
+    queryDto: RentRollQueryDto,
+    currentUser: UserDocument,
+  ): Promise<RentRollResponseDto> {
+
+    const propertyFilter = queryDto.propertyId
+      ? { property: new Types.ObjectId(queryDto.propertyId) }
+      : {};
+
+    const leaseAggregation = await this.leaseModel
+      .aggregate([
+        {
+          $match: {
+            status: { $in: [LeaseStatus.ACTIVE] },
+            deleted: { $ne: true },
+          },
+        },
+        ...(queryDto.propertyId
+          ? [
+              {
+                $lookup: {
+                  from: 'units',
+                  localField: 'unit',
+                  foreignField: '_id',
+                  as: 'unitData',
+                },
+              },
+              { $unwind: '$unitData' },
+              { $match: { 'unitData.property': new Types.ObjectId(queryDto.propertyId) } },
+            ]
+          : []),
+        {
+          $group: {
+            _id: null,
+            totalMonthlyRent: { $sum: '$rentAmount' },
+            activeLeaseIds: { $push: '$_id' },
+          },
+        },
+      ])
+      .exec();
+
+    const totalMonthlyRent = leaseAggregation[0]?.totalMonthlyRent || 0;
+    const activeLeaseIds = leaseAggregation[0]?.activeLeaseIds || [];
+
+    // Aggregation 2: Get collected and outstanding amounts in one pipeline
+    const transactionAggregation = await this.transactionModel
+      .aggregate([
+        {
+          $match: {
+            lease: { $in: activeLeaseIds },
+            type: PaymentType.RENT,
+            deleted: { $ne: true },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            collectedAmount: {
+              $sum: {
+                $cond: [{ $eq: ['$status', PaymentStatus.PAID] }, '$amount', 0],
+              },
+            },
+            outstandingAmount: {
+              $sum: {
+                $cond: [{ $ne: ['$status', PaymentStatus.PAID] }, '$amount', 0],
+              },
+            },
+          },
+        },
+      ])
+      .exec();
+
+    const collectedAmount = transactionAggregation[0]?.collectedAmount || 0;
+    const outstandingAmount = transactionAggregation[0]?.outstandingAmount || 0;
+
+    // Aggregation 3: Get unit counts (total and vacant) in one pipeline
+    const unitAggregation = await this.unitModel
+      .aggregate([
+        {
+          $match: {
+            ...propertyFilter,
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalUnits: { $sum: 1 },
+            vacantUnits: {
+              $sum: {
+                $cond: [{ $eq: ['$availabilityStatus', UnitAvailabilityStatus.VACANT] }, 1, 0],
+              },
+            },
+          },
+        },
+      ])
+      .exec();
+
+    const totalUnits = unitAggregation[0]?.totalUnits || 0;
+    const vacantUnits = unitAggregation[0]?.vacantUnits || 0;
+
+
+    // Calculate outstanding from non-active leases (expired, terminated)
+    const nonActiveOutstandingAggregation = await this.transactionModel
+      .aggregate([
+        {
+          $lookup: {
+            from: 'leases',
+            localField: 'lease',
+            foreignField: '_id',
+            as: 'leaseData',
+          },
+        },
+        { $unwind: '$leaseData' },
+        {
+          $match: {
+            'leaseData.status': { $in: [LeaseStatus.EXPIRED, LeaseStatus.TERMINATED] },
+            'leaseData.deleted': { $ne: true },
+            status: { $ne: PaymentStatus.PAID },
+          },
+        },
+        ...(queryDto.propertyId
+          ? [
+              {
+                $lookup: {
+                  from: 'units',
+                  localField: 'leaseData.unit',
+                  foreignField: '_id',
+                  as: 'unitData',
+                },
+              },
+              { $unwind: '$unitData' },
+              { $match: { 'unitData.property': new Types.ObjectId(queryDto.propertyId) } },
+            ]
+          : []),
+        {
+          $group: {
+            _id: null,
+            outstandingAmountNonActive: {
+              $sum: { $subtract: ['$amount', '$amountPaid'] },
+            },
+          },
+        },
+      ])
+      .exec();
+
+    const outstandingAmountNonActive =
+      nonActiveOutstandingAggregation[0]?.outstandingAmountNonActive || 0;
+
+    // Calculate collection rate based on total expected (collected + outstanding)
+    const totalExpected = collectedAmount + outstandingAmount;
+    const collectionRate = totalExpected > 0 ? (collectedAmount / totalExpected) * 100 : 0;
+
+    // Calculate pagination meta
+    const totalPages = Math.ceil(0 / queryDto.limit);
+    const meta = {
+      page: queryDto.page,
+      limit: queryDto.limit,
+      totalPages: totalPages || 1,
+      hasNext: queryDto.page < totalPages,
+      hasPrev: queryDto.page > 1,
+    };
+
+    const summary = {
+      totalMonthlyRent,
+      collectedAmount,
+      outstandingAmount,
+      outstandingAmountNonActive,
+      collectionRate,
+      vacantUnits,
+      totalUnits,
+    };
+
+    console.log('📊 Final summary calculated:', summary);
+
+    // For now, return empty rent roll items array - we're focusing on summary only
+    return {
+      summary,
+      rentRoll: [],
+      total: 0,
+      meta,
+    };
   }
 
   // Helper Methods
