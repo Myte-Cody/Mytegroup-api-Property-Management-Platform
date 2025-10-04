@@ -3,6 +3,9 @@ import { Type } from 'class-transformer';
 
 export class RentRollItemDto {
   @ApiProperty()
+  _id: string;
+
+  @ApiProperty()
   leaseId: string;
 
   @ApiProperty()
@@ -14,26 +17,20 @@ export class RentRollItemDto {
   @ApiProperty()
   unitNumber: string;
 
-  @ApiProperty({ required: false })
-  propertyImage?: string;
+  @ApiProperty()
+  unitId: string;
 
   @ApiProperty()
   tenantName: string;
 
   @ApiProperty()
-  tenantEmail: string;
-
-  @ApiProperty({ required: false })
-  tenantPhone?: string;
+  tenantId: string;
 
   @ApiProperty()
   monthlyRent: number;
 
   @ApiProperty()
   dueDate: Date;
-
-  @ApiProperty({ enum: ['paid', 'partial', 'overdue', 'vacant'] })
-  status: 'paid' | 'partial' | 'overdue' | 'vacant';
 
   @ApiProperty()
   amountCollected: number;
@@ -43,15 +40,6 @@ export class RentRollItemDto {
 
   @ApiProperty({ required: false })
   lastPaymentDate?: Date;
-
-  @ApiProperty({ required: false })
-  paymentMethod?: string;
-
-  @ApiProperty({ required: false })
-  daysOverdue?: number;
-
-  @ApiProperty({ required: false })
-  lateFees?: number;
 }
 
 export class RentRollSummaryDto {
