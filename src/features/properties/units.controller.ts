@@ -38,10 +38,9 @@ import { MediaType } from '../media/schemas/media.schema';
 import { MediaService } from '../media/services/media.service';
 import { User } from '../users/schemas/user.schema';
 import { UnitQueryDto } from './dto/unit-query.dto';
+import { UnitsOverviewStatsResponseDto } from './dto/units-overview-stats.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { UploadMediaDto } from './dto/upload-media.dto';
-import { UnitStatsResponseDto } from './dto/unit-stats.dto';
-import { UnitsOverviewStatsResponseDto } from './dto/units-overview-stats.dto';
 import { UnitsService } from './units.service';
 
 @ApiTags('Units')
@@ -67,7 +66,7 @@ export class UnitsController {
   @ApiResponse({
     status: 200,
     description: 'Units overview statistics retrieved successfully',
-    type: UnitsOverviewStatsResponseDto
+    type: UnitsOverviewStatsResponseDto,
   })
   getUnitsOverviewStats(@CurrentUser() user: User) {
     return this.unitsService.getUnitsOverviewStats(user);

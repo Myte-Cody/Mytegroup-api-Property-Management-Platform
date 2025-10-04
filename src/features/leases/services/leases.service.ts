@@ -33,6 +33,8 @@ import {
 } from '../dto';
 import { LeaseQueryDto } from '../dto/lease-query.dto';
 import { PaginatedLeasesResponseDto } from '../dto/lease-response.dto';
+import { RentRollQueryDto, RentRollSortBy } from '../dto/rent-roll-query.dto';
+import { RentRollResponseDto } from '../dto/rent-roll-response.dto';
 import { Lease } from '../schemas/lease.schema';
 import { RentalPeriod } from '../schemas/rental-period.schema';
 import { Transaction } from '../schemas/transaction.schema';
@@ -143,8 +145,17 @@ export class LeasesService {
     const hasNext = page < totalPages;
     const hasPrev = page > 1;
 
+    // Transform leases to include property at the top level
+    const transformedLeases = leases.map((lease: any) => {
+      const leaseObj = lease.toObject ? lease.toObject() : lease;
+      return {
+        ...leaseObj,
+        property: leaseObj.unit?.property || null,
+      };
+    });
+
     return {
-      data: leases as any[],
+      data: transformedLeases,
       meta: {
         total,
         page,
@@ -162,7 +173,7 @@ export class LeasesService {
       .findById(id)
       .populate({
         path: 'unit',
-        select: 'unitNumber type availabilityStatus',
+        select: 'unitNumber type availabilityStatus size',
         populate: { path: 'property', select: 'name address' },
       })
       .populate('tenant', 'name')
@@ -512,7 +523,404 @@ export class LeasesService {
     return { message: 'Lease deleted successfully' };
   }
 
+  async getRentRoll(
+    queryDto: RentRollQueryDto,
+    currentUser: UserDocument,
+  ): Promise<RentRollResponseDto> {
+    const propertyFilter = queryDto.propertyId
+      ? { property: new Types.ObjectId(queryDto.propertyId) }
+      : {};
+
+    const leaseAggregation = await this.leaseModel
+      .aggregate([
+        {
+          $match: {
+            status: { $in: [LeaseStatus.ACTIVE] },
+            deleted: { $ne: true },
+          },
+        },
+        ...(queryDto.propertyId
+          ? [
+              {
+                $lookup: {
+                  from: 'units',
+                  localField: 'unit',
+                  foreignField: '_id',
+                  as: 'unitData',
+                },
+              },
+              { $unwind: '$unitData' },
+              { $match: { 'unitData.property': new Types.ObjectId(queryDto.propertyId) } },
+            ]
+          : []),
+        {
+          $group: {
+            _id: null,
+            totalMonthlyRent: { $sum: '$rentAmount' },
+            activeLeaseIds: { $push: '$_id' },
+          },
+        },
+      ])
+      .exec();
+
+    const totalMonthlyRent = leaseAggregation[0]?.totalMonthlyRent || 0;
+    const activeLeaseIds = leaseAggregation[0]?.activeLeaseIds || [];
+
+    // Aggregation 2: Get collected and outstanding amounts in one pipeline
+    const transactionAggregation = await this.transactionModel
+      .aggregate([
+        {
+          $match: {
+            lease: { $in: activeLeaseIds },
+            type: PaymentType.RENT,
+            deleted: { $ne: true },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            collectedAmount: {
+              $sum: {
+                $cond: [{ $eq: ['$status', PaymentStatus.PAID] }, '$amount', 0],
+              },
+            },
+            outstandingAmount: {
+              $sum: {
+                $cond: [{ $ne: ['$status', PaymentStatus.PAID] }, '$amount', 0],
+              },
+            },
+          },
+        },
+      ])
+      .exec();
+
+    const collectedAmount = transactionAggregation[0]?.collectedAmount || 0;
+    const outstandingAmount = transactionAggregation[0]?.outstandingAmount || 0;
+
+    // Aggregation 3: Get unit counts (total and vacant) in one pipeline
+    const unitAggregation = await this.unitModel
+      .aggregate([
+        {
+          $match: {
+            ...propertyFilter,
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalUnits: { $sum: 1 },
+            vacantUnits: {
+              $sum: {
+                $cond: [{ $eq: ['$availabilityStatus', UnitAvailabilityStatus.VACANT] }, 1, 0],
+              },
+            },
+          },
+        },
+      ])
+      .exec();
+
+    const totalUnits = unitAggregation[0]?.totalUnits || 0;
+    const vacantUnits = unitAggregation[0]?.vacantUnits || 0;
+
+    // Calculate outstanding from non-active leases (expired, terminated)
+    const nonActiveOutstandingAggregation = await this.transactionModel
+      .aggregate([
+        {
+          $lookup: {
+            from: 'leases',
+            localField: 'lease',
+            foreignField: '_id',
+            as: 'leaseData',
+          },
+        },
+        { $unwind: '$leaseData' },
+        {
+          $match: {
+            'leaseData.status': { $in: [LeaseStatus.EXPIRED, LeaseStatus.TERMINATED] },
+            'leaseData.deleted': { $ne: true },
+            status: { $ne: PaymentStatus.PAID },
+          },
+        },
+        ...(queryDto.propertyId
+          ? [
+              {
+                $lookup: {
+                  from: 'units',
+                  localField: 'leaseData.unit',
+                  foreignField: '_id',
+                  as: 'unitData',
+                },
+              },
+              { $unwind: '$unitData' },
+              { $match: { 'unitData.property': new Types.ObjectId(queryDto.propertyId) } },
+            ]
+          : []),
+        {
+          $group: {
+            _id: null,
+            outstandingAmountNonActive: {
+              $sum: { $subtract: ['$amount', '$amountPaid'] },
+            },
+          },
+        },
+      ])
+      .exec();
+
+    const outstandingAmountNonActive =
+      nonActiveOutstandingAggregation[0]?.outstandingAmountNonActive || 0;
+
+    // Calculate collection rate based on total expected (collected + outstanding)
+    const totalExpected = collectedAmount + outstandingAmount;
+    const collectionRate = totalExpected > 0 ? (collectedAmount / totalExpected) * 100 : 0;
+
+    const summary = {
+      totalMonthlyRent,
+      collectedAmount,
+      outstandingAmount,
+      outstandingAmountNonActive,
+      collectionRate,
+      vacantUnits,
+      totalUnits,
+    };
+
+    // Build rent roll items aggregation
+    const rentRollPipeline: any[] = [
+      // Start with leases
+      {
+        $match: {
+          deleted: { $ne: true },
+        },
+      },
+      // Join with unit
+      {
+        $lookup: {
+          from: 'units',
+          localField: 'unit',
+          foreignField: '_id',
+          as: 'unitData',
+        },
+      },
+      { $unwind: '$unitData' },
+      // Join with property
+      {
+        $lookup: {
+          from: 'properties',
+          localField: 'unitData.property',
+          foreignField: '_id',
+          as: 'propertyData',
+        },
+      },
+      { $unwind: '$propertyData' },
+      // Join with tenant
+      {
+        $lookup: {
+          from: 'tenants',
+          localField: 'tenant',
+          foreignField: '_id',
+          as: 'tenantData',
+        },
+      },
+      { $unwind: '$tenantData' },
+      // Join with users to get tenant email and phone
+      {
+        $lookup: {
+          from: 'users',
+          let: { tenantId: '$tenantData._id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [{ $eq: ['$party_id', '$$tenantId'] }, { $eq: ['$isPrimary', true] }],
+                },
+              },
+            },
+            { $limit: 1 },
+          ],
+          as: 'tenantUser',
+        },
+      },
+      // Join with transactions (type: RENT only)
+      {
+        $lookup: {
+          from: 'transactions',
+          let: { leaseId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$lease', '$$leaseId'] },
+                type: PaymentType.RENT,
+                deleted: { $ne: true },
+              },
+            },
+          ],
+          as: 'transactions',
+        },
+      },
+      // Calculate payment metrics
+      {
+        $addFields: {
+          // Amount collected: sum of paid rent transactions
+          amountCollected: {
+            $sum: {
+              $map: {
+                input: {
+                  $filter: {
+                    input: '$transactions',
+                    as: 'txn',
+                    cond: { $eq: ['$$txn.status', PaymentStatus.PAID] },
+                  },
+                },
+                as: 'paidTxn',
+                in: '$$paidTxn.amount',
+              },
+            },
+          },
+          // Outstanding balance: sum of overdue rent transactions
+          outstandingBalance: {
+            $sum: {
+              $map: {
+                input: {
+                  $filter: {
+                    input: '$transactions',
+                    as: 'txn',
+                    cond: { $eq: ['$$txn.status', PaymentStatus.OVERDUE] },
+                  },
+                },
+                as: 'overdueTxn',
+                in: '$$overdueTxn.amount',
+              },
+            },
+          },
+          // Last payment date: most recent paid transaction date
+          lastPaymentDate: {
+            $max: {
+              $map: {
+                input: {
+                  $filter: {
+                    input: '$transactions',
+                    as: 'txn',
+                    cond: { $eq: ['$$txn.status', PaymentStatus.PAID] },
+                  },
+                },
+                as: 'paidTxn',
+                in: '$$paidTxn.paidAt',
+              },
+            },
+          },
+          // Due date: most recent due date from unpaid transactions
+          dueDate: {
+            $max: {
+              $map: {
+                input: {
+                  $filter: {
+                    input: '$transactions',
+                    as: 'txn',
+                    cond: { $ne: ['$$txn.status', PaymentStatus.PAID] },
+                  },
+                },
+                as: 'unpaidTxn',
+                in: '$$unpaidTxn.dueDate',
+              },
+            },
+          },
+        },
+      },
+    ];
+
+    // Apply property filter if provided
+    if (queryDto.propertyId) {
+      rentRollPipeline.splice(1, 0, {
+        $match: {
+          'unitData.property': new Types.ObjectId(queryDto.propertyId),
+        },
+      });
+    }
+
+    // Apply search filter if provided
+    if (queryDto.search) {
+      const searchRegex = new RegExp(queryDto.search, 'i');
+      rentRollPipeline.push({
+        $match: {
+          $or: [{ 'propertyData.name': searchRegex }, { 'tenantData.name': searchRegex }],
+        },
+      });
+    }
+
+    // Project to final shape
+    rentRollPipeline.push({
+      $project: {
+        _id: { $toString: '$_id' },
+        leaseId: { $toString: '$_id' },
+        propertyId: { $toString: '$propertyData._id' },
+        propertyName: '$propertyData.name',
+        unitNumber: '$unitData.unitNumber',
+        unitId: { $toString: '$unitData._id' },
+        tenantName: '$tenantData.name',
+        tenantId: { $toString: '$tenantData._id' },
+        monthlyRent: '$rentAmount',
+        dueDate: { $ifNull: ['$dueDate', null] },
+        amountCollected: 1,
+        outstandingBalance: 1,
+        lastPaymentDate: { $ifNull: ['$lastPaymentDate', null] },
+      },
+    });
+
+    // Count total before pagination
+    const countPipeline = [...rentRollPipeline, { $count: 'total' }];
+    const countResult = await this.leaseModel.aggregate(countPipeline).exec();
+    const totalCount = countResult[0]?.total || 0;
+
+    // Apply sorting
+    if (queryDto.sortBy && queryDto.sortOrder) {
+      const sortField = this.mapRentRollSortField(queryDto.sortBy);
+      rentRollPipeline.push({
+        $sort: { [sortField]: queryDto.sortOrder === 'asc' ? 1 : -1 },
+      });
+    } else {
+      // Default sort by property name
+      rentRollPipeline.push({
+        $sort: { propertyName: 1 },
+      });
+    }
+
+    // Apply pagination
+    const skip = (queryDto.page - 1) * queryDto.limit;
+    rentRollPipeline.push({ $skip: skip }, { $limit: queryDto.limit });
+
+    // Execute aggregation
+    const rentRollItems = await this.leaseModel.aggregate(rentRollPipeline).exec();
+
+    // Update pagination meta with correct total
+    const totalPages = Math.ceil(totalCount / queryDto.limit);
+    const meta = {
+      page: queryDto.page,
+      limit: queryDto.limit,
+      totalPages: totalPages || 1,
+      hasNext: queryDto.page < totalPages,
+      hasPrev: queryDto.page > 1,
+    };
+
+    return {
+      summary,
+      rentRoll: rentRollItems,
+      total: totalCount,
+      meta,
+    };
+  }
+
   // Helper Methods
+
+  private mapRentRollSortField(sortBy: RentRollSortBy): string {
+    const sortFieldMap = {
+      [RentRollSortBy.RENT_AMOUNT]: 'monthlyRent',
+      [RentRollSortBy.DUE_DATE]: 'dueDate',
+      [RentRollSortBy.TENANT_NAME]: 'tenantName',
+      [RentRollSortBy.PROPERTY_NAME]: 'propertyName',
+      [RentRollSortBy.AMOUNT_COLLECTED]: 'amountCollected',
+      [RentRollSortBy.OUTSTANDING_BALANCE]: 'outstandingBalance',
+    };
+    return sortFieldMap[sortBy] || 'propertyName';
+  }
 
   private async validateLeaseCreation(createLeaseDto: CreateLeaseDto) {
     const unit = await this.unitModel.findById(createLeaseDto.unit).exec();
@@ -683,6 +1091,10 @@ export class LeasesService {
 
   private async activateLease(lease: Lease, session?: ClientSession) {
     try {
+      if (!lease.activatedAt) {
+        lease.activatedAt = new Date();
+        await lease.save({ session: session ?? null });
+      }
       const initialRentalPeriod = new this.rentalPeriodModel({
         lease: lease._id,
         startDate: normalizeToUTCStartOfDay(lease.startDate),
@@ -1314,7 +1726,7 @@ export class LeasesService {
       lease: leaseId,
       amount: -fullDepositAmount, // Negative amount - money flowing to tenant
       type: PaymentType.DEPOSIT_REFUND,
-      status: PaymentStatus.PROCESSED,
+      status: PaymentStatus.PAID,
       paidAt: new Date(),
       notes: `Security deposit refund: ${assessmentDto.refundReason}`,
       paymentMethod: PaymentMethod.BANK_TRANSFER, // Default method for refunds
@@ -1329,7 +1741,7 @@ export class LeasesService {
         lease: leaseId,
         amount: totalDeductions, // Positive amount - money kept by landlord
         type: PaymentType.DEPOSIT_DEDUCTION,
-        status: PaymentStatus.PROCESSED,
+        status: PaymentStatus.PAID,
         paidAt: new Date(),
         notes: `Security deposit deductions`,
         paymentMethod: PaymentMethod.OTHER, // No actual payment method for deductions
@@ -1338,20 +1750,6 @@ export class LeasesService {
 
       await deductionTransaction.save();
     }
-  }
-
-  // Helper function for sorting rent roll data
-  private mapSortField(sortBy: string): string {
-    const fieldMappings: Record<string, string> = {
-      rentAmount: 'monthlyRent',
-      dueDate: 'dueDate',
-      tenantName: 'tenantName',
-      propertyName: 'propertyName',
-      amountCollected: 'amountCollected',
-      outstandingBalance: 'outstandingBalance',
-    };
-
-    return fieldMappings[sortBy] || sortBy;
   }
 
   private async findTenantUsers(tenantId: string): Promise<any[]> {

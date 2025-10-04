@@ -25,6 +25,9 @@ export class TenantTableViewDto {
   @ApiProperty({ description: 'Whether tenant has active leases', example: true })
   hasActiveLeases: boolean;
 
-  @ApiProperty({ description: 'Total outstanding balance from overdue transactions', example: 2500 })
+  @ApiProperty({
+    description: 'Total outstanding balance from overdue transactions',
+    example: 2500,
+  })
   outstandingBalance: number;
 }

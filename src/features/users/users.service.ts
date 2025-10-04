@@ -22,7 +22,17 @@ export class UsersService {
   ) {}
 
   async create(createUserDto: CreateUserDto, session?: ClientSession) {
-    const { username, firstName, lastName, email, phone, password, user_type, party_id, isPrimary } = createUserDto;
+    const {
+      username,
+      firstName,
+      lastName,
+      email,
+      phone,
+      password,
+      user_type,
+      party_id,
+      isPrimary,
+    } = createUserDto;
 
     // Check username uniqueness within the same landlord
     const existingUsername = await this.userModel
@@ -58,7 +68,7 @@ export class UsersService {
           deleted: { $ne: true }, // Exclude soft-deleted users
         })
         .exec();
-      
+
       // If this is the first user for this party, make them primary
       if (existingUsersCount === 0) {
         shouldBePrimary = true;
@@ -66,11 +76,11 @@ export class UsersService {
     }
 
     await this.validatePrimaryUserConstraint(
-        shouldBePrimary,
-        party_id,
-        user_type,
-        undefined,
-        session,
+      shouldBePrimary,
+      party_id,
+      user_type,
+      undefined,
+      session,
     );
 
     const salt = await bcrypt.genSalt();
@@ -108,7 +118,17 @@ export class UsersService {
   }
 
   async createFromInvitation(createUserDto: CreateUserDto, session?: ClientSession) {
-    const { username, firstName, lastName, email, phone, password, user_type, party_id, isPrimary } = createUserDto;
+    const {
+      username,
+      firstName,
+      lastName,
+      email,
+      phone,
+      password,
+      user_type,
+      party_id,
+      isPrimary,
+    } = createUserDto;
 
     // Check username uniqueness within the same landlord
     const existingUsername = await this.userModel
@@ -144,7 +164,7 @@ export class UsersService {
           deleted: { $ne: true }, // Exclude soft-deleted users
         })
         .exec();
-      
+
       // If this is the first user for this party, make them primary
       if (existingUsersCount === 0) {
         shouldBePrimary = true;
@@ -152,12 +172,12 @@ export class UsersService {
     }
 
     await this.validatePrimaryUserConstraint(
-        shouldBePrimary,
-        party_id,
-        user_type,
-        undefined,
-        session,
-      );
+      shouldBePrimary,
+      party_id,
+      user_type,
+      undefined,
+      session,
+    );
 
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -171,7 +191,7 @@ export class UsersService {
       password: hashedPassword,
       user_type,
       party_id,
-      isPrimary: shouldBePrimary
+      isPrimary: shouldBePrimary,
     });
 
     // Save the user first to ensure it exists in the database
@@ -220,12 +240,12 @@ export class UsersService {
     if (user_type) {
       baseQuery = baseQuery.where({ user_type });
     }
-    
+
     // Filter by party_id if provided
     if (party_id) {
       baseQuery = baseQuery.where({ party_id });
     }
-    
+
     // Filter by isPrimary if provided
     if (isPrimary !== undefined) {
       baseQuery = baseQuery.where({ isPrimary });
@@ -378,9 +398,7 @@ export class UsersService {
       query._id = { $ne: excludeUserId };
     }
 
-    const existingPrimaryUser = await this.userModel
-      .findOne(query, null, { session })
-      .exec();
+    const existingPrimaryUser = await this.userModel.findOne(query, null, { session }).exec();
 
     if (existingPrimaryUser) {
       throw new UnprocessableEntityException(

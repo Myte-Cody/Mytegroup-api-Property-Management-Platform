@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
-import { IsArray, IsEnum, IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enum';
 
 export class UnitQueryDto {
@@ -60,7 +60,7 @@ export class UnitQueryDto {
   sortOrder?: 'asc' | 'desc' = 'desc';
 
   @ApiPropertyOptional({
-    description: 'Filter by unit type (simple format)',
+    description: 'Filter by unit type',
     example: UnitType.STUDIO,
     enum: UnitType,
   })
@@ -69,7 +69,7 @@ export class UnitQueryDto {
   type?: UnitType;
 
   @ApiPropertyOptional({
-    description: 'Filter by availability status (simple format)',
+    description: 'Filter by availability status',
     example: UnitAvailabilityStatus.VACANT,
     enum: UnitAvailabilityStatus,
   })

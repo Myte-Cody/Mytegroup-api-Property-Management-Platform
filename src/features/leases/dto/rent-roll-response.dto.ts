@@ -3,6 +3,9 @@ import { Type } from 'class-transformer';
 
 export class RentRollItemDto {
   @ApiProperty()
+  _id: string;
+
+  @ApiProperty()
   leaseId: string;
 
   @ApiProperty()
@@ -14,26 +17,20 @@ export class RentRollItemDto {
   @ApiProperty()
   unitNumber: string;
 
-  @ApiProperty({ required: false })
-  propertyImage?: string;
+  @ApiProperty()
+  unitId: string;
 
   @ApiProperty()
   tenantName: string;
 
   @ApiProperty()
-  tenantEmail: string;
-
-  @ApiProperty({ required: false })
-  tenantPhone?: string;
+  tenantId: string;
 
   @ApiProperty()
   monthlyRent: number;
 
   @ApiProperty()
   dueDate: Date;
-
-  @ApiProperty({ enum: ['paid', 'partial', 'overdue', 'vacant'] })
-  status: 'paid' | 'partial' | 'overdue' | 'vacant';
 
   @ApiProperty()
   amountCollected: number;
@@ -43,26 +40,17 @@ export class RentRollItemDto {
 
   @ApiProperty({ required: false })
   lastPaymentDate?: Date;
-
-  @ApiProperty({ required: false })
-  paymentMethod?: string;
-
-  @ApiProperty({ required: false })
-  daysOverdue?: number;
-
-  @ApiProperty({ required: false })
-  lateFees?: number;
 }
 
 export class RentRollSummaryDto {
-  @ApiProperty({ description: 'Total expected monthly rent across all units' })
-  totalMonthlyRent: number;
-
   @ApiProperty({ description: 'Total amount collected for the month' })
   collectedAmount: number;
 
-  @ApiProperty({ description: 'Total outstanding amount' })
+  @ApiProperty({ description: 'Total outstanding amount from active leases' })
   outstandingAmount: number;
+
+  @ApiProperty({ description: 'Total outstanding amount from non-active leases' })
+  outstandingAmountNonActive: number;
 
   @ApiProperty({ description: 'Collection rate as percentage' })
   collectionRate: number;
@@ -72,6 +60,23 @@ export class RentRollSummaryDto {
 
   @ApiProperty({ description: 'Total number of units' })
   totalUnits: number;
+}
+
+export class RentRollMetaDto {
+  @ApiProperty()
+  page: number;
+
+  @ApiProperty()
+  limit: number;
+
+  @ApiProperty()
+  totalPages: number;
+
+  @ApiProperty()
+  hasNext: boolean;
+
+  @ApiProperty()
+  hasPrev: boolean;
 }
 
 export class RentRollResponseDto {
@@ -85,4 +90,8 @@ export class RentRollResponseDto {
 
   @ApiProperty()
   total: number;
+
+  @ApiProperty({ type: RentRollMetaDto })
+  @Type(() => RentRollMetaDto)
+  meta: RentRollMetaDto;
 }

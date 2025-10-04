@@ -1,8 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsEnum, IsMongoId, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { UserType } from '../../../common/enums/user-type.enum';
-import { Transform } from 'class-transformer';
 
 export class UserQueryDto {
   @ApiPropertyOptional({ description: 'Page number (1-based)', default: 1 })

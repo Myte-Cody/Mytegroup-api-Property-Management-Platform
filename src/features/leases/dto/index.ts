@@ -4,6 +4,8 @@ export * from './deposit-assessment.dto';
 export * from './lease-operations.dto';
 export * from './lease-query.dto';
 export * from './lease-response.dto';
+export * from './rent-roll-query.dto';
+export * from './rent-roll-response.dto';
 export * from './update-lease.dto';
 
 // RentalPeriod DTOs

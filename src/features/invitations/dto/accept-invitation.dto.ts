@@ -3,7 +3,8 @@ import { IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 
 
 export class AcceptInvitationDto {
   @ApiProperty({
-    description: 'Name for the new tenant/entity (organization name or will be calculated from firstName + lastName)',
+    description:
+      'Name for the new tenant/entity (organization name or will be calculated from firstName + lastName)',
     example: 'John Doe',
     minLength: 2,
     maxLength: 100,
@@ -55,7 +56,8 @@ export class AcceptInvitationDto {
   phone?: string;
 
   @ApiProperty({
-    description: 'Password for the new user account (min 8 chars with uppercase, lowercase, and number/special char)',
+    description:
+      'Password for the new user account (min 8 chars with uppercase, lowercase, and number/special char)',
     example: 'StrongP@ss123',
     minLength: 8,
   })
@@ -63,7 +65,8 @@ export class AcceptInvitationDto {
   @IsString()
   @MinLength(8)
   @Matches(/((?=.*\d)|(?=.*\W+))(?![.\n])(?=.*[A-Z])(?=.*[a-z]).*$/, {
-    message: 'Password must contain at least one uppercase letter, one lowercase letter, and one number or special character',
+    message:
+      'Password must contain at least one uppercase letter, one lowercase letter, and one number or special character',
   })
   password: string;
 }
