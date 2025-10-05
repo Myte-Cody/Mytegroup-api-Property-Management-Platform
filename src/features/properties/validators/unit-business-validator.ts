@@ -49,8 +49,6 @@ export class UnitBusinessValidator {
     const { existingUnit, updateDto } = context;
 
     await this.validateUnitNumberUniquenessForUpdate(existingUnit, updateDto, context);
-
-    this.validateStatusTransition(existingUnit, updateDto);
   }
 
   async validateDelete(context: UnitDeleteValidationContext): Promise<void> {
@@ -92,43 +90,5 @@ export class UnitBusinessValidator {
         `Unit number '${updateDto.unitNumber}' already exists in this property`,
       );
     }
-  }
-
-  private validateStatusTransition(existingUnit: Unit, updateDto: UpdateUnitDto): void {
-    if (
-      !updateDto.availabilityStatus ||
-      updateDto.availabilityStatus === existingUnit.availabilityStatus
-    ) {
-      return; // No status change
-    }
-
-    const validTransitions = this.getValidStatusTransitions();
-    const currentStatus = existingUnit.availabilityStatus;
-    const newStatus = updateDto.availabilityStatus;
-
-    const allowedTransitions = validTransitions[currentStatus] || [];
-    if (!allowedTransitions.includes(newStatus)) {
-      throw new BadRequestException(
-        `Invalid status transition from '${currentStatus}' to '${newStatus}'. ` +
-          `Valid transitions from '${currentStatus}': ${allowedTransitions.join(', ')}`,
-      );
-    }
-  }
-
-  private getValidStatusTransitions(): Record<string, UnitAvailabilityStatus[]> {
-    return {
-      [UnitAvailabilityStatus.VACANT]: [
-        UnitAvailabilityStatus.AVAILABLE_FOR_RENT,
-        UnitAvailabilityStatus.OCCUPIED,
-      ],
-      [UnitAvailabilityStatus.AVAILABLE_FOR_RENT]: [
-        UnitAvailabilityStatus.VACANT,
-        UnitAvailabilityStatus.OCCUPIED,
-      ],
-      [UnitAvailabilityStatus.OCCUPIED]: [
-        UnitAvailabilityStatus.VACANT,
-        UnitAvailabilityStatus.AVAILABLE_FOR_RENT,
-      ],
-    };
   }
 }

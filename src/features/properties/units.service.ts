@@ -6,7 +6,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { ClientSession } from 'mongoose';
+import { ClientSession, PipelineStage } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { UserType } from '../../common/enums/user-type.enum';
@@ -848,7 +848,7 @@ export class UnitsService {
     const unitObjectId = new mongoose.Types.ObjectId(unitId);
 
     // Build aggregation pipeline to calculate unit stats
-    const pipeline = [
+    const pipeline: PipelineStage[] = [
       { $match: { _id: unitObjectId } },
 
       // Lookup property

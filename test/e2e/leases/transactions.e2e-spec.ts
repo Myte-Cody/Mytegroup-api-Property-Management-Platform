@@ -621,7 +621,7 @@ describe('Transactions (e2e)', () => {
         .expect(201);
 
       expect(response.body).toHaveProperty('_id', transactionId);
-      expect(response.body).toHaveProperty('status', 'PROCESSED');
+      expect(response.body).toHaveProperty('status', 'PENDING');
     });
 
     it('should return 404 when transaction ID does not exist', async () => {

@@ -933,7 +933,6 @@ export class LeasesService {
       throw new NotFoundException('Tenant not found');
     }
 
-
     // Check for overlapping leases (dates and cross-field validations handled by DTO)
     await this.validateNoOverlappingLeases(
       createLeaseDto.unit,
@@ -1146,76 +1145,79 @@ export class LeasesService {
     assessmentDto: any,
     currentUser: UserDocument,
   ): Promise<any> {
-    const lease = await this.leaseModel.findById(leaseId).exec();
+    return await this.sessionService.withSession(async (session: ClientSession | null) => {
+      const lease = await this.leaseModel.findById(leaseId, null, { session }).exec();
 
-    if (!lease) {
-      throw new NotFoundException('Lease not found');
-    }
+      if (!lease) {
+        throw new NotFoundException('Lease not found');
+      }
 
-    if (!lease.isSecurityDeposit) {
-      throw new UnprocessableEntityException('This lease does not have a security deposit');
-    }
+      if (!lease.isSecurityDeposit) {
+        throw new UnprocessableEntityException('This lease does not have a security deposit');
+      }
 
-    if (lease.securityDepositRefundedAt) {
-      throw new UnprocessableEntityException('Security deposit has already been refunded');
-    }
+      if (lease.securityDepositRefundedAt) {
+        throw new UnprocessableEntityException('Security deposit has already been refunded');
+      }
 
-    // Validate that final refund amount doesn't exceed security deposit amount
-    if (assessmentDto.finalRefundAmount > lease.securityDepositAmount) {
-      throw new UnprocessableEntityException(
-        `Final refund amount (${assessmentDto.finalRefundAmount}) cannot exceed security deposit amount (${lease.securityDepositAmount})`,
-      );
-    }
+      // Validate that final refund amount doesn't exceed security deposit amount
+      if (assessmentDto.finalRefundAmount > lease.securityDepositAmount) {
+        throw new UnprocessableEntityException(
+          `Final refund amount (${assessmentDto.finalRefundAmount}) cannot exceed security deposit amount (${lease.securityDepositAmount})`,
+        );
+      }
 
-    // Calculate total deductions from deduction items
-    const totalDeductions =
-      assessmentDto.deductionItems?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0;
+      // Calculate total deductions from deduction items
+      const totalDeductions =
+        assessmentDto.deductionItems?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0;
 
-    // Validate that finalRefundAmount matches calculation
-    const expectedRefundAmount = lease.securityDepositAmount - totalDeductions;
-    if (Math.abs(assessmentDto.finalRefundAmount - expectedRefundAmount) > 0.01) {
-      throw new UnprocessableEntityException(
-        `Final refund amount (${assessmentDto.finalRefundAmount}) does not match calculated amount (${expectedRefundAmount})`,
-      );
-    }
+      // Validate that finalRefundAmount matches calculation
+      const expectedRefundAmount = lease.securityDepositAmount - totalDeductions;
+      if (Math.abs(assessmentDto.finalRefundAmount - expectedRefundAmount) > 0.01) {
+        throw new UnprocessableEntityException(
+          `Final refund amount (${assessmentDto.finalRefundAmount}) does not match calculated amount (${expectedRefundAmount})`,
+        );
+      }
 
-    // Create deposit assessment
-    const depositAssessment = {
-      assessmentDate: new Date(),
-      deductionItems: assessmentDto.deductionItems || [],
-      totalDeductions,
-      finalRefundAmount: assessmentDto.finalRefundAmount,
-      assessmentNotes: assessmentDto.assessmentNotes,
-      status: 'completed',
-    };
+      // Create deposit assessment
+      const depositAssessment = {
+        assessmentDate: new Date(),
+        deductionItems: assessmentDto.deductionItems || [],
+        totalDeductions,
+        finalRefundAmount: assessmentDto.finalRefundAmount,
+        assessmentNotes: assessmentDto.assessmentNotes,
+        status: 'completed',
+      };
 
-    // Create both refund and deduction transactions
-    await this.createDepositSettlementTransactions(
-      leaseId,
-      lease.securityDepositAmount,
-      totalDeductions,
-      assessmentDto,
-    );
-
-    // Update lease with assessment and refund information
-    const updatedLease = await this.leaseModel
-      .findByIdAndUpdate(
+      // Create both refund and deduction transactions
+      await this.createDepositSettlementTransactions(
         leaseId,
-        {
-          depositAssessment,
-          securityDepositRefundedAt: new Date(),
-          securityDepositRefundReason: assessmentDto.refundReason,
-        },
-        { new: true },
-      )
-      .populate({
-        path: 'unit',
-        populate: { path: 'property' },
-      })
-      .populate('tenant')
-      .exec();
+        lease.securityDepositAmount,
+        totalDeductions,
+        assessmentDto,
+        session,
+      );
 
-    return updatedLease;
+      // Update lease with assessment and refund information
+      const updatedLease = await this.leaseModel
+        .findByIdAndUpdate(
+          leaseId,
+          {
+            depositAssessment,
+            securityDepositRefundedAt: new Date(),
+            securityDepositRefundReason: assessmentDto.refundReason,
+          },
+          { new: true, session },
+        )
+        .populate({
+          path: 'unit',
+          populate: { path: 'property' },
+        })
+        .populate('tenant')
+        .exec();
+
+      return updatedLease;
+    });
   }
 
   async getDepositAssessment(leaseId: string, currentUser: UserDocument): Promise<any> {
@@ -1698,6 +1700,7 @@ export class LeasesService {
     fullDepositAmount: number,
     totalDeductions: number,
     assessmentDto: any,
+    session: ClientSession | null,
   ): Promise<void> {
     // Always create refund transaction (negative amount - money going TO tenant)
     const refundTransaction = new this.transactionModel({
@@ -1710,7 +1713,7 @@ export class LeasesService {
       paymentMethod: PaymentMethod.OTHER, // Default method for refunds
     });
 
-    await refundTransaction.save();
+    await refundTransaction.save({ session });
 
     // Create deduction transaction only if there are deductions (positive amount)
     if (totalDeductions > 0) {
@@ -1724,7 +1727,7 @@ export class LeasesService {
         paymentMethod: PaymentMethod.OTHER, // No actual payment method for deductions
       });
 
-      await deductionTransaction.save();
+      await deductionTransaction.save({ session });
     }
   }
 

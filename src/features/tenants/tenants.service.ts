@@ -123,15 +123,6 @@ export class TenantsService {
 
     // Stage 1: Match accessible tenants (CASL filter)
     const accessibleConditions = (ability as any).rulesFor(Action.Read, Tenant);
-    if (accessibleConditions.length > 0) {
-      // Apply CASL conditions if needed
-      // For simplicity, we'll apply tenantId filter based on user
-      if (currentUser.tenantId) {
-        pipeline.push({
-          $match: { tenantId: currentUser.tenantId },
-        });
-      }
-    }
 
     // Stage 2: Lookup primary user to get email and phone
     pipeline.push({

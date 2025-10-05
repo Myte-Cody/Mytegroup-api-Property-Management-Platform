@@ -82,7 +82,7 @@ export class ContractorInvitationStrategy implements IInvitationStrategy {
       name: invitation.entityData.name,
       email: invitation.email,
       password: acceptInvitationDto.password,
-      phoneNumber: acceptInvitationDto.phoneNumber,
+      phoneNumber: acceptInvitationDto.phone,
       specialization: invitation.entityData.specialization,
     };
 
