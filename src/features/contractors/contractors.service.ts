@@ -166,6 +166,8 @@ export class ContractorsService {
       // Create the user account for the contractor
       const userData = {
         username: email, // Use email as username
+        firstName: name,
+        lastName: name,
         email,
         password: hashedPassword,
         user_type: 'Contractor',
