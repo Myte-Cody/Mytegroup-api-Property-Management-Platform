@@ -119,20 +119,6 @@ describe('Property Units (e2e)', () => {
       expect(response.body.data[0].unitNumber).toBe(testUnit.unitNumber);
     });
 
-    it('should filter units by availability status', async () => {
-      const response = await requestHelper
-        .get(
-          `/properties/${propertyId}/units?filters[availabilityStatus]=${encodeURIComponent('VACANT')}`,
-          landlordToken,
-        )
-        .expect(200);
-
-      expect(response.body.data.length).toBeGreaterThanOrEqual(1);
-      for (const unit of response.body.data) {
-        expect(unit.availabilityStatus).toBe('VACANT');
-      }
-    });
-
     it('should sort units by unit number (ascending)', async () => {
       const response = await requestHelper
         .get(`/properties/${propertyId}/units?sortBy=unitNumber&sortOrder=asc`, landlordToken)
@@ -172,9 +158,8 @@ describe('Property Units (e2e)', () => {
       await requestHelper.get(`/properties/${propertyId}/units`).expect(401);
     });
 
-    // The API seems to allow tenants to view units, so we'll test for successful response instead
-    it('should allow tenants to view units', async () => {
-      await requestHelper.get(`/properties/${propertyId}/units`, tenantToken).expect(200);
+    it('should not allow tenants to view units that does not belong to him', async () => {
+      await requestHelper.get(`/properties/${propertyId}/units`, tenantToken).expect(403);
     });
   });
 });

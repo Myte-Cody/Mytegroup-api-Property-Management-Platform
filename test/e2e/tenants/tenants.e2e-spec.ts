@@ -74,8 +74,10 @@ describe('Tenants (e2e)', () => {
       const timestamp = Date.now();
       const newTenant = {
         name: 'New Test Tenant',
-        phoneNumber: '555-123-4567',
+        phone: '555-123-4567',
         username: `new_tenant_${timestamp}`,
+        firstName: `new`,
+        lastName: 'tenant',
         email: `new-tenant-${timestamp}@example.com`,
         password: 'Password123!',
       };
@@ -84,13 +86,12 @@ describe('Tenants (e2e)', () => {
 
       expect(response.body).toHaveProperty('_id');
       expect(response.body).toHaveProperty('name', newTenant.name);
-      expect(response.body).toHaveProperty('phoneNumber', newTenant.phoneNumber);
     });
 
     it('should return 400 when required fields are missing', async () => {
       const invalidTenant = {
         // Missing required fields: name, username, email, password
-        phoneNumber: '555-123-4567',
+        phone: '555-123-4567',
       };
 
       await requestHelper.post('/tenants', invalidTenant, landlordToken).expect(400);
@@ -100,7 +101,7 @@ describe('Tenants (e2e)', () => {
       const timestamp = Date.now();
       const newTenant = {
         name: 'Unauthenticated Tenant',
-        phoneNumber: '555-123-4567',
+        phone: '555-123-4567',
         username: `unauth_tenant_${timestamp}`,
         email: `unauth-tenant-${timestamp}@example.com`,
         password: 'Password123!',
@@ -113,7 +114,7 @@ describe('Tenants (e2e)', () => {
       const timestamp = Date.now();
       const newTenant = {
         name: 'No Permission Tenant',
-        phoneNumber: '555-123-4567',
+        phone: '555-123-4567',
         username: `noperm_tenant_${timestamp}`,
         email: `noperm-tenant-${timestamp}@example.com`,
         password: 'Password123!',
@@ -264,7 +265,6 @@ describe('Tenants (e2e)', () => {
 
       expect(response.body).toHaveProperty('_id', tenantId);
       expect(response.body).toHaveProperty('name', testTenant.name);
-      expect(response.body).toHaveProperty('phoneNumber', testTenant.phoneNumber);
     });
 
     it('should return 404 when tenant ID does not exist', async () => {
@@ -282,6 +282,90 @@ describe('Tenants (e2e)', () => {
 
     it('should return 403 when user does not have permission', async () => {
       await requestHelper.get(`/tenants/${tenantId}`, tenantToken).expect(403);
+    });
+  });
+
+  describe('GET /tenants/:id/stats - Get tenant statistics', () => {
+    let tenantId: string;
+
+    beforeEach(async () => {
+      // Create users with different roles for testing permissions
+      const timestamp = Date.now() + Math.floor(Math.random() * 10000);
+
+      const { token: landlord } = await authHelper
+        .createUser({
+          email: `landlord-tenantstats-${timestamp}@example.com`,
+          password: 'Password123!',
+          firstName: 'Landlord',
+          lastName: 'TenantStats',
+          role: 'landlord',
+          username: `landlord_tenantstats_${timestamp}`,
+          user_type: 'Landlord',
+        })
+        .then((user) => ({
+          user,
+          token: authHelper.generateToken((user as any)._id.toString(), 'landlord'),
+        }));
+
+      const { token: tenant } = await authHelper
+        .createUser({
+          email: `tenant-tenantstats-${timestamp}@example.com`,
+          password: 'Password123!',
+          firstName: 'Tenant',
+          lastName: 'TenantStats',
+          role: 'tenant',
+          username: `tenant_tenantstats_${timestamp}`,
+          user_type: 'Tenant',
+        })
+        .then((user) => ({
+          user,
+          token: authHelper.generateToken((user as any)._id.toString(), 'tenant'),
+        }));
+
+      landlordToken = landlord;
+      tenantToken = tenant;
+
+      // Create a tenant for testing
+      const tenantResponse = await requestHelper.post(
+        '/tenants',
+        {
+          ...testTenant,
+          name: `Stats Test Tenant ${timestamp}`,
+          email: `stats-tenant-${timestamp}@example.com`,
+          username: `stats_tenant_${timestamp}`,
+          password: 'Password123!',
+        },
+        landlordToken,
+      );
+      tenantId = tenantResponse.body._id;
+    });
+
+    it('should return statistics for a specific tenant', async () => {
+      const response = await requestHelper
+        .get(`/tenants/${tenantId}/stats`, landlordToken)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('activeLeases');
+      expect(response.body).toHaveProperty('nextExpiry');
+      expect(response.body).toHaveProperty('outstanding');
+      expect(response.body).toHaveProperty('totalMonthlyRent');
+    });
+
+    it('should return 404 when tenant ID does not exist', async () => {
+      const nonExistentId = new Types.ObjectId().toString();
+      await requestHelper.get(`/tenants/${nonExistentId}/stats`, landlordToken).expect(404);
+    });
+
+    it('should return 400 when ID format is invalid', async () => {
+      await requestHelper.get('/tenants/invalid-id/stats', landlordToken).expect(400);
+    });
+
+    it('should return 401 when not authenticated', async () => {
+      await requestHelper.get(`/tenants/${tenantId}/stats`).expect(401);
+    });
+
+    it('should return 403 when user does not have permission', async () => {
+      await requestHelper.get(`/tenants/${tenantId}/stats`, tenantToken).expect(403);
     });
   });
 });

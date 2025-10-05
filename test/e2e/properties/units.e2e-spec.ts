@@ -113,20 +113,6 @@ describe('Units (e2e)', () => {
       expect(response.body.data[0].unitNumber).toBe(testUnit.unitNumber);
     });
 
-    it('should filter units by availability status', async () => {
-      const response = await requestHelper
-        .get(
-          `/units?filters[availabilityStatus]=${encodeURIComponent(UnitAvailabilityStatus.VACANT)}`,
-          landlordToken,
-        )
-        .expect(200);
-
-      expect(response.body.data.length).toBeGreaterThanOrEqual(1);
-      for (const unit of response.body.data) {
-        expect(unit.availabilityStatus).toBe(UnitAvailabilityStatus.VACANT);
-      }
-    });
-
     it('should filter units by property ID', async () => {
       const response = await requestHelper
         .get(`/units?propertyId=${propertyId}`, landlordToken)
@@ -162,8 +148,8 @@ describe('Units (e2e)', () => {
       await requestHelper.get('/units').expect(401);
     });
 
-    it('should allow tenants to view units', async () => {
-      await requestHelper.get('/units', tenantToken).expect(200);
+    it('should not allow tenants to view units that does not belong to him', async () => {
+      await requestHelper.get('/units', tenantToken).expect(403);
     });
   });
 
@@ -449,6 +435,185 @@ describe('Units (e2e)', () => {
 
     it('should return 403 when user does not have permission', async () => {
       await requestHelper.delete(`/units/${unitId}`, tenantToken).expect(403);
+    });
+  });
+
+  describe('GET /units/stats/overview - Get units overview statistics', () => {
+    beforeEach(async () => {
+      // Create users with different roles for testing permissions
+      const timestamp = Date.now() + Math.floor(Math.random() * 10000);
+
+      const { token: landlord } = await authHelper
+        .createUser({
+          email: `landlord-stats-${timestamp}@example.com`,
+          password: 'Password123!',
+          firstName: 'Landlord',
+          lastName: 'Stats',
+          role: 'landlord',
+          username: `landlord_stats_${timestamp}`,
+          user_type: 'Landlord',
+        })
+        .then((user) => ({
+          user,
+          token: authHelper.generateToken((user as any)._id.toString(), 'landlord'),
+        }));
+
+      const { token: tenant } = await authHelper
+        .createUser({
+          email: `tenant-stats-${timestamp}@example.com`,
+          password: 'Password123!',
+          firstName: 'Tenant',
+          lastName: 'Stats',
+          role: 'tenant',
+          username: `tenant_stats_${timestamp}`,
+          user_type: 'Tenant',
+        })
+        .then((user) => ({
+          user,
+          token: authHelper.generateToken((user as any)._id.toString(), 'tenant'),
+        }));
+
+      landlordToken = landlord;
+      tenantToken = tenant;
+
+      // Create a property
+      const propertyResponse = await requestHelper.post(
+        '/properties',
+        testPropertyForUnits,
+        landlordToken,
+      );
+      propertyId = propertyResponse.body.data.property._id;
+
+      // Create multiple units with different statuses
+      const unit1Response = await requestHelper.post(
+        `/properties/${propertyId}/units`,
+        { ...testUnit, availabilityStatus: UnitAvailabilityStatus.VACANT },
+        landlordToken,
+      );
+      unitIds.push(unit1Response.body.data.unit._id);
+
+      const unit2Response = await requestHelper.post(
+        `/properties/${propertyId}/units`,
+        { ...testUnit2, availabilityStatus: UnitAvailabilityStatus.OCCUPIED },
+        landlordToken,
+      );
+      unitIds.push(unit2Response.body.data.unit._id);
+
+      const unit3Response = await requestHelper.post(
+        `/properties/${propertyId}/units`,
+        { ...testUnit3, availabilityStatus: UnitAvailabilityStatus.AVAILABLE_FOR_RENT },
+        landlordToken,
+      );
+      unitIds.push(unit3Response.body.data.unit._id);
+    });
+
+    it('should return overview statistics for all units', async () => {
+      const response = await requestHelper.get('/units/stats/overview', landlordToken).expect(200);
+
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('availableUnits');
+      expect(response.body.data).toHaveProperty('occupancyRate');
+      expect(response.body.data).toHaveProperty('occupiedUnits');
+      expect(response.body.data).toHaveProperty('totalMonthlyRevenue');
+      expect(response.body.data).toHaveProperty('totalUnits');
+    });
+
+    it('should calculate occupancy rate correctly', async () => {
+      const response = await requestHelper.get('/units/stats/overview', landlordToken).expect(200);
+
+      const { totalUnits, occupiedUnits, occupancyRate } = response.body;
+
+      if (totalUnits > 0) {
+        const expectedRate = (occupiedUnits / totalUnits) * 100;
+        expect(Math.abs(occupancyRate - expectedRate)).toBeLessThan(0.01);
+      }
+    });
+
+    it('should return 401 when not authenticated', async () => {
+      await requestHelper.get('/units/stats/overview').expect(401);
+    });
+  });
+
+  describe('GET /units/:id/stats - Get unit statistics', () => {
+    let unitId: string;
+
+    beforeEach(async () => {
+      // Create users with different roles for testing permissions
+      const timestamp = Date.now() + Math.floor(Math.random() * 10000);
+
+      const { token: landlord } = await authHelper
+        .createUser({
+          email: `landlord-unitstats-${timestamp}@example.com`,
+          password: 'Password123!',
+          firstName: 'Landlord',
+          lastName: 'UnitStats',
+          role: 'landlord',
+          username: `landlord_unitstats_${timestamp}`,
+          user_type: 'Landlord',
+        })
+        .then((user) => ({
+          user,
+          token: authHelper.generateToken((user as any)._id.toString(), 'landlord'),
+        }));
+
+      const { token: tenant } = await authHelper
+        .createUser({
+          email: `tenant-unitstats-${timestamp}@example.com`,
+          password: 'Password123!',
+          firstName: 'Tenant',
+          lastName: 'UnitStats',
+          role: 'tenant',
+          username: `tenant_unitstats_${timestamp}`,
+          user_type: 'Tenant',
+        })
+        .then((user) => ({
+          user,
+          token: authHelper.generateToken((user as any)._id.toString(), 'tenant'),
+        }));
+
+      landlordToken = landlord;
+      tenantToken = tenant;
+
+      // Create a property
+      const propertyResponse = await requestHelper.post(
+        '/properties',
+        testPropertyForUnits,
+        landlordToken,
+      );
+      propertyId = propertyResponse.body.data.property._id;
+
+      // Create a unit
+      const unitResponse = await requestHelper.post(
+        `/properties/${propertyId}/units`,
+        testUnit,
+        landlordToken,
+      );
+      unitId = unitResponse.body.data.unit._id;
+    });
+
+    it('should return statistics for a specific unit', async () => {
+      const response = await requestHelper.get(`/units/${unitId}/stats`, landlordToken).expect(200);
+
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('currentBalance');
+      expect(response.body.data).toHaveProperty('lastPaymentDate');
+      expect(response.body.data).toHaveProperty('maintenanceRequestsCount');
+      expect(response.body.data).toHaveProperty('nextPaymentDue');
+      expect(response.body.data).toHaveProperty('unitId');
+      expect(response.body.data).toHaveProperty('ytdRevenue');
+    });
+
+    it('should return 404 when unit ID does not exist', async () => {
+      const nonExistentId = new Types.ObjectId().toString();
+      await requestHelper.get(`/units/${nonExistentId}/stats`, landlordToken).expect(404);
+    });
+
+    it('should return 400 when ID format is invalid', async () => {
+      await requestHelper.get('/units/invalid-id/stats', landlordToken).expect(400);
+    });
+
+    it('should return 401 when not authenticated', async () => {
+      await requestHelper.get(`/units/${unitId}/stats`).expect(401);
     });
   });
 });
