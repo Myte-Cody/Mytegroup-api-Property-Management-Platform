@@ -199,7 +199,7 @@ export class LeasesService {
 
       const newLease = new this.leaseModel({
         ...createLeaseDto,
-        endDate: completedEndDate, // Use cycle-completed end date
+        endDate: completedEndDate,
       });
 
       const savedLease = await newLease.save({ session });
@@ -498,7 +498,7 @@ export class LeasesService {
     );
 
     const renewalData: RenewLeaseDto = {
-      startDate: startDate, // Start date = day after current rental period end date
+      startDate: startDate,
       endDate: completedEndDate,
       notes: manualRenewalData.notes,
     };
@@ -933,21 +933,6 @@ export class LeasesService {
       throw new NotFoundException('Tenant not found');
     }
 
-    if (unit.availabilityStatus === UnitAvailabilityStatus.OCCUPIED) {
-      const existingActiveLease = await this.leaseModel
-        .findOne({
-          unit: createLeaseDto.unit,
-          status: { $in: [LeaseStatus.ACTIVE] },
-        })
-        .exec();
-
-      if (existingActiveLease) {
-        throw new UnprocessableEntityException(
-          'Unit is currently occupied by another active lease',
-        );
-      }
-    }
-
     // Check for overlapping leases (dates and cross-field validations handled by DTO)
     await this.validateNoOverlappingLeases(
       createLeaseDto.unit,
@@ -1182,14 +1167,9 @@ export class LeasesService {
         );
       }
 
-      // Calculate total deductions
-      const damageTotal =
-        assessmentDto.damageItems?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0;
+      // Calculate total deductions from deduction items
       const totalDeductions =
-        damageTotal +
-        (assessmentDto.cleaningCosts || 0) +
-        (assessmentDto.unpaidRent || 0) +
-        (assessmentDto.otherCharges || 0);
+        assessmentDto.deductionItems?.reduce((sum: number, item: any) => sum + item.cost, 0) || 0;
 
       // Validate that finalRefundAmount matches calculation
       const expectedRefundAmount = lease.securityDepositAmount - totalDeductions;
@@ -1202,10 +1182,7 @@ export class LeasesService {
       // Create deposit assessment
       const depositAssessment = {
         assessmentDate: new Date(),
-        damageItems: assessmentDto.damageItems || [],
-        cleaningCosts: assessmentDto.cleaningCosts || 0,
-        unpaidRent: assessmentDto.unpaidRent || 0,
-        otherCharges: assessmentDto.otherCharges || 0,
+        deductionItems: assessmentDto.deductionItems || [],
         totalDeductions,
         finalRefundAmount: assessmentDto.finalRefundAmount,
         assessmentNotes: assessmentDto.assessmentNotes,
@@ -1733,8 +1710,7 @@ export class LeasesService {
       status: PaymentStatus.PAID,
       paidAt: new Date(),
       notes: `Security deposit refund: ${assessmentDto.refundReason}`,
-      paymentMethod: PaymentMethod.BANK_TRANSFER, // Default method for refunds
-      // No dueDate for refunds since they're processed immediately
+      paymentMethod: PaymentMethod.OTHER, // Default method for refunds
     });
 
     await refundTransaction.save({ session });
@@ -1749,7 +1725,6 @@ export class LeasesService {
         paidAt: new Date(),
         notes: `Security deposit deductions`,
         paymentMethod: PaymentMethod.OTHER, // No actual payment method for deductions
-        // No dueDate for deductions since they're processed immediately
       });
 
       await deductionTransaction.save({ session });
