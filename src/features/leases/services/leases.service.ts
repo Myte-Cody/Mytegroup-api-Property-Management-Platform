@@ -933,20 +933,6 @@ export class LeasesService {
       throw new NotFoundException('Tenant not found');
     }
 
-    if (unit.availabilityStatus === UnitAvailabilityStatus.OCCUPIED) {
-      const existingActiveLease = await this.leaseModel
-        .findOne({
-          unit: createLeaseDto.unit,
-          status: { $in: [LeaseStatus.ACTIVE] },
-        })
-        .exec();
-
-      if (existingActiveLease) {
-        throw new UnprocessableEntityException(
-          'Unit is currently occupied by another active lease',
-        );
-      }
-    }
 
     // Check for overlapping leases (dates and cross-field validations handled by DTO)
     await this.validateNoOverlappingLeases(
