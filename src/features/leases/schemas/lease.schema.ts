@@ -24,7 +24,7 @@ export class RentIncrease {
 const RentIncreaseSchema = SchemaFactory.createForClass(RentIncrease);
 
 @Schema()
-export class DamageItem {
+export class DeductionItem {
   @Prop({ required: true, maxlength: 200 })
   description: string;
 
@@ -35,24 +35,15 @@ export class DamageItem {
   notes?: string;
 }
 
-const DamageItemSchema = SchemaFactory.createForClass(DamageItem);
+const DeductionItemSchema = SchemaFactory.createForClass(DeductionItem);
 
 @Schema()
 export class DepositAssessment {
   @Prop()
   assessmentDate: Date;
 
-  @Prop({ type: [DamageItemSchema], default: [] })
-  damageItems: DamageItem[];
-
-  @Prop({ min: 0, default: 0 })
-  cleaningCosts: number;
-
-  @Prop({ min: 0, default: 0 })
-  unpaidRent: number;
-
-  @Prop({ min: 0, default: 0 })
-  otherCharges: number;
+  @Prop({ type: [DeductionItemSchema], default: [] })
+  deductionItems: DeductionItem[];
 
   @Prop({ required: true, min: 0 })
   totalDeductions: number;

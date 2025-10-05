@@ -11,10 +11,10 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-export class DamageItemDto {
+export class DeductionItemDto {
   @ApiProperty({
-    description: 'Description of the damage',
-    example: 'Carpet stains in living room',
+    description: 'Description of the deduction',
+    example: 'Carpet cleaning',
   })
   @IsString()
   @IsNotEmpty()
@@ -22,7 +22,7 @@ export class DamageItemDto {
   description: string;
 
   @ApiProperty({
-    description: 'Cost to repair the damage',
+    description: 'Cost of the deduction',
     example: 150.0,
     minimum: 0,
   })
@@ -31,8 +31,8 @@ export class DamageItemDto {
   cost: number;
 
   @ApiProperty({
-    description: 'Notes about the damage',
-    example: 'Red wine stains, professional cleaning required',
+    description: 'Notes about the deduction',
+    example: 'Professional cleaning required',
     required: false,
   })
   @IsOptional()
@@ -43,48 +43,15 @@ export class DamageItemDto {
 
 export class ProcessDepositAssessmentDto {
   @ApiProperty({
-    description: 'List of damage items found during inspection',
-    type: [DamageItemDto],
+    description: 'List of deduction items (damages, cleaning, unpaid rent, etc.)',
+    type: [DeductionItemDto],
     required: false,
   })
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => DamageItemDto)
-  damageItems?: DamageItemDto[];
-
-  @ApiProperty({
-    description: 'Cleaning costs deducted from deposit',
-    example: 100.0,
-    minimum: 0,
-    required: false,
-  })
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  cleaningCosts?: number;
-
-  @ApiProperty({
-    description: 'Outstanding unpaid rent',
-    example: 0,
-    minimum: 0,
-    required: false,
-  })
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  unpaidRent?: number;
-
-  @ApiProperty({
-    description: 'Other charges or fees',
-    example: 50.0,
-    minimum: 0,
-    required: false,
-  })
-  @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  otherCharges?: number;
+  @Type(() => DeductionItemDto)
+  deductionItems?: DeductionItemDto[];
 
   @ApiProperty({
     description: 'Notes about the assessment',
