@@ -72,6 +72,8 @@ describe('Users (e2e)', () => {
         email: 'new-user@example.com',
         password: 'Password123!',
         username: 'new_user',
+        firstName: 'Test',
+        lastName: 'User',
         user_type: 'Tenant',
       };
 
@@ -108,6 +110,8 @@ describe('Users (e2e)', () => {
         email: 'existing-user@example.com',
         password: 'Password123!',
         username: 'existing_user',
+        firstName: 'Test',
+        lastName: 'User',
         user_type: 'Tenant',
       };
 
@@ -128,6 +132,8 @@ describe('Users (e2e)', () => {
         email: 'unauthenticated@example.com',
         password: 'Password123!',
         username: 'unauthenticated_user',
+        firstName: 'Test',
+        lastName: 'User',
         user_type: 'Tenant',
       };
 
@@ -139,6 +145,8 @@ describe('Users (e2e)', () => {
         email: 'no-permission@example.com',
         password: 'Password123!',
         username: 'no_permission_user',
+        firstName: 'Test',
+        lastName: 'User',
         user_type: 'Tenant',
       };
 
@@ -174,6 +182,8 @@ describe('Users (e2e)', () => {
           email: `test-user-${i}@example.com`,
           password: 'Password123!',
           username: `test_user_${i}`,
+          firstName: `Test ${i}`,
+          lastName: `User ${i}`,
           user_type: i % 2 === 0 ? 'Tenant' : 'Landlord',
         };
         userPromises.push(requestHelper.post('/users', user, landlordToken) as never);
@@ -510,6 +520,8 @@ describe('Users (e2e)', () => {
           email: `to-delete-${timestamp}@example.com`,
           password: 'Password123!',
           username: `to_delete_${timestamp}`,
+          firstName: 'to',
+          lastName: 'delete',
           user_type: 'Tenant',
         },
         landlordToken,
@@ -537,7 +549,7 @@ describe('Users (e2e)', () => {
     });
 
     it('should delete the user (soft delete)', async () => {
-      await requestHelper.delete(`/users/${userId}`, landlordToken).expect(204);
+      const res = await requestHelper.delete(`/users/${userId}`, landlordToken).expect(204);
 
       // Verify the user is not returned in GET requests (soft deleted)
       await requestHelper.get(`/users/${userId}`, landlordToken).expect(404);

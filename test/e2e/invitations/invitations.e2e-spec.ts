@@ -398,9 +398,11 @@ describe('Invitations (e2e)', () => {
     it('should accept a valid invitation', async () => {
       const acceptData = {
         name: 'Test Tenant',
+        firstName: 'Test',
+        lastName: 'Tenant',
         username: 'test_tenant',
         password: 'Password123!',
-        phoneNumber: '123-456-7890',
+        phone: '123-456-7890',
       };
 
       const response = await requestHelper
@@ -417,8 +419,11 @@ describe('Invitations (e2e)', () => {
       const nonExistentToken = 'non-existent-token';
       const acceptData = {
         name: 'Test Tenant',
+        firstName: 'Test',
+        lastName: 'Tenant',
         username: 'test_tenant',
         password: 'Password123!',
+        phone: '123-456-7890',
       };
 
       await requestHelper.post(`/invitations/${nonExistentToken}/accept`, acceptData).expect(404);
@@ -426,8 +431,8 @@ describe('Invitations (e2e)', () => {
 
     it('should return 400 when required fields are missing', async () => {
       const invalidAcceptData = {
-        // Missing required fields: name, username, password
-        phoneNumber: '123-456-7890',
+        // Missing required fields: name, firstName, lastName, username, password
+        phone: '123-456-7890',
       };
 
       await requestHelper.post(`/invitations/${validToken}/accept`, invalidAcceptData).expect(400);
