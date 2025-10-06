@@ -37,43 +37,25 @@ export class SeedDevDataCommand extends CommandRunner {
     try {
       console.log('🌱 Starting dev data seeding...\n');
 
-      const numLandlords = 2; // Fixed to 2 landlords
       const shouldClean = options?.clean || true; // Default to cleaning
-      const shouldVerify = true; // Always verify
       const verbose = true; // Always verbose
 
       if (shouldClean) {
         await this.cleanExistingData(verbose);
       }
 
-      // Create landlords
-      const landlords = await this.createLandlords(numLandlords, verbose);
+      // Create 1 landlord
+      const landlord = await this.createLandlord(verbose);
 
-      // Create users for each landlord
-      const users = await this.createUsers(landlords, verbose);
+      // Create 1 user for the landlord
+      await this.createUser(landlord, verbose);
 
-      // Create properties for each landlord
-      const properties = await this.createProperties(landlords, verbose);
+      await this.printSummary();
 
-      // Create units for each property
-      const units = await this.createUnits(properties, verbose);
-
-      // Create tenants for each landlord
-      const tenants = await this.createTenants(landlords, verbose);
-
-      // Create contractors for each landlord
-      const contractors = await this.createContractors(landlords, verbose);
-
-      // Create tenant and contractor users
-      await this.createPartyUsers(tenants, contractors, landlords, verbose);
-
-      if (shouldVerify) {
-        await this.verifyDataIsolation(landlords, verbose);
-      }
-
-      await this.printSummary(landlords);
-
-      console.log('🎉 Dev data seeding completed successfully!');
+      console.log('\n🎉 Minimal dev data seeding completed successfully!');
+      console.log('\n📝 Login credentials:');
+      console.log('   Email: landlord@example.com');
+      console.log('   Password: password123');
     } catch (error) {
       console.error('❌ Dev data seeding failed:', error.message);
       if (error.stack) console.error(error.stack);
@@ -96,315 +78,46 @@ export class SeedDevDataCommand extends CommandRunner {
     console.log('✅ Existing data cleaned');
   }
 
-  private async createLandlords(count: number, verbose: boolean): Promise<any[]> {
-    if (verbose) console.log(`👔 Creating ${count} landlords...`);
+  private async createLandlord(verbose: boolean): Promise<any> {
+    if (verbose) console.log('👔 Creating landlord...');
 
-    const landlordData = [
-      {
-        name: 'Landlord ONE LLC',
-      },
-      {
-        name: 'Landlord Two Inc',
-      },
-      {
-        name: 'Landlord Three Co',
-      },
-    ];
+    const landlord = new this.landlordModel({
+      name: 'Myte Estates',
+    });
 
-    const landlords = [];
-    for (let i = 0; i < count; i++) {
-      const data = landlordData[i] || {
-        name: `Property Management ${i + 1}`,
-      };
+    const saved = await landlord.save();
+    if (verbose) console.log(`  ✅ Created landlord: ${saved.name}`);
 
-      const landlord = new this.landlordModel(data);
-      const saved = await landlord.save();
-      landlords.push(saved);
-
-      if (verbose) console.log(`  ✅ Created landlord: ${data.name}`);
-    }
-
-    return landlords;
+    return saved;
   }
 
-  private async createUsers(landlords: any[], verbose: boolean): Promise<any[]> {
-    if (verbose) console.log('👤 Creating landlord users...');
-
-    const users = [];
-    const hashedPassword = await bcrypt.hash('password123', 10);
-
-    if (verbose) console.log('  ✅ Created admin user');
-
-    // Create landlord users
-    for (let i = 0; i < landlords.length; i++) {
-      const landlord = landlords[i];
-      const landlordUser = new this.userModel({
-        username: `landlord${i + 1}`,
-        email: `landlord${i + 1}@example.com`,
-        password: hashedPassword,
-        user_type: UserType.LANDLORD,
-        party_id: landlord._id,
-      });
-
-      const saved = await landlordUser.save();
-      users.push(saved);
-      if (verbose) console.log(`  ✅ Created landlord user: ${landlordUser.email}`);
-    }
-
-    return users;
-  }
-
-  private async createProperties(landlords: any[], verbose: boolean): Promise<any[]> {
-    if (verbose) console.log('🏢 Creating properties...');
-
-    const properties = [];
-    const propertyTemplates = [
-      {
-        name: 'Downtown Complex',
-        address: {
-          street: '123 Main St',
-          city: 'New York',
-          state: 'NY',
-          postalCode: '10001',
-          country: 'USA',
-        },
-        description: 'Modern downtown apartment complex',
-      },
-      {
-        name: 'Suburban Villa',
-        address: {
-          street: '456 Oak Ave',
-          city: 'Los Angeles',
-          state: 'CA',
-          postalCode: '90210',
-          country: 'USA',
-        },
-        description: 'Luxury suburban residential property',
-      },
-      {
-        name: 'City Center Apartments',
-        address: {
-          street: '789 Pine St',
-          city: 'Chicago',
-          state: 'IL',
-          postalCode: '60601',
-          country: 'USA',
-        },
-        description: 'High-rise city center apartments',
-      },
-    ];
-
-    for (let i = 0; i < landlords.length; i++) {
-      const landlord = landlords[i];
-      const propertiesPerLandlord = i === 0 ? 2 : 1; // First landlord gets 2 properties
-
-      for (let j = 0; j < propertiesPerLandlord; j++) {
-        const template = propertyTemplates[(i * 2 + j) % propertyTemplates.length];
-
-        const property = new this.propertyModel({
-          name: `${template.name} (${landlord.name})`,
-          address: template.address,
-          description: template.description,
-        });
-
-        const saved = await property.save();
-        properties.push(saved);
-        if (verbose) console.log(`  ✅ Created property: ${saved.name}`);
-      }
-    }
-
-    return properties;
-  }
-
-  private async createUnits(properties: any[], verbose: boolean): Promise<any[]> {
-    if (verbose) console.log('🏠 Creating units...');
-
-    const units = [];
-    // Use only available unit types from the enum
-    const unitTypes = [UnitType.APARTMENT, UnitType.STUDIO, UnitType.OFFICE, UnitType.ROOM];
-    const statuses = [
-      UnitAvailabilityStatus.VACANT,
-      UnitAvailabilityStatus.OCCUPIED,
-      UnitAvailabilityStatus.AVAILABLE_FOR_RENT,
-    ];
-
-    for (const property of properties) {
-      const unitsPerProperty = Math.floor(Math.random() * 8) + 3; // 3-10 units per property
-
-      for (let i = 1; i <= unitsPerProperty; i++) {
-        // Create unit
-        const unit = new this.unitModel({
-          property: property._id,
-          unitNumber: `${i}${String.fromCharCode(65 + Math.floor(i / 10))}`, // 1A, 2A, etc.
-          size: Math.floor(Math.random() * 1000) + 400, // 400-1400 sq ft
-          type: unitTypes[Math.floor(Math.random() * unitTypes.length)],
-          availabilityStatus: statuses[Math.floor(Math.random() * statuses.length)],
-        });
-
-        const saved = await unit.save();
-        units.push(saved);
-      }
-
-      if (verbose) console.log(`  ✅ Created ${unitsPerProperty} units for ${property.name}`);
-    }
-
-    return units;
-  }
-
-  private async createTenants(landlords: any[], verbose: boolean): Promise<any[]> {
-    if (verbose) console.log('🏠 Creating tenants...');
-
-    const tenants = [];
-    const tenantNames = [
-      'John Smith',
-      'Sarah Johnson',
-      'Michael Brown',
-      'Emily Davis',
-      'David Wilson',
-      'Lisa Anderson',
-      'Robert Taylor',
-      'Jessica Miller',
-    ];
-
-    for (let i = 0; i < landlords.length; i++) {
-      const landlord = landlords[i];
-      const tenantsPerLandlord = Math.floor(Math.random() * 3) + 2; // 2-4 tenants per landlord
-
-      for (let j = 0; j < tenantsPerLandlord; j++) {
-        const name = tenantNames[(i * 4 + j) % tenantNames.length];
-
-        // Create tenant
-        const tenant = new this.tenantModel({
-          name: name,
-        });
-
-        const saved = await tenant.save();
-        tenants.push(saved);
-      }
-
-      if (verbose) console.log(`  ✅ Created ${tenantsPerLandlord} tenants for ${landlord.name}`);
-    }
-
-    return tenants;
-  }
-
-  private async createContractors(landlords: any[], verbose: boolean): Promise<any[]> {
-    if (verbose) console.log('🔧 Creating contractors...');
-
-    const contractors = [];
-    const contractorNames = [
-      'ABC Plumbing',
-      'Elite Electric',
-      'Pro Maintenance',
-      'Quick Fix Solutions',
-      'Premium Services',
-      'Reliable Repairs',
-      'Expert Contractors',
-      'Swift Solutions',
-    ];
-
-    for (let i = 0; i < landlords.length; i++) {
-      const landlord = landlords[i];
-      const contractorsPerLandlord = Math.floor(Math.random() * 2) + 1; // 1-2 contractors per landlord
-
-      for (let j = 0; j < contractorsPerLandlord; j++) {
-        const name = contractorNames[(i * 2 + j) % contractorNames.length];
-
-        // Create contractor
-        const contractor = new this.contractorModel({
-          name: name,
-        });
-
-        const saved = await contractor.save();
-        contractors.push(saved);
-      }
-
-      if (verbose)
-        console.log(`  ✅ Created ${contractorsPerLandlord} contractors for ${landlord.name}`);
-    }
-
-    return contractors;
-  }
-
-  private async createPartyUsers(
-    tenants: any[],
-    contractors: any[],
-    landlords: any[],
-    verbose: boolean,
-  ): Promise<void> {
-    if (verbose) console.log('👥 Creating tenant and contractor users...');
+  private async createUser(landlord: any, verbose: boolean): Promise<any> {
+    if (verbose) console.log('👤 Creating landlord user...');
 
     const hashedPassword = await bcrypt.hash('password123', 10);
 
-    // Create tenant users
-    for (let i = 0; i < Math.min(tenants.length, 5); i++) {
-      // Limit to 5 for demo
-      const tenant = tenants[i];
-      const tenantUser = new this.userModel({
-        username: `tenant${i + 1}`,
-        email: `tenant${i + 1}@example.com`,
-        password: hashedPassword,
-        user_type: UserType.TENANT,
-        party_id: tenant._id,
-      });
+    const user = new this.userModel({
+      username: 'landlord',
+      firstName: 'John',
+      lastName: 'Doe',
+      email: 'landlord@example.com',
+      password: hashedPassword,
+      phone: '+1234567890',
+      user_type: UserType.LANDLORD,
+      organization_id: landlord._id,
+      isPrimary: true,
+    });
 
-      await tenantUser.save();
-      if (verbose) console.log(`  ✅ Created tenant user: ${tenantUser.email}`);
-    }
+    const saved = await user.save();
+    if (verbose) console.log(`  ✅ Created user: ${saved.email}`);
 
-    // Create contractor users
-    for (let i = 0; i < Math.min(contractors.length, 3); i++) {
-      // Limit to 3 for demo
-      const contractor = contractors[i];
-      const contractorUser = new this.userModel({
-        username: `contractor${i + 1}`,
-        email: `contractor${i + 1}@example.com`,
-        password: hashedPassword,
-        user_type: UserType.CONTRACTOR,
-        party_id: contractor._id,
-      });
-
-      await contractorUser.save();
-      if (verbose) console.log(`  ✅ Created contractor user: ${contractorUser.email}`);
-    }
+    return saved;
   }
 
-  private async verifyDataIsolation(landlords: any[], verbose: boolean): Promise<void> {
-    console.log('\n🔍 Verifying data isolation...');
-
-    for (const landlord of landlords) {
-      const properties = await this.propertyModel.find({});
-      const units = await this.unitModel.find({});
-      const tenants = await this.tenantModel.find({});
-      const contractors = await this.contractorModel.find({});
-
-      console.log(`✅ ${landlord.name}:`);
-      console.log(`   Properties: ${properties.length}`);
-      console.log(`   Units: ${units.length}`);
-      console.log(`   Tenants: ${tenants.length}`);
-      console.log(`   Contractors: ${contractors.length}`);
-
-      if (verbose) {
-        console.log(`   ✅ Data created successfully`);
-      }
-    }
-  }
-
-  private async printSummary(landlords: any[]): Promise<void> {
+  private async printSummary(): Promise<void> {
     console.log('\n📊 Seeding Summary:');
-    console.log(`├── Landlords: ${landlords.length}`);
-
-    const totalUsers = await this.userModel.countDocuments();
-    const totalProperties = await this.propertyModel.countDocuments();
-    const totalUnits = await this.unitModel.countDocuments();
-    const totalTenants = await this.tenantModel.countDocuments();
-    const totalContractors = await this.contractorModel.countDocuments();
-
-    console.log(`├── Users: ${totalUsers}`);
-    console.log(`├── Properties: ${totalProperties}`);
-    console.log(`├── Units: ${totalUnits}`);
-    console.log(`├── Tenants: ${totalTenants}`);
-    console.log(`└── Contractors: ${totalContractors}`);
+    console.log('├── Landlords: 1');
+    console.log('└── Users: 1');
   }
 
   // Command options
