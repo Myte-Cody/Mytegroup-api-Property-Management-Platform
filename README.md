@@ -203,3 +203,8 @@ npm run format:check      # Check code formatting
 4. Use the seeded admin account to get started:
    - Email: From `ADMIN_EMAIL` env variable
    - Password: From `ADMIN_PASSWORD` env variable
+
+---
+
+**Last Updated**: 2025-10-06  
+**Last Reviewed**: 2025-10-06

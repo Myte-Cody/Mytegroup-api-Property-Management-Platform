@@ -174,63 +174,6 @@ await this.auditLogService.createLog({
 });
 ```
 
----
-
-## Querying Audit Logs
-
-### Get All Logs
-
-```typescript
-const logs = await this.auditLogService.getLogs(
-  {}, // filter
-  {
-    limit: 50,
-    skip: 0,
-    sort: { createdAt: -1 },
-  },
-);
-```
-
-### Filter by User
-
-```typescript
-const userLogs = await this.auditLogService.getUserLogs(userId, { limit: 100 });
-```
-
-### Filter by Action
-
-```typescript
-const loginLogs = await this.auditLogService.getLogs(
-  { action: 'AuthController.login' },
-  { limit: 50 },
-);
-```
-
-### Filter by Date Range
-
-```typescript
-const recentLogs = await this.auditLogService.getLogs({
-  createdAt: {
-    $gte: new Date('2025-10-01'),
-    $lte: new Date('2025-10-02'),
-  },
-});
-```
-
-### Complex Filters
-
-```typescript
-const failedLogins = await this.auditLogService.getLogs(
-  {
-    action: 'AuthController.login',
-    statusCode: { $gte: 400 },
-  },
-  { limit: 100, sort: { createdAt: -1 } },
-);
-```
-
----
-
 ## Use Cases
 
 ### 1. Security Monitoring
@@ -384,18 +327,8 @@ await this.auditLogService.createLog({
   action: 'SchedulerService.sendPaymentReminders',
 });
 ```
-
----
-
-## Related Documentation
-
-- Interceptor: `src/common/interceptors/audit-log.interceptor.ts`
-- Service: `src/common/services/audit-log.service.ts`
-- Schema: `src/common/schemas/audit-log.schema.ts`
-- Controller: `src/common/controllers/audit-log.controller.ts`
-- Scheduler Integration: `docs/services/SCHEDULER_SERVICE.md`
-
 ---
 
 **Version**: 1.0.0  
-**Last Updated**: 2025-10-02
+**Last Updated**: 2025-10-06  
+**Last Reviewed**: 2025-10-06

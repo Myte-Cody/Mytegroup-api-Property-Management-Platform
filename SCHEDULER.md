@@ -225,3 +225,8 @@ await leasesService.sendLeaseExpirationWarningEmails(30, testDate);
 ```
 
 This is particularly useful for testing date-sensitive logic like lease expiration warnings or payment reminders.
+
+---
+
+**Last Updated**: 2025-10-06  
+**Last Reviewed**: 2025-10-06
