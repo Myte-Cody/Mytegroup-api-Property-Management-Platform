@@ -558,4 +558,5 @@ async runDailyStatusUpdates() { ... }
 ---
 
 **Version**: 1.0.0  
-**Last Updated**: 2025-10-02
+**Last Updated**: 2025-10-02  
+**Last Reviewed**: 2025-10-06
