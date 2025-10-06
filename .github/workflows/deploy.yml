@@ -340,6 +340,7 @@ jobs:
                 --deployment-configuration "maximumPercent=200,minimumHealthyPercent=50" \
                 --launch-type EC2 \
                 --placement-strategy "type=binpack,field=memory" \
+                --placement-constraints "type=memberOf,expression=attribute:property-management-instance == true" \
                 --load-balancers "targetGroupArn=${TARGET_GROUP_ARN},containerName=${CONTAINER_NAME},containerPort=80"
             else
               echo "Updating existing ECS service..."
@@ -347,6 +348,7 @@ jobs:
                 --cluster ${{ env.ECS_CLUSTER }} \
                 --service $SERVICE_NAME \
                 --task-definition ${{ env.TASK_DEF_ARN }} \
+                --placement-constraints "type=memberOf,expression=attribute:property-management-instance == true" \
                 --force-new-deployment
             fi
           else
@@ -359,6 +361,7 @@ jobs:
               --deployment-configuration "maximumPercent=200,minimumHealthyPercent=50" \
               --launch-type EC2 \
               --placement-strategy "type=binpack,field=memory" \
+              --placement-constraints "type=memberOf,expression=attribute:property-management-instance == true" \
               --load-balancers "targetGroupArn=${TARGET_GROUP_ARN},containerName=${CONTAINER_NAME},containerPort=80"
           fi
 

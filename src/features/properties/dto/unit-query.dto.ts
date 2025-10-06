@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
-import { IsArray, IsEnum, IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enum';
 
 export class UnitQueryDto {
@@ -60,28 +60,22 @@ export class UnitQueryDto {
   sortOrder?: 'asc' | 'desc' = 'desc';
 
   @ApiPropertyOptional({
-    description: 'Filter by unit type (can pass multiple values)',
-    example: [UnitType.APARTMENT, UnitType.STUDIO],
+    description: 'Filter by unit type',
+    example: UnitType.STUDIO,
     enum: UnitType,
-    type: [String],
   })
   @IsOptional()
-  @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
-  @IsArray()
-  @IsEnum(UnitType, { each: true })
-  'filters[type]'?: UnitType[];
+  @IsEnum(UnitType)
+  type?: UnitType;
 
   @ApiPropertyOptional({
-    description: 'Filter by availability status (can pass multiple values)',
-    example: [UnitAvailabilityStatus.VACANT, UnitAvailabilityStatus.AVAILABLE_FOR_RENT],
+    description: 'Filter by availability status',
+    example: UnitAvailabilityStatus.VACANT,
     enum: UnitAvailabilityStatus,
-    type: [String],
   })
   @IsOptional()
-  @Transform(({ value }) => (Array.isArray(value) ? value : [value]))
-  @IsArray()
-  @IsEnum(UnitAvailabilityStatus, { each: true })
-  'filters[availabilityStatus]'?: UnitAvailabilityStatus[];
+  @IsEnum(UnitAvailabilityStatus)
+  availabilityStatus?: UnitAvailabilityStatus;
 
   @ApiPropertyOptional({
     description: 'Property ID to filter units by property',

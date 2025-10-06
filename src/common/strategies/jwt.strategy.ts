@@ -2,14 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { PassportStrategy } from '@nestjs/passport';
-import { Model } from 'mongoose';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { User } from '../../features/users/schemas/user.schema';
+import { User, UserDocument } from '../../features/users/schemas/user.schema';
+import { AppModel } from '../interfaces/app-model.interface';
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private configService: ConfigService,
-    @InjectModel(User.name) private readonly userModel: Model<User>,
+    @InjectModel(User.name) private readonly userModel: AppModel<UserDocument>,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -20,9 +20,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: any) {
     const user = await this.userModel
       .findById(payload.sub)
-      .select('_id username email isAdmin')
-      .populate('organization', '_id name type')
+      .select('_id username email user_type organization_id')
+      .populate('organization_id')
       .exec();
+
+    // Ensure user exists
+    if (!user) {
+      return null;
+    }
+
     return user;
   }
 }

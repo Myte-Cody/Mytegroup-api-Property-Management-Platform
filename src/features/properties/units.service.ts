@@ -6,18 +6,20 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { ClientSession, PipelineStage } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
-import { OrganizationType } from '../../common/enums/organization.enum';
+import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
-import {
-  createEmptyPaginatedResponse,
-  createPaginatedResponse,
-} from '../../common/utils/pagination.utils';
-import { Organization } from '../organizations/schemas/organization.schema';
-import { User } from '../users/schemas/user.schema';
+import { SessionService } from '../../common/services/session.service';
+import { createPaginatedResponse } from '../../common/utils/pagination.utils';
+import { Lease } from '../leases/schemas/lease.schema';
+import { MediaService } from '../media/services/media.service';
+import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { PaginatedUnitsResponse, UnitQueryDto } from './dto/unit-query.dto';
+import { UnitStatsDto } from './dto/unit-stats.dto';
+import { UnitsOverviewStatsResponseDto } from './dto/units-overview-stats.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
 import { Property } from './schemas/property.schema';
 import { Unit } from './schemas/unit.schema';
@@ -29,39 +31,87 @@ export class UnitsService {
     @InjectModel(Unit.name) private readonly unitModel: AppModel<Unit>,
     @InjectModel(Property.name)
     private readonly propertyModel: AppModel<Property>,
+    @InjectModel(Lease.name)
+    private readonly leaseModel: AppModel<Lease>,
     @InjectModel(User.name)
-    private readonly userModel: AppModel<User>,
+    private readonly userModel: AppModel<UserDocument>,
     private readonly unitBusinessValidator: UnitBusinessValidator,
     private caslAuthorizationService: CaslAuthorizationService,
+    private readonly mediaService: MediaService,
+    private readonly sessionService: SessionService,
   ) {}
 
-  async create(createUnitDto: CreateUnitDto, propertyId: string, currentUser: User) {
-    // Validate property exists
-    const property = await this.propertyModel.findById(propertyId).exec();
-    if (!property) {
-      throw new UnprocessableEntityException(`Property with ID ${propertyId} not found`);
+  async create(createUnitDto: CreateUnitDto, propertyId: string, currentUser: UserDocument) {
+    // Create the unit first
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    if (!ability.can(Action.Create, Unit)) {
+      throw new ForbiddenException('You do not have permission to create units');
     }
 
-    this.validateUnitCreateAccess(property, currentUser);
+    return await this.sessionService.withSession(async (session: ClientSession | null) => {
+      const property = await this.propertyModel.findById(propertyId, null, { session }).exec();
 
-    await this.unitBusinessValidator.validateCreate({
-      createDto: createUnitDto,
-      propertyId,
+      if (!property) {
+        throw new UnprocessableEntityException(`Property with ID ${propertyId} not found`);
+      }
+
+      await this.unitBusinessValidator.validateCreate({
+        createDto: createUnitDto,
+        propertyId,
+        currentUser,
+      });
+
+      const newUnit = new this.unitModel({
+        ...createUnitDto,
+        property: propertyId,
+      });
+
+      const unit = await newUnit.save({ session });
+
+      // If media files are provided, upload them
+      if (createUnitDto.media_files && createUnitDto.media_files.length > 0) {
+        const uploadPromises = createUnitDto.media_files.map(async (file) => {
+          return this.mediaService.upload(
+            file,
+            unit,
+            currentUser,
+            'unit_photos',
+            undefined,
+            undefined,
+            session,
+          );
+        });
+
+        const uploadedMedia = await Promise.all(uploadPromises);
+
+        return {
+          success: true,
+          data: {
+            unit,
+            media: uploadedMedia,
+          },
+          message: `Unit created successfully with ${uploadedMedia.length} media file(s)`,
+        };
+      }
+
+      return {
+        success: true,
+        data: { unit },
+        message: 'Unit created successfully',
+      };
     });
-
-    const newUnit = new this.unitModel({
-      ...createUnitDto,
-      property: propertyId,
-    });
-
-    const savedUnit = await newUnit.save();
-    return savedUnit;
   }
 
   async findAllPaginated(
     queryDto: UnitQueryDto,
-    currentUser: User,
+    currentUser: UserDocument,
   ): Promise<PaginatedUnitsResponse<Unit>> {
+    // If user is a tenant, use special tenant units logic
+    if (currentUser.user_type === UserType.TENANT) {
+      return this.getTenantUnits(currentUser, queryDto);
+    }
+
     const {
       page = 1,
       limit = 10,
@@ -73,41 +123,39 @@ export class UnitsService {
       maxSize,
     } = queryDto;
 
-    // Apply role-based filtering logic
-    this.applyRoleBasedFiltering(queryDto, currentUser);
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
-    const ability = this.caslAuthorizationService.createAbilityForUser(
-      currentUser as User & { organization: Organization; isAdmin?: boolean },
-    );
-
-    let baseQuery = (this.unitModel.find() as any).accessibleBy(ability, Action.Read);
-
-    if (queryDto.landlordId) {
-      const landlordPropertyIds = await this.getLandlordPropertyIds(queryDto.landlordId);
-      if (landlordPropertyIds.length === 0) {
-        return createEmptyPaginatedResponse<Unit>(page, limit);
-      }
-      baseQuery = baseQuery.where({ property: { $in: landlordPropertyIds } });
+    if (!ability.can(Action.Read, Unit)) {
+      throw new ForbiddenException('You do not have permission to view units');
     }
+
+    const pipeline: any[] = [];
+
+    // Step 1: Build initial match conditions
+    const matchConditions: any = { deleted: false };
+
+    // Add CASL conditions
+    // todo verify below
+    const caslConditions = (this.unitModel as any).accessibleBy(ability, Action.Read).getQuery();
+    Object.assign(matchConditions, caslConditions);
+
+    // Filter by specific property if provided
     if (propertyId) {
-      baseQuery = baseQuery.where({ property: propertyId });
+      // Convert string property ID to ObjectId for proper matching
+      const mongoose = require('mongoose');
+      const propertyObjectId = new mongoose.Types.ObjectId(propertyId);
+      matchConditions.property = propertyObjectId;
     }
 
     if (search) {
-      baseQuery = baseQuery.where({ unitNumber: { $regex: search, $options: 'i' } });
+      matchConditions.unitNumber = { $regex: search, $options: 'i' };
     }
 
-    // Add filters
-    const typeFilters = queryDto['filters[type]'];
-    const statusFilters = queryDto['filters[availabilityStatus]'];
+    const type = queryDto.type;
+    const status = queryDto.availabilityStatus;
 
-    if (typeFilters && typeFilters.length > 0) {
-      baseQuery = baseQuery.where({ type: { $in: typeFilters } });
-    }
-
-    if (statusFilters && statusFilters.length > 0) {
-      baseQuery = baseQuery.where({ availabilityStatus: { $in: statusFilters } });
-    }
+    if (type) matchConditions.type = type;
+    if (status) matchConditions.availabilityStatus = status;
 
     // Add size range filtering
     if (minSize !== undefined || maxSize !== undefined) {
@@ -118,55 +166,396 @@ export class UnitsService {
       if (maxSize !== undefined) {
         sizeQuery.$lte = maxSize;
       }
-      baseQuery = baseQuery.where({ size: sizeQuery });
+      matchConditions.size = sizeQuery;
     }
 
-    // Build sort object
+    pipeline.push({ $match: matchConditions });
+
+    // Step 2: Lookup property
+    pipeline.push({
+      $lookup: {
+        from: 'properties',
+        localField: 'property',
+        foreignField: '_id',
+        as: 'property',
+      },
+    });
+
+    pipeline.push({
+      $unwind: {
+        path: '$property',
+        preserveNullAndEmptyArrays: true,
+      },
+    });
+
+    // Step 3: Lookup active lease with tenant
+    pipeline.push({
+      $lookup: {
+        from: 'leases',
+        let: { unitId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [{ $eq: ['$unit', '$$unitId'] }, { $eq: ['$status', 'ACTIVE'] }],
+              },
+            },
+          },
+          {
+            $lookup: {
+              from: 'tenants',
+              localField: 'tenant',
+              foreignField: '_id',
+              as: 'tenant',
+            },
+          },
+          {
+            $unwind: {
+              path: '$tenant',
+              preserveNullAndEmptyArrays: true,
+            },
+          },
+        ],
+        as: 'activeLease',
+      },
+    });
+
+    // Step 4: Unwind activeLease (since there can only be one active lease per unit)
+    pipeline.push({
+      $unwind: {
+        path: '$activeLease',
+        preserveNullAndEmptyArrays: true,
+      },
+    });
+
+    // Step 5: Add sorting
     const sortObj: any = {};
     sortObj[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    pipeline.push({ $sort: sortObj });
 
+    // Step 6: Create separate pipeline for counting
+    const countPipeline = [...pipeline, { $count: 'total' }];
+
+    // Step 7: Add pagination to main pipeline
     const skip = (page - 1) * limit;
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: limit });
 
-    // Create separate queries for data and count to avoid interference
-    const dataQuery = baseQuery.clone().sort(sortObj).skip(skip).limit(limit).populate('property');
-    const countQuery = baseQuery.clone().countDocuments();
-
-    const [units, total] = await Promise.all([
-      dataQuery.exec(),
-      countQuery.exec(),
+    // Execute queries
+    const [unitsResult, countResult] = await Promise.all([
+      this.unitModel.aggregate(pipeline).exec(),
+      this.unitModel.aggregate(countPipeline).exec(),
     ]);
 
-    return createPaginatedResponse<Unit>(units, total, page, limit);
+    const units = unitsResult;
+    const total = countResult.length > 0 ? countResult[0].total : 0;
+
+    // Fetch media for each unit
+    const unitsWithMedia = await Promise.all(
+      units.map(async (unit) => {
+        const media = await this.mediaService.getMediaForEntity(
+          'Unit',
+          unit._id.toString(),
+          currentUser,
+          undefined, // collection_name (get all collections)
+          {}, // filters (get all media)
+        );
+        return {
+          ...unit,
+          media,
+        };
+      }),
+    );
+
+    return createPaginatedResponse<any>(unitsWithMedia, total, page, limit);
   }
 
-  async findOne(id: string, currentUser: User) {
-    const unit = await this.unitModel.findById(id).populate('property').exec();
-    if (!unit) {
+  /**
+   * Get units for a tenant based on their leases (no pagination)
+   * This is called internally when a tenant user accesses /units endpoint
+   */
+  private async getTenantUnits(
+    currentUser: UserDocument,
+    queryDto: UnitQueryDto,
+  ): Promise<PaginatedUnitsResponse<Unit>> {
+    const mongoose = require('mongoose');
+
+    // Get tenant ID - handle both string and ObjectId formats
+    let tenantId;
+    if (currentUser.organization_id) {
+      if (
+        typeof currentUser.organization_id === 'object' &&
+        (currentUser.organization_id as any)._id
+      ) {
+        tenantId = (currentUser.organization_id as any)._id;
+      } else {
+        tenantId = currentUser.organization_id;
+      }
+    }
+
+    if (!tenantId) {
+      throw new ForbiddenException('No tenant profile associated with this user');
+    }
+
+    // Convert to ObjectId if it's a string
+    const tenantObjectId =
+      typeof tenantId === 'string' ? new mongoose.Types.ObjectId(tenantId) : tenantId;
+
+    // Build lease match conditions
+    const leaseMatchConditions: any = {
+      tenant: tenantObjectId,
+      deleted: false,
+    };
+
+    // Get all units for this tenant based on their leases
+    const pipeline = [
+      // Match leases for this tenant
+      {
+        $match: leaseMatchConditions,
+      },
+      // Group by unit to get unique units
+      {
+        $group: {
+          _id: '$unit',
+        },
+      },
+      // Lookup unit details
+      {
+        $lookup: {
+          from: 'units',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', '$$unitId'] },
+                deleted: false,
+              },
+            },
+          ],
+          as: 'unit',
+        },
+      },
+      {
+        $unwind: '$unit',
+      },
+      // Lookup property details
+      {
+        $lookup: {
+          from: 'properties',
+          let: { propertyId: '$unit.property' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', '$$propertyId'] },
+                deleted: false,
+              },
+            },
+          ],
+          as: 'unit.property',
+        },
+      },
+      {
+        $unwind: {
+          path: '$unit.property',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      // Lookup active lease for this unit
+      {
+        $lookup: {
+          from: 'leases',
+          let: { unitId: '$unit._id', tenantId: tenantObjectId },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$unit', '$$unitId'] },
+                    { $eq: ['$tenant', '$$tenantId'] },
+                    { $eq: ['$status', 'ACTIVE'] },
+                  ],
+                },
+              },
+            },
+            {
+              $lookup: {
+                from: 'tenants',
+                localField: 'tenant',
+                foreignField: '_id',
+                as: 'tenant',
+              },
+            },
+            {
+              $unwind: {
+                path: '$tenant',
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+          ],
+          as: 'unit.activeLease',
+        },
+      },
+      {
+        $unwind: {
+          path: '$unit.activeLease',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      // Replace root with unit
+      {
+        $replaceRoot: {
+          newRoot: '$unit',
+        },
+      },
+    ];
+
+    const units = await this.leaseModel.aggregate(pipeline).exec();
+
+    // Fetch media for each unit
+    const unitsWithMedia = await Promise.all(
+      units.map(async (unit) => {
+        const media = await this.mediaService.getMediaForEntity(
+          'Unit',
+          unit._id.toString(),
+          currentUser,
+          undefined,
+          {},
+        );
+        return {
+          ...unit,
+          media,
+        };
+      }),
+    );
+
+    return {
+      data: unitsWithMedia,
+      total: unitsWithMedia.length,
+      page: 1,
+      limit: unitsWithMedia.length,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPrevPage: false,
+    };
+  }
+
+  async findOne(id: string, currentUser: UserDocument) {
+    // CASL: Check read permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    if (!ability.can(Action.Read, Unit)) {
+      throw new ForbiddenException('You do not have permission to view units');
+    }
+
+    const mongoose = require('mongoose');
+    const unitObjectId = new mongoose.Types.ObjectId(id);
+
+    // Use aggregation pipeline to include active lease with tenant
+    const pipeline: any[] = [
+      { $match: { _id: unitObjectId } },
+      // Lookup property
+      {
+        $lookup: {
+          from: 'properties',
+          localField: 'property',
+          foreignField: '_id',
+          as: 'property',
+        },
+      },
+      {
+        $unwind: {
+          path: '$property',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      // Lookup active lease with tenant
+      {
+        $lookup: {
+          from: 'leases',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [{ $eq: ['$unit', '$$unitId'] }, { $eq: ['$status', 'ACTIVE'] }],
+                },
+              },
+            },
+            {
+              $lookup: {
+                from: 'tenants',
+                localField: 'tenant',
+                foreignField: '_id',
+                as: 'tenant',
+              },
+            },
+            {
+              $unwind: {
+                path: '$tenant',
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+          ],
+          as: 'activeLease',
+        },
+      },
+      // Unwind activeLease (since there can only be one active lease per unit)
+      {
+        $unwind: {
+          path: '$activeLease',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+    ];
+
+    const result = await this.unitModel.aggregate(pipeline).exec();
+
+    if (!result || result.length === 0) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
 
-    this.validateUnitAccess(unit, currentUser);
+    const unit = result[0];
 
-    return unit;
+    // Fetch media for the unit
+    const media = await this.mediaService.getMediaForEntity(
+      'Unit',
+      unit._id.toString(),
+      currentUser,
+      undefined, // collection_name (get all collections)
+      {}, // filters (get all media)
+    );
+
+    return {
+      ...unit,
+      media,
+    };
   }
 
-  async update(id: string, updateUnitDto: UpdateUnitDto, currentUser: User) {
+  async update(id: string, updateUnitDto: UpdateUnitDto, currentUser: UserDocument) {
     if (!updateUnitDto || Object.keys(updateUnitDto).length === 0) {
       throw new BadRequestException('Update data cannot be empty');
     }
 
+    // CASL: Check update permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
     const existingUnit = await this.unitModel.findById(id).populate('property').exec();
+
     if (!existingUnit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
 
-    this.validateUnitUpdateAccess(existingUnit, currentUser, updateUnitDto);
+    // CASL: Check if user can update this specific unit
+    if (!ability.can(Action.Update, existingUnit)) {
+      throw new ForbiddenException('You do not have permission to update this unit');
+    }
 
     // Business logic validation
     await this.unitBusinessValidator.validateUpdate({
       existingUnit,
       updateDto: updateUnitDto,
       userId: currentUser._id?.toString(),
+      currentUser,
     });
 
     // Perform the update
@@ -177,13 +566,20 @@ export class UnitsService {
     return updatedUnit;
   }
 
-  async remove(id: string, currentUser: User) {
+  async remove(id: string, currentUser: UserDocument) {
+    // CASL: Check delete permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
     const unit = await this.unitModel.findById(id).populate('property').exec();
+
     if (!unit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
 
-    this.validateUnitDeleteAccess(unit, currentUser);
+    // CASL: Check if user can delete this unit
+    if (!ability.can(Action.Delete, unit)) {
+      throw new ForbiddenException('You do not have permission to delete this unit');
+    }
 
     await this.unitBusinessValidator.validateDelete({
       unit,
@@ -193,197 +589,485 @@ export class UnitsService {
   }
 
   /**
-   * Validate if the current user has access to create a unit in the specified property
+   * Get overview statistics for all units across properties
+   * This method calculates the following statistics:
+   * - Total units count
+   * - Occupied units count
+   * - Available units count
+   * - Occupancy rate
+   * - Total monthly revenue from active leases
    */
-  private validateUnitCreateAccess(property: Property, currentUser: User): void {
-    const ability = this.caslAuthorizationService.createAbilityForUser(
-      currentUser as User & { organization: Organization; isAdmin?: boolean },
-    );
+  async getUnitsOverviewStats(currentUser: UserDocument): Promise<UnitsOverviewStatsResponseDto> {
+    // CASL: Check read permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
-    if (!ability.can(Action.Create, Unit)) {
-      throw new ForbiddenException(`Forbidden resources`);
+    if (!ability.can(Action.Read, Unit)) {
+      throw new ForbiddenException('You do not have permission to view units');
     }
 
-    // Apply additional role-based access control for creation
-    if (currentUser.organization) {
-      switch ((currentUser.organization as unknown as Organization).type) {
-        case OrganizationType.LANDLORD:
-          // Landlords can only create units in properties they own
-          if (property.owner?.toString() !== (currentUser.organization as unknown as Organization)._id.toString()) {
-            throw new ForbiddenException(`You can only create units in properties you own`);
-          }
-          break;
+    // Use MongoDB aggregation pipeline for all calculations
+    const pipeline = [
+      // Match units accessible to the user
+      {
+        $match: {
+          ...(this.unitModel as any).accessibleBy(ability, Action.Read).getQuery(),
+        },
+      },
+      // Lookup active lease with rent amount
+      {
+        $lookup: {
+          from: 'leases',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [{ $eq: ['$unit', '$$unitId'] }, { $eq: ['$status', 'ACTIVE'] }],
+                },
+              },
+            },
+          ],
+          as: 'activeLease',
+        },
+      },
+      // Unwind activeLease (since there can only be one active lease per unit)
+      {
+        $unwind: {
+          path: '$activeLease',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      // Add calculated fields
+      {
+        $addFields: {
+          isOccupied: { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+          isAvailable: { $eq: ['$availabilityStatus', 'VACANT'] },
+          effectiveRent: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+                  { $ne: [{ $ifNull: ['$activeLease.rentAmount', null] }, null] },
+                ],
+              },
+              '$activeLease.rentAmount',
+              {
+                $cond: [
+                  { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+                  { $ifNull: ['$monthlyRent', 0] },
+                  0,
+                ],
+              },
+            ],
+          },
+        },
+      },
+      // Group and calculate statistics
+      {
+        $group: {
+          _id: null,
+          totalUnits: { $sum: 1 },
+          occupiedUnits: { $sum: { $cond: ['$isOccupied', 1, 0] } },
+          availableUnits: { $sum: { $cond: ['$isAvailable', 1, 0] } },
+          totalMonthlyRevenue: { $sum: '$effectiveRent' },
+        },
+      },
+      // Calculate derived statistics
+      {
+        $project: {
+          _id: 0,
+          totalUnits: 1,
+          occupiedUnits: 1,
+          availableUnits: 1,
+          totalMonthlyRevenue: 1,
+          occupancyRate: {
+            $cond: [
+              { $gt: ['$totalUnits', 0] },
+              { $round: [{ $multiply: [{ $divide: ['$occupiedUnits', '$totalUnits'] }, 100] }, 1] },
+              0,
+            ],
+          },
+        },
+      },
+    ];
 
-        case OrganizationType.PROPERTY_MANAGER:
-          // TODO: Implement property manager access validation
-          break;
+    const result = await this.unitModel.aggregate(pipeline).exec();
 
-        default:
-          break;
-      }
+    // If no units found, return default values
+    if (!result || result.length === 0) {
+      return {
+        success: true,
+        data: {
+          totalUnits: 0,
+          occupiedUnits: 0,
+          availableUnits: 0,
+          occupancyRate: 0,
+          totalMonthlyRevenue: 0,
+        },
+      };
     }
+
+    return {
+      success: true,
+      data: result[0],
+    };
   }
 
   /**
-   * Validate if the current user has access to view the specific unit
+   * Get key statistics for a property
+   * This method calculates the following statistics:
+   * - Total units count
+   * - Occupancy rate
+   * - Monthly revenue
    */
-  private validateUnitAccess(unit: Unit & { property: any }, currentUser: User): void {
-    const ability = this.caslAuthorizationService.createAbilityForUser(
-      currentUser as User & { organization: Organization; isAdmin?: boolean },
-    );
+  async getPropertyStatistics(propertyId: string, currentUser: UserDocument) {
+    // CASL: Check read permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
+    if (!ability.can(Action.Read, Unit)) {
+      throw new ForbiddenException('You do not have permission to view units');
+    }
+
+    // First verify the property exists
+    const property = await this.propertyModel.findById(propertyId).exec();
+    if (!property) {
+      throw new NotFoundException(`Property with ID ${propertyId} not found`);
+    }
+
+    // Check if user has access to this property
+    if (!ability.can(Action.Read, property)) {
+      throw new ForbiddenException('You do not have permission to view this property');
+    }
+
+    const mongoose = require('mongoose');
+    const propertyObjectId = new mongoose.Types.ObjectId(propertyId);
+
+    // Use MongoDB aggregation pipeline for all calculations
+    const pipeline = [
+      // Match units for this property
+      {
+        $match: {
+          property: propertyObjectId,
+          deleted: false,
+          // Add CASL conditions
+          ...(this.unitModel as any).accessibleBy(ability, Action.Read).getQuery(),
+        },
+      },
+      // Lookup active lease with rent amount
+      {
+        $lookup: {
+          from: 'leases',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [{ $eq: ['$unit', '$$unitId'] }, { $eq: ['$status', 'ACTIVE'] }],
+                },
+              },
+            },
+          ],
+          as: 'activeLease',
+        },
+      },
+      // Unwind activeLease (since there can only be one active lease per unit)
+      {
+        $unwind: {
+          path: '$activeLease',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      // Add calculated fields
+      {
+        $addFields: {
+          isOccupied: { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+          effectiveRent: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+                  { $ne: [{ $ifNull: ['$activeLease.rentAmount', null] }, null] },
+                ],
+              },
+              '$activeLease.rentAmount',
+              {
+                $cond: [
+                  { $eq: ['$availabilityStatus', 'OCCUPIED'] },
+                  { $ifNull: ['$monthlyRent', 0] },
+                  0,
+                ],
+              },
+            ],
+          },
+        },
+      },
+      // Group and calculate statistics
+      {
+        $group: {
+          _id: null,
+          totalUnits: { $sum: 1 },
+          occupiedUnits: { $sum: { $cond: ['$isOccupied', 1, 0] } },
+          totalMonthlyRevenue: { $sum: '$effectiveRent' },
+        },
+      },
+      // Calculate derived statistics
+      {
+        $project: {
+          _id: 0,
+          totalUnits: 1,
+          occupiedUnits: 1,
+          totalMonthlyRevenue: 1,
+          occupancyRate: {
+            $cond: [
+              { $gt: ['$totalUnits', 0] },
+              { $round: [{ $multiply: [{ $divide: ['$occupiedUnits', '$totalUnits'] }, 100] }, 0] },
+              0,
+            ],
+          },
+        },
+      },
+    ];
+
+    const result = await this.unitModel.aggregate(pipeline).exec();
+
+    // If no units found, return default values
+    if (!result || result.length === 0) {
+      return {
+        success: true,
+        data: {
+          propertyId,
+          totalUnits: 0,
+          occupiedUnits: 0,
+          occupancyRate: 0,
+          totalMonthlyRevenue: 0,
+        },
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        propertyId,
+        ...result[0],
+      },
+    };
+  }
+
+  async getUnitStats(
+    unitId: string,
+    currentUser: UserDocument,
+  ): Promise<{ success: boolean; data: UnitStatsDto }> {
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    if (!ability.can(Action.Read, Unit)) {
+      throw new ForbiddenException('You do not have permission to view units');
+    }
+
+    const mongoose = require('mongoose');
+    const unitObjectId = new mongoose.Types.ObjectId(unitId);
+
+    // Build aggregation pipeline to calculate unit stats
+    const pipeline: PipelineStage[] = [
+      { $match: { _id: unitObjectId } },
+
+      // Lookup property
+      {
+        $lookup: {
+          from: 'properties',
+          localField: 'property',
+          foreignField: '_id',
+          as: 'property',
+        },
+      },
+      {
+        $unwind: {
+          path: '$property',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      // Lookup active lease
+      {
+        $lookup: {
+          from: 'leases',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [{ $eq: ['$unit', '$$unitId'] }, { $eq: ['$status', 'ACTIVE'] }],
+                },
+              },
+            },
+          ],
+          as: 'activeLease',
+        },
+      },
+      {
+        $unwind: {
+          path: '$activeLease',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      // Calculate YTD revenue from transactions via active lease
+      {
+        $lookup: {
+          from: 'transactions',
+          let: { leaseId: '$activeLease._id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$lease', '$$leaseId'] },
+                    { $gte: ['$paidAt', new Date(new Date().getFullYear(), 0, 1)] },
+                    { $eq: ['$status', 'PAID'] },
+                  ],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: '$amount' },
+                lastPaymentDate: { $max: '$paidAt' },
+              },
+            },
+          ],
+          as: 'ytdTransactions',
+        },
+      },
+
+      // Get outstanding balance from pending/overdue transactions
+      {
+        $lookup: {
+          from: 'transactions',
+          let: { leaseId: '$activeLease._id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [{ $eq: ['$lease', '$$leaseId'] }, { $in: ['$status', ['OVERDUE']] }],
+                },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalOwed: { $sum: '$amount' },
+              },
+            },
+          ],
+          as: 'outstandingTransactions',
+        },
+      },
+
+      // Get next payment due (future transactions with smallest due date)
+      {
+        $lookup: {
+          from: 'transactions',
+          let: { leaseId: '$activeLease._id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$lease', '$$leaseId'] },
+                    { $gt: ['$dueDate', new Date()] },
+                    { $ne: [{ $ifNull: ['$dueDate', null] }, null] },
+                  ],
+                },
+              },
+            },
+            {
+              $sort: { dueDate: 1 },
+            },
+            {
+              $limit: 1,
+            },
+            {
+              $project: {
+                nextDueDate: '$dueDate',
+              },
+            },
+          ],
+          as: 'nextPayment',
+        },
+      },
+
+      // Count maintenance requests (we'll use a mock count for now since maintenance module doesn't exist)
+      {
+        $addFields: {
+          maintenanceRequestsCount: 5, // Mock value - todo replace when maintenance module exists
+        },
+      },
+
+      // Calculate final fields
+      {
+        $project: {
+          _id: 1,
+          ytdRevenue: {
+            $cond: [
+              { $gt: [{ $size: '$ytdTransactions' }, 0] },
+              { $arrayElemAt: ['$ytdTransactions.totalRevenue', 0] },
+              0,
+            ],
+          },
+          maintenanceRequestsCount: '$maintenanceRequestsCount',
+          currentBalance: {
+            $cond: [
+              { $gt: [{ $size: '$outstandingTransactions' }, 0] },
+              { $arrayElemAt: ['$outstandingTransactions.totalOwed', 0] },
+              0,
+            ],
+          },
+          lastPaymentDate: {
+            $cond: [
+              { $gt: [{ $size: '$ytdTransactions' }, 0] },
+              { $arrayElemAt: ['$ytdTransactions.lastPaymentDate', 0] },
+              null,
+            ],
+          },
+          nextPaymentDue: {
+            $cond: [
+              { $gt: [{ $size: '$nextPayment' }, 0] },
+              { $arrayElemAt: ['$nextPayment.nextDueDate', 0] },
+              null,
+            ],
+          },
+        },
+      },
+    ];
+
+    const result = await this.unitModel.aggregate(pipeline).exec();
+
+    if (!result || result.length === 0) {
+      throw new NotFoundException(`Unit with ID ${unitId} not found`);
+    }
+
+    const stats = result[0];
+
+    // Check CASL permission on the found unit
+    const unit = await this.unitModel.findById(unitId).populate('property').exec();
     if (!ability.can(Action.Read, unit)) {
-      throw new ForbiddenException(`Forbidden resources`);
+      throw new ForbiddenException('You do not have permission to view this unit');
     }
 
-    if (currentUser.organization) {
-      switch ((currentUser.organization as unknown as Organization).type) {
-        case OrganizationType.LANDLORD:
-          if (unit.property?.owner?.toString() !== (currentUser.organization as unknown as Organization)._id.toString()) {
-            throw new ForbiddenException(`Forbidden resources`);
-          }
-          break;
-
-        case OrganizationType.PROPERTY_MANAGER:
-          // TODO: Implement property manager access validation
-          // Should check if they manage the property this unit belongs to
-          break;
-
-        case OrganizationType.TENANT:
-          // TODO: Implement tenant access validation
-          // Should check if they have tenancy/access rights to this unit
-          break;
-
-        case OrganizationType.CONTRACTOR:
-          // TODO: Implement contractor access validation
-          // Should check if they have active work orders for this unit
-          break;
-
-        default:
-          break;
-      }
-    }
-  }
-
-  /**
-   * Validate if the current user has access to update the specific unit and filter allowed fields
-   */
-  private validateUnitUpdateAccess(
-    unit: Unit & { property: any },
-    currentUser: User,
-    updateDto: UpdateUnitDto,
-  ): void {
-    const ability = this.caslAuthorizationService.createAbilityForUser(
-      currentUser as User & { organization: Organization; isAdmin?: boolean },
-    );
-
-    if (!ability.can(Action.Update, unit)) {
-      throw new ForbiddenException(`Forbidden resources`);
-    }
-
-    if (currentUser.organization) {
-      switch ((currentUser.organization as unknown as Organization).type) {
-        case OrganizationType.LANDLORD:
-          if (unit.property?.owner?.toString() !== (currentUser.organization as unknown as Organization)._id.toString()) {
-            throw new ForbiddenException(`Forbidden resources`);
-          }
-          break;
-
-        case OrganizationType.PROPERTY_MANAGER:
-          // TODO: Implement property manager access validation
-          // Should check if they manage the property this unit belongs to
-          break;
-
-        default:
-          // No field restrictions for unknown organization types
-          break;
-      }
-    }
-  }
-
-  /**
-   * Validate that only allowed fields are being updated for the current user's role
-   */
-  private validateAllowedFields(updateDto: UpdateUnitDto, allowedFields: string[]): void {
-    const updateFields = Object.keys(updateDto);
-    const disallowedFields = updateFields.filter((field) => !allowedFields.includes(field));
-
-    if (disallowedFields.length > 0) {
-      throw new ForbiddenException(
-        `You are not allowed to update the following fields: ${disallowedFields.join(', ')}`,
-      );
-    }
-  }
-
-  /**
-   * Validate if the current user has access to delete the specific unit
-   */
-  private validateUnitDeleteAccess(unit: Unit & { property: any }, currentUser: User): void {
-    const ability = this.caslAuthorizationService.createAbilityForUser(
-      currentUser as User & { organization: Organization; isAdmin?: boolean },
-    );
-
-    if (!ability.can(Action.Delete, unit)) {
-      throw new ForbiddenException(`Forbidden resources`);
-    }
-
-    if (currentUser.organization) {
-      switch ((currentUser.organization as unknown as Organization).type) {
-        case OrganizationType.LANDLORD:
-          if (unit.property?.owner?.toString() !== (currentUser.organization as unknown as Organization)._id.toString()) {
-            throw new ForbiddenException(`Forbidden resources`);
-          }
-          break;
-
-        case OrganizationType.PROPERTY_MANAGER:
-          // TODO: Implement property manager access validation
-          throw new ForbiddenException(`Property managers are not allowed to delete units`);
-
-        default:
-          break;
-      }
-    }
-  }
-
-  /**
-   * Apply role-based filtering to the query DTO based on the current user's organization type
-   */
-  private applyRoleBasedFiltering(queryDto: UnitQueryDto, currentUser: User): void {
-    if (!currentUser.organization) {
-      return;
-    }
-
-    switch ((currentUser.organization as unknown as Organization).type) {
-      case OrganizationType.LANDLORD:
-        // Landlords can only see units in their own properties
-        queryDto.landlordId = (currentUser.organization as unknown as Organization)._id.toString();
-        break;
-
-      case OrganizationType.PROPERTY_MANAGER:
-        // TODO: Implement property manager filtering
-        // Should filter by properties they manage (requires management relationship data)
-        break;
-
-      case OrganizationType.TENANT:
-        // TODO: Implement tenant filtering
-        // Should filter by units they rent or have access to (requires tenancy data)
-        break;
-
-      case OrganizationType.CONTRACTOR:
-        // TODO: Implement contractor filtering
-        // Should filter by units they have work orders for (requires work order data)
-        break;
-
-      default:
-        break;
-    }
-  }
-
-  async getLandlordPropertyIds(landlordId: string): Promise<string[]> {
-    const landlordProperties = await this.propertyModel
-      .find({ owner: landlordId })
-      .select('_id')
-      .exec();
-    return landlordProperties.map((prop) => prop._id.toString());
+    return {
+      success: true,
+      data: {
+        unitId: stats._id.toString(),
+        ytdRevenue: stats.ytdRevenue || 0,
+        maintenanceRequestsCount: stats.maintenanceRequestsCount || 0,
+        currentBalance: stats.currentBalance || 0,
+        lastPaymentDate: stats.lastPaymentDate
+          ? stats.lastPaymentDate.toISOString().split('T')[0]
+          : null,
+        nextPaymentDue: stats.nextPaymentDue
+          ? stats.nextPaymentDue.toISOString().split('T')[0]
+          : null,
+      },
+    };
   }
 }

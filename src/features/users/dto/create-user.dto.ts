@@ -2,15 +2,15 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsEmail,
-  IsMongoId,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
   MaxLength,
   MinLength,
-  ValidateIf,
 } from 'class-validator';
+import { UserType } from '../../../common/enums/user-type.enum';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -23,12 +23,39 @@ export class CreateUserDto {
   username: string;
 
   @ApiProperty({
+    example: 'John',
+    description: 'First name of the user',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(50)
+  firstName: string;
+
+  @ApiProperty({
+    example: 'Doe',
+    description: 'Last name of the user',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(50)
+  lastName: string;
+
+  @ApiProperty({
     example: 'john.doe@example.com',
     description: 'Email address of the user',
   })
   @IsEmail()
   @IsNotEmpty()
   email: string;
+
+  @ApiProperty({
+    example: '+1234567890',
+    description: 'Phone number of the user',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  phone?: string;
 
   @ApiProperty({
     example: 'StrongP@ss123',
@@ -44,22 +71,30 @@ export class CreateUserDto {
   password: string;
 
   @ApiProperty({
-    example: '60d21b4667d0d8992e610c85',
-    description: 'Organization ID - required for non-admin users, optional for admin users',
+    example: UserType.LANDLORD,
+    description: 'Type of user being created',
+    enum: UserType,
+    enumName: 'UserType',
+  })
+  @IsEnum(UserType)
+  @IsNotEmpty()
+  user_type: UserType;
+
+  @ApiProperty({
+    example: '507f1f77bcf86cd799439011',
+    description: 'ID of the associated organization (Landlord/Tenant/Contractor)',
     required: false,
   })
-  @IsNotEmpty({ message: 'Organization is required for non-admin users' })
-  @ValidateIf((obj) => !obj.isAdmin)
-  @IsMongoId()
-  organization?: string;
+  @IsString()
+  @IsOptional()
+  organization_id?: string;
 
   @ApiProperty({
     example: false,
-    description: 'Whether the user is a system administrator',
+    description: 'Whether this user is the primary user for the organization',
     required: false,
-    default: false,
   })
-  @IsOptional()
   @IsBoolean()
-  isAdmin?: boolean;
+  @IsOptional()
+  isPrimary?: boolean;
 }

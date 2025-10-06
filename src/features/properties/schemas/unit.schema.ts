@@ -41,5 +41,31 @@ export class Unit extends Document implements SoftDelete {
 
 export const UnitSchema = SchemaFactory.createForClass(Unit);
 
+UnitSchema.virtual('media', {
+  ref: 'Media',
+  localField: '_id',
+  foreignField: 'model_id',
+  match: { model_type: 'Unit' },
+});
+
+UnitSchema.virtual('photos', {
+  ref: 'Media',
+  localField: '_id',
+  foreignField: 'model_id',
+  match: { model_type: 'Unit', collection_name: 'unit_photos' },
+});
+
+UnitSchema.virtual('documents', {
+  ref: 'Media',
+  localField: '_id',
+  foreignField: 'model_id',
+  match: { model_type: 'Unit', collection_name: 'documents' },
+});
+
+UnitSchema.index(
+  { unitNumber: 1, property: 1 },
+  { unique: true, name: 'unit_number_property_unique' },
+);
+
 UnitSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 UnitSchema.plugin(accessibleRecordsPlugin);

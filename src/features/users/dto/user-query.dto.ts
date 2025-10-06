@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsEnum, IsMongoId, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { UserType } from '../../../common/enums/user-type.enum';
 
 export class UserQueryDto {
   @ApiPropertyOptional({ description: 'Page number (1-based)', default: 1 })
@@ -32,8 +33,32 @@ export class UserQueryDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ description: 'Filter by organization ID' })
+  @ApiPropertyOptional({
+    description: 'Filter by user type',
+    enum: UserType,
+    enumName: 'UserType',
+  })
   @IsOptional()
-  @IsString()
-  organizationId?: string;
+  @IsEnum(UserType)
+  user_type?: UserType;
+
+  @ApiPropertyOptional({
+    description: 'Filter by organization ID (landlord, tenant, or contractor ID)',
+  })
+  @IsOptional()
+  @IsMongoId()
+  organization_id?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by primary user status',
+    type: Boolean,
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return value;
+  })
+  @IsBoolean()
+  isPrimary?: boolean;
 }

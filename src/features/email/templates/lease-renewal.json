@@ -1,0 +1,4 @@
+{
+  "subject": "Lease {{#if isAutoRenewal}}Auto-Renewal Notice{{else}}Renewal Opportunity{{/if}}: {{propertyName}} - {{unitIdentifier}}",
+  "text": "Hello {{recipientName}}, {{#if isAutoRenewal}}Your lease for {{propertyName}} - {{unitIdentifier}} will be automatically renewed on {{renewalDate}} according to your lease agreement.{{else}}We'd like to offer you the opportunity to renew your lease for {{propertyName}} - {{unitIdentifier}}. Please review the details and respond by {{responseDeadline}}.{{/if}} Current lease end: {{currentLeaseEndDate}}. New lease period: {{newLeaseStartDate}} to {{newLeaseEndDate}}. {{#if newMonthlyRent}}Current rent: ${{currentMonthlyRent}}. New rent: ${{newMonthlyRent}}.{{else}}Monthly rent: ${{currentMonthlyRent}}.{{/if}}"
+}

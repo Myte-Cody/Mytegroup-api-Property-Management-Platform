@@ -1,6 +1,6 @@
 import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Document } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
 
@@ -33,18 +33,38 @@ export class Property extends Document implements SoftDelete {
   @Prop({ maxlength: 1024, default: '' })
   description: string;
 
-  @Prop({
-    type: MongooseSchema.Types.ObjectId,
-    ref: 'Organization',
-    required: true,
-  })
-  owner: Types.ObjectId;
-
   deleted: boolean;
   deletedAt?: Date;
 }
 
 export const PropertySchema = SchemaFactory.createForClass(Property);
+
+// Virtual for media relationship
+PropertySchema.virtual('media', {
+  ref: 'Media',
+  localField: '_id',
+  foreignField: 'model_id',
+  match: { model_type: 'Property' },
+});
+
+// Virtual for property photos
+PropertySchema.virtual('photos', {
+  ref: 'Media',
+  localField: '_id',
+  foreignField: 'model_id',
+  match: { model_type: 'Property', collection_name: 'property_photos' },
+});
+
+// Virtual for property documents
+PropertySchema.virtual('documents', {
+  ref: 'Media',
+  localField: '_id',
+  foreignField: 'model_id',
+  match: { model_type: 'Property', collection_name: 'documents' },
+});
+
+// Add unique index
+PropertySchema.index({ name: 1 }, { unique: true, name: 'property_name_unique' });
 
 PropertySchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 PropertySchema.plugin(accessibleRecordsPlugin);

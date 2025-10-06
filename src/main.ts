@@ -1,12 +1,19 @@
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { join } from 'path';
 import { AppModule } from './app.module';
 import { AppGuard } from './common/guards/app.guard';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+    prefix: '/uploads/',
+    maxAge: '1d',
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -24,7 +31,7 @@ async function bootstrap() {
     .setTitle('Mytegroup Property Management API')
     .setDescription('API documentation for the Mytegroup Property Management Platform')
     .setVersion('1.0')
-
+    .setExternalDoc('Download Swagger JSON', '/api-json')
     .addBearerAuth(
       {
         type: 'http',

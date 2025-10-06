@@ -2,7 +2,6 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { Reflector } from '@nestjs/core';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Organization } from '../../../features/organizations/schemas/organization.schema';
 import { Property } from '../../../features/properties/schemas/property.schema';
 import { Unit } from '../../../features/properties/schemas/unit.schema';
 import { User } from '../../../features/users/schemas/user.schema';
@@ -23,7 +22,6 @@ export class CaslGuard implements CanActivate {
     private reflector: Reflector,
     private caslAbilityFactory: CaslAbilityFactory,
     @InjectModel(User.name) private userModel: Model<User>,
-    @InjectModel(Organization.name) private organizationModel: Model<Organization>,
     @InjectModel(Property.name) private propertyModel: Model<Property>,
     @InjectModel(Unit.name) private unitModel: Model<Unit>,
   ) {}
@@ -40,10 +38,6 @@ export class CaslGuard implements CanActivate {
     const user = request.user;
 
     if (!user) {
-      return false;
-    }
-
-    if (!user.isAdmin && !user.organization) {
       return false;
     }
 
@@ -104,17 +98,11 @@ export class CaslGuard implements CanActivate {
       }
     }
 
-    if (routePath.includes('organization')) {
-      if (params.id && isValidObjectId(params.id)) {
-        return await this.organizationModel.findById(params.id).exec();
-      }
-    }
-
     if (routePath.includes('user')) {
       if (params.id && isValidObjectId(params.id)) {
-        return await this.userModel.findById(params.id).populate('organization').exec();
+        return await this.userModel.findById(params.id).exec();
       }
-      if (body) return body;
+      if (body && Object.keys(body).length) return body;
     }
 
     return null;

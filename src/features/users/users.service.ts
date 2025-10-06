@@ -1,73 +1,229 @@
 import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
+import { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
+import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
-import { Organization } from '../organizations/schemas/organization.schema';
+import { WelcomeEmailService } from '../email/services/welcome-email.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
-import { User } from './schemas/user.schema';
+import { User, UserDocument } from './schemas/user.schema';
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectModel(User.name) private userModel: AppModel<User>,
-    @InjectModel(Organization.name)
-    private organizationModel: AppModel<Organization>,
+    @InjectModel(User.name) private userModel: AppModel<UserDocument>,
     private caslAuthorizationService: CaslAuthorizationService,
+    private welcomeEmailService: WelcomeEmailService,
+    private readonly sessionService: SessionService,
   ) {}
 
-  async create(createUserDto: CreateUserDto) {
-    const { username, email, password, organization } = createUserDto;
+  async create(createUserDto: CreateUserDto, session?: ClientSession) {
+    const {
+      username,
+      firstName,
+      lastName,
+      email,
+      phone,
+      password,
+      user_type,
+      organization_id,
+      isPrimary,
+    } = createUserDto;
 
-    const existingUsername = await this.userModel.findOne({ username }).exec();
+    // Check username uniqueness within the same landlord
+    const existingUsername = await this.userModel
+      .findOne({
+        username,
+      })
+      .exec();
     if (existingUsername) {
-      throw new UnprocessableEntityException(`Username '${username}' is already taken`);
+      throw new UnprocessableEntityException(
+        `Username '${username}' is already taken within this organization`,
+      );
     }
 
-    const existingEmail = await this.userModel.findOne({ email }).exec();
+    // Check email uniqueness within the same landlord
+    const existingEmail = await this.userModel
+      .findOne({
+        email,
+      })
+      .exec();
     if (existingEmail) {
-      throw new UnprocessableEntityException(`Email '${email}' is already registered`);
+      throw new UnprocessableEntityException(
+        `Email '${email}' is already registered within this organization`,
+      );
     }
 
-    if (organization) {
-      const existingOrganization = await this.organizationModel.findById(organization).exec();
-      if (!existingOrganization) {
-        throw new UnprocessableEntityException(
-          `Organization with ID ${organization} does not exist`,
-        );
+    // Check if this is the first user for this organization
+    let shouldBePrimary = isPrimary || false;
+    if (organization_id) {
+      const existingUsersCount = await this.userModel
+        .countDocuments({
+          organization_id,
+          user_type,
+          deleted: { $ne: true }, // Exclude soft-deleted users
+        })
+        .exec();
+
+      // If this is the first user for this organization, make them primary
+      if (existingUsersCount === 0) {
+        shouldBePrimary = true;
       }
     }
+
+    await this.validatePrimaryUserConstraint(
+      shouldBePrimary,
+      organization_id,
+      user_type,
+      undefined,
+      session,
+    );
 
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const newUser = new this.userModel({
-      ...createUserDto,
+      username,
+      firstName,
+      lastName,
+      email,
+      phone,
       password: hashedPassword,
+      user_type,
+      organization_id,
+      isPrimary: shouldBePrimary,
     });
 
-    return await newUser.save();
+    // Save the user first to ensure it exists in the database
+    const savedUser = session ? await newUser.save({ session }) : await newUser.save();
+
+    // Send welcome email using the WelcomeEmailService
+    try {
+      await this.welcomeEmailService.sendWelcomeEmail(
+        email,
+        username,
+        undefined, // dashboardUrl can be added later if needed
+        { queue: true }, // Use queue for background processing
+      );
+    } catch (error) {
+      // Log error but don't fail the user creation if email sending fails
+      console.error('Failed to send welcome email:', error);
+    }
+
+    return savedUser;
+  }
+
+  async createFromInvitation(createUserDto: CreateUserDto, session?: ClientSession) {
+    const {
+      username,
+      firstName,
+      lastName,
+      email,
+      phone,
+      password,
+      user_type,
+      organization_id,
+      isPrimary,
+    } = createUserDto;
+
+    // Check username uniqueness within the same landlord
+    const existingUsername = await this.userModel
+      .findOne({
+        username,
+      })
+      .exec();
+    if (existingUsername) {
+      throw new UnprocessableEntityException(
+        `Username '${username}' is already taken within this organization`,
+      );
+    }
+
+    // Check email uniqueness within the same landlord
+    const existingEmail = await this.userModel
+      .findOne({
+        email,
+      })
+      .exec();
+    if (existingEmail) {
+      throw new UnprocessableEntityException(
+        `Email '${email}' is already registered within this organization`,
+      );
+    }
+
+    // Check if this is the first user for this organization
+    let shouldBePrimary = isPrimary || false;
+    if (organization_id) {
+      const existingUsersCount = await this.userModel
+        .countDocuments({
+          organization_id,
+          user_type,
+          deleted: { $ne: true }, // Exclude soft-deleted users
+        })
+        .exec();
+
+      // If this is the first user for this organization, make them primary
+      if (existingUsersCount === 0) {
+        shouldBePrimary = true;
+      }
+    }
+
+    await this.validatePrimaryUserConstraint(
+      shouldBePrimary,
+      organization_id,
+      user_type,
+      undefined,
+      session,
+    );
+
+    const salt = await bcrypt.genSalt();
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const newUser = new this.userModel({
+      username,
+      firstName,
+      lastName,
+      email,
+      phone,
+      password: hashedPassword,
+      user_type,
+      organization_id,
+      isPrimary: shouldBePrimary,
+    });
+
+    // Save the user first to ensure it exists in the database
+    const savedUser = session ? await newUser.save({ session }) : await newUser.save();
+
+    // Send welcome email using the WelcomeEmailService
+    try {
+      await this.welcomeEmailService.sendWelcomeEmail(
+        email,
+        username,
+        undefined, // dashboardUrl can be added later if needed
+        { queue: true }, // Use queue for background processing
+      );
+    } catch (error) {
+      // Log error but don't fail the user creation if email sending fails
+      console.error('Failed to send welcome email:', error);
+    }
+
+    return savedUser;
   }
 
   async findAllPaginated(queryDto: UserQueryDto, currentUser: User) {
-    const { page, limit, sortBy, sortOrder, search, organizationId } = queryDto;
+    const { page, limit, sortBy, sortOrder, search, user_type, organization_id, isPrimary } = queryDto;
 
-    const populatedUser = await this.userModel
-      .findById(currentUser._id)
-      .populate('organization')
-      .exec();
+    const populatedUser = await this.userModel.findById(currentUser._id).exec();
 
     if (!populatedUser) {
       return createPaginatedResponse<User>([], 0, page, limit);
     }
 
     // Create ability for the current user with populated data
-    const ability = this.caslAuthorizationService.createAbilityForUser(
-      populatedUser as unknown as User & { organization: Organization; isAdmin?: boolean },
-    );
+    const ability = this.caslAuthorizationService.createAbilityForUser(populatedUser);
 
     let baseQuery = (this.userModel.find() as any).accessibleBy(ability, Action.Read);
 
@@ -81,8 +237,18 @@ export class UsersService {
       });
     }
 
-    if (organizationId) {
-      baseQuery = baseQuery.where({ organization: organizationId });
+    if (user_type) {
+      baseQuery = baseQuery.where({ user_type });
+    }
+
+    // Filter by organization_id if provided
+    if (organization_id) {
+      baseQuery = baseQuery.where({ organization_id });
+    }
+
+    // Filter by isPrimary if provided
+    if (isPrimary !== undefined) {
+      baseQuery = baseQuery.where({ isPrimary });
     }
 
     const skip = (page - 1) * limit;
@@ -90,17 +256,13 @@ export class UsersService {
     // Create separate queries for data and count to avoid interference
     const dataQuery = baseQuery
       .clone()
-      .populate('organization')
       .sort({ [sortBy]: sortOrder === 'asc' ? 1 : -1 })
       .skip(skip)
       .limit(limit);
 
     const countQuery = baseQuery.clone().countDocuments();
 
-    const [users, totalCount] = await Promise.all([
-      dataQuery.exec(),
-      countQuery.exec(),
-    ]);
+    const [users, totalCount] = await Promise.all([dataQuery.exec(), countQuery.exec()]);
 
     return createPaginatedResponse<User>(users, totalCount, page, limit);
   }
@@ -118,52 +280,88 @@ export class UsersService {
   }
 
   async update(id: string, updateUserDto: UpdateUserDto, currentUser?: User) {
-    const user = await this.userModel.findById(id).populate('organization').exec();
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
-    }
-
-    if (updateUserDto.username && updateUserDto.username !== user.username) {
-      const existingUsername = await this.userModel
-        .findOne({
-          username: updateUserDto.username,
-          _id: { $ne: id },
-        })
-        .exec();
-
-      if (existingUsername) {
-        throw new UnprocessableEntityException(
-          `Username '${updateUserDto.username}' is already taken`,
-        );
+    return await this.sessionService.withSession(async (session: ClientSession | null) => {
+      const user = await this.userModel.findById(id, null, { session }).exec();
+      if (!user) {
+        throw new NotFoundException(`User with ID ${id} not found`);
       }
-    }
 
-    if (updateUserDto.email && updateUserDto.email !== user.email) {
-      const existingEmail = await this.userModel
-        .findOne({
-          email: updateUserDto.email,
-          _id: { $ne: id },
-        })
-        .exec();
+      if (updateUserDto.username && updateUserDto.username !== user.username) {
+        const existingUsername = await this.userModel
+          .findOne(
+            {
+              username: updateUserDto.username,
+              _id: { $ne: id },
+            },
+            null,
+            { session },
+          )
+          .exec();
 
-      if (existingEmail) {
-        throw new UnprocessableEntityException(
-          `Email '${updateUserDto.email}' is already registered`,
-        );
+        if (existingUsername) {
+          throw new UnprocessableEntityException(
+            `Username '${updateUserDto.username}' is already taken within this organization`,
+          );
+        }
       }
-    }
 
-    if (updateUserDto.password) {
-      const salt = await bcrypt.genSalt();
+      if (updateUserDto.email && updateUserDto.email !== user.email) {
+        const existingEmail = await this.userModel
+          .findOne(
+            {
+              email: updateUserDto.email,
+              _id: { $ne: id },
+            },
+            null,
+            { session },
+          )
+          .exec();
 
-      updateUserDto.password = await bcrypt.hash(updateUserDto.password, salt);
-    }
+        if (existingEmail) {
+          throw new UnprocessableEntityException(
+            `Email '${updateUserDto.email}' is already registered within this organization`,
+          );
+        }
+      }
 
-    const updatedUser = await this.userModel
-      .findByIdAndUpdate(id, updateUserDto, { new: true })
-      .exec();
+      // Handle primary user logic
+      if (updateUserDto.isPrimary !== undefined && user.organization_id) {
+        if (updateUserDto.isPrimary === true) {
+          // If setting this user as primary, remove primary status from other users
+          await this.userModel
+            .updateMany(
+              {
+                organization_id: user.organization_id,
+                user_type: user.user_type,
+                _id: { $ne: id },
+                isPrimary: true,
+              },
+              { $set: { isPrimary: false } },
+              { session },
+            )
+            .exec();
+        } else {
+          // If removing primary status, validate that there's at least one primary user
+          await this.validatePrimaryUserConstraint(
+            updateUserDto.isPrimary,
+            user.organization_id.toString(),
+            user.user_type,
+            id,
+            session,
+          );
+        }
+      }
 
-    return updatedUser;
+      if (updateUserDto.password) {
+        const salt = await bcrypt.genSalt();
+
+        updateUserDto.password = await bcrypt.hash(updateUserDto.password, salt);
+      }
+
+      return await this.userModel
+        .findByIdAndUpdate(id, updateUserDto, { new: true, session })
+        .exec();
+    });
   }
 
   async remove(id: string) {
@@ -175,5 +373,37 @@ export class UsersService {
     await this.userModel.deleteById(id);
 
     return null;
+  }
+
+  private async validatePrimaryUserConstraint(
+    isPrimary: boolean,
+    organization_id: string,
+    user_type: string,
+    excludeUserId?: string,
+    session?: ClientSession,
+  ) {
+    if (!isPrimary || !organization_id) {
+      return; // No validation needed if not setting as primary or no organization_id
+    }
+
+    // Check if there's already a primary user for this organization
+    const query: any = {
+      organization_id,
+      user_type,
+      isPrimary: true,
+    };
+
+    // Exclude current user when updating
+    if (excludeUserId) {
+      query._id = { $ne: excludeUserId };
+    }
+
+    const existingPrimaryUser = await this.userModel.findOne(query, null, { session }).exec();
+
+    if (existingPrimaryUser) {
+      throw new UnprocessableEntityException(
+        `A primary user already exists for this ${user_type.toLowerCase()}. Only one primary user is allowed per organization.`,
+      );
+    }
   }
 }

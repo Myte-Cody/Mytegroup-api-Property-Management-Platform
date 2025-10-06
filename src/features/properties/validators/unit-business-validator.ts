@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { UnitAvailabilityStatus } from '../../../common/enums/unit.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
+import { UserDocument } from '../../users/schemas/user.schema';
 import { CreateUnitDto } from '../dto/create-unit.dto';
 import { UpdateUnitDto } from '../dto/update-unit.dto';
 import { Unit } from '../schemas/unit.schema';
@@ -10,11 +11,13 @@ export interface UnitUpdateValidationContext {
   existingUnit: Unit;
   updateDto: UpdateUnitDto;
   userId?: string;
+  currentUser: UserDocument;
 }
 
 export interface UnitCreateValidationContext {
   createDto: CreateUnitDto;
   propertyId: string;
+  currentUser: UserDocument;
 }
 
 export interface UnitDeleteValidationContext {
@@ -26,7 +29,7 @@ export class UnitBusinessValidator {
   constructor(@InjectModel(Unit.name) private readonly unitModel: AppModel<Unit>) {}
 
   async validateCreate(context: UnitCreateValidationContext): Promise<void> {
-    const { createDto, propertyId } = context;
+    const { createDto, propertyId, currentUser } = context;
 
     const duplicateUnit = await this.unitModel
       .findOne({
@@ -45,9 +48,7 @@ export class UnitBusinessValidator {
   async validateUpdate(context: UnitUpdateValidationContext): Promise<void> {
     const { existingUnit, updateDto } = context;
 
-    await this.validateUnitNumberUniquenessForUpdate(existingUnit, updateDto);
-
-    this.validateStatusTransition(existingUnit, updateDto);
+    await this.validateUnitNumberUniquenessForUpdate(existingUnit, updateDto, context);
   }
 
   async validateDelete(context: UnitDeleteValidationContext): Promise<void> {
@@ -70,6 +71,7 @@ export class UnitBusinessValidator {
   private async validateUnitNumberUniquenessForUpdate(
     existingUnit: Unit,
     updateDto: UpdateUnitDto,
+    context: UnitUpdateValidationContext,
   ): Promise<void> {
     if (!updateDto.unitNumber || updateDto.unitNumber === existingUnit.unitNumber) {
       return; // No change in unit number
@@ -88,43 +90,5 @@ export class UnitBusinessValidator {
         `Unit number '${updateDto.unitNumber}' already exists in this property`,
       );
     }
-  }
-
-  private validateStatusTransition(existingUnit: Unit, updateDto: UpdateUnitDto): void {
-    if (
-      !updateDto.availabilityStatus ||
-      updateDto.availabilityStatus === existingUnit.availabilityStatus
-    ) {
-      return; // No status change
-    }
-
-    const validTransitions = this.getValidStatusTransitions();
-    const currentStatus = existingUnit.availabilityStatus;
-    const newStatus = updateDto.availabilityStatus;
-
-    const allowedTransitions = validTransitions[currentStatus] || [];
-    if (!allowedTransitions.includes(newStatus)) {
-      throw new BadRequestException(
-        `Invalid status transition from '${currentStatus}' to '${newStatus}'. ` +
-          `Valid transitions from '${currentStatus}': ${allowedTransitions.join(', ')}`,
-      );
-    }
-  }
-
-  private getValidStatusTransitions(): Record<string, UnitAvailabilityStatus[]> {
-    return {
-      [UnitAvailabilityStatus.VACANT]: [
-        UnitAvailabilityStatus.AVAILABLE_FOR_RENT,
-        UnitAvailabilityStatus.OCCUPIED,
-      ],
-      [UnitAvailabilityStatus.AVAILABLE_FOR_RENT]: [
-        UnitAvailabilityStatus.VACANT,
-        UnitAvailabilityStatus.OCCUPIED,
-      ],
-      [UnitAvailabilityStatus.OCCUPIED]: [
-        UnitAvailabilityStatus.VACANT,
-        UnitAvailabilityStatus.AVAILABLE_FOR_RENT,
-      ],
-    };
   }
 }

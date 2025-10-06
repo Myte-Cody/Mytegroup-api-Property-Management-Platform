@@ -2,14 +2,14 @@ import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/co
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
-import { Model } from 'mongoose';
-import { User } from '../users/schemas/user.schema';
+import { AppModel } from '../../common/interfaces/app-model.interface';
+import { User, UserDocument } from '../users/schemas/user.schema';
 import { LoginDto } from './dto/login.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectModel(User.name) private readonly userModel: Model<User>,
+    @InjectModel(User.name) private readonly userModel: AppModel<UserDocument>,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -19,7 +19,8 @@ export class AuthService {
     const user = await this.userModel
       .findOne({ email })
       .select('+password')
-      .populate('organization', '_id name type')
+      // todo populate organization ?
+      .populate('organization_id')
       .exec();
 
     if (!user) {
@@ -32,15 +33,20 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const payload = { sub: user._id, email: user.email };
+    const payload = {
+      sub: user._id,
+      email: user.email,
+      user_type: user.user_type,
+      organization_id: user.organization_id,
+    };
 
     return {
       user: {
         _id: user._id,
         username: user.username,
         email: user.email,
-        organization: user.organization,
-        isAdmin: user.isAdmin,
+        user_type: user.user_type,
+        organization_info: user.organization_id,
       },
       accessToken: this.jwtService.sign(payload),
     };
@@ -49,8 +55,8 @@ export class AuthService {
   async getCurrentUser(userId: string) {
     const user = await this.userModel
       .findById(userId)
-      .select('_id username email isAdmin')
-      .populate('organization', '_id name type')
+      .select('_id username email user_type organization_id')
+      .populate('organization_id')
       .exec();
 
     if (!user) {
@@ -61,8 +67,9 @@ export class AuthService {
       _id: user._id,
       username: user.username,
       email: user.email,
-      organization: user.organization,
-      isAdmin: user.isAdmin,
+      user_type: user.user_type,
+      organization_id: user.organization_id,
+      organization_info: user.organization_id,
     };
   }
 }

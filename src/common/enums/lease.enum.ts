@@ -1,0 +1,52 @@
+export enum LeaseStatus {
+  DRAFT = 'DRAFT',
+  ACTIVE = 'ACTIVE',
+  EXPIRED = 'EXPIRED',
+  TERMINATED = 'TERMINATED',
+}
+
+export enum PaymentCycle {
+  WEEKLY = 'WEEKLY',
+  MONTHLY = 'MONTHLY',
+  QUARTERLY = 'QUARTERLY',
+  ANNUALLY = 'ANNUALLY',
+}
+
+export enum RentIncreaseType {
+  PERCENTAGE = 'PERCENTAGE',
+  VALUE = 'VALUE',
+}
+
+export enum RentalPeriodStatus {
+  PENDING = 'PENDING',
+  ACTIVE = 'ACTIVE',
+  EXPIRED = 'EXPIRED',
+}
+
+export enum PaymentStatus {
+  PENDING = 'PENDING',
+  PAID = 'PAID',
+  OVERDUE = 'OVERDUE',
+}
+
+export enum PaymentType {
+  RENT = 'RENT',
+  DEPOSIT = 'DEPOSIT',
+  DEPOSIT_REFUND = 'DEPOSIT_REFUND',
+  DEPOSIT_DEDUCTION = 'DEPOSIT_DEDUCTION',
+  LATE_FEE = 'LATE_FEE',
+  FEES = 'FEES',
+  MAINTENANCE = 'MAINTENANCE',
+  UTILITIES = 'UTILITIES',
+  UTILITY = 'UTILITY',
+  OTHER = 'OTHER',
+}
+
+export enum PaymentMethod {
+  CASH = 'CASH',
+  CHECK = 'CHECK',
+  BANK_TRANSFER = 'BANK_TRANSFER',
+  CREDIT_CARD = 'CREDIT_CARD',
+  DIGITAL_WALLET = 'DIGITAL_WALLET',
+  OTHER = 'OTHER',
+}
