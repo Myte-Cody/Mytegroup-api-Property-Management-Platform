@@ -326,3 +326,8 @@ For development debugging, the email service supports Ethereal Email, which prov
 6. **Testing** - Test templates with sample data before production
 7. **Rate Limiting** - Be mindful of email provider rate limits
 8. **Service Organization** - Keep email logic organized by purpose (auth, welcome, notifications)
+
+---
+
+**Last Updated**: 2025-10-06  
+**Last Reviewed**: 2025-10-06
