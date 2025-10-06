@@ -102,7 +102,7 @@ export class CaslGuard implements CanActivate {
       if (params.id && isValidObjectId(params.id)) {
         return await this.userModel.findById(params.id).exec();
       }
-      if (body) return body;
+      if (body && Object.keys(body).length) return body;
     }
 
     return null;
