@@ -20,8 +20,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: any) {
     const user = await this.userModel
       .findById(payload.sub)
-      .select('_id username email user_type party_id')
-      .populate('party_id')
+      .select('_id username email user_type organization_id')
+      .populate('organization_id')
       .exec();
 
     // Ensure user exists

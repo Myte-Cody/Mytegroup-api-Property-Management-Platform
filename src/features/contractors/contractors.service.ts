@@ -112,7 +112,7 @@ export class ContractorsService {
       throw new ForbiddenException('You do not have permission to view contractor profile');
     }
 
-    const contractorId = currentUser.party_id;
+    const contractorId = currentUser.organization_id;
     if (!contractorId) {
       throw new ForbiddenException('No contractor profile associated with this user');
     }
@@ -171,7 +171,7 @@ export class ContractorsService {
         email,
         password: hashedPassword,
         user_type: 'Contractor',
-        party_id: savedContractor._id, // Link to the contractor
+        organization_id: savedContractor._id, // Link to the contractor
       };
 
       const newUser = new this.userModel(userData);

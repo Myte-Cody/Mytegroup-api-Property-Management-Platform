@@ -73,7 +73,7 @@ export class UpdateUserDto {
 
   @ApiProperty({
     example: false,
-    description: 'Whether this user is the primary user for the party',
+    description: 'Whether this user is the primary user for the organization',
     required: false,
   })
   @IsOptional()

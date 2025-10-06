@@ -282,11 +282,11 @@ export class UnitsService {
 
     // Get tenant ID - handle both string and ObjectId formats
     let tenantId;
-    if (currentUser.party_id) {
-      if (typeof currentUser.party_id === 'object' && (currentUser.party_id as any)._id) {
-        tenantId = (currentUser.party_id as any)._id;
+    if (currentUser.organization_id) {
+      if (typeof currentUser.organization_id === 'object' && (currentUser.organization_id as any)._id) {
+        tenantId = (currentUser.organization_id as any)._id;
       } else {
-        tenantId = currentUser.party_id;
+        tenantId = currentUser.organization_id;
       }
     }
 

@@ -43,7 +43,7 @@ export class User extends Document implements SoftDelete {
     type: MongooseSchema.Types.ObjectId,
     refPath: 'user_type', // Dynamic reference based on user_type
   })
-  party_id: Types.ObjectId; // Points to Landlord/Tenant/Contractor
+  organization_id: Types.ObjectId; // Points to Landlord/Tenant/Contractor
 
   @Prop({ type: Boolean, required: true, default: false })
   isPrimary: boolean;

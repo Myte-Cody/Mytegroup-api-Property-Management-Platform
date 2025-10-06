@@ -715,7 +715,7 @@ export class LeasesService {
             {
               $match: {
                 $expr: {
-                  $and: [{ $eq: ['$party_id', '$$tenantId'] }, { $eq: ['$isPrimary', true] }],
+                  $and: [{ $eq: ['$organization_id', '$$tenantId'] }, { $eq: ['$isPrimary', true] }],
                 },
               },
             },
@@ -1720,7 +1720,7 @@ export class LeasesService {
     try {
       return this.userModel
         .find({
-          party_id: tenantId,
+          organization_id: tenantId,
           user_type: 'Tenant',
         })
         .exec();

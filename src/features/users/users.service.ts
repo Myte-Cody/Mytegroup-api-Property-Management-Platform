@@ -30,7 +30,7 @@ export class UsersService {
       phone,
       password,
       user_type,
-      party_id,
+      organization_id,
       isPrimary,
     } = createUserDto;
 
@@ -58,18 +58,18 @@ export class UsersService {
       );
     }
 
-    // Check if this is the first user for this party
+    // Check if this is the first user for this organization
     let shouldBePrimary = isPrimary || false;
-    if (party_id) {
+    if (organization_id) {
       const existingUsersCount = await this.userModel
         .countDocuments({
-          party_id,
+          organization_id,
           user_type,
           deleted: { $ne: true }, // Exclude soft-deleted users
         })
         .exec();
 
-      // If this is the first user for this party, make them primary
+      // If this is the first user for this organization, make them primary
       if (existingUsersCount === 0) {
         shouldBePrimary = true;
       }
@@ -77,7 +77,7 @@ export class UsersService {
 
     await this.validatePrimaryUserConstraint(
       shouldBePrimary,
-      party_id,
+      organization_id,
       user_type,
       undefined,
       session,
@@ -94,7 +94,7 @@ export class UsersService {
       phone,
       password: hashedPassword,
       user_type,
-      party_id,
+      organization_id,
       isPrimary: shouldBePrimary,
     });
 
@@ -126,7 +126,7 @@ export class UsersService {
       phone,
       password,
       user_type,
-      party_id,
+      organization_id,
       isPrimary,
     } = createUserDto;
 
@@ -154,18 +154,18 @@ export class UsersService {
       );
     }
 
-    // Check if this is the first user for this party
+    // Check if this is the first user for this organization
     let shouldBePrimary = isPrimary || false;
-    if (party_id) {
+    if (organization_id) {
       const existingUsersCount = await this.userModel
         .countDocuments({
-          party_id,
+          organization_id,
           user_type,
           deleted: { $ne: true }, // Exclude soft-deleted users
         })
         .exec();
 
-      // If this is the first user for this party, make them primary
+      // If this is the first user for this organization, make them primary
       if (existingUsersCount === 0) {
         shouldBePrimary = true;
       }
@@ -173,7 +173,7 @@ export class UsersService {
 
     await this.validatePrimaryUserConstraint(
       shouldBePrimary,
-      party_id,
+      organization_id,
       user_type,
       undefined,
       session,
@@ -190,7 +190,7 @@ export class UsersService {
       phone,
       password: hashedPassword,
       user_type,
-      party_id,
+      organization_id,
       isPrimary: shouldBePrimary,
     });
 
@@ -214,7 +214,7 @@ export class UsersService {
   }
 
   async findAllPaginated(queryDto: UserQueryDto, currentUser: User) {
-    const { page, limit, sortBy, sortOrder, search, user_type, party_id, isPrimary } = queryDto;
+    const { page, limit, sortBy, sortOrder, search, user_type, organization_id, isPrimary } = queryDto;
 
     const populatedUser = await this.userModel.findById(currentUser._id).exec();
 
@@ -241,9 +241,9 @@ export class UsersService {
       baseQuery = baseQuery.where({ user_type });
     }
 
-    // Filter by party_id if provided
-    if (party_id) {
-      baseQuery = baseQuery.where({ party_id });
+    // Filter by organization_id if provided
+    if (organization_id) {
+      baseQuery = baseQuery.where({ organization_id });
     }
 
     // Filter by isPrimary if provided
@@ -325,13 +325,13 @@ export class UsersService {
       }
 
       // Handle primary user logic
-      if (updateUserDto.isPrimary !== undefined && user.party_id) {
+      if (updateUserDto.isPrimary !== undefined && user.organization_id) {
         if (updateUserDto.isPrimary === true) {
           // If setting this user as primary, remove primary status from other users
           await this.userModel
             .updateMany(
               {
-                party_id: user.party_id,
+                organization_id: user.organization_id,
                 user_type: user.user_type,
                 _id: { $ne: id },
                 isPrimary: true,
@@ -344,7 +344,7 @@ export class UsersService {
           // If removing primary status, validate that there's at least one primary user
           await this.validatePrimaryUserConstraint(
             updateUserDto.isPrimary,
-            user.party_id.toString(),
+            user.organization_id.toString(),
             user.user_type,
             id,
             session,
@@ -377,18 +377,18 @@ export class UsersService {
 
   private async validatePrimaryUserConstraint(
     isPrimary: boolean,
-    party_id: string,
+    organization_id: string,
     user_type: string,
     excludeUserId?: string,
     session?: ClientSession,
   ) {
-    if (!isPrimary || !party_id) {
-      return; // No validation needed if not setting as primary or no party_id
+    if (!isPrimary || !organization_id) {
+      return; // No validation needed if not setting as primary or no organization_id
     }
 
-    // Check if there's already a primary user for this party
+    // Check if there's already a primary user for this organization
     const query: any = {
-      party_id,
+      organization_id,
       user_type,
       isPrimary: true,
     };
@@ -402,7 +402,7 @@ export class UsersService {
 
     if (existingPrimaryUser) {
       throw new UnprocessableEntityException(
-        `A primary user already exists for this ${user_type.toLowerCase()}. Only one primary user is allowed per party.`,
+        `A primary user already exists for this ${user_type.toLowerCase()}. Only one primary user is allowed per organization.`,
       );
     }
   }

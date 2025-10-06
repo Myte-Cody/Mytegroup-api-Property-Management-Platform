@@ -82,16 +82,16 @@ export class CreateUserDto {
 
   @ApiProperty({
     example: '507f1f77bcf86cd799439011',
-    description: 'ID of the associated party (Landlord/Tenant/Contractor)',
+    description: 'ID of the associated organization (Landlord/Tenant/Contractor)',
     required: false,
   })
   @IsString()
   @IsOptional()
-  party_id?: string;
+  organization_id?: string;
 
   @ApiProperty({
     example: false,
-    description: 'Whether this user is the primary user for the party',
+    description: 'Whether this user is the primary user for the organization',
     required: false,
   })
   @IsBoolean()

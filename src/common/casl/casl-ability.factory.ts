@@ -119,37 +119,37 @@ export class CaslAbilityFactory {
     can(Action.Read, Media);
 
     // Tenants can read leases they are associated with
-    const tenantPartyId =
-      user.party_id && typeof user.party_id === 'object'
-        ? (user.party_id as any)._id
-        : user.party_id;
+    const tenantOrganizationId =
+      user.organization_id && typeof user.organization_id === 'object'
+        ? (user.organization_id as any)._id
+        : user.organization_id;
 
-    if (tenantPartyId) {
-      can(Action.Read, Lease, { tenant: tenantPartyId });
-      can(Action.Read, RentalPeriod, { lease: { tenant: tenantPartyId } });
-      can(Action.Read, Transaction, { lease: { tenant: tenantPartyId } });
+    if (tenantOrganizationId) {
+      can(Action.Read, Lease, { tenant: tenantOrganizationId });
+      can(Action.Read, RentalPeriod, { lease: { tenant: tenantOrganizationId } });
+      can(Action.Read, Transaction, { lease: { tenant: tenantOrganizationId } });
     }
 
     // Tenants can read their own tenant record
     const tenantId =
-      user.party_id && typeof user.party_id === 'object'
-        ? (user.party_id as any)._id
-        : user.party_id;
+      user.organization_id && typeof user.organization_id === 'object'
+        ? (user.organization_id as any)._id
+        : user.organization_id;
 
     if (tenantId) {
       can(Action.Read, Tenant, { _id: tenantId });
     }
 
-    // Tenants can manage tenant users with the same party_id (same tenant entity)
-    if (tenantPartyId) {
+    // Tenants can manage tenant users with the same organization_id (same tenant entity)
+    if (tenantOrganizationId) {
       can(Action.Manage, User, {
-        party_id: tenantPartyId,
+        organization_id: tenantOrganizationId,
         user_type: UserType.TENANT,
       });
 
       // Explicitly add read permission to ensure accessibleBy works correctly
       can(Action.Read, User, {
-        party_id: tenantPartyId,
+        organization_id: tenantOrganizationId,
         user_type: UserType.TENANT,
       });
     }
@@ -200,9 +200,9 @@ export class CaslAbilityFactory {
 
     // Contractors can read their own contractor record
     const contractorId =
-      user.party_id && typeof user.party_id === 'object'
-        ? (user.party_id as any)._id
-        : user.party_id;
+      user.organization_id && typeof user.organization_id === 'object'
+        ? (user.organization_id as any)._id
+        : user.organization_id;
 
     if (contractorId) {
       can(Action.Read, Contractor, { _id: contractorId });

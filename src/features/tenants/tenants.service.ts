@@ -134,7 +134,7 @@ export class TenantsService {
             $match: {
               $expr: {
                 $and: [
-                  { $eq: ['$party_id', '$$tenantId'] },
+                  { $eq: ['$organization_id', '$$tenantId'] },
                   { $eq: ['$user_type', 'Tenant'] },
                   { $eq: ['$isPrimary', true] },
                 ],
@@ -319,7 +319,7 @@ export class TenantsService {
       throw new ForbiddenException('You do not have permission to view tenant profile');
     }
 
-    const tenantId = currentUser.party_id;
+    const tenantId = currentUser.organization_id;
     if (!tenantId) {
       throw new ForbiddenException('No tenant profile associated with this user');
     }
@@ -371,7 +371,7 @@ export class TenantsService {
         phone,
         password,
         user_type: UserType.TENANT,
-        party_id: savedTenant._id.toString(),
+        organization_id: savedTenant._id.toString(),
       };
 
       await this.usersService.create(userData, session);
@@ -404,7 +404,7 @@ export class TenantsService {
       firstName,
       lastName,
       user_type: UserType.TENANT,
-      party_id: savedTenant._id.toString(),
+      organization_id: savedTenant._id.toString(),
     };
 
     await this.usersService.createFromInvitation(userData, session);
@@ -472,7 +472,7 @@ export class TenantsService {
     const tenantUserQuery: UserQueryDto = {
       ...queryDto,
       user_type: UserType.TENANT,
-      party_id: tenantId, // Add party_id to the query
+      organization_id: tenantId, // Add organization_id to the query
     };
 
     // Use UserService for consistent business logic and CASL authorization
@@ -496,7 +496,7 @@ export class TenantsService {
       phone: createTenantUserDto.phone,
       password: createTenantUserDto.password,
       user_type: UserType.TENANT,
-      party_id: tenantId,
+      organization_id: tenantId,
       isPrimary: createTenantUserDto.isPrimary,
     };
 
@@ -545,7 +545,7 @@ export class TenantsService {
 
     // For tenant users, ensure they can only access their own tenant's users
     if (currentUser.user_type === 'Tenant') {
-      if (currentUser.party_id?.toString() !== tenantId) {
+      if (currentUser.organization_id?.toString() !== tenantId) {
         throw new ForbiddenException('You can only manage users within your own tenant');
       }
     }
@@ -569,7 +569,7 @@ export class TenantsService {
       .findOne({
         _id: userId,
         user_type: 'Tenant',
-        party_id: tenantId,
+        organization_id: tenantId,
       })
       .exec();
 

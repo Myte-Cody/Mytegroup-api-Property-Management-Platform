@@ -72,7 +72,7 @@ class StatusUpdaterService {
       const users = await this.connection
         .model('User')
         .find({
-          party_id: tenant._id,
+          organization_id: tenant._id,
           user_type: 'Tenant',
         })
         .exec();
@@ -120,7 +120,7 @@ class StatusUpdaterService {
       const users = await this.connection
         .model('User')
         .find({
-          party_id: tenant._id,
+          organization_id: tenant._id,
           user_type: 'Tenant',
         })
         .exec();

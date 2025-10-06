@@ -43,11 +43,11 @@ export class UserQueryDto {
   user_type?: UserType;
 
   @ApiPropertyOptional({
-    description: 'Filter by party ID (landlord, tenant, or contractor ID)',
+    description: 'Filter by organization ID (landlord, tenant, or contractor ID)',
   })
   @IsOptional()
   @IsMongoId()
-  party_id?: string;
+  organization_id?: string;
 
   @ApiPropertyOptional({
     description: 'Filter by primary user status',

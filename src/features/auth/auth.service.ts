@@ -19,8 +19,8 @@ export class AuthService {
     const user = await this.userModel
       .findOne({ email })
       .select('+password')
-      // todo populate party ?
-      .populate('party_id')
+      // todo populate organization ?
+      .populate('organization_id')
       .exec();
 
     if (!user) {
@@ -37,7 +37,7 @@ export class AuthService {
       sub: user._id,
       email: user.email,
       user_type: user.user_type,
-      party_id: user.party_id,
+      organization_id: user.organization_id,
     };
 
     return {
@@ -46,7 +46,7 @@ export class AuthService {
         username: user.username,
         email: user.email,
         user_type: user.user_type,
-        party_info: user.party_id,
+        organization_info: user.organization_id,
       },
       accessToken: this.jwtService.sign(payload),
     };
@@ -55,8 +55,8 @@ export class AuthService {
   async getCurrentUser(userId: string) {
     const user = await this.userModel
       .findById(userId)
-      .select('_id username email user_type party_id')
-      .populate('party_id')
+      .select('_id username email user_type organization_id')
+      .populate('organization_id')
       .exec();
 
     if (!user) {
@@ -68,8 +68,8 @@ export class AuthService {
       username: user.username,
       email: user.email,
       user_type: user.user_type,
-      party_id: user.party_id,
-      party_info: user.party_id, // Populated party data
+      organization_id: user.organization_id,
+      organization_info: user.organization_id,
     };
   }
 }

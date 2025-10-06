@@ -689,7 +689,7 @@ export class TransactionsService {
     try {
       return this.userModel
         .find({
-          party_id: tenantId,
+          organization_id: tenantId,
           user_type: 'Tenant',
         })
         .exec();
