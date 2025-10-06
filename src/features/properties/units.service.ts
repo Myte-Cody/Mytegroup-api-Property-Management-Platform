@@ -433,7 +433,7 @@ export class UnitsService {
     const unitObjectId = new mongoose.Types.ObjectId(id);
 
     // Use aggregation pipeline to include active lease with tenant
-    const pipeline = [
+    const pipeline: any[] = [
       { $match: { _id: unitObjectId } },
       // Lookup property
       {

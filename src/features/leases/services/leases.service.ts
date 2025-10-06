@@ -20,6 +20,7 @@ import { UnitAvailabilityStatus } from '../../../common/enums/unit.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { SessionService } from '../../../common/services/session.service';
 import { addDaysToDate, getToday } from '../../../common/utils/date.utils';
+import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { LeaseEmailService } from '../../email/services/lease-email.service';
 import { Unit } from '../../properties/schemas/unit.schema';
 import { Tenant } from '../../tenants/schema/tenant.schema';
@@ -32,7 +33,6 @@ import {
   UpdateLeaseDto,
 } from '../dto';
 import { LeaseQueryDto } from '../dto/lease-query.dto';
-import { PaginatedLeasesResponseDto } from '../dto/lease-response.dto';
 import { RentRollQueryDto, RentRollSortBy } from '../dto/rent-roll-query.dto';
 import { RentRollResponseDto } from '../dto/rent-roll-response.dto';
 import { Lease } from '../schemas/lease.schema';
@@ -73,7 +73,7 @@ export class LeasesService {
   async findAllPaginated(
     leaseQueryDto: LeaseQueryDto,
     currentUser: UserDocument,
-  ): Promise<PaginatedLeasesResponseDto> {
+  ) {
     const {
       page = 1,
       limit = 10,
@@ -141,10 +141,6 @@ export class LeasesService {
       baseQuery.clone().countDocuments().exec(),
     ]);
 
-    const totalPages = Math.ceil(total / limit);
-    const hasNext = page < totalPages;
-    const hasPrev = page > 1;
-
     // Transform leases to include property at the top level
     const transformedLeases = leases.map((lease: any) => {
       const leaseObj = lease.toObject ? lease.toObject() : lease;
@@ -154,18 +150,7 @@ export class LeasesService {
       };
     });
 
-    return {
-      data: transformedLeases,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages,
-        hasNext,
-        hasPrev,
-      },
-      success: true,
-    };
+    return createPaginatedResponse(transformedLeases, total, page, limit);
   }
 
   async findOne(id: string, currentUser: UserDocument) {

@@ -44,7 +44,6 @@ import {
   LeaseQueryDto,
   LeaseResponseDto,
   ManualRenewLeaseDto,
-  PaginatedLeasesResponseDto,
   ProcessDepositAssessmentDto,
   RentalPeriodResponseDto,
   TerminateLeaseDto,
@@ -72,11 +71,6 @@ export class LeasesController {
   @Get()
   @CheckPolicies(new ReadLeasePolicyHandler())
   @ApiOperation({ summary: 'Get all leases with pagination, filtering, and sorting' })
-  @ApiResponse({
-    status: 200,
-    description: 'Paginated list of leases',
-    type: PaginatedLeasesResponseDto,
-  })
   findAll(@Query() queryDto: LeaseQueryDto, @CurrentUser() user: User) {
     return this.leasesService.findAllPaginated(queryDto, user);
   }
