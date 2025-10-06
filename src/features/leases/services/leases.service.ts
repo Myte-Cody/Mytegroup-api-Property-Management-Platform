@@ -588,6 +588,7 @@ export class LeasesService {
         {
           $match: {
             ...propertyFilter,
+            deleted: false,
           },
         },
         {
@@ -851,6 +852,13 @@ export class LeasesService {
     });
 
     // Count total before pagination
+    // Make sure the first stage in rentRollPipeline includes deleted: false
+    if (rentRollPipeline.length > 0 && rentRollPipeline[0].$match) {
+      rentRollPipeline[0].$match.deleted = false;
+    } else if (rentRollPipeline.length === 0) {
+      rentRollPipeline.unshift({ $match: { deleted: false } });
+    }
+    
     const countPipeline = [...rentRollPipeline, { $count: 'total' }];
     const countResult = await this.leaseModel.aggregate(countPipeline).exec();
     const totalCount = countResult[0]?.total || 0;

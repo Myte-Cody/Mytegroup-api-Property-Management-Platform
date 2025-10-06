@@ -50,7 +50,7 @@ export class PropertiesService {
     const pipeline: any[] = [];
 
     // Step 1: Build initial match conditions
-    const matchConditions: any = {};
+    const matchConditions: any = { deleted: false };
 
     // Add CASL conditions
     const caslConditions = (this.propertyModel as any)
@@ -76,8 +76,15 @@ export class PropertiesService {
     pipeline.push({
       $lookup: {
         from: 'units',
-        localField: '_id',
-        foreignField: 'property',
+        let: { propertyId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: { $eq: ['$property', '$$propertyId'] },
+              deleted: false,
+            },
+          },
+        ],
         as: 'units',
       },
     });

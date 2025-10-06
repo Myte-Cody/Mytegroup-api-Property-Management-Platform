@@ -132,7 +132,7 @@ export class UnitsService {
     const pipeline: any[] = [];
 
     // Step 1: Build initial match conditions
-    const matchConditions: any = {};
+    const matchConditions: any = { deleted: false };
 
     // Add CASL conditions
     // todo verify below
@@ -283,7 +283,10 @@ export class UnitsService {
     // Get tenant ID - handle both string and ObjectId formats
     let tenantId;
     if (currentUser.organization_id) {
-      if (typeof currentUser.organization_id === 'object' && (currentUser.organization_id as any)._id) {
+      if (
+        typeof currentUser.organization_id === 'object' &&
+        (currentUser.organization_id as any)._id
+      ) {
         tenantId = (currentUser.organization_id as any)._id;
       } else {
         tenantId = currentUser.organization_id;
@@ -301,6 +304,7 @@ export class UnitsService {
     // Build lease match conditions
     const leaseMatchConditions: any = {
       tenant: tenantObjectId,
+      deleted: false,
     };
 
     // Get all units for this tenant based on their leases
@@ -319,8 +323,15 @@ export class UnitsService {
       {
         $lookup: {
           from: 'units',
-          localField: '_id',
-          foreignField: '_id',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', '$$unitId'] },
+                deleted: false,
+              },
+            },
+          ],
           as: 'unit',
         },
       },
@@ -331,8 +342,15 @@ export class UnitsService {
       {
         $lookup: {
           from: 'properties',
-          localField: 'unit.property',
-          foreignField: '_id',
+          let: { propertyId: '$unit.property' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', '$$propertyId'] },
+                deleted: false,
+              },
+            },
+          ],
           as: 'unit.property',
         },
       },
@@ -730,6 +748,7 @@ export class UnitsService {
       {
         $match: {
           property: propertyObjectId,
+          deleted: false,
           // Add CASL conditions
           ...(this.unitModel as any).accessibleBy(ability, Action.Read).getQuery(),
         },

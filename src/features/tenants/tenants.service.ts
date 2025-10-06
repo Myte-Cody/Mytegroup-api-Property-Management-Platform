@@ -121,7 +121,13 @@ export class TenantsService {
     // Build aggregation pipeline
     const pipeline: any[] = [];
 
-    // Stage 1: Match accessible tenants (CASL filter)
+    // Stage 1: Match accessible tenants (CASL filter) and ensure not deleted
+    pipeline.push({
+      $match: {
+        deleted: false,
+      },
+    });
+    
     const accessibleConditions = (ability as any).rulesFor(Action.Read, Tenant);
 
     // Stage 2: Lookup primary user to get email and phone
@@ -165,6 +171,7 @@ export class TenantsService {
             $match: {
               $expr: { $eq: ['$tenant', '$$tenantId'] },
               status: { $in: ['ACTIVE'] },
+              deleted: false,
             },
           },
         ],
@@ -181,6 +188,7 @@ export class TenantsService {
           {
             $match: {
               $expr: { $eq: ['$tenant', '$$tenantId'] },
+              deleted: false,
             },
           },
           {
@@ -192,6 +200,7 @@ export class TenantsService {
                   $match: {
                     $expr: { $eq: ['$lease', '$$leaseId'] },
                     status: 'OVERDUE',
+                    deleted: false,
                   },
                 },
               ],
@@ -609,6 +618,7 @@ export class TenantsService {
         $match: {
           tenant: new mongoose.Types.ObjectId(id),
           status: LeaseStatus.ACTIVE,
+          deleted: false,
         },
       },
       {
