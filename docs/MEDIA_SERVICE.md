@@ -13,8 +13,21 @@ The Media Service provides file upload, storage, and retrieval functionality wit
 - **MediaService**: Main service for media operations
 - **StorageManager**: Manages storage driver selection
 - **LocalStorageDriver**: Handles local filesystem storage
-- **S3StorageDriver**: Handles AWS S3 storage (planned)
+- **S3StorageDriver**: Handles AWS S3 storage with temporary URL support
 - **MediaUtils**: Utility functions for file handling
+
+### StorageDriverInterface
+
+All storage drivers implement this common interface:
+
+```typescript
+export interface StorageDriverInterface {
+  store(file: any, path: string): Promise<string>;
+  delete(path: string): Promise<void>;
+  getUrl(path: string, expiresIn?: number): Promise<string>;
+  exists(path: string): Promise<boolean>;
+}
+```
 
 ### Storage Backends
 
@@ -36,9 +49,9 @@ APP_BASE_URL=http://localhost:3000
 - Automatic directory creation
 - URL format: `{APP_BASE_URL}/uploads/{path}`
 
-#### 2. S3 Storage (Planned)
+#### 2. S3 Storage
 
-Stores files on AWS S3.
+Stores files on AWS S3 with support for temporary URLs.
 
 **Configuration:**
 
@@ -51,7 +64,16 @@ AWS_SECRET_ACCESS_KEY=your-secret-key
 AWS_S3_BASE_URL=https://your-bucket.s3.amazonaws.com
 ```
 
-**Status:** Implementation pending - requires `@aws-sdk/client-s3` package
+**Features:**
+
+- Files stored in AWS S3 bucket
+- Secure access via presigned URLs
+- Configurable URL expiration
+- Automatic error handling with fallback URLs
+
+**Required Packages:**
+- `@aws-sdk/client-s3`
+- `@aws-sdk/s3-request-presigner`
 
 ---
 
@@ -106,6 +128,16 @@ const media = await this.mediaService.getMediaForEntity(
 ```typescript
 const media = await this.mediaService.findOne(mediaId, user);
 // Returns: { _id: '...', name: 'photo.jpg', url: 'http://...', ... }
+```
+
+#### Get Media URL
+
+```typescript
+// Get regular URL (default expiration for S3)
+const url = await this.mediaService.getMediaUrl(media);
+
+// Get URL with custom expiration (for S3 only, in seconds)
+const url = await this.mediaService.getMediaUrl(media, 1800); // 30 minutes
 ```
 
 ### Deleting Media
@@ -217,12 +249,23 @@ const url = `${APP_BASE_URL}/uploads/${relativePath}`;
 
 ### S3 Storage
 
-URLs are stored in the database during upload:
+URLs are generated dynamically as temporary presigned URLs:
 
 ```typescript
-const url = `${AWS_S3_BASE_URL}/${path}`;
-// Example: https://bucket.s3.amazonaws.com/Property/123/images/photo.jpg
+// Generate a temporary URL that expires after 1 hour (default)
+const url = await storageDriver.getUrl(path);
+
+// Generate a temporary URL with custom expiration (e.g., 15 minutes)
+const url = await storageDriver.getUrl(path, 900);
+
+// Example: https://bucket.s3.amazonaws.com/Property/123/images/photo.jpg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=...
 ```
+
+#### Temporary URL Benefits
+
+- **Security**: Access to S3 objects is time-limited
+- **Privacy**: Files can be stored privately in S3 but shared temporarily when needed
+- **Control**: Different expiration times can be set for different use cases
 
 ---
 
@@ -256,6 +299,37 @@ export class PropertiesController {
   async deleteMedia(@Param('mediaId') mediaId: string, @CurrentUser() user: User) {
     await this.mediaService.deleteMedia(mediaId, user);
     return { message: 'Media deleted successfully' };
+  }
+}
+
+@Controller('media')
+@UseGuards(CaslGuard)
+export class MediaController {
+  constructor(private readonly mediaService: MediaService) {}
+
+  @Get(':id')
+  @CheckPolicies(new ReadMediaPolicyHandler())
+  async getMedia(@Param('id') id: string, @CurrentUser() user: User) {
+    const media = await this.mediaService.findOne(id, user);
+    return {
+      success: true,
+      data: media,
+    };
+  }
+
+  @Get(':id/download')
+  @CheckPolicies(new ReadMediaPolicyHandler())
+  async downloadMedia(@Param('id') id: string, @CurrentUser() user: User, @Res() res: Response) {
+    const media = await this.mediaService.findOne(id, user);
+    const url = await this.mediaService.getMediaUrl(media);
+
+    // For local storage, serve the file directly
+    if (media.disk === StorageDisk.LOCAL) {
+      res.sendFile(media.path, { root: '' });
+    } else {
+      // For remote storage, redirect to the URL
+      res.redirect(url);
+    }
   }
 }
 ```
@@ -338,13 +412,7 @@ try {
    upload(file, property, user); // ❌ Uses 'default'
    ```
 
-2. **Use appropriate storage disk** based on environment
-
-   ```typescript
-   const disk = process.env.NODE_ENV === 'production' ? StorageDisk.S3 : StorageDisk.LOCAL;
-   ```
-
-3. **Clean up media when deleting entities**
+2. **Clean up media when deleting entities**
 
    ```typescript
    async deleteProperty(id: string, user: User) {
@@ -354,12 +422,12 @@ try {
    }
    ```
 
-4. **Validate files on the client side** to improve UX
+3. **Validate files on the client side** to improve UX
    - Check file size before upload
    - Check file type before upload
    - Show upload progress
 
-5. **Use transactions for critical operations**
+4. **Use transactions for critical operations**
    - When creating entities with required media
    - When updating multiple related records
 
@@ -383,19 +451,52 @@ try {
 
 ---
 
-## Migration to S3
+## S3StorageDriver Implementation
 
-To enable S3 storage:
+The S3StorageDriver implements the StorageDriverInterface to provide AWS S3 storage capabilities.
 
-1. Install AWS SDK:
+### Key Methods
+
+#### `store(file: any, path: string): Promise<string>`
+
+- Uploads a file to S3 using `PutObjectCommand`
+- Preserves the file's original MIME type
+- Returns the stored path for reference
+
+#### `delete(path: string): Promise<void>`
+
+- Removes a file from S3 using `DeleteObjectCommand`
+- Takes the relative path as input
+
+#### `getUrl(path: string, expiresIn?: number): Promise<string>`
+
+- Generates a temporary presigned URL using `GetObjectCommand` and `getSignedUrl`
+- Default expiration is 3600 seconds (1 hour)
+- Falls back to regular URL if signing fails
+
+#### `exists(path: string): Promise<boolean>`
+
+- Checks if a file exists in S3 using `HeadObjectCommand`
+- Returns true if file exists, false if not found (404)
+- Properly handles AWS error responses
+
+### Implementation Details
+
+- Creates a single S3Client instance in the constructor for efficiency
+- Configurable via environment variables
+- Handles AWS SDK errors appropriately
+
+## Using S3 Storage
+
+### Configuration
+
+1. Install required AWS SDK packages:
 
    ```bash
-   bun add @aws-sdk/client-s3
+   bun add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
    ```
 
-2. Update `s3-storage.driver.ts` to implement S3 operations
-
-3. Set environment variables:
+2. Set environment variables:
 
    ```env
    MEDIA_DEFAULT_DISK=s3
@@ -403,9 +504,58 @@ To enable S3 storage:
    AWS_S3_REGION=us-east-1
    AWS_ACCESS_KEY_ID=your-key
    AWS_SECRET_ACCESS_KEY=your-secret
+   AWS_S3_BASE_URL=https://your-bucket.s3.amazonaws.com
    ```
 
-4. Configure S3 bucket CORS if needed for direct uploads
+3. Configure S3 bucket CORS if needed for direct uploads:
+
+   ```json
+   [
+     {
+       "AllowedHeaders": ["*"],
+       "AllowedMethods": ["GET", "PUT", "POST", "DELETE"],
+       "AllowedOrigins": ["*"],
+       "ExposeHeaders": ["ETag"]
+     }
+   ]
+   ```
+
+### S3 Bucket Policy
+
+For private files with temporary access:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::YOUR_ACCOUNT_ID:user/YOUR_IAM_USER"
+      },
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::your-bucket/*"
+    }
+  ]
+}
+```
+
+### Using Temporary URLs
+
+```typescript
+// Get a temporary URL that expires in 1 hour (default)
+const url = await mediaService.getMediaUrl(media);
+
+// Get a temporary URL that expires in 15 minutes
+const url = await mediaService.getMediaUrl(media, 900);
+
+// Get a temporary URL via API endpoint
+// GET /media/123/temp-url?expiresIn=1800
+```
 
 ---
 
@@ -458,7 +608,3 @@ describe('Media Upload (e2e)', () => {
 - CASL Authorization: `docs/CASL_AUTHORIZATION.md`
 
 ---
-
-**Version**: 1.0.0  
-**Last Updated**: 2025-10-02  
-**Last Reviewed**: 2025-10-06

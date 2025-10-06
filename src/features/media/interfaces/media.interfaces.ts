@@ -1,7 +1,7 @@
 export interface StorageDriverInterface {
   store(file: any, path: string): Promise<string>;
   delete(path: string): Promise<void>;
-  getUrl(path: string): string;
+  getUrl(path: string, expiresIn?: number): Promise<string>;
   exists(path: string): Promise<boolean>;
 }
 

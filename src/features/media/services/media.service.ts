@@ -107,8 +107,6 @@ export class MediaService implements MediaServiceInterface {
       type: MediaUtils.getMediaTypeFromMime(mimeType),
       disk: selectedDisk,
       path: actualPath,
-      // Only store URL for non-local storage (S3, CDN, etc.)
-      ...(selectedDisk !== 'local' && { url: storageDriver.getUrl(actualPath) }),
       collection_name: collection,
       metadata: this.extractMetadata(file),
     };
@@ -181,14 +179,11 @@ export class MediaService implements MediaServiceInterface {
     await this.mediaModel.findByIdAndDelete(id);
   }
 
-  async getMediaUrl(media: Media): Promise<string> {
-    // Use stored URL if available, otherwise calculate it
-    if (media.url) {
-      return media.url;
-    }
-
+  async getMediaUrl(media: Media, expiresIn?: number): Promise<string> {
+    // For S3 storage, generate a temporary URL with the specified expiration
+    // For local storage, just return the regular URL
     const driver = this.storageManager.getDriver(media.disk);
-    return driver.getUrl(media.path);
+    return await driver.getUrl(media.path, expiresIn);
   }
 
   async enrichMediaWithUrl(media: Media): Promise<Media & { url: string }> {
