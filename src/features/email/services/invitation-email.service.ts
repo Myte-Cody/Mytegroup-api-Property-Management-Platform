@@ -15,7 +15,7 @@ export class InvitationEmailService {
     private readonly emailQueueService: EmailQueueService,
     private readonly configService: ConfigService,
   ) {
-    this.frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+    this.frontendUrl = this.configService.get<string>('CLIENT_BASE_URL') || 'http://localhost:3000';
   }
 
   async sendInvitationEmail(
@@ -30,7 +30,7 @@ export class InvitationEmailService {
   ): Promise<void> {
     try {
       // Build invitation URL
-      const invitationUrl = `${this.frontendUrl}/invitations/${invitationToken}`;
+      const invitationUrl = `${this.frontendUrl}/invitation/${invitationToken}`;
 
       // Prepare template context
       const context = {
