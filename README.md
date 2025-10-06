@@ -18,7 +18,9 @@ Enterprise-grade property management platform built with modern technologies:
 
 - Node.js >= 18
 - MongoDB >= 5.0 (must be configured as replica set for transactions)
+- Redis >= 6.0 (for job queues and caching)
 - npm or yarn
+- AWS S3 account (optional, for cloud media storage)
 
 ### MongoDB Replica Set Setup
 
@@ -76,6 +78,10 @@ Enterprise-grade property management platform built with modern technologies:
 
 **Note**: Without replica set configuration, you'll encounter the error: "Transaction numbers are only allowed on a replica set member or mongos"
 
+### Redis Setup
+
+Redis is required for BullMQ job queues (email notifications, scheduled tasks).
+
 ### Installation
 
 ```bash
@@ -110,6 +116,28 @@ JWT_EXPIRATION=1d
 ADMIN_USERNAME=admin
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=securePassword123
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+
+# Email (Gmail example)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_SECURE=false
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASS=your-app-password
+EMAIL_FROM=your-email@gmail.com
+EMAIL_USE_ETHEREAL=false  # Set to true for development testing
+
+# Media Storage (Local by default)
+MEDIA_UPLOAD_PATH=uploads
+# AWS S3 (optional - leave empty for local storage)
+AWS_S3_BUCKET=
+AWS_S3_REGION=
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
 ```
 
 ### Quick Setup
@@ -179,6 +207,8 @@ npm run build             # Compile TypeScript
 npm run test              # Run unit tests
 npm run test:watch        # Run tests in watch mode
 npm run test:cov          # Run tests with coverage
+npm run test:e2e          # Run end-to-end tests
+npm run test:e2e:cov      # E2E tests with coverage
 
 # Database
 npm run db:seed           # Run all database seeders
@@ -203,3 +233,8 @@ npm run format:check      # Check code formatting
 4. Use the seeded admin account to get started:
    - Email: From `ADMIN_EMAIL` env variable
    - Password: From `ADMIN_PASSWORD` env variable
+
+---
+
+**Last Updated**: 2025-10-06  
+**Last Reviewed**: 2025-10-06
