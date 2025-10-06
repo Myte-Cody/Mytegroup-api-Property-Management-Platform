@@ -64,7 +64,8 @@ export class LocalStorageDriver implements StorageDriverInterface {
     }
   }
 
-  getUrl(relativePath: string): string {
+  async getUrl(relativePath: string, expiresIn?: number): Promise<string> {
+    // Local storage doesn't need temporary URLs, so we ignore the expiresIn parameter
     return `${this.baseUrl}/uploads/${relativePath}`;
   }
 
