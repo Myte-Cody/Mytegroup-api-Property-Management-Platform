@@ -1,8 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { plainToInstance, Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
-  IsBooleanString,
   IsDate,
   IsEnum,
   IsMongoId,
@@ -170,7 +169,11 @@ export class CreateLeaseDto {
     default: false,
   })
   @IsOptional()
-  @IsBooleanString()
+  @Transform(({ value }) => {
+    if (typeof value == 'string') return value == 'true';
+    return value;
+  })
+  @IsBoolean()
   isSecurityDeposit?: boolean;
 
   @ApiPropertyOptional({
@@ -223,9 +226,16 @@ export class CreateLeaseDto {
     type: RentIncreaseDto,
   })
   @IsOptional()
+  @Transform(({ value }) => {
+    try {
+      return plainToInstance(RentIncreaseDto, JSON.parse(value));
+    } catch {
+      return value;
+    }
+  })
   @ValidateNested()
-  @Type(() => String || RentIncreaseDto)
-  rentIncrease?: String | RentIncreaseDto;
+  @Type(() => RentIncreaseDto)
+  rentIncrease?: RentIncreaseDto;
 
   @ApiPropertyOptional({
     description: 'Whether the lease should automatically renew',
@@ -233,6 +243,10 @@ export class CreateLeaseDto {
     default: false,
   })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value == 'string') return value == 'true';
+    return value;
+  })
   @IsBoolean()
   @Validate(AutoRenewalRequiresRentIncreaseValidator)
   autoRenewal?: boolean;

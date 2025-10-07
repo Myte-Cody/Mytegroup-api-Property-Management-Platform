@@ -183,10 +183,6 @@ export class LeasesService {
 
       const newLease = new this.leaseModel({
         ...createLeaseDto,
-        rentIncrease:
-          typeof createLeaseDto.rentIncrease == 'string'
-            ? JSON.parse(createLeaseDto.rentIncrease)
-            : createLeaseDto.rentIncrease,
         endDate: completedEndDate,
       });
 
@@ -248,7 +244,54 @@ export class LeasesService {
         await this.handleStatusChange(existingLease, updateLeaseDto.status, session);
       }
 
-      Object.assign(existingLease, updateLeaseDto);
+      // Handle document management
+      let uploadedDocuments = [];
+      let deletedDocuments = [];
+
+      // Handle existing documents (deletion of documents not in the list)
+      if (updateLeaseDto.existingDocumentIds) {
+        // Get all current documents for this lease
+        const currentDocuments = await this.mediaService.getMediaForEntity(
+          'Lease',
+          id,
+          currentUser,
+          'lease_documents',
+        );
+
+        // Find documents to delete (those not in existingDocumentIds)
+        const documentsToDelete = currentDocuments.filter(
+          (doc) => !updateLeaseDto.existingDocumentIds.includes(doc._id.toString()),
+        );
+
+        // Delete documents not in the list
+        for (const doc of documentsToDelete) {
+          await this.mediaService.deleteMedia(doc._id.toString(), currentUser);
+          deletedDocuments.push(doc._id.toString());
+        }
+      }
+
+      // Handle new document uploads
+      if (updateLeaseDto.documents && updateLeaseDto.documents.length > 0) {
+        const uploadPromises = updateLeaseDto.documents.map(async (file) => {
+          return this.mediaService.upload(
+            file,
+            existingLease,
+            currentUser,
+            'lease_documents',
+            undefined,
+            'Lease',
+            session,
+          );
+        });
+
+        uploadedDocuments = await Promise.all(uploadPromises);
+      }
+
+      // Remove documents and existingDocumentIds from the DTO before saving
+      const { documents, existingDocumentIds, ...leaseDataToUpdate } = updateLeaseDto;
+
+      // Update the lease
+      Object.assign(existingLease, leaseDataToUpdate);
       return await existingLease.save({ session });
     });
   }

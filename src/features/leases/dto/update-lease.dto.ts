@@ -1,6 +1,15 @@
 import { ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsBoolean, IsDate, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsDate,
+  IsMongoId,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+import { HasMimeType, IsFile, MaxFileSize, MemoryStoredFile } from 'nestjs-form-data';
 import { CreateLeaseDto } from './create-lease.dto';
 
 export class UpdateLeaseDto extends PartialType(CreateLeaseDto) {
@@ -48,6 +57,66 @@ export class UpdateLeaseDto extends PartialType(CreateLeaseDto) {
     default: false,
   })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value == 'string') return value == 'true';
+    return value;
+  })
   @IsBoolean({ message: 'Auto renewal must be a boolean value' })
   autoRenewal?: boolean;
+
+  @ApiPropertyOptional({
+    type: 'array',
+    items: { type: 'string', format: 'binary' },
+    description: 'New document files to add to the lease',
+    required: false,
+  })
+  @IsOptional()
+  @IsFile({ each: true })
+  @MaxFileSize(10 * 1024 * 1024, { each: true })
+  @HasMimeType(
+    [
+      'application/pdf',
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ],
+    {
+      each: true,
+    },
+  )
+  documents?: MemoryStoredFile[];
+
+  @ApiPropertyOptional({
+    type: 'array',
+    items: { type: 'string' },
+    description: 'IDs of existing documents to keep (all others will be removed)',
+    required: false,
+  })
+  @Transform(({ value }) => {
+    // Handle empty values
+    if (!value) return [];
+
+    // Handle string input (single ID)
+    if (typeof value === 'string') return [value];
+
+    // Handle array-like string input (comma-separated values)
+    if (typeof value === 'string' && value.includes(',')) {
+      return value
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => id);
+    }
+
+    // Handle array input
+    if (Array.isArray(value)) return value;
+
+    // Default case: return as is if it's already an array, or empty array if invalid
+    return Array.isArray(value) ? value : [];
+  })
+  @IsOptional()
+  @IsArray()
+  @IsMongoId({ each: true })
+  existingDocumentIds?: string[];
 }

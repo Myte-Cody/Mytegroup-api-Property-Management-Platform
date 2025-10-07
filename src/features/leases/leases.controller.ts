@@ -117,7 +117,9 @@ export class LeasesController {
 
   @Patch(':id')
   @CheckPolicies(new UpdateLeasePolicyHandler())
-  @ApiOperation({ summary: 'Update lease details' })
+  @FormDataRequest()
+  @ApiOperation({ summary: 'Update lease details with optional document files' })
+  @ApiConsumes('multipart/form-data')
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
   @ApiBody({ type: UpdateLeaseDto })
   @ApiResponse({
