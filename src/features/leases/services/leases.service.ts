@@ -558,6 +558,7 @@ export class LeasesService {
           $match: {
             lease: { $in: activeLeaseIds },
             type: PaymentType.RENT,
+            dueDate: { $lt: new Date()},
             deleted: { $ne: true },
           },
         },
