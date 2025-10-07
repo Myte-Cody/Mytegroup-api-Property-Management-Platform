@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsBooleanString,
   IsDate,
   IsEnum,
   IsMongoId,
@@ -18,6 +19,7 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from 'class-validator';
+import { HasMimeType, IsFile, MaxFileSize, MemoryStoredFile } from 'nestjs-form-data';
 import { LeaseStatus, PaymentCycle, RentIncreaseType } from '../../../common/enums/lease.enum';
 import { getToday } from '../../../common/utils/date.utils';
 
@@ -168,7 +170,7 @@ export class CreateLeaseDto {
     default: false,
   })
   @IsOptional()
-  @IsBoolean()
+  @IsBooleanString()
   isSecurityDeposit?: boolean;
 
   @ApiPropertyOptional({
@@ -222,8 +224,8 @@ export class CreateLeaseDto {
   })
   @IsOptional()
   @ValidateNested()
-  @Type(() => RentIncreaseDto)
-  rentIncrease?: RentIncreaseDto;
+  @Type(() => String || RentIncreaseDto)
+  rentIncrease?: String | RentIncreaseDto;
 
   @ApiPropertyOptional({
     description: 'Whether the lease should automatically renew',
@@ -234,4 +236,28 @@ export class CreateLeaseDto {
   @IsBoolean()
   @Validate(AutoRenewalRequiresRentIncreaseValidator)
   autoRenewal?: boolean;
+
+  @ApiPropertyOptional({
+    type: 'array',
+    items: { type: 'string', format: 'binary' },
+    description: 'Document files for the lease (contracts, agreements, etc.)',
+    required: false,
+  })
+  @IsOptional()
+  @IsFile({ each: true })
+  @MaxFileSize(10 * 1024 * 1024, { each: true })
+  @HasMimeType(
+    [
+      'application/pdf',
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ],
+    {
+      each: true,
+    },
+  )
+  documents?: MemoryStoredFile[];
 }

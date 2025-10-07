@@ -102,7 +102,9 @@ export class LeasesController {
 
   @Post()
   @CheckPolicies(new CreateLeasePolicyHandler())
-  @ApiOperation({ summary: 'Create a new lease' })
+  @FormDataRequest()
+  @ApiOperation({ summary: 'Create a new lease with optional document files' })
+  @ApiConsumes('multipart/form-data')
   @ApiBody({ type: CreateLeaseDto })
   @ApiResponse({
     status: 201,
