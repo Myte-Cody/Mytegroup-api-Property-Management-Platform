@@ -22,6 +22,7 @@ import { SessionService } from '../../../common/services/session.service';
 import { addDaysToDate, getToday } from '../../../common/utils/date.utils';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { LeaseEmailService } from '../../email/services/lease-email.service';
+import { MediaService } from '../../media/services/media.service';
 import { Unit } from '../../properties/schemas/unit.schema';
 import { Tenant } from '../../tenants/schema/tenant.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';
@@ -67,13 +68,11 @@ export class LeasesService {
     private readonly transactionsService: TransactionsService,
     private readonly caslAuthorizationService: CaslAuthorizationService,
     private readonly leaseEmailService: LeaseEmailService,
+    private readonly mediaService: MediaService,
     private readonly sessionService: SessionService,
   ) {}
 
-  async findAllPaginated(
-    leaseQueryDto: LeaseQueryDto,
-    currentUser: UserDocument,
-  ) {
+  async findAllPaginated(leaseQueryDto: LeaseQueryDto, currentUser: UserDocument) {
     const {
       page = 1,
       limit = 10,
@@ -193,6 +192,25 @@ export class LeasesService {
         await this.activateLease(savedLease, session);
       }
 
+      // If document files are provided, upload them
+      if (createLeaseDto.documents && createLeaseDto.documents.length > 0) {
+        const uploadPromises = createLeaseDto.documents.map(async (file) => {
+          return this.mediaService.upload(
+            file,
+            savedLease,
+            currentUser,
+            'lease_documents',
+            undefined,
+            'Lease',
+            session,
+          );
+        });
+
+        const uploadedMedia = await Promise.all(uploadPromises);
+
+        return savedLease;
+      }
+
       return savedLease;
     });
   }
@@ -226,7 +244,54 @@ export class LeasesService {
         await this.handleStatusChange(existingLease, updateLeaseDto.status, session);
       }
 
-      Object.assign(existingLease, updateLeaseDto);
+      // Handle document management
+      let uploadedDocuments = [];
+      let deletedDocuments = [];
+
+      // Handle existing documents (deletion of documents not in the list)
+      if (updateLeaseDto.existingDocumentIds) {
+        // Get all current documents for this lease
+        const currentDocuments = await this.mediaService.getMediaForEntity(
+          'Lease',
+          id,
+          currentUser,
+          'lease_documents',
+        );
+
+        // Find documents to delete (those not in existingDocumentIds)
+        const documentsToDelete = currentDocuments.filter(
+          (doc) => !updateLeaseDto.existingDocumentIds.includes(doc._id.toString()),
+        );
+
+        // Delete documents not in the list
+        for (const doc of documentsToDelete) {
+          await this.mediaService.deleteMedia(doc._id.toString(), currentUser);
+          deletedDocuments.push(doc._id.toString());
+        }
+      }
+
+      // Handle new document uploads
+      if (updateLeaseDto.documents && updateLeaseDto.documents.length > 0) {
+        const uploadPromises = updateLeaseDto.documents.map(async (file) => {
+          return this.mediaService.upload(
+            file,
+            existingLease,
+            currentUser,
+            'lease_documents',
+            undefined,
+            'Lease',
+            session,
+          );
+        });
+
+        uploadedDocuments = await Promise.all(uploadPromises);
+      }
+
+      // Remove documents and existingDocumentIds from the DTO before saving
+      const { documents, existingDocumentIds, ...leaseDataToUpdate } = updateLeaseDto;
+
+      // Update the lease
+      Object.assign(existingLease, leaseDataToUpdate);
       return await existingLease.save({ session });
     });
   }
@@ -558,7 +623,7 @@ export class LeasesService {
           $match: {
             lease: { $in: activeLeaseIds },
             type: PaymentType.RENT,
-            dueDate: { $lt: new Date()},
+            dueDate: { $lt: new Date() },
             deleted: { $ne: true },
           },
         },
@@ -717,7 +782,10 @@ export class LeasesService {
             {
               $match: {
                 $expr: {
-                  $and: [{ $eq: ['$organization_id', '$$tenantId'] }, { $eq: ['$isPrimary', true] }],
+                  $and: [
+                    { $eq: ['$organization_id', '$$tenantId'] },
+                    { $eq: ['$isPrimary', true] },
+                  ],
                 },
               },
             },
@@ -859,7 +927,7 @@ export class LeasesService {
     } else if (rentRollPipeline.length === 0) {
       rentRollPipeline.unshift({ $match: { deleted: false } });
     }
-    
+
     const countPipeline = [...rentRollPipeline, { $count: 'total' }];
     const countResult = await this.leaseModel.aggregate(countPipeline).exec();
     const totalCount = countResult[0]?.total || 0;

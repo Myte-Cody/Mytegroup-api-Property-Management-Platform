@@ -441,12 +441,12 @@ describe('Leases (e2e)', () => {
       const response = await requestHelper
         .get(`/leases/rent-roll?propertyId=${propertyId}`, landlordToken)
         .expect(200);
-      
+
       // Adjust expectation - the test is passing but there are no rent roll items
       // This is because the leases created in the test aren't being included in the rent roll
       expect(response.body.rentRoll).toBeDefined();
       expect(Array.isArray(response.body.rentRoll)).toBe(true);
-      
+
       // If there are items, verify they match the property ID
       if (response.body.rentRoll.length > 0) {
         response.body.rentRoll.forEach((item: any) => {
@@ -507,7 +507,7 @@ describe('Leases (e2e)', () => {
       // This is because the leases created in the test aren't being included in the rent roll
       expect(response.body.rentRoll).toBeDefined();
       expect(Array.isArray(response.body.rentRoll)).toBe(true);
-      
+
       // Only check for matches if there are results
       if (response.body.rentRoll.length > 0) {
         const hasMatch = response.body.rentRoll.some((item) =>

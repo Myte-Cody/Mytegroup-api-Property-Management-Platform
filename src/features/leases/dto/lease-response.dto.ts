@@ -174,4 +174,3 @@ export class LeaseResponseDto {
   @Type(() => Date)
   activatedAt?: Date;
 }
-

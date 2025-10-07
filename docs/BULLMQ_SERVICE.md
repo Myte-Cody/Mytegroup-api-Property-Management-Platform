@@ -9,12 +9,14 @@ Job queue implementation using BullMQ for handling asynchronous background tasks
 This document covers our **specific implementation** of BullMQ in the platform for handling asynchronous background tasks.
 
 **Key Technologies:**
+
 - `@nestjs/bullmq` - NestJS integration
 - `bullmq` - Core queue library
 - `ioredis` - Redis client
 - `@bull-board/nestjs` - Queue monitoring UI
 
 **Current Queues:**
+
 - `email` - Asynchronous email processing
 
 ## Configuration
@@ -89,10 +91,18 @@ export class QueueService {
     await this.queue.addBulk(bulkJobs);
   }
 
-  async getQueueStatus() { /* ... */ }
-  async pauseQueue() { /* ... */ }
-  async resumeQueue() { /* ... */ }
-  async retryFailedJobs() { /* ... */ }
+  async getQueueStatus() {
+    /* ... */
+  }
+  async pauseQueue() {
+    /* ... */
+  }
+  async resumeQueue() {
+    /* ... */
+  }
+  async retryFailedJobs() {
+    /* ... */
+  }
 }
 ```
 
@@ -139,12 +149,12 @@ export class QueueProcessor extends WorkerHost {
     BullModule.registerQueue({
       name: 'queue-name',
       defaultJobOptions: {
-        removeOnComplete: 100,  // Keep last 100 completed jobs
-        removeOnFail: 50,       // Keep last 50 failed jobs
+        removeOnComplete: 100, // Keep last 100 completed jobs
+        removeOnFail: 50, // Keep last 50 failed jobs
       },
     }),
   ],
-  providers: [QueueService, QueueProcessor, /* ... */],
+  providers: [QueueService, QueueProcessor /* ... */],
   exports: [QueueService],
 })
 export class FeatureModule {}
@@ -161,13 +171,13 @@ export class FeatureService {
 
   async performAction(data: ActionData) {
     const result = await this.repository.create(data);
-    
+
     // Queue background job (non-blocking)
     await this.queueService.addJob({
       id: result.id,
       type: 'process',
     });
-    
+
     return result;
   }
 }
@@ -190,7 +200,7 @@ await this.queueService.addJob(
 
 ```typescript
 // Queue multiple jobs efficiently
-const jobs = items.map(item => ({
+const jobs = items.map((item) => ({
   id: item.id,
   type: 'process',
 }));
@@ -265,6 +275,7 @@ onFailed(job: Job, error: Error) { /* Job failed */ }
 ## Example Implementation
 
 For a complete working example, see:
+
 - `src/features/email/` - Email queue implementation
 - `docs/EMAIL_SERVICE.md` - Email service documentation
 

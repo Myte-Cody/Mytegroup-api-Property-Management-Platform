@@ -865,7 +865,7 @@ const items = await this.model.accessibleBy(ability, Action.Read).find();
 
 // ❌ Bad: Create multiple times
 const items = await this.model.find();
-items.forEach(item => {
+items.forEach((item) => {
   const ability = this.caslService.createAbilityForUser(user); // Wasteful!
   if (ability.can(Action.Read, item)) {
     // ...
@@ -892,10 +892,7 @@ Only populate fields needed for conditions:
 
 ```typescript
 // ✅ Good: Only populate what's needed
-const lease = await this.leaseModel
-  .findById(id)
-  .populate('tenant')
-  .exec();
+const lease = await this.leaseModel.findById(id).populate('tenant').exec();
 
 // ❌ Bad: Over-populating
 const lease = await this.leaseModel
