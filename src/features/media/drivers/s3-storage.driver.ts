@@ -1,4 +1,10 @@
-import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -22,7 +28,7 @@ export class S3StorageDriver implements StorageDriverInterface {
       'AWS_S3_BASE_URL',
       `https://${this.bucket}.s3.${this.region}.amazonaws.com`,
     );
-    
+
     this.s3Client = new S3Client({
       region: this.region,
       credentials: {
@@ -59,7 +65,7 @@ export class S3StorageDriver implements StorageDriverInterface {
       Bucket: this.bucket,
       Key: path,
     });
-    
+
     try {
       // Generate a signed URL that expires after expiresIn seconds
       const signedUrl = await getSignedUrl(this.s3Client, command, { expiresIn });

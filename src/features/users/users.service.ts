@@ -214,7 +214,8 @@ export class UsersService {
   }
 
   async findAllPaginated(queryDto: UserQueryDto, currentUser: User) {
-    const { page, limit, sortBy, sortOrder, search, user_type, organization_id, isPrimary } = queryDto;
+    const { page, limit, sortBy, sortOrder, search, user_type, organization_id, isPrimary } =
+      queryDto;
 
     const populatedUser = await this.userModel.findById(currentUser._id).exec();
 

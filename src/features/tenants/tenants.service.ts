@@ -127,7 +127,7 @@ export class TenantsService {
         deleted: false,
       },
     });
-    
+
     const accessibleConditions = (ability as any).rulesFor(Action.Read, Tenant);
 
     // Stage 2: Lookup primary user to get email and phone
