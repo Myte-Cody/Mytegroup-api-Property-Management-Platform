@@ -102,7 +102,9 @@ export class LeasesController {
 
   @Post()
   @CheckPolicies(new CreateLeasePolicyHandler())
-  @ApiOperation({ summary: 'Create a new lease' })
+  @FormDataRequest()
+  @ApiOperation({ summary: 'Create a new lease with optional document files' })
+  @ApiConsumes('multipart/form-data')
   @ApiBody({ type: CreateLeaseDto })
   @ApiResponse({
     status: 201,
@@ -115,7 +117,9 @@ export class LeasesController {
 
   @Patch(':id')
   @CheckPolicies(new UpdateLeasePolicyHandler())
-  @ApiOperation({ summary: 'Update lease details' })
+  @FormDataRequest()
+  @ApiOperation({ summary: 'Update lease details with optional document files' })
+  @ApiConsumes('multipart/form-data')
   @ApiParam({ name: 'id', description: 'Lease ID', type: String })
   @ApiBody({ type: UpdateLeaseDto })
   @ApiResponse({

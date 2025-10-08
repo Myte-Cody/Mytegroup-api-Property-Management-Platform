@@ -35,7 +35,7 @@ export class MyService {
       await this.model1.create([data1], { session });
       await this.model2.updateOne(filter, update, { session });
       await this.model3.deleteOne(filter, { session });
-      
+
       // If any operation fails, all changes are rolled back
       return result;
     });
@@ -122,7 +122,7 @@ private async checkTransactionSupport(): Promise<void> {
 1. **Check Support**: Verifies if MongoDB supports transactions (cached after first check)
 2. **Start Session**: Creates a new MongoDB session
 3. **Execute Callback**: Runs your operations with the session
-4. **Commit or Rollback**: 
+4. **Commit or Rollback**:
    - Success → Commits all changes
    - Error → Rolls back all changes and re-throws error
 5. **Cleanup**: Always ends the session
@@ -160,7 +160,8 @@ await this.model.create([data]); // ❌ Changes not in transaction
 
 // Don't nest withSession calls
 await this.sessionService.withSession(async (session1) => {
-  await this.sessionService.withSession(async (session2) => { // ❌ Creates separate transaction
+  await this.sessionService.withSession(async (session2) => {
+    // ❌ Creates separate transaction
     // ...
   });
 });
@@ -197,6 +198,7 @@ await this.sessionService.withSession(async (session) => {
 ### Why Replica Set?
 
 MongoDB transactions require a replica set because:
+
 - Transactions need an oplog for rollback capability
 - Distributed consistency requires coordination
 - Standalone MongoDB doesn't have these features
@@ -226,6 +228,7 @@ mongosh --eval "rs.status()"
 ### Testing Environment
 
 For tests using MongoDB Memory Server (no replica set):
+
 - Service detects lack of support
 - Operations execute without transactions
 - Tests still pass but without ACID guarantees
@@ -258,6 +261,7 @@ try {
 ```
 
 The service automatically:
+
 - Aborts transaction on any error
 - Cleans up session resources
 - Re-throws the original error

@@ -3,7 +3,6 @@ import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
 import { Model } from 'mongoose';
 import { Command, CommandRunner, Option } from 'nest-commander';
-import { UnitAvailabilityStatus, UnitType } from '../common/enums/unit.enum';
 import { UserType } from '../common/enums/user-type.enum';
 import { Contractor } from '../features/contractors/schema/contractor.schema';
 import { Landlord } from '../features/landlords/schema/landlord.schema';

@@ -72,6 +72,7 @@ AWS_S3_BASE_URL=https://your-bucket.s3.amazonaws.com
 - Automatic error handling with fallback URLs
 
 **Required Packages:**
+
 - `@aws-sdk/client-s3`
 - `@aws-sdk/s3-request-presigner`
 
@@ -533,11 +534,7 @@ For private files with temporary access:
       "Principal": {
         "AWS": "arn:aws:iam::YOUR_ACCOUNT_ID:user/YOUR_IAM_USER"
       },
-      "Action": [
-        "s3:PutObject",
-        "s3:GetObject",
-        "s3:DeleteObject"
-      ],
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
       "Resource": "arn:aws:s3:::your-bucket/*"
     }
   ]

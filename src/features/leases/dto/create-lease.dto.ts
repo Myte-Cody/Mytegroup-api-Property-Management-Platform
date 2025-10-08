@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { plainToInstance, Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsDate,
@@ -18,6 +18,7 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from 'class-validator';
+import { HasMimeType, IsFile, MaxFileSize, MemoryStoredFile } from 'nestjs-form-data';
 import { LeaseStatus, PaymentCycle, RentIncreaseType } from '../../../common/enums/lease.enum';
 import { getToday } from '../../../common/utils/date.utils';
 
@@ -168,6 +169,10 @@ export class CreateLeaseDto {
     default: false,
   })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value == 'string') return value == 'true';
+    return value;
+  })
   @IsBoolean()
   isSecurityDeposit?: boolean;
 
@@ -221,6 +226,13 @@ export class CreateLeaseDto {
     type: RentIncreaseDto,
   })
   @IsOptional()
+  @Transform(({ value }) => {
+    try {
+      return plainToInstance(RentIncreaseDto, JSON.parse(value));
+    } catch {
+      return value;
+    }
+  })
   @ValidateNested()
   @Type(() => RentIncreaseDto)
   rentIncrease?: RentIncreaseDto;
@@ -231,7 +243,35 @@ export class CreateLeaseDto {
     default: false,
   })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value == 'string') return value == 'true';
+    return value;
+  })
   @IsBoolean()
   @Validate(AutoRenewalRequiresRentIncreaseValidator)
   autoRenewal?: boolean;
+
+  @ApiPropertyOptional({
+    type: 'array',
+    items: { type: 'string', format: 'binary' },
+    description: 'Document files for the lease (contracts, agreements, etc.)',
+    required: false,
+  })
+  @IsOptional()
+  @IsFile({ each: true })
+  @MaxFileSize(10 * 1024 * 1024, { each: true })
+  @HasMimeType(
+    [
+      'application/pdf',
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ],
+    {
+      each: true,
+    },
+  )
+  documents?: MemoryStoredFile[];
 }
