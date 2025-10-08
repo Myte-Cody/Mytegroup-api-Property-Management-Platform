@@ -125,10 +125,9 @@ describe('Leases (e2e)', () => {
       const response = await requestHelper.get('/leases', landlordToken).expect(200);
 
       expect(response.body).toHaveProperty('data');
-      expect(response.body).toHaveProperty('meta');
-      expect(response.body.meta).toHaveProperty('total');
-      expect(response.body.meta).toHaveProperty('page');
-      expect(response.body.meta).toHaveProperty('limit');
+      expect(response.body).toHaveProperty('total');
+      expect(response.body).toHaveProperty('page');
+      expect(response.body).toHaveProperty('limit');
       expect(response.body.data.length).toBeGreaterThanOrEqual(1);
     });
 
