@@ -3,7 +3,6 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
-const mongoTenant = require('mongo-tenant');
 
 export type TicketCommentDocument = TicketComment & Document & SoftDelete;
 
@@ -51,4 +50,3 @@ TicketCommentSchema.index({ author: 1 });
 
 TicketCommentSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 TicketCommentSchema.plugin(accessibleRecordsPlugin);
-TicketCommentSchema.plugin(mongoTenant);

@@ -1,12 +1,8 @@
-import { Types } from 'mongoose';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
 
 export class TicketReferenceUtils {
-  static async generateTicketNumber(
-    ticketModel: AppModel<MaintenanceTicket>,
-    tenantId: Types.ObjectId,
-  ): Promise<string> {
+  static async generateTicketNumber(ticketModel: AppModel<MaintenanceTicket>): Promise<string> {
     const currentYear = new Date().getFullYear();
     const prefix = `MT${currentYear}`;
 
@@ -15,7 +11,6 @@ export class TicketReferenceUtils {
     const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59);
 
     const count = await ticketModel
-      .byTenant(tenantId)
       .countDocuments({
         createdAt: {
           $gte: startOfYear,
@@ -31,13 +26,12 @@ export class TicketReferenceUtils {
 
   static async generateUniqueTicketNumber(
     ticketModel: AppModel<MaintenanceTicket>,
-    tenantId: Types.ObjectId,
     maxRetries: number = 5,
   ): Promise<string> {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const ticketNumber = await this.generateTicketNumber(ticketModel, tenantId);
+      const ticketNumber = await this.generateTicketNumber(ticketModel);
 
-      const existingTicket = await ticketModel.byTenant(tenantId).findOne({ ticketNumber }).exec();
+      const existingTicket = await ticketModel.findOne({ ticketNumber }).exec();
 
       if (!existingTicket) {
         return ticketNumber;

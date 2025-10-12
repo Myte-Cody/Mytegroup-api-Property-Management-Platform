@@ -23,16 +23,9 @@ export class TicketCommentsService {
     createCommentDto: CreateCommentDto,
     currentUser: UserDocument,
   ): Promise<any> {
-    const tenantId = this.getTenantId(currentUser);
+    const ticket = await this.validateTicketAccess(ticketId, currentUser);
 
-    if (!tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const ticket = await this.validateTicketAccess(ticketId, currentUser, tenantId);
-
-    const CommentWithTenant = this.commentModel.byTenant(tenantId);
-    const newComment = new CommentWithTenant({
+    const newComment = new this.commentModel({
       ...createCommentDto,
       ticket: new Types.ObjectId(ticketId),
       author: currentUser._id,
@@ -54,7 +47,7 @@ export class TicketCommentsService {
 
       const uploadedMedia = await Promise.all(uploadPromises);
 
-      const media = await this.mediaService.getMediaForEntity(
+      await this.mediaService.getMediaForEntity(
         'TicketComment',
         savedComment._id.toString(),
         currentUser,
@@ -63,7 +56,6 @@ export class TicketCommentsService {
       );
 
       const populatedComment = await this.commentModel
-        .byTenant(tenantId)
         .findById(savedComment._id)
         .populate('author', 'username email user_type')
         .exec();
@@ -79,7 +71,6 @@ export class TicketCommentsService {
     }
 
     const populatedComment = await this.commentModel
-      .byTenant(tenantId)
       .findById(savedComment._id)
       .populate('author', 'username email user_type')
       .exec();
@@ -92,16 +83,9 @@ export class TicketCommentsService {
   }
 
   async findAllForTicket(ticketId: string, currentUser: UserDocument): Promise<any[]> {
-    const tenantId = this.getTenantId(currentUser);
-
-    if (!tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    await this.validateTicketAccess(ticketId, currentUser, tenantId);
+    await this.validateTicketAccess(ticketId, currentUser);
 
     const comments = await this.commentModel
-      .byTenant(tenantId)
       .find({ ticket: ticketId })
       .sort({ createdAt: 1 })
       .populate('author', 'username email user_type')
@@ -131,13 +115,7 @@ export class TicketCommentsService {
     updateData: Partial<CreateCommentDto>,
     currentUser: UserDocument,
   ): Promise<TicketComment> {
-    const tenantId = this.getTenantId(currentUser);
-
-    if (!tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const comment = await this.commentModel.byTenant(tenantId).findById(commentId).exec();
+    const comment = await this.commentModel.findById(commentId).exec();
 
     if (!comment) {
       throw new NotFoundException('Comment not found');
@@ -152,13 +130,7 @@ export class TicketCommentsService {
   }
 
   async remove(commentId: string, currentUser: UserDocument): Promise<{ message: string }> {
-    const tenantId = this.getTenantId(currentUser);
-
-    if (!tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const comment = await this.commentModel.byTenant(tenantId).findById(commentId).exec();
+    const comment = await this.commentModel.findById(commentId).exec();
 
     if (!comment) {
       throw new NotFoundException('Comment not found');
@@ -171,7 +143,7 @@ export class TicketCommentsService {
       throw new ForbiddenException('You can only delete your own comments');
     }
 
-    await this.commentModel.byTenant(tenantId).findByIdAndDelete(commentId);
+    await this.commentModel.findByIdAndDelete(commentId);
     return { message: 'Comment deleted successfully' };
   }
 
@@ -180,15 +152,12 @@ export class TicketCommentsService {
   private async validateTicketAccess(
     ticketId: string,
     currentUser: UserDocument,
-    tenantId: Types.ObjectId,
   ): Promise<MaintenanceTicket> {
-    let query = this.ticketModel.byTenant(tenantId).findById(ticketId);
+    let query = this.ticketModel.findById(ticketId);
 
     // Apply access control based on user type
-    if (currentUser.user_type === 'Tenant') {
-      query = query.where({ tenant: currentUser.party_id });
-    } else if (currentUser.user_type === 'Contractor') {
-      query = query.where({ assignedContractor: currentUser.party_id });
+    if (currentUser.user_type === 'Contractor') {
+      query = query.where({ assignedContractor: currentUser._id });
     }
 
     const ticket = await query.exec();
@@ -198,18 +167,5 @@ export class TicketCommentsService {
     }
 
     return ticket;
-  }
-
-  private getTenantId(currentUser: UserDocument): Types.ObjectId | null {
-    if (!currentUser.tenantId) {
-      return null;
-    }
-
-    if (typeof currentUser.tenantId === 'object') {
-      return currentUser.tenantId as Types.ObjectId;
-    }
-
-    // Convert string to ObjectId
-    return currentUser.tenantId;
   }
 }

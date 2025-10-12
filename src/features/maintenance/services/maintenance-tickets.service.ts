@@ -6,13 +6,9 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
-import { LeaseStatus } from '../../../common/enums/lease.enum';
 import { TicketStatus } from '../../../common/enums/maintenance.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
-import {
-  createEmptyPaginatedResponse,
-  createPaginatedResponse,
-} from '../../../common/utils/pagination.utils';
+import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { Contractor } from '../../contractors/schema/contractor.schema';
 import { Lease } from '../../leases';
 import { MediaService } from '../../media/services/media.service';
@@ -59,18 +55,10 @@ export class MaintenanceTicketsService {
       createdTo,
     } = ticketQueryDto;
 
-    const tenantId = this.getTenantId(currentUser);
+    let baseQuery = this.ticketModel.find();
 
-    if (!tenantId) {
-      return createEmptyPaginatedResponse(page, limit);
-    }
-
-    let baseQuery = this.ticketModel.byTenant(tenantId).find();
-
-    if (currentUser.user_type === 'Tenant') {
-      baseQuery = baseQuery.where({ tenant: currentUser.party_id });
-    } else if (currentUser.user_type === 'Contractor') {
-      baseQuery = baseQuery.where({ assignedContractor: currentUser.party_id });
+    if (currentUser.user_type === 'Contractor') {
+      baseQuery = baseQuery.where({ assignedContractor: currentUser._id });
     }
 
     if (search) {
@@ -155,18 +143,10 @@ export class MaintenanceTicketsService {
   }
 
   async findOne(id: string, currentUser: UserDocument): Promise<any> {
-    const tenantId = this.getTenantId(currentUser);
+    let query = this.ticketModel.findById(id);
 
-    if (!tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    let query = this.ticketModel.byTenant(tenantId).findById(id);
-
-    if (currentUser.user_type === 'Tenant') {
-      query = query.where({ tenant: currentUser.party_id });
-    } else if (currentUser.user_type === 'Contractor') {
-      query = query.where({ assignedContractor: currentUser.party_id });
+    if (currentUser.user_type === 'Contractor') {
+      query = query.where({ assignedContractor: currentUser._id });
     }
 
     const ticket = await query
@@ -197,44 +177,12 @@ export class MaintenanceTicketsService {
   }
 
   async create(createTicketDto: CreateTicketDto, currentUser: UserDocument): Promise<any> {
-    const tenantId = this.getTenantId(currentUser);
+    await this.validateTicketCreation(createTicketDto, currentUser);
 
-    if (!tenantId) {
-      throw new ForbiddenException('Cannot create ticket: No tenant context');
-    }
+    const ticketNumber = await TicketReferenceUtils.generateUniqueTicketNumber(this.ticketModel);
 
-    await this.validateTicketCreation(createTicketDto, tenantId, currentUser);
-
-    const ticketNumber = await TicketReferenceUtils.generateUniqueTicketNumber(
-      this.ticketModel,
-      tenantId,
-    );
-
-    let ticketTenant: Types.ObjectId;
-    if (currentUser.user_type === 'Tenant') {
-      ticketTenant = currentUser.party_id as Types.ObjectId;
-    } else {
-      const unit = await this.unitModel.byTenant(tenantId).findById(createTicketDto.unit).exec();
-      if (!unit) {
-        throw new NotFoundException('Unit not found');
-      }
-      const activeLease = await this.leaseModel
-        .byTenant(tenantId)
-        .findOne({ unit: createTicketDto.unit, status: LeaseStatus.ACTIVE })
-        .exec();
-
-      console.log('Found lease for unit:', activeLease);
-      if (activeLease) {
-        ticketTenant = activeLease.tenant as Types.ObjectId;
-      } else {
-        throw new BadRequestException('No tenant found for the specified unit');
-      }
-    }
-
-    const TicketWithTenant = this.ticketModel.byTenant(tenantId);
-    const newTicket = new TicketWithTenant({
+    const newTicket = new this.ticketModel({
       ...createTicketDto,
-      tenant: ticketTenant,
       requestedBy: currentUser._id,
       ticketNumber,
       requestDate: new Date(),
@@ -282,13 +230,7 @@ export class MaintenanceTicketsService {
       throw new BadRequestException('Update data cannot be empty');
     }
 
-    const tenantId = this.getTenantId(currentUser);
-
-    if (!tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
-    const existingTicket = await this.ticketModel.byTenant(tenantId).findById(id).exec();
+    const existingTicket = await this.ticketModel.findById(id).exec();
 
     if (!existingTicket) {
       throw new NotFoundException(`Ticket with ID ${id} not found`);
@@ -309,26 +251,17 @@ export class MaintenanceTicketsService {
     assignDto: AssignTicketDto,
     currentUser: UserDocument,
   ): Promise<MaintenanceTicket> {
-    const tenantId = this.getTenantId(currentUser);
-
-    if (!tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     if (currentUser.user_type !== 'Landlord') {
       throw new ForbiddenException('Only landlords can assign tickets');
     }
 
-    const ticket = await this.ticketModel.byTenant(tenantId).findById(id).exec();
+    const ticket = await this.ticketModel.findById(id).exec();
 
     if (!ticket) {
       throw new NotFoundException(`Ticket with ID ${id} not found`);
     }
 
-    const contractor = await this.contractorModel
-      .byTenant(tenantId)
-      .findById(assignDto.contractorId)
-      .exec();
+    const contractor = await this.contractorModel.findById(assignDto.contractorId).exec();
 
     if (!contractor) {
       throw new NotFoundException('Contractor not found');
@@ -344,14 +277,8 @@ export class MaintenanceTicketsService {
   }
 
   async remove(id: string, currentUser: UserDocument): Promise<{ message: string }> {
-    const tenantId = this.getTenantId(currentUser);
-
-    if (!tenantId) {
-      throw new ForbiddenException('Access denied: No tenant context');
-    }
-
     // Find ticket
-    const ticket = await this.ticketModel.byTenant(tenantId).findById(id).exec();
+    const ticket = await this.ticketModel.findById(id).exec();
 
     if (!ticket) {
       throw new NotFoundException(`Ticket with ID ${id} not found`);
@@ -370,7 +297,7 @@ export class MaintenanceTicketsService {
       throw new ForbiddenException('You can only delete your own tickets');
     }
 
-    await this.ticketModel.byTenant(tenantId).findByIdAndDelete(id);
+    await this.ticketModel.findByIdAndDelete(id);
     return { message: 'Ticket deleted successfully' };
   }
 
@@ -378,18 +305,14 @@ export class MaintenanceTicketsService {
 
   private async validateTicketCreation(
     createTicketDto: CreateTicketDto,
-    tenantId: Types.ObjectId,
     currentUser: UserDocument,
   ) {
-    const unit = await this.unitModel.byTenant(tenantId).findById(createTicketDto.unit).exec();
+    const unit = await this.unitModel.findById(createTicketDto.unit).exec();
     if (!unit) {
       throw new NotFoundException('Unit not found');
     }
 
-    const property = await this.propertyModel
-      .byTenant(tenantId)
-      .findById(createTicketDto.property)
-      .exec();
+    const property = await this.propertyModel.findById(createTicketDto.property).exec();
     if (!property) {
       throw new NotFoundException('Property not found');
     }
@@ -426,7 +349,7 @@ export class MaintenanceTicketsService {
     if (currentUser.user_type === 'Contractor') {
       if (
         !ticket.assignedContractor ||
-        ticket.assignedContractor.toString() !== currentUser.party_id.toString()
+        ticket.assignedContractor.toString() !== currentUser._id.toString()
       ) {
         throw new ForbiddenException('You can only update tickets assigned to you');
       }
@@ -473,18 +396,5 @@ export class MaintenanceTicketsService {
     if (newStatus === TicketStatus.DONE && !ticket.completedDate) {
       ticket.completedDate = new Date();
     }
-  }
-
-  private getTenantId(currentUser: UserDocument): Types.ObjectId | null {
-    if (!currentUser.tenantId) {
-      return null;
-    }
-
-    if (typeof currentUser.tenantId === 'object') {
-      return currentUser.tenantId as Types.ObjectId;
-    }
-
-    // Convert string to ObjectId
-    return new Types.ObjectId(currentUser.tenantId);
   }
 }

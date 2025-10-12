@@ -8,7 +8,6 @@ import {
   TicketStatus,
 } from '../../../common/enums/maintenance.enum';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
-const mongoTenant = require('mongo-tenant');
 
 export type MaintenanceTicketDocument = MaintenanceTicket & Document & SoftDelete;
 
@@ -27,13 +26,6 @@ export class MaintenanceTicket extends Document implements SoftDelete {
     required: true,
   })
   unit: Types.ObjectId;
-
-  @Prop({
-    type: MongooseSchema.Types.ObjectId,
-    ref: 'Tenant',
-    required: true,
-  })
-  tenant: Types.ObjectId;
 
   @Prop({
     type: MongooseSchema.Types.ObjectId,
@@ -120,16 +112,9 @@ MaintenanceTicketSchema.virtual('images', {
   match: { model_type: 'MaintenanceTicket', collection_name: 'ticket_images' },
 });
 
-MaintenanceTicketSchema.index(
-  { ticketNumber: 1, tenantId: 1 },
-  { unique: true, name: 'ticket_number_tenant_unique' },
-);
-
 MaintenanceTicketSchema.index({ property: 1, unit: 1 });
 MaintenanceTicketSchema.index({ status: 1, priority: 1 });
 MaintenanceTicketSchema.index({ assignedContractor: 1, status: 1 });
-MaintenanceTicketSchema.index({ tenant: 1, status: 1 });
 
 MaintenanceTicketSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 MaintenanceTicketSchema.plugin(accessibleRecordsPlugin);
-MaintenanceTicketSchema.plugin(mongoTenant);
