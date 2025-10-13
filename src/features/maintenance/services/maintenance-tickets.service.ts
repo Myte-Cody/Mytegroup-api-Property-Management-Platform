@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Types } from 'mongoose';
+import { ClientSession, Types } from 'mongoose';
 import { TicketStatus } from '../../../common/enums/maintenance.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
@@ -19,6 +19,7 @@ import { UserDocument } from '../../users/schemas/user.schema';
 import { AssignTicketDto, CreateTicketDto, TicketQueryDto, UpdateTicketDto } from '../dto';
 import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
 import { TicketReferenceUtils } from '../utils/ticket-reference.utils';
+import { SessionService } from './../../../common/services/session.service';
 
 @Injectable()
 export class MaintenanceTicketsService {
@@ -34,7 +35,7 @@ export class MaintenanceTicketsService {
     @InjectModel(Contractor.name)
     private readonly contractorModel: AppModel<Contractor>,
     @InjectModel(Lease.name)
-    private readonly leaseModel: AppModel<Lease>,
+    private readonly sessionService: SessionService,
     private readonly mediaService: MediaService,
   ) {}
 
@@ -177,48 +178,51 @@ export class MaintenanceTicketsService {
   }
 
   async create(createTicketDto: CreateTicketDto, currentUser: UserDocument): Promise<any> {
-    await this.validateTicketCreation(createTicketDto, currentUser);
+    return this.sessionService.withSession(async (session: ClientSession | null) => {
+      await this.validateTicketCreation(createTicketDto, currentUser, session);
 
-    const ticketNumber = await TicketReferenceUtils.generateUniqueTicketNumber(this.ticketModel);
+      const ticketNumber = await TicketReferenceUtils.generateUniqueTicketNumber(this.ticketModel);
 
-    const newTicket = new this.ticketModel({
-      ...createTicketDto,
-      requestedBy: currentUser._id,
-      ticketNumber,
-      requestDate: new Date(),
-    });
-
-    const ticket = await newTicket.save();
-
-    if (createTicketDto.media_files && createTicketDto.media_files.length > 0) {
-      const uploadPromises = createTicketDto.media_files.map(async (file) => {
-        return this.mediaService.upload(
-          file,
-          ticket,
-          currentUser,
-          'ticket_images',
-          undefined,
-          'MaintenanceTicket',
-        );
+      const newTicket = new this.ticketModel({
+        ...createTicketDto,
+        requestedBy: currentUser._id,
+        ticketNumber,
+        requestDate: new Date(),
       });
 
-      const uploadedMedia = await Promise.all(uploadPromises);
+      const ticket = await newTicket.save({ session });
+
+      if (createTicketDto.media_files && createTicketDto.media_files.length > 0) {
+        const uploadPromises = createTicketDto.media_files.map(async (file) => {
+          return this.mediaService.upload(
+            file,
+            ticket,
+            currentUser,
+            'ticket_images',
+            undefined,
+            'MaintenanceTicket',
+            session,
+          );
+        });
+
+        const uploadedMedia = await Promise.all(uploadPromises);
+
+        return {
+          success: true,
+          data: {
+            ticket,
+            media: uploadedMedia,
+          },
+          message: `Ticket created successfully with ${uploadedMedia.length} media file(s)`,
+        };
+      }
 
       return {
         success: true,
-        data: {
-          ticket,
-          media: uploadedMedia,
-        },
-        message: `Ticket created successfully with ${uploadedMedia.length} media file(s)`,
+        data: { ticket },
+        message: 'Ticket created successfully',
       };
-    }
-
-    return {
-      success: true,
-      data: { ticket },
-      message: 'Ticket created successfully',
-    };
+    });
   }
 
   async update(
@@ -239,7 +243,7 @@ export class MaintenanceTicketsService {
     this.validateUpdatePermissions(existingTicket, currentUser, updateTicketDto);
 
     if (updateTicketDto.status && updateTicketDto.status !== existingTicket.status) {
-      await this.handleStatusChange(existingTicket, updateTicketDto.status, currentUser);
+      await this.handleStatusChange(existingTicket, updateTicketDto.status);
     }
 
     Object.assign(existingTicket, updateTicketDto);
@@ -306,13 +310,16 @@ export class MaintenanceTicketsService {
   private async validateTicketCreation(
     createTicketDto: CreateTicketDto,
     currentUser: UserDocument,
+    session: ClientSession | null,
   ) {
-    const unit = await this.unitModel.findById(createTicketDto.unit).exec();
+    const unit = await this.unitModel.findById(createTicketDto.unit, null, { session }).exec();
     if (!unit) {
       throw new NotFoundException('Unit not found');
     }
 
-    const property = await this.propertyModel.findById(createTicketDto.property).exec();
+    const property = await this.propertyModel
+      .findById(createTicketDto.property, null, { session })
+      .exec();
     if (!property) {
       throw new NotFoundException('Property not found');
     }
@@ -366,11 +373,7 @@ export class MaintenanceTicketsService {
     }
   }
 
-  private async handleStatusChange(
-    ticket: MaintenanceTicket,
-    newStatus: TicketStatus,
-    currentUser: UserDocument,
-  ) {
+  private async handleStatusChange(ticket: MaintenanceTicket, newStatus: TicketStatus) {
     // current flow
     //  OPEN → IN_REVIEW or CLOSED
     //  IN_REVIEW → ASSIGNED or CLOSED

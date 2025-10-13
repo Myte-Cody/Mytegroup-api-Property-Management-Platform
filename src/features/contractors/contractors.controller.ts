@@ -11,7 +11,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { CheckPolicies } from '../../common/casl/decorators/check-policies.decorator';
 import { CaslGuard } from '../../common/casl/guards/casl.guard';
 import {
@@ -25,6 +32,7 @@ import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pi
 import { User } from '../users/schemas/user.schema';
 import { ContractorsService } from './contractors.service';
 import { ContractorQueryDto } from './dto/contractor-query.dto';
+import { ContractorResponseDto } from './dto/contractor-response.dto';
 import { CreateContractorDto } from './dto/create-contractor.dto';
 import { UpdateContractorDto } from './dto/update-contractor.dto';
 
@@ -46,6 +54,11 @@ export class ContractorsController {
   @Get()
   @CheckPolicies(new ReadContractorPolicyHandler())
   @ApiOperation({ summary: 'Get all contractors' })
+  @ApiOkResponse({
+    description: 'Paginated list of contractors with user data',
+    type: ContractorResponseDto,
+    isArray: true,
+  })
   findAll(@Query() queryDto: ContractorQueryDto, @CurrentUser() user: User) {
     return this.contractorsService.findAllPaginated(queryDto, user);
   }
@@ -53,6 +66,10 @@ export class ContractorsController {
   @Get('me')
   @CheckPolicies(new ReadContractorPolicyHandler())
   @ApiOperation({ summary: 'Get my contractor profile (contractors only)' })
+  @ApiOkResponse({
+    description: 'Contractor profile with user data',
+    type: ContractorResponseDto,
+  })
   findMyProfile(@CurrentUser() user: User) {
     return this.contractorsService.findMyProfile(user);
   }
@@ -61,6 +78,10 @@ export class ContractorsController {
   @CheckPolicies(new ReadContractorPolicyHandler())
   @ApiOperation({ summary: 'Get contractor by ID' })
   @ApiParam({ name: 'id', description: 'Contractor ID', type: String })
+  @ApiOkResponse({
+    description: 'Contractor details with user data',
+    type: ContractorResponseDto,
+  })
   findOne(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
     return this.contractorsService.findOne(id, user);
   }

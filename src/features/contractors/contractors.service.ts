@@ -9,11 +9,15 @@ import * as bcrypt from 'bcrypt';
 import { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
+import { TicketStatus } from '../../common/enums/maintenance.enum';
+import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
+import { MaintenanceTicket } from '../maintenance/schemas/maintenance-ticket.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { ContractorQueryDto, PaginatedContractorsResponse } from './dto/contractor-query.dto';
+import { ContractorResponseDto } from './dto/contractor-response.dto';
 import { CreateContractorDto } from './dto/create-contractor.dto';
 import { UpdateContractorDto } from './dto/update-contractor.dto';
 import { Contractor } from './schema/contractor.schema';
@@ -25,14 +29,66 @@ export class ContractorsService {
     private readonly contractorModel: AppModel<Contractor>,
     @InjectModel(User.name)
     private readonly userModel: AppModel<User>,
+    @InjectModel(MaintenanceTicket.name)
+    private readonly maintenanceTicketModel: AppModel<MaintenanceTicket>,
     private caslAuthorizationService: CaslAuthorizationService,
     private readonly sessionService: SessionService,
   ) {}
 
+  /**
+   * Transform contractor document with associated user data to match CreateContractorDto structure
+   */
+  private async transformContractorToResponse(contractor: any): Promise<ContractorResponseDto> {
+    // Find the user associated with this contractor
+    const user = await this.userModel
+      .findOne({
+        organization_id: contractor._id,
+        user_type: UserType.CONTRACTOR,
+      })
+      .exec();
+
+    if (!user) {
+      throw new NotFoundException(
+        `User account not found for contractor ${contractor.name} (ID: ${contractor._id})`,
+      );
+    }
+
+    // Calculate active tickets count (all statuses except CLOSED)
+    const activeTicketsCount = await this.maintenanceTicketModel
+      .countDocuments({
+        assignedContractor: contractor._id,
+        status: { $ne: TicketStatus.CLOSED },
+      })
+      .exec();
+
+    // Calculate completed tickets count (DONE and CLOSED statuses)
+    const completedTicketsCount = await this.maintenanceTicketModel
+      .countDocuments({
+        assignedContractor: contractor._id,
+        status: { $in: [TicketStatus.DONE, TicketStatus.CLOSED] },
+      })
+      .exec();
+
+    return {
+      _id: contractor._id.toString(),
+      name: contractor.name,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone,
+      userId: user._id.toString(),
+      createdAt: contractor.createdAt,
+      updatedAt: contractor.updatedAt,
+      activeTicketsCount,
+      completedTicketsCount,
+    };
+  }
+
   async findAllPaginated(
     queryDto: ContractorQueryDto,
     currentUser: UserDocument,
-  ): Promise<PaginatedContractorsResponse<Contractor>> {
+  ): Promise<PaginatedContractorsResponse<ContractorResponseDto>> {
     // Contractor users should not be able to list other contractors - only access their own profile
     if (currentUser.user_type === 'Contractor') {
       throw new ForbiddenException(
@@ -67,10 +123,20 @@ export class ContractorsService {
       this.contractorModel.countDocuments(query).exec(),
     ]);
 
-    return createPaginatedResponse<Contractor>(contractors, total, page, limit);
+    // Transform contractors to include user data
+    const transformedContractors = await Promise.all(
+      contractors.map((contractor) => this.transformContractorToResponse(contractor)),
+    );
+
+    return createPaginatedResponse<ContractorResponseDto>(
+      transformedContractors,
+      total,
+      page,
+      limit,
+    );
   }
 
-  async findOne(id: string, currentUser: UserDocument) {
+  async findOne(id: string, currentUser: UserDocument): Promise<ContractorResponseDto> {
     // Contractor users should only access their own profile via /contractors/me
     if (currentUser.user_type === 'Contractor') {
       throw new ForbiddenException(
@@ -96,10 +162,10 @@ export class ContractorsService {
       throw new ForbiddenException('You do not have permission to view this contractor');
     }
 
-    return contractor;
+    return this.transformContractorToResponse(contractor);
   }
 
-  async findMyProfile(currentUser: UserDocument) {
+  async findMyProfile(currentUser: UserDocument): Promise<ContractorResponseDto> {
     // Only contractor users can access their own profile
     if (currentUser.user_type !== 'Contractor') {
       throw new ForbiddenException('Only contractor users can access this endpoint');
@@ -128,7 +194,7 @@ export class ContractorsService {
       throw new ForbiddenException('You do not have permission to view this contractor profile');
     }
 
-    return contractor;
+    return this.transformContractorToResponse(contractor);
   }
 
   async create(createContractorDto: CreateContractorDto, currentUser: UserDocument) {
@@ -140,7 +206,7 @@ export class ContractorsService {
     }
 
     // Extract user data from DTO
-    const { email, password, name } = createContractorDto;
+    const { email, password, name, username, firstName, lastName, phone } = createContractorDto;
 
     // Check if contractor name already exists within this tenant
     const existingContractor = await this.contractorModel.findOne({ name }).exec();
@@ -165,12 +231,13 @@ export class ContractorsService {
 
       // Create the user account for the contractor
       const userData = {
-        username: email, // Use email as username
-        firstName: name,
-        lastName: name,
+        username,
+        firstName,
+        lastName,
         email,
+        phone,
         password: hashedPassword,
-        user_type: 'Contractor',
+        user_type: UserType.CONTRACTOR,
         organization_id: savedContractor._id, // Link to the contractor
       };
 
