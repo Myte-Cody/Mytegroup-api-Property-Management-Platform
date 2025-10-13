@@ -13,12 +13,16 @@ import { TicketStatus } from '../../common/enums/maintenance.enum';
 import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { SessionService } from '../../common/services/session.service';
-import { createPaginatedResponse } from '../../common/utils/pagination.utils';
+import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
 import { MaintenanceTicket } from '../maintenance/schemas/maintenance-ticket.schema';
+import { CreateUserDto } from '../users/dto/create-user.dto';
+import { UpdateUserDto } from '../users/dto/update-user.dto';
+import { UserQueryDto } from '../users/dto/user-query.dto';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { UsersService } from '../users/users.service';
 import { ContractorQueryDto, PaginatedContractorsResponse } from './dto/contractor-query.dto';
 import { ContractorResponseDto } from './dto/contractor-response.dto';
+import { CreateContractorUserDto } from './dto/create-contractor-user.dto';
 import { CreateContractorDto } from './dto/create-contractor.dto';
 import { UpdateContractorDto } from './dto/update-contractor.dto';
 import { Contractor } from './schema/contractor.schema';
@@ -355,5 +359,130 @@ export class ContractorsService {
     await this.contractorModel
       .findByIdAndUpdate(id, { deleted: true, deletedAt: new Date() })
       .exec();
+  }
+
+  // Contractor Users Management Methods
+  async findContractorUsers(
+    contractorId: string,
+    queryDto: UserQueryDto,
+    currentUser: UserDocument,
+  ): Promise<PaginatedResponse<User>> {
+    // Validate contractor exists and user has access
+    await this.validateContractorAccess(contractorId, currentUser, Action.Read);
+
+    // Create a modified query that filters for this contractor's users
+    const contractorUserQuery: UserQueryDto = {
+      ...queryDto,
+      user_type: UserType.CONTRACTOR,
+      organization_id: contractorId, // Add organization_id to the query
+    };
+
+    // Use UserService for consistent business logic and CASL authorization
+    return await this.usersService.findAllPaginated(contractorUserQuery, currentUser);
+  }
+
+  async createContractorUser(
+    contractorId: string,
+    createContractorUserDto: CreateContractorUserDto,
+    currentUser: UserDocument,
+  ) {
+    // Validate contractor exists and user has access
+    await this.validateContractorAccess(contractorId, currentUser, Action.Create);
+
+    // Create user using UsersService with contractor-specific data
+    const userData: CreateUserDto = {
+      username: createContractorUserDto.username,
+      firstName: createContractorUserDto.firstName,
+      lastName: createContractorUserDto.lastName,
+      email: createContractorUserDto.email,
+      phone: createContractorUserDto.phone,
+      password: createContractorUserDto.password,
+      user_type: UserType.CONTRACTOR,
+      organization_id: contractorId,
+      isPrimary: createContractorUserDto.isPrimary,
+    };
+
+    return await this.usersService.create(userData);
+  }
+
+  async updateContractorUser(
+    contractorId: string,
+    userId: string,
+    updateUserDto: UpdateUserDto,
+    currentUser: UserDocument,
+  ) {
+    // Validate contractor exists and user has access
+    await this.validateContractorAccess(contractorId, currentUser, Action.Update);
+
+    await this.validateUserBelongsToContractor(userId, contractorId, currentUser);
+
+    return await this.usersService.update(userId, updateUserDto);
+  }
+
+  async removeContractorUser(contractorId: string, userId: string, currentUser: UserDocument) {
+    await this.validateContractorAccess(contractorId, currentUser, Action.Delete);
+
+    await this.validateUserBelongsToContractor(userId, contractorId, currentUser);
+
+    return await this.usersService.remove(userId);
+  }
+
+  // Helper method to validate contractor access
+  private async validateContractorAccess(
+    contractorId: string,
+    currentUser: UserDocument,
+    action: Action,
+  ) {
+    // Check CASL permissions
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    if (!ability.can(action, Contractor)) {
+      throw new ForbiddenException(
+        `You do not have permission to ${action.toLowerCase()} contractor users`,
+      );
+    }
+
+    // Verify the contractor exists and user has access
+    const contractor = await this.contractorModel.findById(contractorId).exec();
+
+    if (!contractor) {
+      throw new NotFoundException(`Contractor with ID ${contractorId} not found`);
+    }
+
+    // For contractor users, ensure they can only access their own contractor's users
+    if (currentUser.user_type === 'Contractor') {
+      if (currentUser.organization_id?.toString() !== contractorId) {
+        throw new ForbiddenException('You can only manage users within your own contractor');
+      }
+    }
+
+    return contractor;
+  }
+
+  // Helper method to validate that a user belongs to a specific contractor
+  private async validateUserBelongsToContractor(
+    userId: string,
+    contractorId: string,
+    currentUser: UserDocument,
+  ) {
+    // Validation: Ensure userId is a valid ObjectId format
+    if (!userId.match(/^[0-9a-fA-F]{24}$/)) {
+      throw new UnprocessableEntityException('Invalid user ID format');
+    }
+
+    // Find and verify the user belongs to the contractor
+    const user = await this.userModel
+      .findOne({
+        _id: userId,
+        user_type: 'Contractor',
+        organization_id: contractorId,
+      })
+      .exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found or does not belong to this contractor');
+    }
+
+    return user;
   }
 }
