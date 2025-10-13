@@ -14,6 +14,12 @@ export class ContractorResponseDto {
   name: string;
 
   @ApiProperty({
+    description: 'Category of the contractor',
+    example: 'Plumbing',
+  })
+  category: string;
+
+  @ApiProperty({
     description: 'Username for the contractor user account',
     example: 'johndoe',
   })

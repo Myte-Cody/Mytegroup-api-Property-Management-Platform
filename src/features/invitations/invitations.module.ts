@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CaslModule } from '../../common/casl/casl.module';
+import { ContractorModule } from '../contractors/contractor.module';
 import { TenantsModule } from '../tenants/tenant.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
@@ -20,6 +21,7 @@ import { TenantInvitationStrategy } from './strategies/tenant-invitation.strateg
     CaslModule,
     UsersModule,
     TenantsModule,
+    ContractorModule,
   ],
   controllers: [InvitationsController],
   providers: [

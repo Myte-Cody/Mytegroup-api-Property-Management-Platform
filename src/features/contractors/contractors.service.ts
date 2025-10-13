@@ -16,6 +16,7 @@ import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { MaintenanceTicket } from '../maintenance/schemas/maintenance-ticket.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
+import { UsersService } from '../users/users.service';
 import { ContractorQueryDto, PaginatedContractorsResponse } from './dto/contractor-query.dto';
 import { ContractorResponseDto } from './dto/contractor-response.dto';
 import { CreateContractorDto } from './dto/create-contractor.dto';
@@ -32,6 +33,7 @@ export class ContractorsService {
     @InjectModel(MaintenanceTicket.name)
     private readonly maintenanceTicketModel: AppModel<MaintenanceTicket>,
     private caslAuthorizationService: CaslAuthorizationService,
+    private readonly usersService: UsersService,
     private readonly sessionService: SessionService,
   ) {}
 
@@ -78,6 +80,7 @@ export class ContractorsService {
       email: user.email,
       phone: user.phone,
       userId: user._id.toString(),
+      category: contractor.category,
       createdAt: contractor.createdAt,
       updatedAt: contractor.updatedAt,
       activeTicketsCount,
@@ -246,6 +249,46 @@ export class ContractorsService {
 
       return savedContractor;
     });
+  }
+
+  async createFromInvitation(createContractorDto: CreateContractorDto, session?: ClientSession) {
+    // Extract user data from DTO
+    const { email, password, name, category, username, firstName, lastName, phone } =
+      createContractorDto;
+
+    // Check if contractor name already exists within this tenant
+    const existingContractor = await this.contractorModel.findOne({ name }).exec();
+
+    if (existingContractor) {
+      throw new UnprocessableEntityException(
+        `Contractor name '${name}' already exists in this organization`,
+      );
+    }
+
+    // Create tenant
+    const contractorData = {
+      name,
+      category,
+    };
+
+    const newContractor = new this.contractorModel(contractorData);
+    const savedContractor = await newContractor.save({ session: session ?? null });
+
+    // Create user account (without current user context for invitations)
+    const userData = {
+      username,
+      email,
+      phone,
+      password,
+      firstName,
+      lastName,
+      user_type: UserType.CONTRACTOR,
+      organization_id: savedContractor._id.toString(),
+    };
+
+    await this.usersService.createFromInvitation(userData, session);
+
+    return savedContractor;
   }
 
   async update(id: string, updateContractorDto: UpdateContractorDto, currentUser: UserDocument) {

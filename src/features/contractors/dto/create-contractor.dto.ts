@@ -71,6 +71,16 @@ export class CreateContractorDto {
   phone?: string;
 
   @ApiProperty({
+    description: 'Category of the contractor',
+    example: 'Plumbing',
+    maxLength: 100,
+  })
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(100)
+  category: string;
+
+  @ApiProperty({
     description:
       'Password for the contractor user account (min 8 chars with uppercase, lowercase, and number/special char)',
     example: 'StrongP@ss123',

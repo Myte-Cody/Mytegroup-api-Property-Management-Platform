@@ -8,6 +8,7 @@ import {
 import { Property, PropertySchema } from '../properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../properties/schemas/unit.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
+import { UsersModule } from '../users/users.module';
 import { ContractorsController } from './contractors.controller';
 import { ContractorsService } from './contractors.service';
 import { Contractor, ContractorSchema } from './schema/contractor.schema';
@@ -22,6 +23,7 @@ import { Contractor, ContractorSchema } from './schema/contractor.schema';
       { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
     ]),
     CaslModule,
+    UsersModule,
   ],
   controllers: [ContractorsController],
   providers: [ContractorsService],
