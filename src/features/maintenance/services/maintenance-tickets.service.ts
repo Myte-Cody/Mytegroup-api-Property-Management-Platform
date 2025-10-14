@@ -35,6 +35,7 @@ export class MaintenanceTicketsService {
     @InjectModel(Contractor.name)
     private readonly contractorModel: AppModel<Contractor>,
     @InjectModel(Lease.name)
+    private readonly leaseModel: AppModel<Lease>,
     private readonly sessionService: SessionService,
     private readonly mediaService: MediaService,
   ) {}
@@ -116,7 +117,6 @@ export class MaintenanceTicketsService {
         .limit(limit)
         .populate('property', 'name address')
         .populate('unit', 'unitNumber type')
-        .populate('tenant', 'name')
         .populate('assignedContractor', 'name')
         .populate('requestedBy', 'username email')
         .populate('assignedBy', 'username email')
@@ -153,7 +153,6 @@ export class MaintenanceTicketsService {
     const ticket = await query
       .populate('property', 'name address')
       .populate('unit', 'unitNumber type')
-      .populate('tenant', 'name')
       .populate('assignedContractor', 'name')
       .populate('requestedBy', 'username email')
       .populate('assignedBy', 'username email')
