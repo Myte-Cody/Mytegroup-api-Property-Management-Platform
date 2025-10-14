@@ -51,9 +51,9 @@ export class MaintenanceTicket extends Document implements SoftDelete {
     type: String,
     enum: TicketPriority,
     default: TicketPriority.MEDIUM,
-    required: true,
+    required: false,
   })
-  priority: TicketPriority;
+  priority?: TicketPriority;
 
   @Prop({
     type: String,

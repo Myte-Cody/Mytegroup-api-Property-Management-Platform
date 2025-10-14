@@ -16,7 +16,7 @@ import { MediaService } from '../../media/services/media.service';
 import { Property } from '../../properties/schemas/property.schema';
 import { Unit } from '../../properties/schemas/unit.schema';
 import { Tenant } from '../../tenants/schema/tenant.schema';
-import { UserDocument } from '../../users/schemas/user.schema';
+import { User, UserDocument } from '../../users/schemas/user.schema';
 import { AssignTicketDto, CreateTicketDto, TicketQueryDto, UpdateTicketDto } from '../dto';
 import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
 import { TicketReferenceUtils } from '../utils/ticket-reference.utils';
@@ -37,6 +37,8 @@ export class MaintenanceTicketsService {
     private readonly contractorModel: AppModel<Contractor>,
     @InjectModel(Lease.name)
     private readonly leaseModel: AppModel<Lease>,
+    @InjectModel(User.name)
+    private readonly userModel: AppModel<User>,
     private readonly sessionService: SessionService,
     private readonly mediaService: MediaService,
   ) {}
@@ -54,6 +56,7 @@ export class MaintenanceTicketsService {
       propertyId,
       unitId,
       contractorId,
+      tenantId,
       startDate,
       endDate,
     } = ticketQueryDto;
@@ -62,6 +65,68 @@ export class MaintenanceTicketsService {
 
     if (currentUser.user_type === 'Contractor') {
       baseQuery = baseQuery.where({ assignedContractor: currentUser._id });
+    }
+
+    // Handle tenant filtering
+    if (tenantId) {
+      // Get the tenant record
+      const tenant = await this.tenantModel.findById(tenantId).exec();
+
+      if (!tenant) {
+        throw new NotFoundException('Tenant not found');
+      }
+
+      // Find all users belonging to this tenant
+      const tenantUsers = await this.userModel
+        .find({
+          organization_id: tenantId,
+          user_type: 'Tenant',
+        })
+        .select('_id')
+        .exec();
+
+      const tenantUserIds = tenantUsers.map((user) => user._id);
+
+      // Find all active leases for this tenant
+      const activeLeases = await this.leaseModel
+        .find({
+          tenant: tenantId,
+          status: LeaseStatus.ACTIVE,
+        })
+        .populate('unit', 'property')
+        .exec();
+
+      // Extract property and unit IDs from active leases
+      const propertyIds = activeLeases.map((lease) => {
+        const leaseUnit = lease.unit as any;
+        return leaseUnit.property;
+      });
+      const unitIds = activeLeases.map((lease) => lease.unit);
+
+      // Filter tickets: created by tenant users OR associated with their active lease properties/units
+      const filterConditions: any[] = [];
+
+      // Add condition for tickets created by tenant users
+      if (tenantUserIds.length > 0) {
+        filterConditions.push({ requestedBy: { $in: tenantUserIds } });
+      }
+
+      // Add conditions for tickets associated with properties/units from active leases
+      if (propertyIds.length > 0) {
+        filterConditions.push({ property: { $in: propertyIds }, unit: null });
+      }
+
+      if (unitIds.length > 0) {
+        filterConditions.push({ unit: { $in: unitIds } });
+      }
+
+      // Only apply filter if we have at least one condition
+      if (filterConditions.length > 0) {
+        baseQuery = baseQuery.where({ $or: filterConditions });
+      } else {
+        // No tickets match - return empty result set
+        baseQuery = baseQuery.where({ _id: null });
+      }
     }
 
     if (search) {
@@ -332,7 +397,7 @@ export class MaintenanceTicketsService {
     if (currentUser.user_type === 'Tenant') {
       // Get the tenant record associated with this user
       const tenant = await this.tenantModel
-        .findOne({ user: currentUser._id }, null, { session })
+        .findOne({ _id: currentUser.organization_id }, null, { session })
         .exec();
 
       if (!tenant) {
