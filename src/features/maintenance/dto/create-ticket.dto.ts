@@ -16,8 +16,8 @@ export class CreateTicketDto {
     description: 'Unit ID where the issue is located',
     example: '673d8b8f123456789abcdef1',
   })
+  @IsOptional()
   @IsMongoId()
-  @IsNotEmpty()
   unit: string;
 
   @ApiProperty({

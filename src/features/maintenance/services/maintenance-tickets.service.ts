@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Types } from 'mongoose';
+import { LeaseStatus } from '../../../common/enums/lease.enum';
 import { TicketStatus } from '../../../common/enums/maintenance.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
@@ -311,25 +312,80 @@ export class MaintenanceTicketsService {
     currentUser: UserDocument,
     session: ClientSession | null,
   ) {
-    const unit = await this.unitModel.findById(createTicketDto.unit, null, { session }).exec();
-    if (!unit) {
-      throw new NotFoundException('Unit not found');
-    }
-
     const property = await this.propertyModel
       .findById(createTicketDto.property, null, { session })
       .exec();
     if (!property) {
       throw new NotFoundException('Property not found');
     }
+    if (createTicketDto.unit) {
+      const unit = await this.unitModel.findById(createTicketDto.unit, null, { session }).exec();
+      if (!unit) {
+        throw new NotFoundException('Unit not found');
+      }
 
-    if (unit.property.toString() !== createTicketDto.property) {
-      throw new BadRequestException('Unit does not belong to the specified property');
+      if (unit.property.toString() !== createTicketDto.property) {
+        throw new BadRequestException('Unit does not belong to the specified property');
+      }
     }
 
     if (currentUser.user_type === 'Tenant') {
-      // TODO: Check if tenant has active lease for this unit
-      // For now, we'll allow any tenant to create tickets
+      // Get the tenant record associated with this user
+      const tenant = await this.tenantModel
+        .findOne({ user: currentUser._id }, null, { session })
+        .exec();
+
+      if (!tenant) {
+        throw new ForbiddenException('Tenant profile not found');
+      }
+
+      // Check if tenant has an active lease for this unit
+      if (createTicketDto.unit) {
+        const activeLease = await this.leaseModel
+          .findOne(
+            {
+              tenant: tenant._id,
+              unit: createTicketDto.unit,
+              status: LeaseStatus.ACTIVE,
+            },
+            null,
+            { session },
+          )
+          .exec();
+
+        if (!activeLease) {
+          throw new ForbiddenException(
+            'You do not have an active lease for this unit. Only tenants with active leases can create maintenance tickets for specific units.',
+          );
+        }
+      } else {
+        // If no unit is specified, verify tenant has at least one active lease for the property
+        const activeLeaseForProperty = await this.leaseModel
+          .findOne(
+            {
+              tenant: tenant._id,
+              status: LeaseStatus.ACTIVE,
+            },
+            null,
+            { session },
+          )
+          .populate('unit', 'property')
+          .exec();
+
+        if (!activeLeaseForProperty) {
+          throw new ForbiddenException(
+            'You do not have any active leases. Only tenants with active leases can create maintenance tickets.',
+          );
+        }
+
+        // Verify the lease is for a unit in the specified property
+        const leaseUnit = activeLeaseForProperty.unit as any;
+        if (leaseUnit.property.toString() !== createTicketDto.property) {
+          throw new ForbiddenException(
+            'You do not have an active lease for this property. You can only create maintenance tickets for properties where you have an active lease.',
+          );
+        }
+      }
     }
   }
 

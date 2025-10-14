@@ -23,7 +23,7 @@ export class MaintenanceTicket extends Document implements SoftDelete {
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Unit',
-    required: true,
+    required: false,
   })
   unit: Types.ObjectId;
 
