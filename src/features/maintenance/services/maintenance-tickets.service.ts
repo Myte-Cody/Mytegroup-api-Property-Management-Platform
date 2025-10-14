@@ -54,8 +54,8 @@ export class MaintenanceTicketsService {
       propertyId,
       unitId,
       contractorId,
-      createdFrom,
-      createdTo,
+      startDate,
+      endDate,
     } = ticketQueryDto;
 
     let baseQuery = this.ticketModel.find();
@@ -98,10 +98,10 @@ export class MaintenanceTicketsService {
       baseQuery = baseQuery.where({ assignedContractor: contractorId });
     }
 
-    if (createdFrom || createdTo) {
+    if (startDate || endDate) {
       const dateFilter: any = {};
-      if (createdFrom) dateFilter.$gte = createdFrom;
-      if (createdTo) dateFilter.$lte = createdTo;
+      if (startDate) dateFilter.$gte = startDate;
+      if (endDate) dateFilter.$lte = endDate;
       baseQuery = baseQuery.where({ createdAt: dateFilter });
     }
 

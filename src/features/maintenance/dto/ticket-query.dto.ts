@@ -118,7 +118,7 @@ export class TicketQueryDto {
   })
   @IsOptional()
   @Transform(({ value }) => (value ? new Date(value) : undefined))
-  createdFrom?: Date;
+  startDate?: Date;
 
   @ApiPropertyOptional({
     description: 'Filter tickets created up to this date',
@@ -126,5 +126,5 @@ export class TicketQueryDto {
   })
   @IsOptional()
   @Transform(({ value }) => (value ? new Date(value) : undefined))
-  createdTo?: Date;
+  endDate?: Date;
 }
