@@ -21,7 +21,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const user = await this.userModel
       .findById(payload.sub)
       .select('_id username email user_type organization_id')
-      .populate('organization_id')
       .exec();
 
     // Ensure user exists

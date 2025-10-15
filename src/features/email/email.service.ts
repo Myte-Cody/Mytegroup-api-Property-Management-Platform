@@ -91,7 +91,7 @@ export class EmailService implements OnModuleInit {
       if (!this.transporterInitialized) {
         await this.initializeTransporter();
       }
-      
+
       if (!this.transporter) {
         throw new Error('Email transporter is not initialized');
       }

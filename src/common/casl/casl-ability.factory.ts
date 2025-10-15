@@ -12,6 +12,7 @@ import { Invitation } from '../../features/invitations/schemas/invitation.schema
 import { Lease } from '../../features/leases/schemas/lease.schema';
 import { RentalPeriod } from '../../features/leases/schemas/rental-period.schema';
 import { Transaction } from '../../features/leases/schemas/transaction.schema';
+import { MaintenanceTicket } from '../../features/maintenance/schemas/maintenance-ticket.schema';
 import { Media } from '../../features/media/schemas/media.schema';
 import { Property } from '../../features/properties/schemas/property.schema';
 import { Unit } from '../../features/properties/schemas/unit.schema';
@@ -31,6 +32,7 @@ export const SUBJECTS = {
   LEASE: Lease,
   SUB_LEASE: RentalPeriod,
   TRANSACTION: Transaction,
+  MAINTENANCE_TICKET: MaintenanceTicket,
 } as const;
 
 // Subject model name mapping for detectSubjectType
@@ -45,6 +47,7 @@ const SUBJECT_MODEL_MAPPING = {
   Lease: Lease,
   RentalPeriod: RentalPeriod,
   Transaction: Transaction,
+  MaintenanceTicket: MaintenanceTicket,
 } as const;
 
 // Define actions that can be performed
@@ -110,6 +113,7 @@ export class CaslAbilityFactory {
     can(Action.Manage, RentalPeriod);
     can(Action.Manage, Transaction);
     can(Action.Manage, User);
+    can(Action.Manage, MaintenanceTicket);
   }
 
   private defineTenantPermissions(can: any, cannot: any, user: UserDocument) {
@@ -154,6 +158,13 @@ export class CaslAbilityFactory {
       });
     }
 
+    // Tenants can create and read maintenance tickets they requested
+    can(Action.Create, MaintenanceTicket);
+    if (user._id) {
+      can(Action.Read, MaintenanceTicket, { requestedBy: user._id });
+      can(Action.Update, MaintenanceTicket, { requestedBy: user._id });
+    }
+
     // Cannot create, update, or delete properties, units, and other entities
     cannot(Action.Create, Property);
     cannot(Action.Update, Property);
@@ -176,6 +187,7 @@ export class CaslAbilityFactory {
     cannot(Action.Create, Transaction);
     cannot(Action.Update, Transaction);
     cannot(Action.Delete, Transaction);
+    cannot(Action.Delete, MaintenanceTicket);
 
     // Tenants cannot manage non-tenant users
     cannot(Action.Manage, User, { user_type: UserType.LANDLORD });
@@ -199,13 +211,29 @@ export class CaslAbilityFactory {
     can(Action.Update, Media);
 
     // Contractors can read their own contractor record
-    const contractorId =
+    const contractorOrganizationId =
       user.organization_id && typeof user.organization_id === 'object'
         ? (user.organization_id as any)._id
         : user.organization_id;
 
-    if (contractorId) {
-      can(Action.Read, Contractor, { _id: contractorId });
+    if (contractorOrganizationId) {
+      can(Action.Read, Contractor, { _id: contractorOrganizationId });
+
+      // Contractors can manage users with the same organization_id (same contractor entity)
+      can(Action.Manage, User, {
+        organization_id: contractorOrganizationId,
+        user_type: UserType.CONTRACTOR,
+      });
+
+      // Explicitly add read permission to ensure accessibleBy works correctly
+      can(Action.Read, User, {
+        organization_id: contractorOrganizationId,
+        user_type: UserType.CONTRACTOR,
+      });
+
+      // Contractors can read all maintenance tickets and update tickets assigned to them
+      can(Action.Read, MaintenanceTicket);
+      can(Action.Update, MaintenanceTicket, { assignedContractor: contractorOrganizationId });
     }
 
     // Cannot create or delete
@@ -227,5 +255,12 @@ export class CaslAbilityFactory {
     cannot(Action.Update, Transaction);
     cannot(Action.Delete, Transaction);
     cannot(Action.Read, Transaction); // Contractors don't need payment access
+    cannot(Action.Create, MaintenanceTicket); // Only landlords and tenants can create tickets
+    cannot(Action.Delete, MaintenanceTicket);
+
+    // Contractors cannot manage non-contractor users
+    cannot(Action.Manage, User, { user_type: UserType.LANDLORD });
+    cannot(Action.Manage, User, { user_type: UserType.TENANT });
+    cannot(Action.Manage, User, { user_type: UserType.ADMIN });
   }
 }
