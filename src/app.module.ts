@@ -14,6 +14,7 @@ import { EmailModule } from './features/email/email.module';
 import { InvitationsModule } from './features/invitations/invitations.module';
 import { LandlordModule } from './features/landlords/landlord.module';
 import { LeasesModule } from './features/leases/leases.module';
+import { MaintenanceModule } from './features/maintenance/maintenance.module';
 import { MediaModule } from './features/media/media.module';
 import { PropertiesModule } from './features/properties/properties.module';
 import { TenantsModule } from './features/tenants/tenant.module';
@@ -57,6 +58,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     InvitationsModule,
     PropertiesModule,
     LeasesModule,
+    MaintenanceModule,
     MediaModule,
     SchedulerModule,
     MongooseModule.forRoot(process.env.DB_URL, {

@@ -16,12 +16,7 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
 
-    const user = await this.userModel
-      .findOne({ email })
-      .select('+password')
-      // todo populate organization ?
-      .populate('organization_id')
-      .exec();
+    const user = await this.userModel.findOne({ email }).select('+password').exec();
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -46,7 +41,8 @@ export class AuthService {
         username: user.username,
         email: user.email,
         user_type: user.user_type,
-        organization_info: user.organization_id,
+        organization_id: user.organization_id,
+        isPrimary: user.isPrimary,
       },
       accessToken: this.jwtService.sign(payload),
     };

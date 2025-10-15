@@ -4,7 +4,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import type { UserDocument } from '../users/schemas/user.schema';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
-import { CreateInvitationDto, InvitationQueryDto } from './dto/create-invitation.dto';
+import { CreateInvitationDto } from './dto/create-invitation.dto';
+import { InvitationQueryDto } from './dto/invitation-query.dto';
 import { InvitationsService } from './invitations.service';
 
 @ApiTags('invitations')

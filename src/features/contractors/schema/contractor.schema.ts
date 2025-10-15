@@ -9,6 +9,9 @@ export class Contractor extends Document implements SoftDelete {
   @Prop({ required: true })
   name: string;
 
+  @Prop({ required: true })
+  category: string;
+
   deleted: boolean;
   deletedAt?: Date;
 }
