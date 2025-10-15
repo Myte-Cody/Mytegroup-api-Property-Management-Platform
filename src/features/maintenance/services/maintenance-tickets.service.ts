@@ -20,7 +20,9 @@ import { User, UserDocument } from '../../users/schemas/user.schema';
 import {
   AcceptTicketDto,
   AssignTicketDto,
+  CloseTicketDto,
   CreateTicketDto,
+  RefuseTicketDto,
   TicketQueryDto,
   UpdateTicketDto,
 } from '../dto';
@@ -354,7 +356,11 @@ export class MaintenanceTicketsService {
     return await ticket.save();
   }
 
-  async refuseTicket(id: string, _currentUser: UserDocument): Promise<MaintenanceTicket> {
+  async refuseTicket(
+    id: string,
+    refuseDto: RefuseTicketDto,
+    _currentUser: UserDocument,
+  ): Promise<MaintenanceTicket> {
     const ticket = await this.ticketModel.findById(id).exec();
 
     if (!ticket) {
@@ -365,6 +371,66 @@ export class MaintenanceTicketsService {
     ticket.status = TicketStatus.OPEN;
     ticket.assignedContractor = null;
     ticket.assignedDate = null;
+    if (refuseDto.refuseReason) {
+      ticket.refuseReason = refuseDto.refuseReason;
+    }
+
+    return await ticket.save();
+  }
+
+  async markAsDone(id: string, _currentUser: UserDocument): Promise<MaintenanceTicket> {
+    const ticket = await this.ticketModel.findById(id).exec();
+    if (!ticket) {
+      throw new NotFoundException(`Ticket with ID ${id} not found`);
+    }
+
+    // Update ticket status to DONE
+    ticket.status = TicketStatus.DONE;
+    ticket.completedDate = new Date();
+
+    return await ticket.save();
+  }
+
+  async closeTicket(
+    id: string,
+    closeDto: CloseTicketDto,
+    _currentUser: UserDocument,
+  ): Promise<MaintenanceTicket> {
+    const ticket = await this.ticketModel.findById(id).exec();
+
+    if (!ticket) {
+      throw new NotFoundException(`Ticket with ID ${id} not found`);
+    }
+
+    // Update ticket status to CLOSED
+    ticket.status = TicketStatus.CLOSED;
+    if (closeDto.cost) {
+      ticket.cost = closeDto.cost;
+    }
+
+    return await ticket.save();
+  }
+
+  async reopenTicket(id: string, _currentUser: UserDocument): Promise<MaintenanceTicket> {
+    const ticket = await this.ticketModel.findById(id).exec();
+
+    if (!ticket) {
+      throw new NotFoundException(`Ticket with ID ${id} not found`);
+    }
+
+    // Determine the new status based on current status
+    if (ticket.status === TicketStatus.DONE) {
+      ticket.status = TicketStatus.IN_PROGRESS;
+    } else if (ticket.status === TicketStatus.CLOSED) {
+      ticket.status = TicketStatus.OPEN;
+      ticket.assignedContractor = null;
+      ticket.assignedDate = null;
+      ticket.assignedUser = null;
+      ticket.assignedBy = null;
+    } else {
+      throw new BadRequestException('Only tickets with DONE or CLOSED status can be reopened');
+    }
+    ticket.completedDate = null;
 
     return await ticket.save();
   }

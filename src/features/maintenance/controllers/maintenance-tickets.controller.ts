@@ -34,7 +34,9 @@ import { User } from '../../users/schemas/user.schema';
 import {
   AcceptTicketDto,
   AssignTicketDto,
+  CloseTicketDto,
   CreateTicketDto,
+  RefuseTicketDto,
   TicketQueryDto,
   UpdateTicketDto,
 } from '../dto';
@@ -131,8 +133,49 @@ export class MaintenanceTicketsController {
   @ApiResponse({ status: 200, description: 'Ticket refused successfully' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Ticket not found' })
-  async refuse(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.ticketsService.refuseTicket(id, user);
+  async refuse(
+    @Param('id') id: string,
+    @Body() refuseDto: RefuseTicketDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.ticketsService.refuseTicket(id, refuseDto, user);
+  }
+
+  @Post(':id/mark-as-done')
+  @CheckPolicies(new UpdateMaintenanceTicketPolicyHandler())
+  @ApiOperation({ summary: 'Mark a maintenance ticket as done' })
+  @ApiResponse({ status: 200, description: 'Ticket marked as done successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Ticket not found' })
+  async markAsDone(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.ticketsService.markAsDone(id, user);
+  }
+
+  @Post(':id/close')
+  @CheckPolicies(new UpdateMaintenanceTicketPolicyHandler())
+  @ApiOperation({ summary: 'Close a maintenance ticket' })
+  @ApiResponse({ status: 200, description: 'Ticket closed successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Ticket not found' })
+  async close(
+    @Param('id') id: string,
+    @Body() closeDto: CloseTicketDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.ticketsService.closeTicket(id, closeDto, user);
+  }
+
+  @Post(':id/reopen')
+  @CheckPolicies(new UpdateMaintenanceTicketPolicyHandler())
+  @ApiOperation({ summary: 'Reopen a maintenance ticket' })
+  @ApiResponse({ status: 200, description: 'Ticket reopened successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Ticket not found' })
+  async reopen(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.ticketsService.reopenTicket(id, user);
   }
 
   @Delete(':id')
