@@ -9,11 +9,20 @@ import * as bcrypt from 'bcrypt';
 import { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
+import { TicketStatus } from '../../common/enums/maintenance.enum';
+import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { SessionService } from '../../common/services/session.service';
-import { createPaginatedResponse } from '../../common/utils/pagination.utils';
+import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
+import { MaintenanceTicket } from '../maintenance/schemas/maintenance-ticket.schema';
+import { CreateUserDto } from '../users/dto/create-user.dto';
+import { UpdateUserDto } from '../users/dto/update-user.dto';
+import { UserQueryDto } from '../users/dto/user-query.dto';
 import { User, UserDocument } from '../users/schemas/user.schema';
+import { UsersService } from '../users/users.service';
 import { ContractorQueryDto, PaginatedContractorsResponse } from './dto/contractor-query.dto';
+import { ContractorResponseDto } from './dto/contractor-response.dto';
+import { CreateContractorUserDto } from './dto/create-contractor-user.dto';
 import { CreateContractorDto } from './dto/create-contractor.dto';
 import { UpdateContractorDto } from './dto/update-contractor.dto';
 import { Contractor } from './schema/contractor.schema';
@@ -25,14 +34,68 @@ export class ContractorsService {
     private readonly contractorModel: AppModel<Contractor>,
     @InjectModel(User.name)
     private readonly userModel: AppModel<User>,
+    @InjectModel(MaintenanceTicket.name)
+    private readonly maintenanceTicketModel: AppModel<MaintenanceTicket>,
     private caslAuthorizationService: CaslAuthorizationService,
+    private readonly usersService: UsersService,
     private readonly sessionService: SessionService,
   ) {}
+
+  /**
+   * Transform contractor document with associated user data to match CreateContractorDto structure
+   */
+  private async transformContractorToResponse(contractor: any): Promise<ContractorResponseDto> {
+    // Find the user associated with this contractor
+    const user = await this.userModel
+      .findOne({
+        organization_id: contractor._id,
+        user_type: UserType.CONTRACTOR,
+      })
+      .exec();
+
+    if (!user) {
+      throw new NotFoundException(
+        `User account not found for contractor ${contractor.name} (ID: ${contractor._id})`,
+      );
+    }
+
+    // Calculate active tickets count (all statuses except CLOSED)
+    const activeTicketsCount = await this.maintenanceTicketModel
+      .countDocuments({
+        assignedContractor: contractor._id,
+        status: { $ne: TicketStatus.CLOSED },
+      })
+      .exec();
+
+    // Calculate completed tickets count (DONE and CLOSED statuses)
+    const completedTicketsCount = await this.maintenanceTicketModel
+      .countDocuments({
+        assignedContractor: contractor._id,
+        status: { $in: [TicketStatus.DONE, TicketStatus.CLOSED] },
+      })
+      .exec();
+
+    return {
+      _id: contractor._id.toString(),
+      name: contractor.name,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone,
+      userId: user._id.toString(),
+      category: contractor.category,
+      createdAt: contractor.createdAt,
+      updatedAt: contractor.updatedAt,
+      activeTicketsCount,
+      completedTicketsCount,
+    };
+  }
 
   async findAllPaginated(
     queryDto: ContractorQueryDto,
     currentUser: UserDocument,
-  ): Promise<PaginatedContractorsResponse<Contractor>> {
+  ): Promise<PaginatedContractorsResponse<ContractorResponseDto>> {
     // Contractor users should not be able to list other contractors - only access their own profile
     if (currentUser.user_type === 'Contractor') {
       throw new ForbiddenException(
@@ -67,10 +130,20 @@ export class ContractorsService {
       this.contractorModel.countDocuments(query).exec(),
     ]);
 
-    return createPaginatedResponse<Contractor>(contractors, total, page, limit);
+    // Transform contractors to include user data
+    const transformedContractors = await Promise.all(
+      contractors.map((contractor) => this.transformContractorToResponse(contractor)),
+    );
+
+    return createPaginatedResponse<ContractorResponseDto>(
+      transformedContractors,
+      total,
+      page,
+      limit,
+    );
   }
 
-  async findOne(id: string, currentUser: UserDocument) {
+  async findOne(id: string, currentUser: UserDocument): Promise<ContractorResponseDto> {
     // Contractor users should only access their own profile via /contractors/me
     if (currentUser.user_type === 'Contractor') {
       throw new ForbiddenException(
@@ -96,10 +169,10 @@ export class ContractorsService {
       throw new ForbiddenException('You do not have permission to view this contractor');
     }
 
-    return contractor;
+    return this.transformContractorToResponse(contractor);
   }
 
-  async findMyProfile(currentUser: UserDocument) {
+  async findMyProfile(currentUser: UserDocument): Promise<ContractorResponseDto> {
     // Only contractor users can access their own profile
     if (currentUser.user_type !== 'Contractor') {
       throw new ForbiddenException('Only contractor users can access this endpoint');
@@ -128,7 +201,7 @@ export class ContractorsService {
       throw new ForbiddenException('You do not have permission to view this contractor profile');
     }
 
-    return contractor;
+    return this.transformContractorToResponse(contractor);
   }
 
   async create(createContractorDto: CreateContractorDto, currentUser: UserDocument) {
@@ -140,7 +213,7 @@ export class ContractorsService {
     }
 
     // Extract user data from DTO
-    const { email, password, name } = createContractorDto;
+    const { email, password, name, username, firstName, lastName, phone } = createContractorDto;
 
     // Check if contractor name already exists within this tenant
     const existingContractor = await this.contractorModel.findOne({ name }).exec();
@@ -165,12 +238,13 @@ export class ContractorsService {
 
       // Create the user account for the contractor
       const userData = {
-        username: email, // Use email as username
-        firstName: name,
-        lastName: name,
+        username,
+        firstName,
+        lastName,
         email,
+        phone,
         password: hashedPassword,
-        user_type: 'Contractor',
+        user_type: UserType.CONTRACTOR,
         organization_id: savedContractor._id, // Link to the contractor
       };
 
@@ -179,6 +253,46 @@ export class ContractorsService {
 
       return savedContractor;
     });
+  }
+
+  async createFromInvitation(createContractorDto: CreateContractorDto, session?: ClientSession) {
+    // Extract user data from DTO
+    const { email, password, name, category, username, firstName, lastName, phone } =
+      createContractorDto;
+
+    // Check if contractor name already exists within this tenant
+    const existingContractor = await this.contractorModel.findOne({ name }).exec();
+
+    if (existingContractor) {
+      throw new UnprocessableEntityException(
+        `Contractor name '${name}' already exists in this organization`,
+      );
+    }
+
+    // Create tenant
+    const contractorData = {
+      name,
+      category,
+    };
+
+    const newContractor = new this.contractorModel(contractorData);
+    const savedContractor = await newContractor.save({ session: session ?? null });
+
+    // Create user account (without current user context for invitations)
+    const userData = {
+      username,
+      email,
+      phone,
+      password,
+      firstName,
+      lastName,
+      user_type: UserType.CONTRACTOR,
+      organization_id: savedContractor._id.toString(),
+    };
+
+    await this.usersService.createFromInvitation(userData, session);
+
+    return savedContractor;
   }
 
   async update(id: string, updateContractorDto: UpdateContractorDto, currentUser: UserDocument) {
@@ -245,5 +359,130 @@ export class ContractorsService {
     await this.contractorModel
       .findByIdAndUpdate(id, { deleted: true, deletedAt: new Date() })
       .exec();
+  }
+
+  // Contractor Users Management Methods
+  async findContractorUsers(
+    contractorId: string,
+    queryDto: UserQueryDto,
+    currentUser: UserDocument,
+  ): Promise<PaginatedResponse<User>> {
+    // Validate contractor exists and user has access
+    await this.validateContractorAccess(contractorId, currentUser, Action.Read);
+
+    // Create a modified query that filters for this contractor's users
+    const contractorUserQuery: UserQueryDto = {
+      ...queryDto,
+      user_type: UserType.CONTRACTOR,
+      organization_id: contractorId, // Add organization_id to the query
+    };
+
+    // Use UserService for consistent business logic and CASL authorization
+    return await this.usersService.findAllPaginated(contractorUserQuery, currentUser);
+  }
+
+  async createContractorUser(
+    contractorId: string,
+    createContractorUserDto: CreateContractorUserDto,
+    currentUser: UserDocument,
+  ) {
+    // Validate contractor exists and user has access
+    await this.validateContractorAccess(contractorId, currentUser, Action.Create);
+
+    // Create user using UsersService with contractor-specific data
+    const userData: CreateUserDto = {
+      username: createContractorUserDto.username,
+      firstName: createContractorUserDto.firstName,
+      lastName: createContractorUserDto.lastName,
+      email: createContractorUserDto.email,
+      phone: createContractorUserDto.phone,
+      password: createContractorUserDto.password,
+      user_type: UserType.CONTRACTOR,
+      organization_id: contractorId,
+      isPrimary: createContractorUserDto.isPrimary,
+    };
+
+    return await this.usersService.create(userData);
+  }
+
+  async updateContractorUser(
+    contractorId: string,
+    userId: string,
+    updateUserDto: UpdateUserDto,
+    currentUser: UserDocument,
+  ) {
+    // Validate contractor exists and user has access
+    await this.validateContractorAccess(contractorId, currentUser, Action.Update);
+
+    await this.validateUserBelongsToContractor(userId, contractorId, currentUser);
+
+    return await this.usersService.update(userId, updateUserDto);
+  }
+
+  async removeContractorUser(contractorId: string, userId: string, currentUser: UserDocument) {
+    await this.validateContractorAccess(contractorId, currentUser, Action.Delete);
+
+    await this.validateUserBelongsToContractor(userId, contractorId, currentUser);
+
+    return await this.usersService.remove(userId);
+  }
+
+  // Helper method to validate contractor access
+  private async validateContractorAccess(
+    contractorId: string,
+    currentUser: UserDocument,
+    action: Action,
+  ) {
+    // Check CASL permissions
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    if (!ability.can(action, Contractor)) {
+      throw new ForbiddenException(
+        `You do not have permission to ${action.toLowerCase()} contractor users`,
+      );
+    }
+
+    // Verify the contractor exists and user has access
+    const contractor = await this.contractorModel.findById(contractorId).exec();
+
+    if (!contractor) {
+      throw new NotFoundException(`Contractor with ID ${contractorId} not found`);
+    }
+
+    // For contractor users, ensure they can only access their own contractor's users
+    if (currentUser.user_type === 'Contractor') {
+      if (currentUser.organization_id?.toString() !== contractorId) {
+        throw new ForbiddenException('You can only manage users within your own contractor');
+      }
+    }
+
+    return contractor;
+  }
+
+  // Helper method to validate that a user belongs to a specific contractor
+  private async validateUserBelongsToContractor(
+    userId: string,
+    contractorId: string,
+    currentUser: UserDocument,
+  ) {
+    // Validation: Ensure userId is a valid ObjectId format
+    if (!userId.match(/^[0-9a-fA-F]{24}$/)) {
+      throw new UnprocessableEntityException('Invalid user ID format');
+    }
+
+    // Find and verify the user belongs to the contractor
+    const user = await this.userModel
+      .findOne({
+        _id: userId,
+        user_type: 'Contractor',
+        organization_id: contractorId,
+      })
+      .exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found or does not belong to this contractor');
+    }
+
+    return user;
   }
 }

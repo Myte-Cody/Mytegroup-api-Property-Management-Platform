@@ -55,6 +55,15 @@ export class AcceptInvitationDto {
   @IsString()
   phone?: string;
 
+  @ApiPropertyOptional({
+    description: 'Category of the contractor (required for contractor invitations)',
+    example: 'Plumbing',
+    maxLength: 100,
+  })
+  @IsString()
+  @MaxLength(100)
+  category: string;
+
   @ApiProperty({
     description:
       'Password for the new user account (min 8 chars with uppercase, lowercase, and number/special char)',

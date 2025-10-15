@@ -12,6 +12,10 @@ import {
   RentalPeriodSchema,
 } from '../../features/leases/schemas/rental-period.schema';
 import { Transaction, TransactionSchema } from '../../features/leases/schemas/transaction.schema';
+import {
+  MaintenanceTicket,
+  MaintenanceTicketSchema,
+} from '../../features/maintenance/schemas/maintenance-ticket.schema';
 import { Property, PropertySchema } from '../../features/properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../../features/properties/schemas/unit.schema';
 import { Tenant, TenantSchema } from '../../features/tenants/schema/tenant.schema';
@@ -80,6 +84,14 @@ import {
   UpdateTransactionPolicyHandler,
 } from './policies/transaction.policies';
 
+import {
+  CreateMaintenanceTicketPolicyHandler,
+  DeleteMaintenanceTicketPolicyHandler,
+  ManageMaintenanceTicketPolicyHandler,
+  ReadMaintenanceTicketPolicyHandler,
+  UpdateMaintenanceTicketPolicyHandler,
+} from './policies/maintenance-ticket.policies';
+
 const policyHandlers = [
   // Property policies
   ReadPropertyPolicyHandler,
@@ -134,6 +146,13 @@ const policyHandlers = [
   CreateTransactionPolicyHandler,
   UpdateTransactionPolicyHandler,
   DeleteTransactionPolicyHandler,
+
+  // Maintenance Ticket policies
+  CreateMaintenanceTicketPolicyHandler,
+  DeleteMaintenanceTicketPolicyHandler,
+  ManageMaintenanceTicketPolicyHandler,
+  ReadMaintenanceTicketPolicyHandler,
+  UpdateMaintenanceTicketPolicyHandler,
 ];
 
 @Module({
@@ -147,6 +166,7 @@ const policyHandlers = [
       { name: Lease.name, schema: LeaseSchema },
       { name: RentalPeriod.name, schema: RentalPeriodSchema },
       { name: Transaction.name, schema: TransactionSchema },
+      { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
     ]),
   ],
   providers: [CaslAbilityFactory, CaslGuard, CaslAuthorizationService, ...policyHandlers],
