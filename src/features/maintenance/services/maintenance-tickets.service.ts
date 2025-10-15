@@ -17,7 +17,13 @@ import { Property } from '../../properties/schemas/property.schema';
 import { Unit } from '../../properties/schemas/unit.schema';
 import { Tenant } from '../../tenants/schema/tenant.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';
-import { AssignTicketDto, CreateTicketDto, TicketQueryDto, UpdateTicketDto } from '../dto';
+import {
+  AcceptTicketDto,
+  AssignTicketDto,
+  CreateTicketDto,
+  TicketQueryDto,
+  UpdateTicketDto,
+} from '../dto';
 import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
 import { TicketReferenceUtils } from '../utils/ticket-reference.utils';
 import { SessionService } from './../../../common/services/session.service';
@@ -162,6 +168,7 @@ export class MaintenanceTicketsService {
         .populate('assignedContractor', 'name')
         .populate('requestedBy', 'username email')
         .populate('assignedBy', 'username email')
+        .populate('assignedUser', 'username email firstName lastName')
         .exec(),
       baseQuery.clone().countDocuments().exec(),
     ]);
@@ -198,6 +205,7 @@ export class MaintenanceTicketsService {
       .populate('assignedContractor', 'name')
       .populate('requestedBy', 'username email')
       .populate('assignedBy', 'username email')
+      .populate('assignedUser', 'username email firstName lastName')
       .exec();
 
     if (!ticket) {
@@ -317,6 +325,46 @@ export class MaintenanceTicketsService {
     ticket.assignedBy = currentUser._id as Types.ObjectId;
     ticket.assignedDate = new Date();
     ticket.status = TicketStatus.ASSIGNED;
+
+    return await ticket.save();
+  }
+
+  async acceptTicket(
+    id: string,
+    acceptDto: AcceptTicketDto,
+    _currentUser: UserDocument,
+  ): Promise<MaintenanceTicket> {
+    const ticket = await this.ticketModel.findById(id).exec();
+
+    if (!ticket) {
+      throw new NotFoundException(`Ticket with ID ${id} not found`);
+    }
+
+    // Verify the user exists
+    const user = await this.userModel.findById(acceptDto.userId).exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Update ticket
+    ticket.assignedUser = new Types.ObjectId(acceptDto.userId);
+    ticket.status = TicketStatus.IN_PROGRESS;
+
+    return await ticket.save();
+  }
+
+  async refuseTicket(id: string, _currentUser: UserDocument): Promise<MaintenanceTicket> {
+    const ticket = await this.ticketModel.findById(id).exec();
+
+    if (!ticket) {
+      throw new NotFoundException(`Ticket with ID ${id} not found`);
+    }
+
+    // Update ticket status to OPEN
+    ticket.status = TicketStatus.OPEN;
+    ticket.assignedContractor = null;
+    ticket.assignedDate = null;
 
     return await ticket.save();
   }

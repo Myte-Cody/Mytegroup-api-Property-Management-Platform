@@ -31,7 +31,13 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { MediaType } from '../../media/schemas/media.schema';
 import { MediaService } from '../../media/services/media.service';
 import { User } from '../../users/schemas/user.schema';
-import { AssignTicketDto, CreateTicketDto, TicketQueryDto, UpdateTicketDto } from '../dto';
+import {
+  AcceptTicketDto,
+  AssignTicketDto,
+  CreateTicketDto,
+  TicketQueryDto,
+  UpdateTicketDto,
+} from '../dto';
 import { MaintenanceTicketsService } from '../services/maintenance-tickets.service';
 
 @ApiTags('Maintenance Tickets')
@@ -102,6 +108,31 @@ export class MaintenanceTicketsController {
     @CurrentUser() user: User,
   ) {
     return this.ticketsService.assignTicket(id, assignDto, user);
+  }
+
+  @Post(':id/accept')
+  @CheckPolicies(new UpdateMaintenanceTicketPolicyHandler())
+  @ApiOperation({ summary: 'Accept a maintenance ticket and assign a user' })
+  @ApiResponse({ status: 200, description: 'Ticket accepted successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Ticket or user not found' })
+  async accept(
+    @Param('id') id: string,
+    @Body() acceptDto: AcceptTicketDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.ticketsService.acceptTicket(id, acceptDto, user);
+  }
+
+  @Post(':id/refuse')
+  @CheckPolicies(new UpdateMaintenanceTicketPolicyHandler())
+  @ApiOperation({ summary: 'Refuse a maintenance ticket' })
+  @ApiResponse({ status: 200, description: 'Ticket refused successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Ticket not found' })
+  async refuse(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.ticketsService.refuseTicket(id, user);
   }
 
   @Delete(':id')

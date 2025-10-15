@@ -42,6 +42,7 @@ export class AuthService {
         email: user.email,
         user_type: user.user_type,
         organization_id: user.organization_id,
+        isPrimary: user.isPrimary,
       },
       accessToken: this.jwtService.sign(payload),
     };

@@ -77,6 +77,13 @@ export class MaintenanceTicket extends Document implements SoftDelete {
   })
   assignedBy?: Types.ObjectId;
 
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    required: false,
+  })
+  assignedUser?: Types.ObjectId;
+
   @Prop({ type: Date, default: Date.now })
   requestDate: Date;
 
