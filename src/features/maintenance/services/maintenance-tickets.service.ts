@@ -56,7 +56,6 @@ export class MaintenanceTicketsService {
       propertyId,
       unitId,
       contractorId,
-      tenantId,
       startDate,
       endDate,
     } = ticketQueryDto;
@@ -64,33 +63,15 @@ export class MaintenanceTicketsService {
     let baseQuery = this.ticketModel.find();
 
     if (currentUser.user_type === 'Contractor') {
-      baseQuery = baseQuery.where({ assignedContractor: currentUser._id });
+      baseQuery = baseQuery.where({ assignedContractor: currentUser.organization_id });
     }
 
     // Handle tenant filtering
-    if (tenantId) {
-      // Get the tenant record
-      const tenant = await this.tenantModel.findById(tenantId).exec();
-
-      if (!tenant) {
-        throw new NotFoundException('Tenant not found');
-      }
-
-      // Find all users belonging to this tenant
-      const tenantUsers = await this.userModel
-        .find({
-          organization_id: tenantId,
-          user_type: 'Tenant',
-        })
-        .select('_id')
-        .exec();
-
-      const tenantUserIds = tenantUsers.map((user) => user._id);
-
+    if (currentUser.user_type === 'Tenant') {
       // Find all active leases for this tenant
       const activeLeases = await this.leaseModel
         .find({
-          tenant: tenantId,
+          tenant: currentUser.organization_id,
           status: LeaseStatus.ACTIVE,
         })
         .populate('unit', 'property')
@@ -105,11 +86,6 @@ export class MaintenanceTicketsService {
 
       // Filter tickets: created by tenant users OR associated with their active lease properties/units
       const filterConditions: any[] = [];
-
-      // Add condition for tickets created by tenant users
-      if (tenantUserIds.length > 0) {
-        filterConditions.push({ requestedBy: { $in: tenantUserIds } });
-      }
 
       // Add conditions for tickets associated with properties/units from active leases
       if (propertyIds.length > 0) {
@@ -213,7 +189,7 @@ export class MaintenanceTicketsService {
     let query = this.ticketModel.findById(id);
 
     if (currentUser.user_type === 'Contractor') {
-      query = query.where({ assignedContractor: currentUser._id });
+      query = query.where({ assignedContractor: currentUser.organization_id });
     }
 
     const ticket = await query

@@ -113,7 +113,8 @@ export class TicketQueryDto {
   contractorId?: string;
 
   @ApiPropertyOptional({
-    description: 'Filter by tenant ID - returns tickets created by tenant or associated with their active leases',
+    description:
+      'Filter by tenant ID - returns tickets created by tenant or associated with their active leases',
     example: '673d8b8f123456789abcdef3',
   })
   @IsOptional()
