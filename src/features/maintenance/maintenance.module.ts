@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { NestjsFormDataModule } from 'nestjs-form-data';
+import { CaslModule } from '../../common/casl/casl.module';
 import { ContractorModule } from '../contractors/contractor.module';
 import { Contractor, ContractorSchema } from '../contractors/schema/contractor.schema';
 import { Lease, LeaseSchema, LeasesModule } from '../leases';
@@ -22,6 +23,7 @@ import { TicketCommentsService } from './services/ticket-comments.service';
       { name: Contractor.name, schema: ContractorSchema },
       { name: Lease.name, schema: LeaseSchema },
     ]),
+    CaslModule,
     PropertiesModule,
     TenantsModule,
     ContractorModule,

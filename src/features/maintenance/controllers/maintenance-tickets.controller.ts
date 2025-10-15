@@ -1,13 +1,42 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
-import { ApiConsumes, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { FormDataRequest } from 'nestjs-form-data';
+import { CheckPolicies } from '../../../common/casl/decorators/check-policies.decorator';
+import { CaslGuard } from '../../../common/casl/guards/casl.guard';
+import {
+  CreateMaintenanceTicketPolicyHandler,
+  DeleteMaintenanceTicketPolicyHandler,
+  ManageMaintenanceTicketPolicyHandler,
+  ReadMaintenanceTicketPolicyHandler,
+  UpdateMaintenanceTicketPolicyHandler,
+} from '../../../common/casl/policies/maintenance-ticket.policies';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { MediaType } from '../../media/schemas/media.schema';
 import { MediaService } from '../../media/services/media.service';
-import { UserDocument } from '../../users/schemas/user.schema';
+import { User } from '../../users/schemas/user.schema';
 import { AssignTicketDto, CreateTicketDto, TicketQueryDto, UpdateTicketDto } from '../dto';
 import { MaintenanceTicketsService } from '../services/maintenance-tickets.service';
 
 @ApiTags('Maintenance Tickets')
+@ApiBearerAuth()
+@UseGuards(CaslGuard)
 @Controller('maintenance/tickets')
 export class MaintenanceTicketsController {
   constructor(
@@ -16,33 +45,37 @@ export class MaintenanceTicketsController {
   ) {}
 
   @Post()
+  @CheckPolicies(new CreateMaintenanceTicketPolicyHandler())
   @FormDataRequest()
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create a new maintenance ticket' })
   @ApiResponse({ status: 201, description: 'Ticket created successfully' })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
-  async create(@Body() createTicketDto: CreateTicketDto, @Req() req: { user: UserDocument }) {
-    return this.ticketsService.create(createTicketDto, req.user);
+  async create(@Body() createTicketDto: CreateTicketDto, @CurrentUser() user: User) {
+    return this.ticketsService.create(createTicketDto, user);
   }
 
   @Get()
+  @CheckPolicies(new ReadMaintenanceTicketPolicyHandler())
   @ApiOperation({ summary: 'Get all maintenance tickets with pagination and filtering' })
   @ApiResponse({ status: 200, description: 'Tickets retrieved successfully' })
-  async findAll(@Query() query: TicketQueryDto, @Req() req: { user: UserDocument }) {
-    return this.ticketsService.findAllPaginated(query, req.user);
+  async findAll(@Query() query: TicketQueryDto, @CurrentUser() user: User) {
+    return this.ticketsService.findAllPaginated(query, user);
   }
 
   @Get(':id')
+  @CheckPolicies(new ReadMaintenanceTicketPolicyHandler())
   @ApiOperation({ summary: 'Get a specific maintenance ticket by ID' })
   @ApiResponse({ status: 200, description: 'Ticket found' })
   @ApiResponse({ status: 404, description: 'Ticket not found' })
   @ApiResponse({ status: 403, description: 'Access denied' })
-  async findOne(@Param('id') id: string, @Req() req: { user: UserDocument }) {
-    return this.ticketsService.findOne(id, req.user);
+  async findOne(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.ticketsService.findOne(id, user);
   }
 
   @Patch(':id')
+  @CheckPolicies(new UpdateMaintenanceTicketPolicyHandler())
   @ApiOperation({ summary: 'Update a maintenance ticket' })
   @ApiResponse({ status: 200, description: 'Ticket updated successfully' })
   @ApiResponse({ status: 400, description: 'Bad request' })
@@ -51,12 +84,13 @@ export class MaintenanceTicketsController {
   async update(
     @Param('id') id: string,
     @Body() updateTicketDto: UpdateTicketDto,
-    @Req() req: { user: UserDocument },
+    @CurrentUser() user: User,
   ) {
-    return this.ticketsService.update(id, updateTicketDto, req.user);
+    return this.ticketsService.update(id, updateTicketDto, user);
   }
 
   @Post(':id/assign')
+  @CheckPolicies(new ManageMaintenanceTicketPolicyHandler())
   @ApiOperation({ summary: 'Assign a contractor to a maintenance ticket' })
   @ApiResponse({ status: 200, description: 'Ticket assigned successfully' })
   @ApiResponse({ status: 400, description: 'Bad request' })
@@ -65,36 +99,38 @@ export class MaintenanceTicketsController {
   async assign(
     @Param('id') id: string,
     @Body() assignDto: AssignTicketDto,
-    @Req() req: { user: UserDocument },
+    @CurrentUser() user: User,
   ) {
-    return this.ticketsService.assignTicket(id, assignDto, req.user);
+    return this.ticketsService.assignTicket(id, assignDto, user);
   }
 
   @Delete(':id')
+  @CheckPolicies(new DeleteMaintenanceTicketPolicyHandler())
   @ApiOperation({ summary: 'Delete a maintenance ticket' })
   @ApiResponse({ status: 200, description: 'Ticket deleted successfully' })
   @ApiResponse({ status: 400, description: 'Only open tickets can be deleted' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Ticket not found' })
-  async remove(@Param('id') id: string, @Req() req: { user: UserDocument }) {
-    return this.ticketsService.remove(id, req.user);
+  async remove(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.ticketsService.remove(id, user);
   }
 
   @Get(':id/media')
+  @CheckPolicies(new ReadMaintenanceTicketPolicyHandler())
   @ApiOperation({ summary: 'Get all media for a maintenance ticket' })
   @ApiParam({ name: 'id', description: 'Ticket ID', type: String })
   async getTicketMedia(
     @Param('id') ticketId: string,
-    @Req() req: { user: UserDocument },
+    @CurrentUser() user: User,
     @Query('media_type') mediaType?: MediaType,
     @Query('collection_name') collectionName?: string,
   ) {
-    await this.ticketsService.findOne(ticketId, req.user);
+    await this.ticketsService.findOne(ticketId, user);
 
     const media = await this.mediaService.getMediaForEntity(
       'MaintenanceTicket',
       ticketId,
-      req.user,
+      user,
       collectionName,
       {
         media_type: mediaType,
