@@ -160,8 +160,8 @@ export class CaslAbilityFactory {
 
     // Tenants can create and read maintenance tickets they requested
     can(Action.Create, MaintenanceTicket);
+    can(Action.Read, MaintenanceTicket);
     if (user._id) {
-      can(Action.Read, MaintenanceTicket, { requestedBy: user._id });
       can(Action.Update, MaintenanceTicket, { requestedBy: user._id });
     }
 
