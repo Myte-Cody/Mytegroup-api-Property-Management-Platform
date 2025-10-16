@@ -21,7 +21,7 @@ export class UsersService {
     private readonly sessionService: SessionService,
   ) {}
 
-  async create(createUserDto: CreateUserDto, session?: ClientSession) {
+  async create(createUserDto: CreateUserDto, session?: ClientSession | null, currentUser?: User) {
     const {
       username,
       firstName,
@@ -94,7 +94,7 @@ export class UsersService {
       phone,
       password: hashedPassword,
       user_type,
-      organization_id,
+      organization_id: organization_id ?? currentUser?.organization_id,
       isPrimary: shouldBePrimary,
     });
 
