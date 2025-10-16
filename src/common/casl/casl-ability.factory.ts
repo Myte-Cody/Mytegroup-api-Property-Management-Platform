@@ -8,6 +8,7 @@ import {
 } from '@casl/ability';
 import { Injectable } from '@nestjs/common';
 import { Contractor } from '../../features/contractors/schema/contractor.schema';
+import { FeedPost } from '../../features/feed-posts/schemas/feed-post.schema';
 import { Invitation } from '../../features/invitations/schemas/invitation.schema';
 import { Lease } from '../../features/leases/schemas/lease.schema';
 import { RentalPeriod } from '../../features/leases/schemas/rental-period.schema';
@@ -33,6 +34,7 @@ export const SUBJECTS = {
   SUB_LEASE: RentalPeriod,
   TRANSACTION: Transaction,
   MAINTENANCE_TICKET: MaintenanceTicket,
+  FEED_POST: FeedPost,
 } as const;
 
 // Subject model name mapping for detectSubjectType
@@ -48,6 +50,7 @@ const SUBJECT_MODEL_MAPPING = {
   RentalPeriod: RentalPeriod,
   Transaction: Transaction,
   MaintenanceTicket: MaintenanceTicket,
+  FeedPost: FeedPost,
 } as const;
 
 // Define actions that can be performed
@@ -114,6 +117,7 @@ export class CaslAbilityFactory {
     can(Action.Manage, Transaction);
     can(Action.Manage, User);
     can(Action.Manage, MaintenanceTicket);
+    can(Action.Manage, FeedPost);
   }
 
   private defineTenantPermissions(can: any, cannot: any, user: UserDocument) {
@@ -164,6 +168,10 @@ export class CaslAbilityFactory {
     if (user._id) {
       can(Action.Update, MaintenanceTicket, { requestedBy: user._id });
     }
+
+    // Tenants can read all feed posts and react (upvote/downvote)
+    can(Action.Read, FeedPost);
+    can(Action.Update, FeedPost); // For voting actions
 
     // Cannot create, update, or delete properties, units, and other entities
     cannot(Action.Create, Property);
