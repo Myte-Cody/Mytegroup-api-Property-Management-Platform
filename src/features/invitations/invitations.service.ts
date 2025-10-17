@@ -16,7 +16,8 @@ import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/p
 import { InvitationEmailService } from '../email/services/invitation-email.service';
 import type { UserDocument } from '../users/schemas/user.schema';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
-import { CreateInvitationDto, InvitationQueryDto } from './dto/create-invitation.dto';
+import { CreateInvitationDto } from './dto/create-invitation.dto';
+import { InvitationQueryDto } from './dto/invitation-query.dto';
 import { Invitation, InvitationStatus } from './schemas/invitation.schema';
 import { InvitationStrategyFactory } from './strategies/invitation-strategy.factory';
 

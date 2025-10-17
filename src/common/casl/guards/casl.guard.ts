@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { Reflector } from '@nestjs/core';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { MaintenanceTicket } from '../../../features/maintenance/schemas/maintenance-ticket.schema';
 import { Property } from '../../../features/properties/schemas/property.schema';
 import { Unit } from '../../../features/properties/schemas/unit.schema';
 import { User } from '../../../features/users/schemas/user.schema';
@@ -24,6 +25,7 @@ export class CaslGuard implements CanActivate {
     @InjectModel(User.name) private userModel: Model<User>,
     @InjectModel(Property.name) private propertyModel: Model<Property>,
     @InjectModel(Unit.name) private unitModel: Model<Unit>,
+    @InjectModel(MaintenanceTicket.name) private maintenanceTicketModel: Model<MaintenanceTicket>,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -103,6 +105,15 @@ export class CaslGuard implements CanActivate {
         return await this.userModel.findById(params.id).exec();
       }
       if (body && Object.keys(body).length) return body;
+    }
+
+    if (routePath.includes('ticket')) {
+      if (params.id && isValidObjectId(params.id)) {
+        return await this.maintenanceTicketModel.findById(params.id).populate('property').exec();
+      }
+      if (body?.ticket && isValidObjectId(body.ticket)) {
+        return await this.maintenanceTicketModel.findById(body.ticket).populate('property').exec();
+      }
     }
 
     return null;

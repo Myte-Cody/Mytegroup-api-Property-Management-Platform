@@ -3,6 +3,10 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { NestjsFormDataModule } from 'nestjs-form-data';
 import { CaslModule } from '../../common/casl/casl.module';
 import { Lease, LeaseSchema } from '../leases/schemas/lease.schema';
+import {
+  MaintenanceTicket,
+  MaintenanceTicketSchema,
+} from '../maintenance/schemas/maintenance-ticket.schema';
 import { MediaModule } from '../media/media.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { PropertiesController } from './properties.controller';
@@ -20,6 +24,7 @@ import { UnitBusinessValidator } from './validators/unit-business-validator';
       { schema: UnitSchema, name: Unit.name },
       { schema: UserSchema, name: User.name },
       { schema: LeaseSchema, name: Lease.name },
+      { schema: MaintenanceTicketSchema, name: MaintenanceTicket.name },
     ]),
     NestjsFormDataModule.config({ isGlobal: true }),
     CaslModule,

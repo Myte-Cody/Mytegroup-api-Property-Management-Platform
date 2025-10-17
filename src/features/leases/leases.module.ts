@@ -3,8 +3,13 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { NestjsFormDataModule } from 'nestjs-form-data';
 import { CaslModule } from '../../common/casl/casl.module';
 import { CommonModule } from '../../common/common.module';
+import {
+  MaintenanceTicket,
+  MaintenanceTicketSchema,
+} from '../maintenance/schemas/maintenance-ticket.schema';
 import { MediaModule } from '../media/media.module';
 import { PropertiesModule } from '../properties/properties.module';
+import { Property, PropertySchema } from '../properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../properties/schemas/unit.schema';
 import { Tenant, TenantSchema } from '../tenants/schema/tenant.schema';
 import { TenantsModule } from '../tenants/tenant.module';
@@ -30,6 +35,8 @@ import { TransactionsController } from './transactions.controller';
       { name: Unit.name, schema: UnitSchema },
       { name: Tenant.name, schema: TenantSchema },
       { name: User.name, schema: UserSchema },
+      { name: Property.name, schema: PropertySchema },
+      { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
     ]),
     NestjsFormDataModule,
     CaslModule,
