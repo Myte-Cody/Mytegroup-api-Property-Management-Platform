@@ -39,7 +39,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Create a new user' })
   @ApiBody({ type: CreateUserDto })
   async create(@CurrentUser() currentUser: User, @Body() createUserDto: CreateUserDto) {
-    return await this.userService.create(createUserDto);
+    return await this.userService.create(createUserDto, null, currentUser);
   }
 
   @Get()
