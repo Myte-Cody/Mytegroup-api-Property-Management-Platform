@@ -35,6 +35,21 @@ export class Unit extends Document implements SoftDelete {
   })
   availabilityStatus: UnitAvailabilityStatus;
 
+  @Prop({ type: String, trim: true })
+  googleMapsLink?: string;
+
+  @Prop({ type: Boolean, default: false })
+  availableForRent: boolean;
+
+  @Prop({ type: Date })
+  availableFrom?: Date;
+
+  @Prop({ type: Boolean, default: false })
+  publishToMarketplace: boolean;
+
+  @Prop({ type: Number, min: 0 })
+  marketRent?: number;
+
   deleted: boolean;
   deletedAt?: Date;
 }
