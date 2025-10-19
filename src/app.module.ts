@@ -11,6 +11,7 @@ import renewalConfig from './config/renewal.config';
 import { AuthModule } from './features/auth/auth.module';
 import { ContractorModule } from './features/contractors/contractor.module';
 import { EmailModule } from './features/email/email.module';
+import { FeedPostsModule } from './features/feed-posts/feed-posts.module';
 import { InvitationsModule } from './features/invitations/invitations.module';
 import { LandlordModule } from './features/landlords/landlord.module';
 import { LeasesModule } from './features/leases/leases.module';
@@ -59,6 +60,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     PropertiesModule,
     LeasesModule,
     MaintenanceModule,
+    FeedPostsModule,
     MediaModule,
     SchedulerModule,
     MongooseModule.forRoot(process.env.DB_URL, {
