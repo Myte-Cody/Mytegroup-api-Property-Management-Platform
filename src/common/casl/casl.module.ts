@@ -6,6 +6,7 @@ import { CaslAuthorizationService } from './services/casl-authorization.service'
 
 // Import schemas
 import { Contractor, ContractorSchema } from '../../features/contractors/schema/contractor.schema';
+import { FeedPost, FeedPostSchema } from '../../features/feed-posts/schemas/feed-post.schema';
 import { Lease, LeaseSchema } from '../../features/leases/schemas/lease.schema';
 import {
   RentalPeriod,
@@ -92,6 +93,14 @@ import {
   UpdateMaintenanceTicketPolicyHandler,
 } from './policies/maintenance-ticket.policies';
 
+import {
+  CreateFeedPostPolicyHandler,
+  DeleteFeedPostPolicyHandler,
+  ManageFeedPostPolicyHandler,
+  ReadFeedPostPolicyHandler,
+  UpdateFeedPostPolicyHandler,
+} from './policies/feed-post.policies';
+
 const policyHandlers = [
   // Property policies
   ReadPropertyPolicyHandler,
@@ -153,6 +162,13 @@ const policyHandlers = [
   ManageMaintenanceTicketPolicyHandler,
   ReadMaintenanceTicketPolicyHandler,
   UpdateMaintenanceTicketPolicyHandler,
+
+  // FeedPost policies
+  CreateFeedPostPolicyHandler,
+  DeleteFeedPostPolicyHandler,
+  ManageFeedPostPolicyHandler,
+  ReadFeedPostPolicyHandler,
+  UpdateFeedPostPolicyHandler,
 ];
 
 @Module({
@@ -167,6 +183,7 @@ const policyHandlers = [
       { name: RentalPeriod.name, schema: RentalPeriodSchema },
       { name: Transaction.name, schema: TransactionSchema },
       { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
+      { name: FeedPost.name, schema: FeedPostSchema },
     ]),
   ],
   providers: [CaslAbilityFactory, CaslGuard, CaslAuthorizationService, ...policyHandlers],
