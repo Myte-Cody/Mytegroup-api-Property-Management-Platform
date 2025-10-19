@@ -352,23 +352,23 @@ export class FeedPostsService {
     }
 
     // Add new votes
-    votePollDto.optionIds.forEach((optionId) => {
-      const option = feedPost.poll.options.find(
-        (opt) => opt._id && (opt._id as Types.ObjectId).equals(new Types.ObjectId(optionId)),
-      );
-      if (!option) {
-        throw new BadRequestException(`Poll option ${optionId} not found`);
-      }
 
-      // Check if user already voted for this option
-      const alreadyVoted = option.voters.some((voterId) =>
-        (voterId as Types.ObjectId).equals(userId),
-      );
-      if (!alreadyVoted) {
-        option.voters.push(userId);
-        option.votes += 1;
-      }
-    });
+    const option = feedPost.poll.options.find(
+      (opt) =>
+        opt._id && (opt._id as Types.ObjectId).equals(new Types.ObjectId(votePollDto.optionId)),
+    );
+    if (!option) {
+      throw new BadRequestException(`Poll option ${votePollDto.optionId} not found`);
+    }
+
+    // Check if user already voted for this option
+    const alreadyVoted = option.voters.some((voterId) =>
+      (voterId as Types.ObjectId).equals(userId),
+    );
+    if (!alreadyVoted) {
+      option.voters.push(userId);
+      option.votes += 1;
+    }
 
     return await feedPost.save();
   }
