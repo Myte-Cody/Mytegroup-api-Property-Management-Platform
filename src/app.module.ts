@@ -12,6 +12,7 @@ import { AuthModule } from './features/auth/auth.module';
 import { ContractorModule } from './features/contractors/contractor.module';
 import { EmailModule } from './features/email/email.module';
 import { FeedPostsModule } from './features/feed-posts/feed-posts.module';
+import { InquiriesModule } from './features/inquiries/inquiries.module';
 import { InvitationsModule } from './features/invitations/invitations.module';
 import { LandlordModule } from './features/landlords/landlord.module';
 import { LeasesModule } from './features/leases/leases.module';
@@ -62,6 +63,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     MaintenanceModule,
     FeedPostsModule,
     MediaModule,
+    InquiriesModule,
     SchedulerModule,
     MongooseModule.forRoot(process.env.DB_URL, {
       dbName: process.env.MONGO_DB_NAME,

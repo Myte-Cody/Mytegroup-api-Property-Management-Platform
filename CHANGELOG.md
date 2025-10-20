@@ -1,5 +1,54 @@
 # MyteGroup API - Changelog
 
+## October 20, 2025
+
+### Marketplace Feature Implementation
+**Complete marketplace system for unit listings and inquiries**
+
+#### New Endpoints
+- Marketplace unit listing endpoints
+- Unit inquiry management endpoints
+- Unit localization extraction
+- Marketplace filtering capabilities
+
+#### Marketplace Features
+- **Unit Localization** (09:49)
+  - Extract and store localization information for units
+  - Support for unit address and location data
+  - Integration with unit management system
+
+- **Marketplace Filtering** (11:00)
+  - Filter units by "publish to marketplace" field
+  - Control unit visibility in marketplace
+  - Query-based filtering for marketplace listings
+
+- **Inquiry System** (13:37)
+  - Create and manage unit inquiries
+  - Handle potential tenant inquiries
+  - Inquiry tracking and management
+  - Communication between interested parties and landlords
+
+- **Marketplace Units** (15:10)
+  - Dedicated marketplace unit endpoints
+  - Public unit listings
+  - Enhanced unit display for marketplace
+  - Integration with inquiry system
+
+#### Technical Implementation
+- Created marketplace-specific DTOs and queries
+- Service layer for marketplace logic
+- Controller with proper Swagger documentation
+- Integration with existing unit and property modules
+- Localization data extraction and storage
+
+#### Commits
+- `c50d98c` - feat: extract localization info for units
+- `c5c9da8` - feat: filter units by publish to marketplace field
+- `9b0770f` - feat: inquiries endpoints
+- `9b44568` - feat: marketplace units
+
+---
+
 ## October 16, 2025
 
 ### Feed Posts Feature Implementation
@@ -98,6 +147,13 @@
 ---
 
 ## Key Features Summary
+
+### Marketplace System ✓
+✓ Unit localization extraction
+✓ Marketplace filtering by publish status
+✓ Inquiry management system
+✓ Public unit listings
+✓ Marketplace-specific endpoints
 
 ### Feed Posts System ✓
 ✓ Landlord-only post creation and management
