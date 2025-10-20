@@ -11,12 +11,14 @@ import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
+import { GeocodingService } from '../../common/services/geocoding.service';
 import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { Lease } from '../leases/schemas/lease.schema';
 import { MediaService } from '../media/services/media.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateUnitDto } from './dto/create-unit.dto';
+import { MarketplaceQueryDto } from './dto/marketplace-query.dto';
 import { PaginatedUnitsResponse, UnitQueryDto } from './dto/unit-query.dto';
 import { UnitStatsDto } from './dto/unit-stats.dto';
 import { UnitsOverviewStatsResponseDto } from './dto/units-overview-stats.dto';
@@ -39,6 +41,7 @@ export class UnitsService {
     private caslAuthorizationService: CaslAuthorizationService,
     private readonly mediaService: MediaService,
     private readonly sessionService: SessionService,
+    private readonly geocodingService: GeocodingService,
   ) {}
 
   async create(createUnitDto: CreateUnitDto, propertyId: string, currentUser: UserDocument) {
@@ -62,9 +65,25 @@ export class UnitsService {
         currentUser,
       });
 
+      // Process googleMapsLink if provided
+      let address = undefined;
+      if (createUnitDto.googleMapsLink) {
+        try {
+          address = await this.geocodingService.extractLocationFromMapsLink(
+            createUnitDto.googleMapsLink,
+          );
+        } catch (error) {
+          // Log the error but don't fail the unit creation
+          console.error('Failed to extract location from Google Maps link:', error.message);
+        }
+      }
+
+      // Create unit data without googleMapsLink but with address
+      const { googleMapsLink, ...unitData } = createUnitDto;
       const newUnit = new this.unitModel({
-        ...createUnitDto,
+        ...unitData,
         property: propertyId,
+        ...(address && { address }),
       });
 
       const unit = await newUnit.save({ session });
@@ -103,6 +122,98 @@ export class UnitsService {
     });
   }
 
+  /**
+   * Get all units published to marketplace (public endpoint)
+   * No authentication required, returns units with publishToMarketplace = true
+   */
+  async findMarketplaceUnits(queryDto?: MarketplaceQueryDto) {
+    const pipeline: any[] = [];
+
+    // Step 1: Match only units published to marketplace
+    const matchConditions: any = {
+      deleted: false,
+      publishToMarketplace: true,
+    };
+
+    // Add type filter
+    if (queryDto?.type) {
+      matchConditions.type = queryDto.type;
+    }
+
+    // Add rent range filtering (using marketRent field)
+    if (queryDto?.minRent !== undefined || queryDto?.maxRent !== undefined) {
+      const rentQuery: any = {};
+      if (queryDto.minRent !== undefined) {
+        rentQuery.$gte = queryDto.minRent;
+      }
+      if (queryDto.maxRent !== undefined) {
+        rentQuery.$lte = queryDto.maxRent;
+      }
+      matchConditions.marketRent = rentQuery;
+    }
+
+    pipeline.push({ $match: matchConditions });
+
+    // Step 2: Lookup property
+    pipeline.push({
+      $lookup: {
+        from: 'properties',
+        localField: 'property',
+        foreignField: '_id',
+        as: 'property',
+      },
+    });
+
+    pipeline.push({
+      $unwind: {
+        path: '$property',
+        preserveNullAndEmptyArrays: true,
+      },
+    });
+
+    // Step 3: Add search filter (after property lookup to search property name)
+    if (queryDto?.search) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { unitNumber: { $regex: queryDto.search, $options: 'i' } },
+            { 'property.name': { $regex: queryDto.search, $options: 'i' } },
+          ],
+        },
+      });
+    }
+
+    // Step 4: Sort by createdAt descending
+    pipeline.push({ $sort: { createdAt: -1 } });
+
+    // Execute query
+    const units = await this.unitModel.aggregate(pipeline).exec();
+
+    // Fetch media for each unit (without user context for public endpoint)
+    const unitsWithMedia = await Promise.all(
+      units.map(async (unit) => {
+        // For public endpoint, get media without user authorization
+        const media = await this.mediaService.getMediaForEntity(
+          'Unit',
+          unit._id.toString(),
+          null, // No user context for public endpoint
+          undefined, // collection_name (get all collections)
+          {}, // filters (get all media)
+        );
+        return {
+          ...unit,
+          media,
+        };
+      }),
+    );
+
+    return {
+      success: true,
+      data: unitsWithMedia,
+      total: unitsWithMedia.length,
+    };
+  }
+
   async findAllPaginated(
     queryDto: UnitQueryDto,
     currentUser: UserDocument,
@@ -121,6 +232,7 @@ export class UnitsService {
       propertyId,
       minSize,
       maxSize,
+      publishToMarketplace,
     } = queryDto;
 
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
@@ -167,6 +279,11 @@ export class UnitsService {
         sizeQuery.$lte = maxSize;
       }
       matchConditions.size = sizeQuery;
+    }
+
+    // Filter by marketplace publication status
+    if (publishToMarketplace !== undefined) {
+      matchConditions.publishToMarketplace = publishToMarketplace;
     }
 
     pipeline.push({ $match: matchConditions });
@@ -558,9 +675,29 @@ export class UnitsService {
       currentUser,
     });
 
+    // Process googleMapsLink if provided
+    let address = undefined;
+    if (updateUnitDto.googleMapsLink) {
+      try {
+        address = await this.geocodingService.extractLocationFromMapsLink(
+          updateUnitDto.googleMapsLink,
+        );
+      } catch (error) {
+        // Log the error but don't fail the unit update
+        console.error('Failed to extract location from Google Maps link:', error.message);
+      }
+    }
+
+    // Create update data without googleMapsLink but with address
+    const { googleMapsLink, ...updateData } = updateUnitDto;
+    const finalUpdateData = {
+      ...updateData,
+      ...(address && { address }),
+    };
+
     // Perform the update
     const updatedUnit = await this.unitModel
-      .findByIdAndUpdate(id, updateUnitDto, { new: true })
+      .findByIdAndUpdate(id, finalUpdateData, { new: true })
       .exec();
 
     return updatedUnit;

@@ -33,10 +33,12 @@ import {
   UpdateUnitPolicyHandler,
 } from '../../common/casl/policies/unit.policies';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 import { MediaType } from '../media/schemas/media.schema';
 import { MediaService } from '../media/services/media.service';
 import { User } from '../users/schemas/user.schema';
+import { MarketplaceQueryDto } from './dto/marketplace-query.dto';
 import { UnitQueryDto } from './dto/unit-query.dto';
 import { UnitsOverviewStatsResponseDto } from './dto/units-overview-stats.dto';
 import { UpdateUnitDto } from './dto/update-unit.dto';
@@ -52,6 +54,17 @@ export class UnitsController {
     private readonly unitsService: UnitsService,
     private readonly mediaService: MediaService,
   ) {}
+
+  @Get('marketplace')
+  @Public()
+  @ApiOperation({ summary: 'Get all marketplace units (public endpoint)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Marketplace units retrieved successfully',
+  })
+  findMarketplaceUnits(@Query() queryDto: MarketplaceQueryDto) {
+    return this.unitsService.findMarketplaceUnits(queryDto);
+  }
 
   @Get()
   @CheckPolicies(new ReadUnitPolicyHandler())

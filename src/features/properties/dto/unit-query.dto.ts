@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enum';
 
 export class UnitQueryDto {
@@ -84,6 +84,16 @@ export class UnitQueryDto {
   @IsOptional()
   @IsString()
   propertyId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter units by marketplace publication status',
+    example: true,
+    type: Boolean,
+  })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  publishToMarketplace?: boolean;
 
   @ApiPropertyOptional({
     description: 'Minimum unit size in square feet/meters',
