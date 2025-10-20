@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsDateString,
@@ -99,6 +99,7 @@ export class CreateUnitDto {
     default: false,
   })
   @IsOptional()
+  @Transform(({ value }) => value == 'true')
   @IsBoolean()
   @Type(() => Boolean)
   availableForRent?: boolean;

@@ -7,7 +7,7 @@ import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { Property } from '../properties/schemas/property.schema';
 import { Unit } from '../properties/schemas/unit.schema';
 import { CreateInquiryDto } from './dto/create-inquiry.dto';
-import { PaginatedInquiriesResponse, InquiryQueryDto } from './dto/inquiry-query.dto';
+import { InquiryQueryDto, PaginatedInquiriesResponse } from './dto/inquiry-query.dto';
 import { UpdateInquiryDto } from './dto/update-inquiry.dto';
 import { Inquiry } from './schemas/inquiry.schema';
 

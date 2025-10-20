@@ -11,6 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 import { CreateInquiryDto } from './dto/create-inquiry.dto';
 import { InquiryQueryDto } from './dto/inquiry-query.dto';
@@ -18,6 +19,7 @@ import { UpdateInquiryDto } from './dto/update-inquiry.dto';
 import { InquiriesService } from './inquiries.service';
 
 @ApiTags('Inquiries')
+@Public()
 @Controller('inquiries')
 export class InquiriesController {
   constructor(private readonly inquiriesService: InquiriesService) {}

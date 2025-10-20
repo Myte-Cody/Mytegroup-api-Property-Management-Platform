@@ -18,6 +18,7 @@ import { Lease } from '../leases/schemas/lease.schema';
 import { MediaService } from '../media/services/media.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateUnitDto } from './dto/create-unit.dto';
+import { MarketplaceQueryDto } from './dto/marketplace-query.dto';
 import { PaginatedUnitsResponse, UnitQueryDto } from './dto/unit-query.dto';
 import { UnitStatsDto } from './dto/unit-stats.dto';
 import { UnitsOverviewStatsResponseDto } from './dto/units-overview-stats.dto';
@@ -119,6 +120,98 @@ export class UnitsService {
         message: 'Unit created successfully',
       };
     });
+  }
+
+  /**
+   * Get all units published to marketplace (public endpoint)
+   * No authentication required, returns units with publishToMarketplace = true
+   */
+  async findMarketplaceUnits(queryDto?: MarketplaceQueryDto) {
+    const pipeline: any[] = [];
+
+    // Step 1: Match only units published to marketplace
+    const matchConditions: any = {
+      deleted: false,
+      publishToMarketplace: true,
+    };
+
+    // Add type filter
+    if (queryDto?.type) {
+      matchConditions.type = queryDto.type;
+    }
+
+    // Add rent range filtering (using marketRent field)
+    if (queryDto?.minRent !== undefined || queryDto?.maxRent !== undefined) {
+      const rentQuery: any = {};
+      if (queryDto.minRent !== undefined) {
+        rentQuery.$gte = queryDto.minRent;
+      }
+      if (queryDto.maxRent !== undefined) {
+        rentQuery.$lte = queryDto.maxRent;
+      }
+      matchConditions.marketRent = rentQuery;
+    }
+
+    pipeline.push({ $match: matchConditions });
+
+    // Step 2: Lookup property
+    pipeline.push({
+      $lookup: {
+        from: 'properties',
+        localField: 'property',
+        foreignField: '_id',
+        as: 'property',
+      },
+    });
+
+    pipeline.push({
+      $unwind: {
+        path: '$property',
+        preserveNullAndEmptyArrays: true,
+      },
+    });
+
+    // Step 3: Add search filter (after property lookup to search property name)
+    if (queryDto?.search) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { unitNumber: { $regex: queryDto.search, $options: 'i' } },
+            { 'property.name': { $regex: queryDto.search, $options: 'i' } },
+          ],
+        },
+      });
+    }
+
+    // Step 4: Sort by createdAt descending
+    pipeline.push({ $sort: { createdAt: -1 } });
+
+    // Execute query
+    const units = await this.unitModel.aggregate(pipeline).exec();
+
+    // Fetch media for each unit (without user context for public endpoint)
+    const unitsWithMedia = await Promise.all(
+      units.map(async (unit) => {
+        // For public endpoint, get media without user authorization
+        const media = await this.mediaService.getMediaForEntity(
+          'Unit',
+          unit._id.toString(),
+          null, // No user context for public endpoint
+          undefined, // collection_name (get all collections)
+          {}, // filters (get all media)
+        );
+        return {
+          ...unit,
+          media,
+        };
+      }),
+    );
+
+    return {
+      success: true,
+      data: unitsWithMedia,
+      total: unitsWithMedia.length,
+    };
   }
 
   async findAllPaginated(
