@@ -1,8 +1,10 @@
 import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { ApiProperty } from '@nestjs/swagger';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enum';
+import { Address } from '../../../common/interfaces/address.interface';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
 
 @Schema({ timestamps: true })
@@ -35,8 +37,29 @@ export class Unit extends Document implements SoftDelete {
   })
   availabilityStatus: UnitAvailabilityStatus;
 
-  @Prop({ type: String, trim: true })
-  googleMapsLink?: string;
+  @ApiProperty({
+    description: 'Address information with coordinates and location details',
+    required: false,
+    example: {
+      latitude: 40.7128,
+      longitude: -74.006,
+      city: 'New York',
+      state: 'New York',
+      country: 'United States',
+    },
+  })
+  @Prop({
+    type: {
+      latitude: { type: Number, required: true },
+      longitude: { type: Number, required: true },
+      city: { type: String, trim: true },
+      state: { type: String, trim: true },
+      country: { type: String, trim: true },
+    },
+    required: false,
+    _id: false,
+  })
+  address?: Address;
 
   @Prop({ type: Boolean, default: false })
   availableForRent: boolean;

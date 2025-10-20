@@ -105,7 +105,8 @@ export class CreateUnitDto {
 
   @ApiProperty({
     example: '2025-11-01',
-    description: 'Date when the unit becomes available for rent (required if availableForRent is true)',
+    description:
+      'Date when the unit becomes available for rent (required if availableForRent is true)',
     required: false,
   })
   @ValidateIf((o) => o.availableForRent === true)

@@ -7,6 +7,7 @@ import { HealthController } from './health.controller';
 import { AuditLogInterceptor } from './interceptors/audit-log.interceptor';
 import { AuditLog, AuditLogSchema } from './schemas/audit-log.schema';
 import { AuditLogService } from './services/audit-log.service';
+import { GeocodingService } from './services/geocoding.service';
 import { SessionService } from './services/session.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
@@ -24,11 +25,12 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     JwtStrategy,
     SessionService,
     AuditLogService,
+    GeocodingService,
     {
       provide: APP_INTERCEPTOR,
       useClass: AuditLogInterceptor,
     },
   ],
-  exports: [PassportModule, SessionService, AuditLogService],
+  exports: [PassportModule, SessionService, AuditLogService, GeocodingService],
 })
 export class CommonModule {}

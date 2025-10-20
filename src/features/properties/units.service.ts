@@ -11,6 +11,7 @@ import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
+import { GeocodingService } from '../../common/services/geocoding.service';
 import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { Lease } from '../leases/schemas/lease.schema';
@@ -39,6 +40,7 @@ export class UnitsService {
     private caslAuthorizationService: CaslAuthorizationService,
     private readonly mediaService: MediaService,
     private readonly sessionService: SessionService,
+    private readonly geocodingService: GeocodingService,
   ) {}
 
   async create(createUnitDto: CreateUnitDto, propertyId: string, currentUser: UserDocument) {
@@ -62,9 +64,25 @@ export class UnitsService {
         currentUser,
       });
 
+      // Process googleMapsLink if provided
+      let address = undefined;
+      if (createUnitDto.googleMapsLink) {
+        try {
+          address = await this.geocodingService.extractLocationFromMapsLink(
+            createUnitDto.googleMapsLink,
+          );
+        } catch (error) {
+          // Log the error but don't fail the unit creation
+          console.error('Failed to extract location from Google Maps link:', error.message);
+        }
+      }
+
+      // Create unit data without googleMapsLink but with address
+      const { googleMapsLink, ...unitData } = createUnitDto;
       const newUnit = new this.unitModel({
-        ...createUnitDto,
+        ...unitData,
         property: propertyId,
+        ...(address && { address }),
       });
 
       const unit = await newUnit.save({ session });
@@ -558,9 +576,29 @@ export class UnitsService {
       currentUser,
     });
 
+    // Process googleMapsLink if provided
+    let address = undefined;
+    if (updateUnitDto.googleMapsLink) {
+      try {
+        address = await this.geocodingService.extractLocationFromMapsLink(
+          updateUnitDto.googleMapsLink,
+        );
+      } catch (error) {
+        // Log the error but don't fail the unit update
+        console.error('Failed to extract location from Google Maps link:', error.message);
+      }
+    }
+
+    // Create update data without googleMapsLink but with address
+    const { googleMapsLink, ...updateData } = updateUnitDto;
+    const finalUpdateData = {
+      ...updateData,
+      ...(address && { address }),
+    };
+
     // Perform the update
     const updatedUnit = await this.unitModel
-      .findByIdAndUpdate(id, updateUnitDto, { new: true })
+      .findByIdAndUpdate(id, finalUpdateData, { new: true })
       .exec();
 
     return updatedUnit;
