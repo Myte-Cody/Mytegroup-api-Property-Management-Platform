@@ -139,6 +139,7 @@ export class UnitsService {
       propertyId,
       minSize,
       maxSize,
+      publishToMarketplace,
     } = queryDto;
 
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
@@ -185,6 +186,11 @@ export class UnitsService {
         sizeQuery.$lte = maxSize;
       }
       matchConditions.size = sizeQuery;
+    }
+
+    // Filter by marketplace publication status
+    if (publishToMarketplace !== undefined) {
+      matchConditions.publishToMarketplace = publishToMarketplace;
     }
 
     pipeline.push({ $match: matchConditions });
