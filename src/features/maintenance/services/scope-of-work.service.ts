@@ -30,7 +30,10 @@ export class ScopeOfWorkService {
     private readonly sessionService: SessionService,
   ) {}
 
-  async findAllPaginated(queryDto: ScopeOfWorkQueryDto, currentUser: UserDocument): Promise<PaginatedResponse> {
+  async findAllPaginated(
+    queryDto: ScopeOfWorkQueryDto,
+    currentUser: UserDocument,
+  ): Promise<PaginatedResponse> {
     const {
       page = 1,
       limit = 10,
@@ -41,6 +44,8 @@ export class ScopeOfWorkService {
       contractorId,
       userId,
       parentSowId,
+      startDate,
+      endDate,
     } = queryDto;
 
     // Build base query
@@ -67,6 +72,13 @@ export class ScopeOfWorkService {
 
     if (parentSowId) {
       baseQuery = baseQuery.where({ parentSow: parentSowId });
+    }
+
+    if (startDate || endDate) {
+      const dateFilter: any = {};
+      if (startDate) dateFilter.$gte = startDate;
+      if (endDate) dateFilter.$lte = endDate;
+      baseQuery = baseQuery.where({ createdAt: dateFilter });
     }
 
     // Calculate skip for pagination
@@ -144,9 +156,9 @@ export class ScopeOfWorkService {
       );
 
       if (invalidTickets.length > 0) {
-        const invalidTicketIds = invalidTickets.map((ticket) => ticket._id.toString()).join(', ');
+        const invalidTicketNumbers = invalidTickets.map((ticket) => ticket.ticketNumber).join(', ');
         throw new BadRequestException(
-          `Tickets must have status OPEN or IN_REVIEW. Invalid tickets: ${invalidTicketIds}`,
+          `Tickets must have status OPEN or IN_REVIEW. Invalid tickets: ${invalidTicketNumbers}`,
         );
       }
 

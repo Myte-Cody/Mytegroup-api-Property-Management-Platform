@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, Min } from 'class-validator';
 import { TicketStatus } from '../../../common/enums/maintenance.enum';
 
@@ -89,4 +89,20 @@ export class ScopeOfWorkQueryDto {
   @IsOptional()
   @IsMongoId()
   parentSowId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter SOW created from this date',
+    example: '2024-01-01',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value ? new Date(value) : undefined))
+  startDate?: Date;
+
+  @ApiPropertyOptional({
+    description: 'Filter SOW created up to this date',
+    example: '2024-12-31',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value ? new Date(value) : undefined))
+  endDate?: Date;
 }
