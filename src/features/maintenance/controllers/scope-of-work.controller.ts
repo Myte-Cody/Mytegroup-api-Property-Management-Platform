@@ -19,9 +19,12 @@ import {
 } from '../../../common/casl/policies/scope-of-work.policies';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { User } from '../../users/schemas/user.schema';
-import { CreateScopeOfWorkDto } from '../dto/create-scope-of-work.dto';
-import { AssignContractorSowDto } from '../dto/assign-contractor-sow.dto';
+import { AcceptSowDto } from '../dto/accept-sow.dto';
 import { AddTicketSowDto } from '../dto/add-ticket-sow.dto';
+import { AssignContractorSowDto } from '../dto/assign-contractor-sow.dto';
+import { CloseSowDto } from '../dto/close-sow.dto';
+import { CreateScopeOfWorkDto } from '../dto/create-scope-of-work.dto';
+import { RefuseSowDto } from '../dto/refuse-sow.dto';
 import { RemoveTicketSowDto } from '../dto/remove-ticket-sow.dto';
 import { ScopeOfWorkService } from '../services/scope-of-work.service';
 
@@ -113,5 +116,52 @@ export class ScopeOfWorkController {
     @CurrentUser() user: User,
   ) {
     return this.scopeOfWorkService.removeTicket(id, removeTicketDto, user);
+  }
+
+  @Post(':id/accept')
+  @CheckPolicies(new UpdateScopeOfWorkPolicyHandler())
+  @ApiOperation({ summary: 'Accept a scope of work and assign a user' })
+  @ApiResponse({ status: 200, description: 'Scope of work accepted successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Scope of work or user not found' })
+  async accept(
+    @Param('id') id: string,
+    @Body() acceptDto: AcceptSowDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.scopeOfWorkService.acceptSow(id, acceptDto, user);
+  }
+
+  @Post(':id/refuse')
+  @CheckPolicies(new UpdateScopeOfWorkPolicyHandler())
+  @ApiOperation({ summary: 'Refuse a scope of work' })
+  @ApiResponse({ status: 200, description: 'Scope of work refused successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Scope of work not found' })
+  async refuse(
+    @Param('id') id: string,
+    @Body() refuseDto: RefuseSowDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.scopeOfWorkService.refuseSow(id, refuseDto, user);
+  }
+
+  @Post(':id/close')
+  @CheckPolicies(new UpdateScopeOfWorkPolicyHandler())
+  @ApiOperation({ summary: 'Close a scope of work' })
+  @ApiResponse({ status: 200, description: 'Scope of work closed successfully' })
+  @ApiResponse({
+    status: 400,
+    description: 'Cannot close: not all tickets are done/closed or not all child SOWs are closed',
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Scope of work not found' })
+  async close(
+    @Param('id') id: string,
+    @Body() closeDto: CloseSowDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.scopeOfWorkService.closeSow(id, closeDto, user);
   }
 }

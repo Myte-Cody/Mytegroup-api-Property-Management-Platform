@@ -6,3 +6,6 @@ export * from './create-ticket.dto';
 export * from './refuse-ticket.dto';
 export * from './ticket-query.dto';
 export * from './update-ticket.dto';
+export * from './accept-sow.dto';
+export * from './refuse-sow.dto';
+export * from './close-sow.dto';

@@ -18,6 +18,13 @@ export class ScopeOfWork extends Document implements SoftDelete {
 
   @Prop({
     type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    required: false,
+  })
+  assignedUser?: Types.ObjectId;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
     ref: 'ScopeOfWork',
     required: false,
   })
@@ -33,6 +40,15 @@ export class ScopeOfWork extends Document implements SoftDelete {
     required: true,
   })
   status: TicketStatus;
+
+  @Prop({ type: Date, required: false })
+  assignedDate?: Date;
+
+  @Prop({ maxlength: 1000, required: false })
+  notes?: string;
+
+  @Prop({ maxlength: 1000, required: false })
+  refuseReason?: string;
 
   deleted: boolean;
   deletedAt?: Date;
