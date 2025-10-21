@@ -84,6 +84,18 @@ export class ScopeOfWorkService {
         throw new BadRequestException('One or more tickets not found');
       }
 
+      // Validate that all tickets have status OPEN or IN_REVIEW
+      const invalidTickets = tickets.filter(
+        (ticket) => ticket.status !== TicketStatus.OPEN && ticket.status !== TicketStatus.IN_REVIEW,
+      );
+
+      if (invalidTickets.length > 0) {
+        const invalidTicketIds = invalidTickets.map((ticket) => ticket._id.toString()).join(', ');
+        throw new BadRequestException(
+          `Tickets must have status OPEN or IN_REVIEW. Invalid tickets: ${invalidTicketIds}`,
+        );
+      }
+
       // Validate parent SOW if provided
       if (createDto.parentSow) {
         const parentSow = await this.scopeOfWorkModel
@@ -191,9 +203,18 @@ export class ScopeOfWorkService {
       }
 
       // Validate that the ticket exists
-      const ticket = await this.ticketModel.findById(addTicketDto.ticketId, null, { session }).exec();
+      const ticket = await this.ticketModel
+        .findById(addTicketDto.ticketId, null, { session })
+        .exec();
       if (!ticket) {
         throw new NotFoundException(`Ticket with ID ${addTicketDto.ticketId} not found`);
+      }
+
+      // Validate that ticket has status OPEN or IN_REVIEW
+      if (ticket.status !== TicketStatus.OPEN && ticket.status !== TicketStatus.IN_REVIEW) {
+        throw new BadRequestException(
+          `Ticket must have status OPEN or IN_REVIEW. Current status: ${ticket.status}`,
+        );
       }
 
       // Check if ticket is already in another SOW
@@ -230,7 +251,9 @@ export class ScopeOfWorkService {
       }
 
       // Validate that the ticket exists and belongs to this SOW
-      const ticket = await this.ticketModel.findById(removeTicketDto.ticketId, null, { session }).exec();
+      const ticket = await this.ticketModel
+        .findById(removeTicketDto.ticketId, null, { session })
+        .exec();
       if (!ticket) {
         throw new NotFoundException(`Ticket with ID ${removeTicketDto.ticketId} not found`);
       }
@@ -332,7 +355,9 @@ export class ScopeOfWorkService {
       }
 
       // Get all tickets for this SOW
-      const tickets = await this.ticketModel.find({ scopeOfWork: scopeOfWork._id }, null, { session }).exec();
+      const tickets = await this.ticketModel
+        .find({ scopeOfWork: scopeOfWork._id }, null, { session })
+        .exec();
 
       // Check if all tickets are DONE or CLOSED
       const allTicketsDoneOrClosed = tickets.every(
@@ -344,7 +369,9 @@ export class ScopeOfWorkService {
       }
 
       // Get all child SOWs (sub-SOWs)
-      const childSows = await this.scopeOfWorkModel.find({ parentSow: scopeOfWork._id }, null, { session }).exec();
+      const childSows = await this.scopeOfWorkModel
+        .find({ parentSow: scopeOfWork._id }, null, { session })
+        .exec();
 
       // Check if all child SOWs are CLOSED
       if (childSows.length > 0) {
