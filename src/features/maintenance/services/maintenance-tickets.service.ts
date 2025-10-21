@@ -633,9 +633,7 @@ export class MaintenanceTicketsService {
   }
 
   private async areAllTicketsInSowDone(sowId: Types.ObjectId): Promise<boolean> {
-    const tickets = await this.ticketModel
-      .find({ scopeOfWork: sowId })
-      .exec();
+    const tickets = await this.ticketModel.find({ scopeOfWork: sowId }).exec();
 
     if (tickets.length === 0) {
       return false;
@@ -662,11 +660,11 @@ export class MaintenanceTicketsService {
       // If this SOW has a parent, check and update the parent recursively
       if (sow.parentSow) {
         // Check if all child SOWs of the parent are done
-        const siblingsSows = await this.scopeOfWorkModel
-          .find({ parentSow: sow.parentSow })
-          .exec();
+        const siblingsSows = await this.scopeOfWorkModel.find({ parentSow: sow.parentSow }).exec();
 
-        const allSiblingsDone = siblingsSows.every((sibling) => sibling.status === TicketStatus.DONE);
+        const allSiblingsDone = siblingsSows.every(
+          (sibling) => sibling.status === TicketStatus.DONE,
+        );
 
         if (allSiblingsDone) {
           await this.updateSowStatusRecursively(sow.parentSow);

@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CheckPolicies } from '../../../common/casl/decorators/check-policies.decorator';
 import { CaslGuard } from '../../../common/casl/guards/casl.guard';
@@ -157,11 +148,7 @@ export class ScopeOfWorkController {
   })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Scope of work not found' })
-  async close(
-    @Param('id') id: string,
-    @Body() closeDto: CloseSowDto,
-    @CurrentUser() user: User,
-  ) {
+  async close(@Param('id') id: string, @Body() closeDto: CloseSowDto, @CurrentUser() user: User) {
     return this.scopeOfWorkService.closeSow(id, closeDto, user);
   }
 }
