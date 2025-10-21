@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CheckPolicies } from '../../../common/casl/decorators/check-policies.decorator';
 import { CaslGuard } from '../../../common/casl/guards/casl.guard';
@@ -17,6 +17,7 @@ import { CloseSowDto } from '../dto/close-sow.dto';
 import { CreateScopeOfWorkDto } from '../dto/create-scope-of-work.dto';
 import { RefuseSowDto } from '../dto/refuse-sow.dto';
 import { RemoveTicketSowDto } from '../dto/remove-ticket-sow.dto';
+import { ScopeOfWorkQueryDto } from '../dto/scope-of-work-query.dto';
 import { ScopeOfWorkService } from '../services/scope-of-work.service';
 
 @ApiTags('Scope of Work')
@@ -38,10 +39,10 @@ export class ScopeOfWorkController {
 
   @Get()
   @CheckPolicies(new ReadScopeOfWorkPolicyHandler())
-  @ApiOperation({ summary: 'Get all scopes of work' })
+  @ApiOperation({ summary: 'Get all scopes of work with pagination' })
   @ApiResponse({ status: 200, description: 'Scopes of work retrieved successfully' })
-  async findAll(@CurrentUser() user: User) {
-    return this.scopeOfWorkService.findAll(user);
+  async findAll(@Query() queryDto: ScopeOfWorkQueryDto, @CurrentUser() user: User) {
+    return this.scopeOfWorkService.findAllPaginated(queryDto, user);
   }
 
   @Get(':id')

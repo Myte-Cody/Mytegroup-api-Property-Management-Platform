@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Types } from 'mongoose';
 import { TicketStatus } from '../../../common/enums/maintenance.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
+import { createPaginatedResponse, PaginatedResponse } from '../../../common/utils/pagination.utils';
 import { User, UserDocument } from '../../users/schemas/user.schema';
 import { AcceptSowDto } from '../dto/accept-sow.dto';
 import { AddTicketSowDto } from '../dto/add-ticket-sow.dto';
@@ -11,6 +12,7 @@ import { CloseSowDto } from '../dto/close-sow.dto';
 import { CreateScopeOfWorkDto } from '../dto/create-scope-of-work.dto';
 import { RefuseSowDto } from '../dto/refuse-sow.dto';
 import { RemoveTicketSowDto } from '../dto/remove-ticket-sow.dto';
+import { ScopeOfWorkQueryDto } from '../dto/scope-of-work-query.dto';
 import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
 import { ScopeOfWork } from '../schemas/scope-of-work.schema';
 import { TicketReferenceUtils } from '../utils/ticket-reference.utils';
@@ -28,13 +30,65 @@ export class ScopeOfWorkService {
     private readonly sessionService: SessionService,
   ) {}
 
-  async findAll(currentUser: UserDocument) {
-    const scopesOfWork = await this.scopeOfWorkModel
-      .find()
-      .populate('assignedContractor')
-      .populate('assignedUser')
-      .populate('parentSow')
-      .exec();
+  async findAllPaginated(queryDto: ScopeOfWorkQueryDto, currentUser: UserDocument): Promise<PaginatedResponse> {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      status,
+      contractorId,
+      userId,
+      parentSowId,
+    } = queryDto;
+
+    // Build base query
+    let baseQuery = this.scopeOfWorkModel.find();
+
+    // Apply filters
+    if (search) {
+      baseQuery = baseQuery.where({
+        sowNumber: { $regex: search, $options: 'i' },
+      });
+    }
+
+    if (status) {
+      baseQuery = baseQuery.where({ status });
+    }
+
+    if (contractorId) {
+      baseQuery = baseQuery.where({ assignedContractor: contractorId });
+    }
+
+    if (userId) {
+      baseQuery = baseQuery.where({ assignedUser: userId });
+    }
+
+    if (parentSowId) {
+      baseQuery = baseQuery.where({ parentSow: parentSowId });
+    }
+
+    // Calculate skip for pagination
+    const skip = (page - 1) * limit;
+
+    // Build sort object
+    const sortObj: Record<string, 1 | -1> = {};
+    sortObj[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    // Execute queries in parallel for better performance
+    const [scopesOfWork, total] = await Promise.all([
+      baseQuery
+        .clone()
+        .sort(sortObj)
+        .skip(skip)
+        .limit(limit)
+        .populate('assignedContractor')
+        .populate('assignedUser')
+        .populate('parentSow')
+        .exec(),
+      baseQuery.clone().countDocuments().exec(),
+    ]);
 
     // Populate tickets for each SOW
     const populatedSows = await Promise.all(
@@ -47,7 +101,7 @@ export class ScopeOfWorkService {
       }),
     );
 
-    return populatedSows;
+    return createPaginatedResponse(populatedSows, total, page, limit);
   }
 
   async findOne(id: string, currentUser: UserDocument, session: ClientSession | null = null) {
