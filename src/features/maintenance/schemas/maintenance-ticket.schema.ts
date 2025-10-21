@@ -105,6 +105,13 @@ export class MaintenanceTicket extends Document implements SoftDelete {
   @Prop({ required: true, unique: true })
   ticketNumber: string;
 
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'ScopeOfWork',
+    required: false,
+  })
+  scopeOfWork?: Types.ObjectId;
+
   deleted: boolean;
   deletedAt?: Date;
 }

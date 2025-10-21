@@ -27,6 +27,7 @@ import {
   UpdateTicketDto,
 } from '../dto';
 import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
+import { ScopeOfWork } from '../schemas/scope-of-work.schema';
 import { TicketReferenceUtils } from '../utils/ticket-reference.utils';
 import { SessionService } from './../../../common/services/session.service';
 
@@ -47,6 +48,8 @@ export class MaintenanceTicketsService {
     private readonly leaseModel: AppModel<Lease>,
     @InjectModel(User.name)
     private readonly userModel: AppModel<User>,
+    @InjectModel(ScopeOfWork.name)
+    private readonly scopeOfWorkModel: AppModel<ScopeOfWork>,
     private readonly sessionService: SessionService,
     private readonly mediaService: MediaService,
   ) {}
@@ -388,7 +391,15 @@ export class MaintenanceTicketsService {
     ticket.status = TicketStatus.DONE;
     ticket.completedDate = new Date();
 
-    return await ticket.save();
+    const savedTicket = await ticket.save();
+
+    // Check if the ticket has a scope of work
+    if (ticket.scopeOfWork) {
+      // Update SOW status if all tickets are done
+      await this.updateSowStatusRecursively(ticket.scopeOfWork);
+    }
+
+    return savedTicket;
   }
 
   async closeTicket(
@@ -412,10 +423,20 @@ export class MaintenanceTicketsService {
   }
 
   async reopenTicket(id: string, _currentUser: UserDocument): Promise<MaintenanceTicket> {
-    const ticket = await this.ticketModel.findById(id).exec();
+    const ticket = await this.ticketModel.findById(id).populate('scopeOfWork').exec();
 
     if (!ticket) {
       throw new NotFoundException(`Ticket with ID ${id} not found`);
+    }
+
+    // Check if ticket has a scope of work and if that SOW is closed
+    if (ticket.scopeOfWork) {
+      const scopeOfWork = ticket.scopeOfWork as unknown as ScopeOfWork;
+      if (scopeOfWork.status === TicketStatus.CLOSED) {
+        throw new BadRequestException(
+          'Cannot reopen ticket because its associated Scope of Work is closed',
+        );
+      }
     }
 
     // Determine the new status based on current status
@@ -608,6 +629,49 @@ export class MaintenanceTicketsService {
 
     if (newStatus === TicketStatus.DONE && !ticket.completedDate) {
       ticket.completedDate = new Date();
+    }
+  }
+
+  private async areAllTicketsInSowDone(sowId: Types.ObjectId): Promise<boolean> {
+    const tickets = await this.ticketModel
+      .find({ scopeOfWork: sowId })
+      .exec();
+
+    if (tickets.length === 0) {
+      return false;
+    }
+
+    return tickets.every((ticket) => ticket.status === TicketStatus.DONE);
+  }
+
+  private async updateSowStatusRecursively(sowId: Types.ObjectId): Promise<void> {
+    const sow = await this.scopeOfWorkModel.findById(sowId).exec();
+
+    if (!sow) {
+      return;
+    }
+
+    // Check if all tickets in this SOW are done
+    const allTicketsDone = await this.areAllTicketsInSowDone(sowId);
+
+    if (allTicketsDone) {
+      // Update this SOW status to DONE
+      sow.status = TicketStatus.DONE;
+      await sow.save();
+
+      // If this SOW has a parent, check and update the parent recursively
+      if (sow.parentSow) {
+        // Check if all child SOWs of the parent are done
+        const siblingsSows = await this.scopeOfWorkModel
+          .find({ parentSow: sow.parentSow })
+          .exec();
+
+        const allSiblingsDone = siblingsSows.every((sibling) => sibling.status === TicketStatus.DONE);
+
+        if (allSiblingsDone) {
+          await this.updateSowStatusRecursively(sow.parentSow);
+        }
+      }
     }
   }
 }
