@@ -128,14 +128,16 @@ export class ScopeOfWorkService {
       throw new NotFoundException(`Scope of Work with ID ${id} not found`);
     }
 
-    // Get all tickets for this SOW
-    const tickets = await this.ticketModel
-      .find({ scopeOfWork: scopeOfWork._id }, null, { session })
-      .exec();
+    // Get all tickets for this SOW and all child SOWs recursively
+    const tickets = await this.getAllTicketsRecursively(scopeOfWork._id as Types.ObjectId, session);
+
+    // Get all child SOWs recursively
+    const subSows = await this.getSubSowsRecursively(scopeOfWork._id as Types.ObjectId, session);
 
     return {
       ...scopeOfWork.toObject(),
       tickets,
+      subSows,
     };
   }
 
@@ -159,6 +161,18 @@ export class ScopeOfWorkService {
         const invalidTicketNumbers = invalidTickets.map((ticket) => ticket.ticketNumber).join(', ');
         throw new BadRequestException(
           `Tickets must have status OPEN or IN_REVIEW. Invalid tickets: ${invalidTicketNumbers}`,
+        );
+      }
+
+      // Validate that all tickets are not already assigned to different scopes of work
+      const assignedTickets = tickets.filter((ticket) => !!ticket.scopeOfWork);
+
+      if (assignedTickets.length > 0) {
+        const assignedTicketNumbers = assignedTickets
+          .map((ticket) => ticket.ticketNumber)
+          .join(', ');
+        throw new BadRequestException(
+          `Tickets must not be already assigned to other scopes of work. Already assigned tickets: ${assignedTicketNumbers}`,
         );
       }
 
@@ -209,17 +223,22 @@ export class ScopeOfWorkService {
         throw new NotFoundException(`Scope of Work with ID ${id} not found`);
       }
 
-      // Update children SOWs to set parentSow to null
+      // Determine the new SOW reference for tickets:
+      // - If this is a sub-SOW (has a parent), reassign tickets to the parent
+      // - Otherwise, set tickets to null
+      const newSowReference = scopeOfWork.parentSow || null;
+
+      // Update children SOWs to set parentSow to the parent of the removed SOW (or null)
       await this.scopeOfWorkModel.updateMany(
         { parentSow: scopeOfWork._id },
-        { $set: { parentSow: null } },
+        { $set: { parentSow: newSowReference } },
         { session },
       );
 
-      // Remove SOW reference from all tickets
+      // Update tickets: assign to parent SOW if exists, otherwise null
       await this.ticketModel.updateMany(
         { scopeOfWork: scopeOfWork._id },
-        { $set: { scopeOfWork: null } },
+        { $set: { scopeOfWork: newSowReference } },
         { session },
       );
 
@@ -455,6 +474,79 @@ export class ScopeOfWorkService {
 
       return this.findOne(id, currentUser, session);
     });
+  }
+
+  /**
+   * Recursively get all tickets from this SOW and all its child SOWs
+   */
+  private async getAllTicketsRecursively(
+    sowId: Types.ObjectId,
+    session: ClientSession | null = null,
+  ): Promise<any[]> {
+    // Get tickets for the current SOW
+    const tickets = await this.ticketModel
+      .find({ scopeOfWork: sowId }, null, { session })
+      .populate('scopeOfWork')
+      .exec();
+
+    // Find all direct children SOWs
+    const childSows = await this.scopeOfWorkModel
+      .find({ parentSow: sowId }, null, { session })
+      .exec();
+
+    // Recursively get tickets from all child SOWs
+    const childTickets = await Promise.all(
+      childSows.map((childSow) =>
+        this.getAllTicketsRecursively(childSow._id as Types.ObjectId, session),
+      ),
+    );
+
+    // Flatten and combine all tickets
+    return [...tickets, ...childTickets.flat()];
+  }
+
+  /**
+   * Recursively get all child SOWs with their tickets
+   */
+  private async getSubSowsRecursively(
+    sowId: Types.ObjectId,
+    session: ClientSession | null = null,
+  ): Promise<any[]> {
+    // Find all direct children SOWs
+    const childSows = await this.scopeOfWorkModel
+      .find({ parentSow: sowId }, null, { session })
+      .populate('assignedContractor')
+      .populate('assignedUser')
+      .exec();
+
+    if (childSows.length === 0) {
+      return [];
+    }
+
+    // For each child SOW, get its tickets and recursively get its sub-SOWs
+    const subSows = await Promise.all(
+      childSows.map(async (childSow) => {
+        // Get tickets for this child SOW recursively
+        const tickets = await this.getAllTicketsRecursively(
+          childSow._id as Types.ObjectId,
+          session,
+        );
+
+        // Recursively get sub-SOWs of this child SOW
+        const childSubSows = await this.getSubSowsRecursively(
+          childSow._id as Types.ObjectId,
+          session,
+        );
+
+        return {
+          ...childSow.toObject(),
+          tickets,
+          subSows: childSubSows,
+        };
+      }),
+    );
+
+    return subSows;
   }
 
   /**

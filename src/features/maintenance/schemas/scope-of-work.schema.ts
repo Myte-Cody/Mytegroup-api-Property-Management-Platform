@@ -44,6 +44,9 @@ export class ScopeOfWork extends Document implements SoftDelete {
   @Prop({ type: Date, required: false })
   assignedDate?: Date;
 
+  @Prop({ type: Date, required: false })
+  completedDate?: Date;
+
   @Prop({ maxlength: 1000, required: false })
   notes?: string;
 
