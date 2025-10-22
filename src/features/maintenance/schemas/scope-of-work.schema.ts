@@ -33,6 +33,12 @@ export class ScopeOfWork extends Document implements SoftDelete {
   @Prop({ required: true, unique: true })
   sowNumber: string;
 
+  @Prop({ required: true, maxlength: 200 })
+  title: string;
+
+  @Prop({ required: false, maxlength: 2000 })
+  description?: string;
+
   @Prop({
     type: String,
     enum: TicketStatus,

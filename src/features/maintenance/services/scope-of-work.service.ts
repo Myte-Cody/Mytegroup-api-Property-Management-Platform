@@ -197,6 +197,8 @@ export class ScopeOfWorkService {
         [
           {
             sowNumber,
+            title: createDto.title,
+            description: createDto.description,
             parentSow: createDto.parentSow || null,
           },
         ],
