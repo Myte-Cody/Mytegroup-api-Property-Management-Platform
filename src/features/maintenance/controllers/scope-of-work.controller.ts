@@ -1,14 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CheckPolicies } from '../../../common/casl/decorators/check-policies.decorator';
 import { CaslGuard } from '../../../common/casl/guards/casl.guard';
@@ -75,7 +65,7 @@ export class ScopeOfWorkController {
     return this.scopeOfWorkService.remove(id, user);
   }
 
-  @Patch(':id/assign')
+  @Post(':id/assign')
   @CheckPolicies(new UpdateScopeOfWorkPolicyHandler())
   @ApiOperation({ summary: 'Assign a contractor to a scope of work' })
   @ApiResponse({ status: 200, description: 'Contractor assigned successfully' })
@@ -87,10 +77,11 @@ export class ScopeOfWorkController {
     @Body() assignDto: AssignContractorSowDto,
     @CurrentUser() user: User,
   ) {
+    console.log(assignDto);
     return this.scopeOfWorkService.assignContractor(id, assignDto, user);
   }
 
-  @Patch(':id/tickets/add')
+  @Post(':id/tickets/add')
   @CheckPolicies(new UpdateScopeOfWorkPolicyHandler())
   @ApiOperation({ summary: 'Add a ticket to a scope of work' })
   @ApiResponse({ status: 200, description: 'Ticket added successfully' })
@@ -105,7 +96,7 @@ export class ScopeOfWorkController {
     return this.scopeOfWorkService.addTicket(id, addTicketDto, user);
   }
 
-  @Patch(':id/tickets/remove')
+  @Post(':id/tickets/remove')
   @CheckPolicies(new UpdateScopeOfWorkPolicyHandler())
   @ApiOperation({ summary: 'Remove a ticket from a scope of work' })
   @ApiResponse({ status: 200, description: 'Ticket removed successfully' })

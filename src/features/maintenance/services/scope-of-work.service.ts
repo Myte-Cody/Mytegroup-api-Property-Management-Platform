@@ -133,11 +133,20 @@ export class ScopeOfWorkService {
 
     // Get all child SOWs recursively
     const subSows = await this.getSubSowsRecursively(scopeOfWork._id as Types.ObjectId, session);
+    //TODO: only for parent SOWs
+    // Collect all contractors from tickets and sub-SOWs (with duplicates)
+    const contractors = await this.getAllContractors(
+      scopeOfWork._id as Types.ObjectId,
+      tickets,
+      subSows,
+      session,
+    );
 
     return {
       ...scopeOfWork.toObject(),
       tickets,
       subSows,
+      contractors,
     };
   }
 
@@ -630,5 +639,80 @@ export class ScopeOfWorkService {
         await this.updateParentSowsStatus(parentSow.parentSow, status, session);
       }
     }
+  }
+
+  /**
+   * Collect all contractors from tickets and sub-SOWs
+   * Returns a list with duplicates if a contractor appears multiple times
+   */
+  private async getAllContractors(
+    sowId: Types.ObjectId,
+    tickets: any[],
+    subSows: any[],
+    session: ClientSession | null = null,
+  ): Promise<any[]> {
+    const contractorIds: Types.ObjectId[] = [];
+
+    // Collect contractor IDs from tickets
+    for (const ticket of tickets) {
+      if (ticket.assignedContractor) {
+        contractorIds.push(ticket.assignedContractor);
+      }
+    }
+
+    // Recursively collect contractor IDs from sub-SOWs
+    const collectFromSubSows = (sows: any[]) => {
+      for (const sow of sows) {
+        // Add contractor from the sub-SOW itself
+        if (sow.assignedContractor) {
+          contractorIds.push(
+            typeof sow.assignedContractor === 'object'
+              ? sow.assignedContractor._id
+              : sow.assignedContractor,
+          );
+        }
+
+        // Add contractors from tickets in this sub-SOW
+        if (sow.tickets && Array.isArray(sow.tickets)) {
+          for (const ticket of sow.tickets) {
+            if (ticket.assignedContractor) {
+              contractorIds.push(ticket.assignedContractor);
+            }
+          }
+        }
+
+        // Recursively process nested sub-SOWs
+        if (sow.subSows && Array.isArray(sow.subSows)) {
+          collectFromSubSows(sow.subSows);
+        }
+      }
+    };
+
+    collectFromSubSows(subSows);
+
+    // Populate all contractor IDs (including duplicates)
+    if (contractorIds.length === 0) {
+      return [];
+    }
+
+    const contractors = await this.userModel
+      .find(
+        {
+          _id: { $in: contractorIds },
+        },
+        null,
+        { session },
+      )
+      .exec();
+
+    // Map contractor IDs back to contractor objects, preserving duplicates
+    const contractorMap = new Map();
+    contractors.forEach((contractor) => {
+      contractorMap.set(contractor._id.toString(), contractor);
+    });
+
+    return contractorIds
+      .map((id) => contractorMap.get(id.toString()))
+      .filter((contractor) => contractor !== undefined);
   }
 }
