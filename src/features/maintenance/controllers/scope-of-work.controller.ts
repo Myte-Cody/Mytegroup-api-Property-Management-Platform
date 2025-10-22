@@ -162,4 +162,18 @@ export class ScopeOfWorkController {
   async close(@Param('id') id: string, @Body() closeDto: CloseSowDto, @CurrentUser() user: User) {
     return this.scopeOfWorkService.closeSow(id, closeDto, user);
   }
+
+  @Post(':id/mark-in-review')
+  @CheckPolicies(new UpdateScopeOfWorkPolicyHandler())
+  @ApiOperation({ summary: 'Mark a scope of work as in review' })
+  @ApiResponse({ status: 200, description: 'Scope of work marked as in review successfully' })
+  @ApiResponse({
+    status: 400,
+    description: 'Cannot mark parent SOW as in review. Please update the sub SOWs instead.',
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Scope of work not found' })
+  async markInReview(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.scopeOfWorkService.markInReview(id, user);
+  }
 }

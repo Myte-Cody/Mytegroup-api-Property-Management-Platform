@@ -165,7 +165,9 @@ export class ScopeOfWorkService {
       }
 
       // Validate that all tickets are not already assigned to different scopes of work
-      const assignedTickets = tickets.filter((ticket) => !!ticket.scopeOfWork);
+      const assignedTickets = tickets.filter(
+        (ticket) => !!ticket.scopeOfWork && ticket.scopeOfWork.toString() != createDto.parentSow,
+      );
 
       if (assignedTickets.length > 0) {
         const assignedTicketNumbers = assignedTickets
@@ -478,10 +480,49 @@ export class ScopeOfWorkService {
     });
   }
 
+  async markInReview(id: string, currentUser: UserDocument) {
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      const scopeOfWork = await this.scopeOfWorkModel.findById(id, null, { session }).exec();
+
+      if (!scopeOfWork) {
+        throw new NotFoundException(`Scope of Work with ID ${id} not found`);
+      }
+
+      // Check if this is a parent SOW (has child SOWs)
+      const childSows = await this.scopeOfWorkModel
+        .find({ parentSow: scopeOfWork._id }, null, { session })
+        .exec();
+
+      if (childSows.length > 0) {
+        throw new BadRequestException(
+          'Cannot mark parent SOW as in review. Please update the sub SOWs instead.',
+        );
+      }
+
+      // Update SOW status to IN_REVIEW
+      scopeOfWork.status = TicketStatus.IN_REVIEW;
+      await scopeOfWork.save({ session });
+
+      // Update all tickets in this SOW to IN_REVIEW
+      await this.ticketModel.updateMany(
+        { scopeOfWork: scopeOfWork._id },
+        { $set: { status: TicketStatus.IN_REVIEW } },
+        { session },
+      );
+
+      // Update parent SOWs if this is a sub-SOW
+      if (scopeOfWork.parentSow) {
+        await this.updateParentSowsStatus(scopeOfWork.parentSow, TicketStatus.IN_REVIEW, session);
+      }
+
+      return this.findOne(id, currentUser, session);
+    });
+  }
+
   /**
    * Recursively get all tickets from this SOW and all its child SOWs
    */
-  private async getAllTicketsRecursively(
+  async getAllTicketsRecursively(
     sowId: Types.ObjectId,
     session: ClientSession | null = null,
   ): Promise<any[]> {
@@ -552,9 +593,9 @@ export class ScopeOfWorkService {
   }
 
   /**
-   * Recursively update parent SOWs status
+   * Recursively update parent SOWs status based on all tickets (direct and from sub-SOWs)
    */
-  private async updateParentSowsStatus(
+  async updateParentSowsStatus(
     parentSowId: Types.ObjectId | undefined | null,
     status: TicketStatus,
     session: ClientSession | null = null,
@@ -568,22 +609,26 @@ export class ScopeOfWorkService {
       return;
     }
 
-    // Update parent SOW status
-    parentSow.status = status;
-    await parentSow.save({ session });
+    // Get all tickets from parent SOW (direct tickets and tickets from all sub-SOWs recursively)
+    const allTickets = await this.getAllTicketsRecursively(parentSowId, session);
 
-    // Update all parent tickets
-    await this.ticketModel.updateMany(
-      { scopeOfWork: parentSow._id },
-      {
-        $set: { status },
-      },
-      { session },
-    );
+    // Only update if there are tickets
+    if (allTickets.length === 0) {
+      return;
+    }
 
-    // Recursively update grandparent SOWs
-    if (parentSow.parentSow) {
-      await this.updateParentSowsStatus(parentSow.parentSow, status, session);
+    // Check if all tickets have the same status
+    const allTicketsHaveSameStatus = allTickets.every((ticket) => ticket.status === status);
+
+    // Only update parent SOW status if all tickets have the same status
+    if (allTicketsHaveSameStatus) {
+      parentSow.status = status;
+      await parentSow.save({ session });
+
+      // Recursively update grandparent SOWs
+      if (parentSow.parentSow) {
+        await this.updateParentSowsStatus(parentSow.parentSow, status, session);
+      }
     }
   }
 }

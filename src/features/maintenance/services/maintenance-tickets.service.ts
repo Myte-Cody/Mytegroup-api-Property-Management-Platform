@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -30,6 +32,7 @@ import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
 import { ScopeOfWork } from '../schemas/scope-of-work.schema';
 import { TicketReferenceUtils } from '../utils/ticket-reference.utils';
 import { SessionService } from './../../../common/services/session.service';
+import { ScopeOfWorkService } from './scope-of-work.service';
 
 @Injectable()
 export class MaintenanceTicketsService {
@@ -52,6 +55,8 @@ export class MaintenanceTicketsService {
     private readonly scopeOfWorkModel: AppModel<ScopeOfWork>,
     private readonly sessionService: SessionService,
     private readonly mediaService: MediaService,
+    @Inject(forwardRef(() => ScopeOfWorkService))
+    private readonly scopeOfWorkService: ScopeOfWorkService,
   ) {}
 
   async findAllPaginated(ticketQueryDto: TicketQueryDto, currentUser: UserDocument) {
@@ -284,24 +289,37 @@ export class MaintenanceTicketsService {
     updateTicketDto: UpdateTicketDto,
     currentUser: UserDocument,
   ): Promise<MaintenanceTicket> {
-    if (!updateTicketDto || Object.keys(updateTicketDto).length === 0) {
-      throw new BadRequestException('Update data cannot be empty');
-    }
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      if (!updateTicketDto || Object.keys(updateTicketDto).length === 0) {
+        throw new BadRequestException('Update data cannot be empty');
+      }
 
-    const existingTicket = await this.ticketModel.findById(id).exec();
+      const existingTicket = await this.ticketModel.findById(id, null, { session }).exec();
 
-    if (!existingTicket) {
-      throw new NotFoundException(`Ticket with ID ${id} not found`);
-    }
+      if (!existingTicket) {
+        throw new NotFoundException(`Ticket with ID ${id} not found`);
+      }
 
-    this.validateUpdatePermissions(existingTicket, currentUser, updateTicketDto);
+      this.validateUpdatePermissions(existingTicket, currentUser, updateTicketDto);
 
-    if (updateTicketDto.status && updateTicketDto.status !== existingTicket.status) {
-      await this.handleStatusChange(existingTicket, updateTicketDto.status);
-    }
+      const statusChanged =
+        updateTicketDto.status && updateTicketDto.status !== existingTicket.status;
+      const newStatus = updateTicketDto.status;
 
-    Object.assign(existingTicket, updateTicketDto);
-    return await existingTicket.save();
+      if (statusChanged) {
+        await this.handleStatusChange(existingTicket, newStatus);
+      }
+
+      Object.assign(existingTicket, updateTicketDto);
+      const savedTicket = await existingTicket.save({ session });
+
+      // If status changed and ticket has a scope of work, check if SOW status should be updated
+      if (statusChanged && existingTicket.scopeOfWork) {
+        await this.updateSowStatusOnTicketChange(existingTicket.scopeOfWork, newStatus, session);
+      }
+
+      return savedTicket;
+    });
   }
 
   async assignTicket(
@@ -669,6 +687,39 @@ export class MaintenanceTicketsService {
         if (allSiblingsDone) {
           await this.updateSowStatusRecursively(sow.parentSow);
         }
+      }
+    }
+  }
+
+  private async updateSowStatusOnTicketChange(
+    sowId: Types.ObjectId,
+    newStatus: TicketStatus,
+    session: ClientSession | null = null,
+  ): Promise<void> {
+    const sow = await this.scopeOfWorkModel.findById(sowId, null, { session }).exec();
+
+    if (!sow) {
+      return;
+    }
+
+    // Get all tickets for this SOW (direct tickets only, not from sub-SOWs)
+    const tickets = await this.scopeOfWorkService.getAllTicketsRecursively(sowId, session);
+
+    if (tickets.length === 0) {
+      return;
+    }
+
+    // Check if all tickets have the same status as the new status
+    const allTicketsHaveSameStatus = tickets.every((ticket) => ticket.status === newStatus);
+
+    // Update SOW status if all tickets have the same status
+    if (allTicketsHaveSameStatus && sow.status !== newStatus) {
+      sow.status = newStatus;
+      await sow.save({ session });
+
+      // Update parent SOWs recursively using the ScopeOfWorkService method
+      if (sow.parentSow) {
+        await this.scopeOfWorkService.updateParentSowsStatus(sow.parentSow, newStatus, session);
       }
     }
   }
