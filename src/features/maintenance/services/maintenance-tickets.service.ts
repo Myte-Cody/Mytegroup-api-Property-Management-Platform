@@ -29,9 +29,9 @@ import {
   UpdateTicketDto,
 } from '../dto';
 import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
-import { ScopeOfWork } from '../schemas/scope-of-work.schema';
 import { TicketReferenceUtils } from '../utils/ticket-reference.utils';
 import { SessionService } from './../../../common/services/session.service';
+import { ScopeOfWork } from './../schemas/scope-of-work.schema';
 import { ScopeOfWorkService } from './scope-of-work.service';
 
 @Injectable()
@@ -230,8 +230,20 @@ export class MaintenanceTicketsService {
       {},
     );
 
+    let scopeOfWork = null;
+    if (ticket.scopeOfWork) {
+      scopeOfWork = await this.scopeOfWorkModel.findById(ticket.scopeOfWork.toString()).exec();
+      scopeOfWork = {
+        ...scopeOfWork.toObject(),
+        subSows: await this.scopeOfWorkModel
+          .find({ parentSow: ticket.scopeOfWork.toString() })
+          .exec(),
+      };
+    }
+
     return {
       ...ticket.toObject(),
+      scopeOfWork,
       media,
     };
   }
@@ -327,29 +339,39 @@ export class MaintenanceTicketsService {
     assignDto: AssignTicketDto,
     currentUser: UserDocument,
   ): Promise<MaintenanceTicket> {
-    if (currentUser.user_type !== 'Landlord') {
-      throw new ForbiddenException('Only landlords can assign tickets');
-    }
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      if (currentUser.user_type !== 'Landlord') {
+        throw new ForbiddenException('Only landlords can assign tickets');
+      }
 
-    const ticket = await this.ticketModel.findById(id).exec();
+      const ticket = await this.ticketModel.findById(id).exec();
 
-    if (!ticket) {
-      throw new NotFoundException(`Ticket with ID ${id} not found`);
-    }
+      if (!ticket) {
+        throw new NotFoundException(`Ticket with ID ${id} not found`);
+      }
 
-    const contractor = await this.contractorModel.findById(assignDto.contractorId).exec();
+      const contractor = await this.contractorModel.findById(assignDto.contractorId).exec();
 
-    if (!contractor) {
-      throw new NotFoundException('Contractor not found');
-    }
+      if (!contractor) {
+        throw new NotFoundException('Contractor not found');
+      }
 
-    // Update ticket
-    ticket.assignedContractor = new Types.ObjectId(assignDto.contractorId);
-    ticket.assignedBy = currentUser._id as Types.ObjectId;
-    ticket.assignedDate = new Date();
-    ticket.status = TicketStatus.ASSIGNED;
+      // Update ticket
+      ticket.assignedContractor = new Types.ObjectId(assignDto.contractorId);
+      ticket.assignedBy = currentUser._id as Types.ObjectId;
+      ticket.assignedDate = new Date();
+      ticket.status = TicketStatus.ASSIGNED;
 
-    return await ticket.save();
+      const savedTicket = await ticket.save();
+      if (ticket.scopeOfWork) {
+        await this.updateSowStatusOnTicketChange(
+          ticket.scopeOfWork,
+          TicketStatus.ASSIGNED,
+          session,
+        );
+      }
+      return savedTicket;
+    });
   }
 
   async acceptTicket(

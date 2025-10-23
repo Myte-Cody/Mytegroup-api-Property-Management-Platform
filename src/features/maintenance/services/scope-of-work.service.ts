@@ -4,6 +4,7 @@ import { ClientSession, Types } from 'mongoose';
 import { TicketStatus } from '../../../common/enums/maintenance.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { createPaginatedResponse, PaginatedResponse } from '../../../common/utils/pagination.utils';
+import { Contractor } from '../../../features/contractors/schema/contractor.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';
 import { AcceptSowDto } from '../dto/accept-sow.dto';
 import { AddTicketSowDto } from '../dto/add-ticket-sow.dto';
@@ -27,6 +28,8 @@ export class ScopeOfWorkService {
     private readonly ticketModel: AppModel<MaintenanceTicket>,
     @InjectModel(User.name)
     private readonly userModel: AppModel<User>,
+    @InjectModel(Contractor.name)
+    private readonly contractorModel: AppModel<Contractor>,
     private readonly sessionService: SessionService,
   ) {}
 
@@ -105,10 +108,12 @@ export class ScopeOfWorkService {
     // Populate tickets for each SOW
     const populatedSows = await Promise.all(
       scopesOfWork.map(async (sow) => {
-        const tickets = await this.ticketModel.find({ scopeOfWork: sow._id }).exec();
+        const tickets = await this.getAllTicketsRecursively(sow._id as Types.ObjectId);
+        const contractors = await this.getAllContractors(tickets);
         return {
           ...sow.toObject(),
           tickets,
+          contractors,
         };
       }),
     );
@@ -133,20 +138,17 @@ export class ScopeOfWorkService {
 
     // Get all child SOWs recursively
     const subSows = await this.getSubSowsRecursively(scopeOfWork._id as Types.ObjectId, session);
-    //TODO: only for parent SOWs
-    // Collect all contractors from tickets and sub-SOWs (with duplicates)
-    const contractors = await this.getAllContractors(
-      scopeOfWork._id as Types.ObjectId,
-      tickets,
-      subSows,
-      session,
-    );
 
+    // Collect all contractors from tickets (without duplicates)
+    let contractors = null;
+    if (subSows.length > 0) {
+      contractors = await this.getAllContractors(tickets, session);
+    }
     return {
       ...scopeOfWork.toObject(),
       tickets,
       subSows,
-      contractors,
+      ...(contractors ? { contractors } : {}),
     };
   }
 
@@ -273,6 +275,7 @@ export class ScopeOfWorkService {
       // Update the SOW with the contractor and assignedDate
       scopeOfWork.assignedContractor = assignDto.contractorId as any;
       scopeOfWork.assignedDate = new Date();
+      scopeOfWork.status = TicketStatus.ASSIGNED;
       await scopeOfWork.save({ session });
 
       // Update all tickets in this SOW with the contractor
@@ -280,6 +283,7 @@ export class ScopeOfWorkService {
         { scopeOfWork: scopeOfWork._id },
         {
           $set: {
+            status: TicketStatus.ASSIGNED,
             assignedContractor: assignDto.contractorId,
             assignedBy: currentUser._id,
             assignedDate: new Date(),
@@ -287,6 +291,9 @@ export class ScopeOfWorkService {
         },
         { session },
       );
+      if (scopeOfWork.parentSow) {
+        await this.updateParentSowsStatus(scopeOfWork.parentSow, TicketStatus.ASSIGNED, session);
+      }
 
       return this.findOne(id, currentUser, session);
     });
@@ -539,6 +546,8 @@ export class ScopeOfWorkService {
     const tickets = await this.ticketModel
       .find({ scopeOfWork: sowId }, null, { session })
       .populate('scopeOfWork')
+      .populate('assignedContractor')
+      .populate('assignedUser')
       .exec();
 
     // Find all direct children SOWs
@@ -642,60 +651,38 @@ export class ScopeOfWorkService {
   }
 
   /**
-   * Collect all contractors from tickets and sub-SOWs
-   * Returns a list with duplicates if a contractor appears multiple times
+   * Collect unique contractors from tickets only (not from sub-SOWs)
+   * Should only be called if the SOW is a parent (has at least one sub SOW)
    */
   private async getAllContractors(
-    sowId: Types.ObjectId,
     tickets: any[],
-    subSows: any[],
     session: ClientSession | null = null,
   ): Promise<any[]> {
-    const contractorIds: Types.ObjectId[] = [];
+    // Use a Set to store unique contractor IDs
+    const uniqueContractorIds = new Set<string>();
 
-    // Collect contractor IDs from tickets
+    // Collect contractor IDs from tickets only
     for (const ticket of tickets) {
       if (ticket.assignedContractor) {
-        contractorIds.push(ticket.assignedContractor);
+        // Convert to string for Set uniqueness
+        const contractorId =
+          typeof ticket.assignedContractor === 'object'
+            ? ticket.assignedContractor._id.toString()
+            : ticket.assignedContractor.toString();
+        uniqueContractorIds.add(contractorId);
       }
     }
 
-    // Recursively collect contractor IDs from sub-SOWs
-    const collectFromSubSows = (sows: any[]) => {
-      for (const sow of sows) {
-        // Add contractor from the sub-SOW itself
-        if (sow.assignedContractor) {
-          contractorIds.push(
-            typeof sow.assignedContractor === 'object'
-              ? sow.assignedContractor._id
-              : sow.assignedContractor,
-          );
-        }
-
-        // Add contractors from tickets in this sub-SOW
-        if (sow.tickets && Array.isArray(sow.tickets)) {
-          for (const ticket of sow.tickets) {
-            if (ticket.assignedContractor) {
-              contractorIds.push(ticket.assignedContractor);
-            }
-          }
-        }
-
-        // Recursively process nested sub-SOWs
-        if (sow.subSows && Array.isArray(sow.subSows)) {
-          collectFromSubSows(sow.subSows);
-        }
-      }
-    };
-
-    collectFromSubSows(subSows);
-
-    // Populate all contractor IDs (including duplicates)
-    if (contractorIds.length === 0) {
+    // If no contractors found, return empty array
+    if (uniqueContractorIds.size === 0) {
       return [];
     }
 
-    const contractors = await this.userModel
+    // Convert Set back to ObjectId array for query
+    const contractorIds = Array.from(uniqueContractorIds).map((id) => new Types.ObjectId(id));
+
+    // Fetch unique contractors from database
+    const contractors = await this.contractorModel
       .find(
         {
           _id: { $in: contractorIds },
@@ -705,14 +692,6 @@ export class ScopeOfWorkService {
       )
       .exec();
 
-    // Map contractor IDs back to contractor objects, preserving duplicates
-    const contractorMap = new Map();
-    contractors.forEach((contractor) => {
-      contractorMap.set(contractor._id.toString(), contractor);
-    });
-
-    return contractorIds
-      .map((id) => contractorMap.get(id.toString()))
-      .filter((contractor) => contractor !== undefined);
+    return contractors;
   }
 }
