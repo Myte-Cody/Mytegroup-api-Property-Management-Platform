@@ -54,8 +54,12 @@ export class ScopeOfWorkService {
     // Build base query
     let baseQuery = this.scopeOfWorkModel.find();
 
-    // Apply filters
+    if (currentUser.user_type === 'Contractor') {
+      baseQuery = baseQuery.where({ assignedContractor: currentUser.organization_id });
+    }
+
     if (search) {
+      // Apply filters
       baseQuery = baseQuery.where({
         sowNumber: { $regex: search, $options: 'i' },
       });
@@ -121,7 +125,7 @@ export class ScopeOfWorkService {
     return createPaginatedResponse(populatedSows, total, page, limit);
   }
 
-  async findOne(id: string, currentUser: UserDocument, session: ClientSession | null = null) {
+  async findOne(id: string, _currentUser: UserDocument, session: ClientSession | null = null) {
     const scopeOfWork = await this.scopeOfWorkModel
       .findById(id, null, { session })
       .populate('assignedContractor')
@@ -641,6 +645,12 @@ export class ScopeOfWorkService {
     // Only update parent SOW status if all tickets have the same status
     if (allTicketsHaveSameStatus) {
       parentSow.status = status;
+      if (status == TicketStatus.ASSIGNED) {
+        parentSow.assignedDate = new Date();
+      }
+      if (status == TicketStatus.DONE) {
+        parentSow.completedDate = new Date();
+      }
       await parentSow.save({ session });
 
       // Recursively update grandparent SOWs

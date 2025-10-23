@@ -80,6 +80,25 @@ export class MaintenanceTicketsService {
 
     if (currentUser.user_type === 'Contractor') {
       baseQuery = baseQuery.where({ assignedContractor: currentUser.organization_id });
+
+      // Get all parent SOWs (SOWs with parentSow null and have at least one sub-SOW)
+      const parentSows = await this.scopeOfWorkModel.find({ parentSow: null }).select('_id').exec();
+
+      const parentSowIds: Types.ObjectId[] = [];
+      for (const sow of parentSows) {
+        const hasSubSows = await this.scopeOfWorkModel
+          .findOne({ parentSow: sow._id })
+          .select('_id')
+          .exec();
+        if (hasSubSows) {
+          parentSowIds.push(sow._id as Types.ObjectId);
+        }
+      }
+
+      // Filter tickets: no scopeOfWork OR scopeOfWork is a parent SOW
+      baseQuery = baseQuery.where({
+        $or: [{ scopeOfWork: null }, { scopeOfWork: { $in: parentSowIds } }],
+      });
     }
 
     // Handle tenant filtering
