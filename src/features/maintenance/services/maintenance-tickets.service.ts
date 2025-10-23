@@ -398,24 +398,36 @@ export class MaintenanceTicketsService {
     acceptDto: AcceptTicketDto,
     _currentUser: UserDocument,
   ): Promise<MaintenanceTicket> {
-    const ticket = await this.ticketModel.findById(id).exec();
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      const ticket = await this.ticketModel.findById(id).exec();
 
-    if (!ticket) {
-      throw new NotFoundException(`Ticket with ID ${id} not found`);
-    }
+      if (!ticket) {
+        throw new NotFoundException(`Ticket with ID ${id} not found`);
+      }
 
-    // Verify the user exists
-    const user = await this.userModel.findById(acceptDto.userId).exec();
+      // Verify the user exists
+      const user = await this.userModel.findById(acceptDto.userId).exec();
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
 
-    // Update ticket
-    ticket.assignedUser = new Types.ObjectId(acceptDto.userId);
-    ticket.status = TicketStatus.IN_PROGRESS;
+      // Update ticket
+      ticket.assignedUser = new Types.ObjectId(acceptDto.userId);
+      ticket.status = TicketStatus.IN_PROGRESS;
 
-    return await ticket.save();
+      const savedTicket = await ticket.save();
+
+      if (ticket.scopeOfWork) {
+        await this.updateSowStatusOnTicketChange(
+          ticket.scopeOfWork,
+          TicketStatus.IN_PROGRESS,
+          session,
+        );
+      }
+
+      return savedTicket;
+    });
   }
 
   async refuseTicket(
@@ -423,21 +435,27 @@ export class MaintenanceTicketsService {
     refuseDto: RefuseTicketDto,
     _currentUser: UserDocument,
   ): Promise<MaintenanceTicket> {
-    const ticket = await this.ticketModel.findById(id).exec();
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      const ticket = await this.ticketModel.findById(id).exec();
 
-    if (!ticket) {
-      throw new NotFoundException(`Ticket with ID ${id} not found`);
-    }
+      if (!ticket) {
+        throw new NotFoundException(`Ticket with ID ${id} not found`);
+      }
 
-    // Update ticket status to OPEN
-    ticket.status = TicketStatus.OPEN;
-    ticket.assignedContractor = null;
-    ticket.assignedDate = null;
-    if (refuseDto.refuseReason) {
-      ticket.refuseReason = refuseDto.refuseReason;
-    }
+      // Update ticket status to OPEN
+      ticket.status = TicketStatus.OPEN;
+      ticket.assignedContractor = null;
+      ticket.assignedDate = null;
+      if (refuseDto.refuseReason) {
+        ticket.refuseReason = refuseDto.refuseReason;
+      }
 
-    return await ticket.save();
+      const savedTicket = await ticket.save();
+      if (ticket.scopeOfWork) {
+        await this.updateSowStatusOnTicketChange(ticket.scopeOfWork, TicketStatus.OPEN, session);
+      }
+      return savedTicket;
+    });
   }
 
   async markAsDone(id: string, _currentUser: UserDocument): Promise<MaintenanceTicket> {
