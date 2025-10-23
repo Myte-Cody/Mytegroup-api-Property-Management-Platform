@@ -1,5 +1,30 @@
 # MyteGroup API - Changelog
 
+## October 23, 2025
+
+### Maintenance & SOW Improvements
+
+**Enhanced ticket and SOW management for contractors**
+
+#### Ticket Management Updates
+
+- **Accept/Refuse Logic Enhancement**
+  - Updated ticket acceptance workflow
+  - Improved ticket refusal handling
+  - Enhanced contractor interaction with tickets
+
+- **Contractor Data Fetching**
+  - Updated tickets fetch logic for contractors
+  - Improved SOW retrieval for contractor users
+  - Enhanced data filtering for contractor role
+
+#### Commits
+
+- `c952384` - feat: update accept/refuse ticket logic
+- `2bb18de` - feat: update tickets and sows fetch for contractors
+
+---
+
 ## October 21-22, 2025
 
 ### Scope of Work (SOW) Feature Implementation
