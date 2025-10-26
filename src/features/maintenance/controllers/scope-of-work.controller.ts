@@ -13,7 +13,6 @@ import { User } from '../../users/schemas/user.schema';
 import { AcceptSowDto } from '../dto/accept-sow.dto';
 import { AddTicketSowDto } from '../dto/add-ticket-sow.dto';
 import { AssignContractorSowDto } from '../dto/assign-contractor-sow.dto';
-import { CloseSowDto } from '../dto/close-sow.dto';
 import { CreateScopeOfWorkDto } from '../dto/create-scope-of-work.dto';
 import { RefuseSowDto } from '../dto/refuse-sow.dto';
 import { RemoveTicketSowDto } from '../dto/remove-ticket-sow.dto';
@@ -150,8 +149,8 @@ export class ScopeOfWorkController {
   })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Scope of work not found' })
-  async close(@Param('id') id: string, @Body() closeDto: CloseSowDto, @CurrentUser() user: User) {
-    return this.scopeOfWorkService.closeSow(id, closeDto, user);
+  async close(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.scopeOfWorkService.closeSow(id, user);
   }
 
   @Post(':id/mark-in-review')

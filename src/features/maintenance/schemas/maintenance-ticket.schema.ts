@@ -99,9 +99,6 @@ export class MaintenanceTicket extends Document implements SoftDelete {
   @Prop({ maxlength: 1000, required: false })
   refuseReason?: string;
 
-  @Prop({ type: Number, required: false })
-  cost?: number;
-
   @Prop({ required: true, unique: true })
   ticketNumber: string;
 

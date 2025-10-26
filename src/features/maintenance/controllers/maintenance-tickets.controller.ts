@@ -34,7 +34,6 @@ import { User } from '../../users/schemas/user.schema';
 import {
   AcceptTicketDto,
   AssignTicketDto,
-  CloseTicketDto,
   CreateTicketDto,
   RefuseTicketDto,
   TicketQueryDto,
@@ -166,12 +165,8 @@ export class MaintenanceTicketsController {
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Ticket not found' })
-  async close(
-    @Param('id') id: string,
-    @Body() closeDto: CloseTicketDto,
-    @CurrentUser() user: User,
-  ) {
-    return this.ticketsService.closeTicket(id, closeDto, user);
+  async close(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.ticketsService.closeTicket(id, user);
   }
 
   @Post(':id/reopen')

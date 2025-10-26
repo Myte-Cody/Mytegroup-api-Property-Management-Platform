@@ -9,7 +9,6 @@ import { User, UserDocument } from '../../users/schemas/user.schema';
 import { AcceptSowDto } from '../dto/accept-sow.dto';
 import { AddTicketSowDto } from '../dto/add-ticket-sow.dto';
 import { AssignContractorSowDto } from '../dto/assign-contractor-sow.dto';
-import { CloseSowDto } from '../dto/close-sow.dto';
 import { CreateScopeOfWorkDto } from '../dto/create-scope-of-work.dto';
 import { RefuseSowDto } from '../dto/refuse-sow.dto';
 import { RemoveTicketSowDto } from '../dto/remove-ticket-sow.dto';
@@ -268,6 +267,45 @@ export class ScopeOfWorkService {
     });
   }
 
+  async markInReview(id: string, currentUser: UserDocument) {
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      const scopeOfWork = await this.scopeOfWorkModel.findById(id, null, { session }).exec();
+
+      if (!scopeOfWork) {
+        throw new NotFoundException(`Scope of Work with ID ${id} not found`);
+      }
+
+      // Check if this is a parent SOW (has child SOWs)
+      const childSows = await this.scopeOfWorkModel
+        .find({ parentSow: scopeOfWork._id }, null, { session })
+        .exec();
+
+      if (childSows.length > 0) {
+        throw new BadRequestException(
+          'Cannot mark parent SOW as in review. Please update the sub SOWs instead.',
+        );
+      }
+
+      // Update SOW status to IN_REVIEW
+      scopeOfWork.status = TicketStatus.IN_REVIEW;
+      await scopeOfWork.save({ session });
+
+      // Update all tickets in this SOW to IN_REVIEW
+      await this.ticketModel.updateMany(
+        { scopeOfWork: scopeOfWork._id },
+        { $set: { status: TicketStatus.IN_REVIEW } },
+        { session },
+      );
+
+      // Update parent SOWs if this is a sub-SOW
+      if (scopeOfWork.parentSow) {
+        await this.updateParentSowsStatus(scopeOfWork.parentSow, TicketStatus.IN_REVIEW, session);
+      }
+
+      return this.findOne(id, currentUser, session);
+    });
+  }
+
   async assignContractor(id: string, assignDto: AssignContractorSowDto, currentUser: UserDocument) {
     return await this.sessionService.withSession(async (session: ClientSession) => {
       const scopeOfWork = await this.scopeOfWorkModel.findById(id, null, { session }).exec();
@@ -455,26 +493,12 @@ export class ScopeOfWorkService {
     });
   }
 
-  async closeSow(id: string, closeDto: CloseSowDto, currentUser: UserDocument) {
+  async closeSow(id: string, currentUser: UserDocument) {
     return await this.sessionService.withSession(async (session: ClientSession) => {
       const scopeOfWork = await this.scopeOfWorkModel.findById(id, null, { session }).exec();
 
       if (!scopeOfWork) {
         throw new NotFoundException(`Scope of Work with ID ${id} not found`);
-      }
-
-      // Get all tickets for this SOW
-      const tickets = await this.ticketModel
-        .find({ scopeOfWork: scopeOfWork._id }, null, { session })
-        .exec();
-
-      // Check if all tickets are DONE or CLOSED
-      const allTicketsDoneOrClosed = tickets.every(
-        (ticket) => ticket.status === TicketStatus.DONE || ticket.status === TicketStatus.CLOSED,
-      );
-
-      if (!allTicketsDoneOrClosed) {
-        throw new BadRequestException('Cannot close SOW: not all tickets are done or closed');
       }
 
       // Get all child SOWs (sub-SOWs)
@@ -484,56 +508,41 @@ export class ScopeOfWorkService {
 
       // Check if all child SOWs are CLOSED
       if (childSows.length > 0) {
-        const allChildSowsClosed = childSows.every((sow) => sow.status === TicketStatus.CLOSED);
+        const allChildSowsDone = childSows.every((sow) => sow.status === TicketStatus.DONE);
 
-        if (!allChildSowsClosed) {
-          throw new BadRequestException('Cannot close SOW: not all child SOWs are closed');
+        if (!allChildSowsDone) {
+          throw new BadRequestException('Cannot close SOW: not all child SOWs are done');
         }
+      }
+
+      // Get all tickets for this SOW
+      const tickets = await this.getAllTicketsRecursively(
+        scopeOfWork._id as Types.ObjectId,
+        session,
+      );
+
+      // Check if all tickets are DONE
+      const allTicketsDone = tickets.every((ticket) => ticket.status === TicketStatus.DONE);
+
+      if (!allTicketsDone) {
+        throw new BadRequestException('Cannot close SOW: not all tickets are done');
       }
 
       // Update SOW status to CLOSED
       scopeOfWork.status = TicketStatus.CLOSED;
-      scopeOfWork.notes = closeDto.notes;
       await scopeOfWork.save({ session });
 
-      return this.findOne(id, currentUser, session);
-    });
-  }
-
-  async markInReview(id: string, currentUser: UserDocument) {
-    return await this.sessionService.withSession(async (session: ClientSession) => {
-      const scopeOfWork = await this.scopeOfWorkModel.findById(id, null, { session }).exec();
-
-      if (!scopeOfWork) {
-        throw new NotFoundException(`Scope of Work with ID ${id} not found`);
-      }
-
-      // Check if this is a parent SOW (has child SOWs)
-      const childSows = await this.scopeOfWorkModel
-        .find({ parentSow: scopeOfWork._id }, null, { session })
-        .exec();
-
-      if (childSows.length > 0) {
-        throw new BadRequestException(
-          'Cannot mark parent SOW as in review. Please update the sub SOWs instead.',
-        );
-      }
-
-      // Update SOW status to IN_REVIEW
-      scopeOfWork.status = TicketStatus.IN_REVIEW;
-      await scopeOfWork.save({ session });
-
-      // Update all tickets in this SOW to IN_REVIEW
-      await this.ticketModel.updateMany(
-        { scopeOfWork: scopeOfWork._id },
-        { $set: { status: TicketStatus.IN_REVIEW } },
+      await this.scopeOfWorkModel.updateMany(
+        { _id: { $in: childSows.map((sow) => sow._id) } },
+        { $set: { status: TicketStatus.CLOSED } },
         { session },
       );
 
-      // Update parent SOWs if this is a sub-SOW
-      if (scopeOfWork.parentSow) {
-        await this.updateParentSowsStatus(scopeOfWork.parentSow, TicketStatus.IN_REVIEW, session);
-      }
+      await this.ticketModel.updateMany(
+        { _id: { $in: tickets.map((ticket) => ticket._id) } },
+        { $set: { status: TicketStatus.CLOSED } },
+        { session },
+      );
 
       return this.findOne(id, currentUser, session);
     });

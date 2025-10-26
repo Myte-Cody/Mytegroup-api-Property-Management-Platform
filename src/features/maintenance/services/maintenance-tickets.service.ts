@@ -22,7 +22,6 @@ import { User, UserDocument } from '../../users/schemas/user.schema';
 import {
   AcceptTicketDto,
   AssignTicketDto,
-  CloseTicketDto,
   CreateTicketDto,
   RefuseTicketDto,
   TicketQueryDto,
@@ -475,7 +474,7 @@ export class MaintenanceTicketsService {
       // Check if the ticket has a scope of work
       if (ticket.scopeOfWork) {
         // Update SOW status if all tickets are done
-        await this.updateSowStatusRecursively(ticket.scopeOfWork);
+        await this.updateSowStatusOnTicketChange(ticket.scopeOfWork, TicketStatus.DONE, session);
       }
 
       if (markDoneDto.media_files && markDoneDto.media_files.length > 0) {
@@ -503,11 +502,7 @@ export class MaintenanceTicketsService {
     });
   }
 
-  async closeTicket(
-    id: string,
-    closeDto: CloseTicketDto,
-    _currentUser: UserDocument,
-  ): Promise<MaintenanceTicket> {
+  async closeTicket(id: string, _currentUser: UserDocument): Promise<MaintenanceTicket> {
     const ticket = await this.ticketModel.findById(id).exec();
 
     if (!ticket) {
@@ -516,45 +511,54 @@ export class MaintenanceTicketsService {
 
     // Update ticket status to CLOSED
     ticket.status = TicketStatus.CLOSED;
-    if (closeDto.cost) {
-      ticket.cost = closeDto.cost;
-    }
 
     return await ticket.save();
   }
 
   async reopenTicket(id: string, _currentUser: UserDocument): Promise<MaintenanceTicket> {
-    const ticket = await this.ticketModel.findById(id).populate('scopeOfWork').exec();
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      const ticket = await this.ticketModel
+        .findById(id, null, { session })
+        .populate('scopeOfWork')
+        .exec();
+      let scopeOfWork: ScopeOfWork;
 
-    if (!ticket) {
-      throw new NotFoundException(`Ticket with ID ${id} not found`);
-    }
-
-    // Check if ticket has a scope of work and if that SOW is closed
-    if (ticket.scopeOfWork) {
-      const scopeOfWork = ticket.scopeOfWork as unknown as ScopeOfWork;
-      if (scopeOfWork.status === TicketStatus.CLOSED) {
-        throw new BadRequestException(
-          'Cannot reopen ticket because its associated Scope of Work is closed',
-        );
+      if (!ticket) {
+        throw new NotFoundException(`Ticket with ID ${id} not found`);
       }
-    }
 
-    // Determine the new status based on current status
-    if (ticket.status === TicketStatus.DONE) {
-      ticket.status = TicketStatus.IN_PROGRESS;
-    } else if (ticket.status === TicketStatus.CLOSED) {
-      ticket.status = TicketStatus.OPEN;
-      ticket.assignedContractor = null;
-      ticket.assignedDate = null;
-      ticket.assignedUser = null;
-      ticket.assignedBy = null;
-    } else {
-      throw new BadRequestException('Only tickets with DONE or CLOSED status can be reopened');
-    }
-    ticket.completedDate = null;
+      // Check if ticket has a scope of work and if that SOW is closed
+      if (ticket.scopeOfWork) {
+        scopeOfWork = ticket.scopeOfWork as unknown as ScopeOfWork;
+        if (scopeOfWork.status === TicketStatus.CLOSED) {
+          throw new BadRequestException(
+            'Cannot reopen ticket because its associated Scope of Work is closed',
+          );
+        }
+      }
 
-    return await ticket.save();
+      // Determine the new status based on current status
+      if (ticket.status === TicketStatus.DONE) {
+        ticket.status = TicketStatus.IN_PROGRESS;
+      } else if (ticket.status === TicketStatus.CLOSED) {
+        ticket.status = TicketStatus.OPEN;
+        ticket.assignedContractor = null;
+        ticket.assignedDate = null;
+        ticket.assignedUser = null;
+        ticket.assignedBy = null;
+      } else {
+        throw new BadRequestException('Only tickets with DONE or CLOSED status can be reopened');
+      }
+      ticket.completedDate = null;
+
+      const savedTicket = await ticket.save({ session });
+
+      if (scopeOfWork) {
+        await this.reopenSowsRecursively(scopeOfWork._id as Types.ObjectId, session);
+      }
+
+      return savedTicket;
+    });
   }
 
   async remove(id: string, currentUser: UserDocument): Promise<{ message: string }> {
@@ -733,47 +737,6 @@ export class MaintenanceTicketsService {
     }
   }
 
-  private async areAllTicketsInSowDone(sowId: Types.ObjectId): Promise<boolean> {
-    const tickets = await this.ticketModel.find({ scopeOfWork: sowId }).exec();
-
-    if (tickets.length === 0) {
-      return false;
-    }
-
-    return tickets.every((ticket) => ticket.status === TicketStatus.DONE);
-  }
-
-  private async updateSowStatusRecursively(sowId: Types.ObjectId): Promise<void> {
-    const sow = await this.scopeOfWorkModel.findById(sowId).exec();
-
-    if (!sow) {
-      return;
-    }
-
-    // Check if all tickets in this SOW are done
-    const allTicketsDone = await this.areAllTicketsInSowDone(sowId);
-
-    if (allTicketsDone) {
-      // Update this SOW status to DONE
-      sow.status = TicketStatus.DONE;
-      await sow.save();
-
-      // If this SOW has a parent, check and update the parent recursively
-      if (sow.parentSow) {
-        // Check if all child SOWs of the parent are done
-        const siblingsSows = await this.scopeOfWorkModel.find({ parentSow: sow.parentSow }).exec();
-
-        const allSiblingsDone = siblingsSows.every(
-          (sibling) => sibling.status === TicketStatus.DONE,
-        );
-
-        if (allSiblingsDone) {
-          await this.updateSowStatusRecursively(sow.parentSow);
-        }
-      }
-    }
-  }
-
   private async updateSowStatusOnTicketChange(
     sowId: Types.ObjectId,
     newStatus: TicketStatus,
@@ -798,12 +761,31 @@ export class MaintenanceTicketsService {
     // Update SOW status if all tickets have the same status
     if (allTicketsHaveSameStatus && sow.status !== newStatus) {
       sow.status = newStatus;
+      if (newStatus === TicketStatus.DONE) {
+        sow.completedDate = new Date();
+      }
       await sow.save({ session });
 
       // Update parent SOWs recursively using the ScopeOfWorkService method
       if (sow.parentSow) {
         await this.scopeOfWorkService.updateParentSowsStatus(sow.parentSow, newStatus, session);
       }
+    }
+  }
+
+  private async reopenSowsRecursively(sowId: Types.ObjectId, session: ClientSession | null = null) {
+    const sow = await this.scopeOfWorkModel.findById(sowId, null, { session }).exec();
+
+    if (!sow) {
+      return;
+    }
+
+    sow.status = TicketStatus.IN_PROGRESS;
+    sow.completedDate = null;
+    await sow.save({ session });
+
+    if (sow.parentSow) {
+      await this.reopenSowsRecursively(sow.parentSow, session);
     }
   }
 }
