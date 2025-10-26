@@ -14,6 +14,7 @@ import { Lease } from '../../features/leases/schemas/lease.schema';
 import { RentalPeriod } from '../../features/leases/schemas/rental-period.schema';
 import { Transaction } from '../../features/leases/schemas/transaction.schema';
 import { MaintenanceTicket } from '../../features/maintenance/schemas/maintenance-ticket.schema';
+import { ScopeOfWork } from '../../features/maintenance/schemas/scope-of-work.schema';
 import { Media } from '../../features/media/schemas/media.schema';
 import { Property } from '../../features/properties/schemas/property.schema';
 import { Unit } from '../../features/properties/schemas/unit.schema';
@@ -34,6 +35,7 @@ export const SUBJECTS = {
   SUB_LEASE: RentalPeriod,
   TRANSACTION: Transaction,
   MAINTENANCE_TICKET: MaintenanceTicket,
+  SCOPE_OF_WORK: ScopeOfWork,
   FEED_POST: FeedPost,
 } as const;
 
@@ -50,6 +52,7 @@ const SUBJECT_MODEL_MAPPING = {
   RentalPeriod: RentalPeriod,
   Transaction: Transaction,
   MaintenanceTicket: MaintenanceTicket,
+  ScopeOfWork: ScopeOfWork,
   FeedPost: FeedPost,
 } as const;
 
@@ -117,6 +120,7 @@ export class CaslAbilityFactory {
     can(Action.Manage, Transaction);
     can(Action.Manage, User);
     can(Action.Manage, MaintenanceTicket);
+    can(Action.Manage, ScopeOfWork);
     can(Action.Manage, FeedPost);
   }
 
@@ -169,6 +173,9 @@ export class CaslAbilityFactory {
       can(Action.Update, MaintenanceTicket, { requestedBy: user._id });
     }
 
+    // Tenants can only read scope of work (cannot create)
+    can(Action.Read, ScopeOfWork);
+
     // Tenants can read all feed posts and react (upvote/downvote)
     can(Action.Read, FeedPost);
     can(Action.Update, FeedPost); // For voting actions
@@ -196,6 +203,9 @@ export class CaslAbilityFactory {
     cannot(Action.Update, Transaction);
     cannot(Action.Delete, Transaction);
     cannot(Action.Delete, MaintenanceTicket);
+    cannot(Action.Create, ScopeOfWork);
+    cannot(Action.Update, ScopeOfWork);
+    cannot(Action.Delete, ScopeOfWork);
 
     // Tenants cannot manage non-tenant users
     cannot(Action.Manage, User, { user_type: UserType.LANDLORD });
@@ -242,6 +252,10 @@ export class CaslAbilityFactory {
       // Contractors can read all maintenance tickets and update tickets assigned to them
       can(Action.Read, MaintenanceTicket);
       can(Action.Update, MaintenanceTicket, { assignedContractor: contractorOrganizationId });
+
+      // Contractors can read all scope of work and update scopes assigned to them
+      can(Action.Read, ScopeOfWork);
+      can(Action.Update, ScopeOfWork, { assignedContractor: contractorOrganizationId });
     }
 
     // Cannot create or delete
@@ -265,6 +279,8 @@ export class CaslAbilityFactory {
     cannot(Action.Read, Transaction); // Contractors don't need payment access
     cannot(Action.Create, MaintenanceTicket); // Only landlords and tenants can create tickets
     cannot(Action.Delete, MaintenanceTicket);
+    cannot(Action.Create, ScopeOfWork); // Only landlords can create scope of work
+    cannot(Action.Delete, ScopeOfWork);
 
     // Contractors cannot manage non-contractor users
     cannot(Action.Manage, User, { user_type: UserType.LANDLORD });
