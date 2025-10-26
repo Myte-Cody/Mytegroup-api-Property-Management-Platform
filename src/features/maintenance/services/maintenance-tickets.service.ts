@@ -9,7 +9,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Types } from 'mongoose';
 import { LeaseStatus } from '../../../common/enums/lease.enum';
-import { TicketStatus } from '../../../common/enums/maintenance.enum';
+import { InvoiceLinkedEntityType, TicketStatus } from '../../../common/enums/maintenance.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { Contractor } from '../../contractors/schema/contractor.schema';
@@ -32,6 +32,7 @@ import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
 import { TicketReferenceUtils } from '../utils/ticket-reference.utils';
 import { SessionService } from './../../../common/services/session.service';
 import { ScopeOfWork } from './../schemas/scope-of-work.schema';
+import { InvoicesService } from './invoices.service';
 import { ScopeOfWorkService } from './scope-of-work.service';
 
 @Injectable()
@@ -57,6 +58,8 @@ export class MaintenanceTicketsService {
     private readonly mediaService: MediaService,
     @Inject(forwardRef(() => ScopeOfWorkService))
     private readonly scopeOfWorkService: ScopeOfWorkService,
+    @Inject(forwardRef(() => InvoicesService))
+    private readonly invoicesService: InvoicesService,
   ) {}
 
   async findAllPaginated(ticketQueryDto: TicketQueryDto, currentUser: UserDocument) {
@@ -503,16 +506,27 @@ export class MaintenanceTicketsService {
   }
 
   async closeTicket(id: string, _currentUser: UserDocument): Promise<MaintenanceTicket> {
-    const ticket = await this.ticketModel.findById(id).exec();
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      const ticket = await this.ticketModel.findById(id, null, { session }).exec();
 
-    if (!ticket) {
-      throw new NotFoundException(`Ticket with ID ${id} not found`);
-    }
+      if (!ticket) {
+        throw new NotFoundException(`Ticket with ID ${id} not found`);
+      }
 
-    // Update ticket status to CLOSED
-    ticket.status = TicketStatus.CLOSED;
+      // Update ticket status to CLOSED
+      ticket.status = TicketStatus.CLOSED;
 
-    return await ticket.save();
+      await ticket.save({ session });
+
+      // Auto-confirm all pending invoices for this ticket
+      await this.invoicesService.confirmInvoicesByLinkedEntity(
+        ticket._id as Types.ObjectId,
+        InvoiceLinkedEntityType.TICKET,
+        session,
+      );
+
+      return ticket;
+    });
   }
 
   async reopenTicket(id: string, _currentUser: UserDocument): Promise<MaintenanceTicket> {
