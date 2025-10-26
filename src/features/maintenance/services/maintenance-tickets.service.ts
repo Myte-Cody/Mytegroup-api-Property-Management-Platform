@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -20,15 +22,17 @@ import { User, UserDocument } from '../../users/schemas/user.schema';
 import {
   AcceptTicketDto,
   AssignTicketDto,
-  CloseTicketDto,
   CreateTicketDto,
   RefuseTicketDto,
   TicketQueryDto,
   UpdateTicketDto,
 } from '../dto';
+import { MarkDoneTicketDto } from '../dto/mark-done-ticket.dto';
 import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
 import { TicketReferenceUtils } from '../utils/ticket-reference.utils';
 import { SessionService } from './../../../common/services/session.service';
+import { ScopeOfWork } from './../schemas/scope-of-work.schema';
+import { ScopeOfWorkService } from './scope-of-work.service';
 
 @Injectable()
 export class MaintenanceTicketsService {
@@ -47,8 +51,12 @@ export class MaintenanceTicketsService {
     private readonly leaseModel: AppModel<Lease>,
     @InjectModel(User.name)
     private readonly userModel: AppModel<User>,
+    @InjectModel(ScopeOfWork.name)
+    private readonly scopeOfWorkModel: AppModel<ScopeOfWork>,
     private readonly sessionService: SessionService,
     private readonly mediaService: MediaService,
+    @Inject(forwardRef(() => ScopeOfWorkService))
+    private readonly scopeOfWorkService: ScopeOfWorkService,
   ) {}
 
   async findAllPaginated(ticketQueryDto: TicketQueryDto, currentUser: UserDocument) {
@@ -72,6 +80,25 @@ export class MaintenanceTicketsService {
 
     if (currentUser.user_type === 'Contractor') {
       baseQuery = baseQuery.where({ assignedContractor: currentUser.organization_id });
+
+      // Get all parent SOWs (SOWs with parentSow null and have at least one sub-SOW)
+      const parentSows = await this.scopeOfWorkModel.find({ parentSow: null }).select('_id').exec();
+
+      const parentSowIds: Types.ObjectId[] = [];
+      for (const sow of parentSows) {
+        const hasSubSows = await this.scopeOfWorkModel
+          .findOne({ parentSow: sow._id })
+          .select('_id')
+          .exec();
+        if (hasSubSows) {
+          parentSowIds.push(sow._id as Types.ObjectId);
+        }
+      }
+
+      // Filter tickets: no scopeOfWork OR scopeOfWork is a parent SOW
+      baseQuery = baseQuery.where({
+        $or: [{ scopeOfWork: null }, { scopeOfWork: { $in: parentSowIds } }],
+      });
     }
 
     // Handle tenant filtering
@@ -222,8 +249,20 @@ export class MaintenanceTicketsService {
       {},
     );
 
+    let scopeOfWork = null;
+    if (ticket.scopeOfWork) {
+      scopeOfWork = await this.scopeOfWorkModel.findById(ticket.scopeOfWork.toString()).exec();
+      scopeOfWork = {
+        ...scopeOfWork.toObject(),
+        subSows: await this.scopeOfWorkModel
+          .find({ parentSow: ticket.scopeOfWork.toString() })
+          .exec(),
+      };
+    }
+
     return {
       ...ticket.toObject(),
+      scopeOfWork,
       media,
     };
   }
@@ -281,24 +320,37 @@ export class MaintenanceTicketsService {
     updateTicketDto: UpdateTicketDto,
     currentUser: UserDocument,
   ): Promise<MaintenanceTicket> {
-    if (!updateTicketDto || Object.keys(updateTicketDto).length === 0) {
-      throw new BadRequestException('Update data cannot be empty');
-    }
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      if (!updateTicketDto || Object.keys(updateTicketDto).length === 0) {
+        throw new BadRequestException('Update data cannot be empty');
+      }
 
-    const existingTicket = await this.ticketModel.findById(id).exec();
+      const existingTicket = await this.ticketModel.findById(id, null, { session }).exec();
 
-    if (!existingTicket) {
-      throw new NotFoundException(`Ticket with ID ${id} not found`);
-    }
+      if (!existingTicket) {
+        throw new NotFoundException(`Ticket with ID ${id} not found`);
+      }
 
-    this.validateUpdatePermissions(existingTicket, currentUser, updateTicketDto);
+      this.validateUpdatePermissions(existingTicket, currentUser, updateTicketDto);
 
-    if (updateTicketDto.status && updateTicketDto.status !== existingTicket.status) {
-      await this.handleStatusChange(existingTicket, updateTicketDto.status);
-    }
+      const statusChanged =
+        updateTicketDto.status && updateTicketDto.status !== existingTicket.status;
+      const newStatus = updateTicketDto.status;
 
-    Object.assign(existingTicket, updateTicketDto);
-    return await existingTicket.save();
+      if (statusChanged) {
+        await this.handleStatusChange(existingTicket, newStatus);
+      }
+
+      Object.assign(existingTicket, updateTicketDto);
+      const savedTicket = await existingTicket.save({ session });
+
+      // If status changed and ticket has a scope of work, check if SOW status should be updated
+      if (statusChanged && existingTicket.scopeOfWork) {
+        await this.updateSowStatusOnTicketChange(existingTicket.scopeOfWork, newStatus, session);
+      }
+
+      return savedTicket;
+    });
   }
 
   async assignTicket(
@@ -306,29 +358,39 @@ export class MaintenanceTicketsService {
     assignDto: AssignTicketDto,
     currentUser: UserDocument,
   ): Promise<MaintenanceTicket> {
-    if (currentUser.user_type !== 'Landlord') {
-      throw new ForbiddenException('Only landlords can assign tickets');
-    }
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      if (currentUser.user_type !== 'Landlord') {
+        throw new ForbiddenException('Only landlords can assign tickets');
+      }
 
-    const ticket = await this.ticketModel.findById(id).exec();
+      const ticket = await this.ticketModel.findById(id).exec();
 
-    if (!ticket) {
-      throw new NotFoundException(`Ticket with ID ${id} not found`);
-    }
+      if (!ticket) {
+        throw new NotFoundException(`Ticket with ID ${id} not found`);
+      }
 
-    const contractor = await this.contractorModel.findById(assignDto.contractorId).exec();
+      const contractor = await this.contractorModel.findById(assignDto.contractorId).exec();
 
-    if (!contractor) {
-      throw new NotFoundException('Contractor not found');
-    }
+      if (!contractor) {
+        throw new NotFoundException('Contractor not found');
+      }
 
-    // Update ticket
-    ticket.assignedContractor = new Types.ObjectId(assignDto.contractorId);
-    ticket.assignedBy = currentUser._id as Types.ObjectId;
-    ticket.assignedDate = new Date();
-    ticket.status = TicketStatus.ASSIGNED;
+      // Update ticket
+      ticket.assignedContractor = new Types.ObjectId(assignDto.contractorId);
+      ticket.assignedBy = currentUser._id as Types.ObjectId;
+      ticket.assignedDate = new Date();
+      ticket.status = TicketStatus.ASSIGNED;
 
-    return await ticket.save();
+      const savedTicket = await ticket.save();
+      if (ticket.scopeOfWork) {
+        await this.updateSowStatusOnTicketChange(
+          ticket.scopeOfWork,
+          TicketStatus.ASSIGNED,
+          session,
+        );
+      }
+      return savedTicket;
+    });
   }
 
   async acceptTicket(
@@ -336,24 +398,36 @@ export class MaintenanceTicketsService {
     acceptDto: AcceptTicketDto,
     _currentUser: UserDocument,
   ): Promise<MaintenanceTicket> {
-    const ticket = await this.ticketModel.findById(id).exec();
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      const ticket = await this.ticketModel.findById(id).exec();
 
-    if (!ticket) {
-      throw new NotFoundException(`Ticket with ID ${id} not found`);
-    }
+      if (!ticket) {
+        throw new NotFoundException(`Ticket with ID ${id} not found`);
+      }
 
-    // Verify the user exists
-    const user = await this.userModel.findById(acceptDto.userId).exec();
+      // Verify the user exists
+      const user = await this.userModel.findById(acceptDto.userId).exec();
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
 
-    // Update ticket
-    ticket.assignedUser = new Types.ObjectId(acceptDto.userId);
-    ticket.status = TicketStatus.IN_PROGRESS;
+      // Update ticket
+      ticket.assignedUser = new Types.ObjectId(acceptDto.userId);
+      ticket.status = TicketStatus.IN_PROGRESS;
 
-    return await ticket.save();
+      const savedTicket = await ticket.save();
+
+      if (ticket.scopeOfWork) {
+        await this.updateSowStatusOnTicketChange(
+          ticket.scopeOfWork,
+          TicketStatus.IN_PROGRESS,
+          session,
+        );
+      }
+
+      return savedTicket;
+    });
   }
 
   async refuseTicket(
@@ -361,41 +435,74 @@ export class MaintenanceTicketsService {
     refuseDto: RefuseTicketDto,
     _currentUser: UserDocument,
   ): Promise<MaintenanceTicket> {
-    const ticket = await this.ticketModel.findById(id).exec();
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      const ticket = await this.ticketModel.findById(id).exec();
 
-    if (!ticket) {
-      throw new NotFoundException(`Ticket with ID ${id} not found`);
-    }
+      if (!ticket) {
+        throw new NotFoundException(`Ticket with ID ${id} not found`);
+      }
 
-    // Update ticket status to OPEN
-    ticket.status = TicketStatus.OPEN;
-    ticket.assignedContractor = null;
-    ticket.assignedDate = null;
-    if (refuseDto.refuseReason) {
-      ticket.refuseReason = refuseDto.refuseReason;
-    }
+      // Update ticket status to OPEN
+      ticket.status = TicketStatus.OPEN;
+      ticket.assignedContractor = null;
+      ticket.assignedDate = null;
+      if (refuseDto.refuseReason) {
+        ticket.refuseReason = refuseDto.refuseReason;
+      }
 
-    return await ticket.save();
+      const savedTicket = await ticket.save();
+      if (ticket.scopeOfWork) {
+        await this.updateSowStatusOnTicketChange(ticket.scopeOfWork, TicketStatus.OPEN, session);
+      }
+      return savedTicket;
+    });
   }
 
-  async markAsDone(id: string, _currentUser: UserDocument): Promise<MaintenanceTicket> {
-    const ticket = await this.ticketModel.findById(id).exec();
-    if (!ticket) {
-      throw new NotFoundException(`Ticket with ID ${id} not found`);
-    }
+  async markAsDone(id: string, markDoneDto: MarkDoneTicketDto, currentUser: UserDocument) {
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      const ticket = await this.ticketModel.findById(id).exec();
+      if (!ticket) {
+        throw new NotFoundException(`Ticket with ID ${id} not found`);
+      }
 
-    // Update ticket status to DONE
-    ticket.status = TicketStatus.DONE;
-    ticket.completedDate = new Date();
+      // Update ticket status to DONE
+      ticket.status = TicketStatus.DONE;
+      ticket.completedDate = new Date();
 
-    return await ticket.save();
+      const savedTicket = await ticket.save();
+
+      // Check if the ticket has a scope of work
+      if (ticket.scopeOfWork) {
+        // Update SOW status if all tickets are done
+        await this.updateSowStatusOnTicketChange(ticket.scopeOfWork, TicketStatus.DONE, session);
+      }
+
+      if (markDoneDto.media_files && markDoneDto.media_files.length > 0) {
+        const uploadPromises = markDoneDto.media_files.map(async (file) => {
+          return this.mediaService.upload(
+            file,
+            ticket,
+            currentUser,
+            'work_proof',
+            undefined,
+            'MaintenanceTicket',
+            session,
+          );
+        });
+
+        const uploadedMedia = await Promise.all(uploadPromises);
+
+        return {
+          ...savedTicket,
+          workProofMedia: uploadedMedia,
+        };
+      }
+
+      return savedTicket;
+    });
   }
 
-  async closeTicket(
-    id: string,
-    closeDto: CloseTicketDto,
-    _currentUser: UserDocument,
-  ): Promise<MaintenanceTicket> {
+  async closeTicket(id: string, _currentUser: UserDocument): Promise<MaintenanceTicket> {
     const ticket = await this.ticketModel.findById(id).exec();
 
     if (!ticket) {
@@ -404,35 +511,54 @@ export class MaintenanceTicketsService {
 
     // Update ticket status to CLOSED
     ticket.status = TicketStatus.CLOSED;
-    if (closeDto.cost) {
-      ticket.cost = closeDto.cost;
-    }
 
     return await ticket.save();
   }
 
   async reopenTicket(id: string, _currentUser: UserDocument): Promise<MaintenanceTicket> {
-    const ticket = await this.ticketModel.findById(id).exec();
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      const ticket = await this.ticketModel
+        .findById(id, null, { session })
+        .populate('scopeOfWork')
+        .exec();
+      let scopeOfWork: ScopeOfWork;
 
-    if (!ticket) {
-      throw new NotFoundException(`Ticket with ID ${id} not found`);
-    }
+      if (!ticket) {
+        throw new NotFoundException(`Ticket with ID ${id} not found`);
+      }
 
-    // Determine the new status based on current status
-    if (ticket.status === TicketStatus.DONE) {
-      ticket.status = TicketStatus.IN_PROGRESS;
-    } else if (ticket.status === TicketStatus.CLOSED) {
-      ticket.status = TicketStatus.OPEN;
-      ticket.assignedContractor = null;
-      ticket.assignedDate = null;
-      ticket.assignedUser = null;
-      ticket.assignedBy = null;
-    } else {
-      throw new BadRequestException('Only tickets with DONE or CLOSED status can be reopened');
-    }
-    ticket.completedDate = null;
+      // Check if ticket has a scope of work and if that SOW is closed
+      if (ticket.scopeOfWork) {
+        scopeOfWork = ticket.scopeOfWork as unknown as ScopeOfWork;
+        if (scopeOfWork.status === TicketStatus.CLOSED) {
+          throw new BadRequestException(
+            'Cannot reopen ticket because its associated Scope of Work is closed',
+          );
+        }
+      }
 
-    return await ticket.save();
+      // Determine the new status based on current status
+      if (ticket.status === TicketStatus.DONE) {
+        ticket.status = TicketStatus.IN_PROGRESS;
+      } else if (ticket.status === TicketStatus.CLOSED) {
+        ticket.status = TicketStatus.OPEN;
+        ticket.assignedContractor = null;
+        ticket.assignedDate = null;
+        ticket.assignedUser = null;
+        ticket.assignedBy = null;
+      } else {
+        throw new BadRequestException('Only tickets with DONE or CLOSED status can be reopened');
+      }
+      ticket.completedDate = null;
+
+      const savedTicket = await ticket.save({ session });
+
+      if (scopeOfWork) {
+        await this.reopenSowsRecursively(scopeOfWork._id as Types.ObjectId, session);
+      }
+
+      return savedTicket;
+    });
   }
 
   async remove(id: string, currentUser: UserDocument): Promise<{ message: string }> {
@@ -608,6 +734,58 @@ export class MaintenanceTicketsService {
 
     if (newStatus === TicketStatus.DONE && !ticket.completedDate) {
       ticket.completedDate = new Date();
+    }
+  }
+
+  private async updateSowStatusOnTicketChange(
+    sowId: Types.ObjectId,
+    newStatus: TicketStatus,
+    session: ClientSession | null = null,
+  ): Promise<void> {
+    const sow = await this.scopeOfWorkModel.findById(sowId, null, { session }).exec();
+
+    if (!sow) {
+      return;
+    }
+
+    // Get all tickets for this SOW (direct tickets only, not from sub-SOWs)
+    const tickets = await this.scopeOfWorkService.getAllTicketsRecursively(sowId, session);
+
+    if (tickets.length === 0) {
+      return;
+    }
+
+    // Check if all tickets have the same status as the new status
+    const allTicketsHaveSameStatus = tickets.every((ticket) => ticket.status === newStatus);
+
+    // Update SOW status if all tickets have the same status
+    if (allTicketsHaveSameStatus && sow.status !== newStatus) {
+      sow.status = newStatus;
+      if (newStatus === TicketStatus.DONE) {
+        sow.completedDate = new Date();
+      }
+      await sow.save({ session });
+
+      // Update parent SOWs recursively using the ScopeOfWorkService method
+      if (sow.parentSow) {
+        await this.scopeOfWorkService.updateParentSowsStatus(sow.parentSow, newStatus, session);
+      }
+    }
+  }
+
+  private async reopenSowsRecursively(sowId: Types.ObjectId, session: ClientSession | null = null) {
+    const sow = await this.scopeOfWorkModel.findById(sowId, null, { session }).exec();
+
+    if (!sow) {
+      return;
+    }
+
+    sow.status = TicketStatus.IN_PROGRESS;
+    sow.completedDate = null;
+    await sow.save({ session });
+
+    if (sow.parentSow) {
+      await this.reopenSowsRecursively(sow.parentSow, session);
     }
   }
 }
