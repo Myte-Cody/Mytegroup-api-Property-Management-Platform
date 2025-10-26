@@ -28,6 +28,7 @@ import {
   TicketQueryDto,
   UpdateTicketDto,
 } from '../dto';
+import { MarkDoneTicketDto } from '../dto/mark-done-ticket.dto';
 import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
 import { TicketReferenceUtils } from '../utils/ticket-reference.utils';
 import { SessionService } from './../../../common/services/session.service';
@@ -458,25 +459,48 @@ export class MaintenanceTicketsService {
     });
   }
 
-  async markAsDone(id: string, _currentUser: UserDocument): Promise<MaintenanceTicket> {
-    const ticket = await this.ticketModel.findById(id).exec();
-    if (!ticket) {
-      throw new NotFoundException(`Ticket with ID ${id} not found`);
-    }
+  async markAsDone(id: string, markDoneDto: MarkDoneTicketDto, currentUser: UserDocument) {
+    return await this.sessionService.withSession(async (session: ClientSession) => {
+      const ticket = await this.ticketModel.findById(id).exec();
+      if (!ticket) {
+        throw new NotFoundException(`Ticket with ID ${id} not found`);
+      }
 
-    // Update ticket status to DONE
-    ticket.status = TicketStatus.DONE;
-    ticket.completedDate = new Date();
+      // Update ticket status to DONE
+      ticket.status = TicketStatus.DONE;
+      ticket.completedDate = new Date();
 
-    const savedTicket = await ticket.save();
+      const savedTicket = await ticket.save();
 
-    // Check if the ticket has a scope of work
-    if (ticket.scopeOfWork) {
-      // Update SOW status if all tickets are done
-      await this.updateSowStatusRecursively(ticket.scopeOfWork);
-    }
+      // Check if the ticket has a scope of work
+      if (ticket.scopeOfWork) {
+        // Update SOW status if all tickets are done
+        await this.updateSowStatusRecursively(ticket.scopeOfWork);
+      }
 
-    return savedTicket;
+      if (markDoneDto.media_files && markDoneDto.media_files.length > 0) {
+        const uploadPromises = markDoneDto.media_files.map(async (file) => {
+          return this.mediaService.upload(
+            file,
+            ticket,
+            currentUser,
+            'work_proof',
+            undefined,
+            'MaintenanceTicket',
+            session,
+          );
+        });
+
+        const uploadedMedia = await Promise.all(uploadPromises);
+
+        return {
+          ...savedTicket,
+          workProofMedia: uploadedMedia,
+        };
+      }
+
+      return savedTicket;
+    });
   }
 
   async closeTicket(

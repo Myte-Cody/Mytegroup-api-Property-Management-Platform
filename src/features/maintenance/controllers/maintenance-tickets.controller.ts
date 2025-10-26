@@ -40,6 +40,7 @@ import {
   TicketQueryDto,
   UpdateTicketDto,
 } from '../dto';
+import { MarkDoneTicketDto } from '../dto/mark-done-ticket.dto';
 import { MaintenanceTicketsService } from '../services/maintenance-tickets.service';
 
 @ApiTags('Maintenance Tickets')
@@ -143,13 +144,19 @@ export class MaintenanceTicketsController {
 
   @Post(':id/mark-as-done')
   @CheckPolicies(new UpdateMaintenanceTicketPolicyHandler())
+  @FormDataRequest()
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Mark a maintenance ticket as done' })
   @ApiResponse({ status: 200, description: 'Ticket marked as done successfully' })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Ticket not found' })
-  async markAsDone(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.ticketsService.markAsDone(id, user);
+  async markAsDone(
+    @Param('id') id: string,
+    @Body() markDoneDto: MarkDoneTicketDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.ticketsService.markAsDone(id, markDoneDto, user);
   }
 
   @Post(':id/close')
