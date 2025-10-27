@@ -13,6 +13,7 @@ import { Invitation } from '../../features/invitations/schemas/invitation.schema
 import { Lease } from '../../features/leases/schemas/lease.schema';
 import { RentalPeriod } from '../../features/leases/schemas/rental-period.schema';
 import { Transaction } from '../../features/leases/schemas/transaction.schema';
+import { Invoice } from '../../features/maintenance/schemas/invoice.schema';
 import { MaintenanceTicket } from '../../features/maintenance/schemas/maintenance-ticket.schema';
 import { ScopeOfWork } from '../../features/maintenance/schemas/scope-of-work.schema';
 import { Media } from '../../features/media/schemas/media.schema';
@@ -36,6 +37,7 @@ export const SUBJECTS = {
   TRANSACTION: Transaction,
   MAINTENANCE_TICKET: MaintenanceTicket,
   SCOPE_OF_WORK: ScopeOfWork,
+  INVOICE: Invoice,
   FEED_POST: FeedPost,
 } as const;
 
@@ -53,6 +55,7 @@ const SUBJECT_MODEL_MAPPING = {
   Transaction: Transaction,
   MaintenanceTicket: MaintenanceTicket,
   ScopeOfWork: ScopeOfWork,
+  Invoice: Invoice,
   FeedPost: FeedPost,
 } as const;
 
@@ -121,6 +124,7 @@ export class CaslAbilityFactory {
     can(Action.Manage, User);
     can(Action.Manage, MaintenanceTicket);
     can(Action.Manage, ScopeOfWork);
+    can(Action.Manage, Invoice);
     can(Action.Manage, FeedPost);
   }
 
@@ -206,6 +210,10 @@ export class CaslAbilityFactory {
     cannot(Action.Create, ScopeOfWork);
     cannot(Action.Update, ScopeOfWork);
     cannot(Action.Delete, ScopeOfWork);
+    cannot(Action.Read, Invoice);
+    cannot(Action.Create, Invoice);
+    cannot(Action.Update, Invoice);
+    cannot(Action.Delete, Invoice);
 
     // Tenants cannot manage non-tenant users
     cannot(Action.Manage, User, { user_type: UserType.LANDLORD });
@@ -257,6 +265,9 @@ export class CaslAbilityFactory {
       can(Action.Read, ScopeOfWork);
       can(Action.Update, ScopeOfWork, { assignedContractor: contractorOrganizationId });
     }
+    can(Action.Create, Invoice);
+    can(Action.Read, Invoice);
+    can(Action.Delete, Invoice);
 
     // Cannot create or delete
     cannot(Action.Create, Property);

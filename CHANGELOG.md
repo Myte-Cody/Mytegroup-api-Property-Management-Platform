@@ -1,5 +1,60 @@
 # MyteGroup API - Changelog
 
+## October 26, 2025
+
+### Invoice Management & Maintenance Improvements
+
+**Complete invoice system for scope of work and maintenance tickets**
+
+#### Invoice System
+
+- **Invoice Endpoints**
+  - Full CRUD operations for invoices
+  - Create invoices from scope of work
+  - Update invoice details and status
+  - Delete invoices (soft delete)
+  - List invoices with filtering and pagination
+  - Invoice schema with maintenance ticket references
+
+- **Invoice Features**
+  - Link invoices to maintenance tickets
+  - Track invoice status and amounts
+  - Media attachment support for invoice documents
+  - Policy-based authorization for invoice management
+  - Integration with scope of work workflow
+
+#### Maintenance Ticket Updates
+
+- **Mark as Done Logic**
+  - Enhanced ticket completion workflow
+  - Updated mark as done endpoint
+  - Improved ticket status tracking
+  - Better handling of ticket closure
+
+- **Scope of Work Closure**
+  - Close scope of work functionality
+  - Simplified SOW and ticket closing logic
+  - Removed redundant close DTOs
+  - Streamlined closure workflow
+  - Updated service layer for better consistency
+
+#### Technical Implementation
+
+- Created invoice schema and DTOs
+- Invoice service with CRUD operations
+- Policy-based permissions for invoices
+- Integration with maintenance and SOW modules
+- Refactored ticket and SOW closing logic
+- Improved service layer architecture
+
+#### Commits
+
+- `8258c8d` - feat: invoices endpoints
+- `119080b` - feat: close scope of work
+- `b9a0219` - feat: update mark as done logic
+
+---
+
 ## October 23, 2025
 
 ### Maintenance & SOW Improvements
