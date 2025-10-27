@@ -1,7 +1,13 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  forwardRef,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Types } from 'mongoose';
-import { TicketStatus } from '../../../common/enums/maintenance.enum';
+import { InvoiceLinkedEntityType, TicketStatus } from '../../../common/enums/maintenance.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { createPaginatedResponse, PaginatedResponse } from '../../../common/utils/pagination.utils';
 import { Contractor } from '../../../features/contractors/schema/contractor.schema';
@@ -17,6 +23,7 @@ import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
 import { ScopeOfWork } from '../schemas/scope-of-work.schema';
 import { TicketReferenceUtils } from '../utils/ticket-reference.utils';
 import { SessionService } from './../../../common/services/session.service';
+import { InvoicesService } from './invoices.service';
 
 @Injectable()
 export class ScopeOfWorkService {
@@ -30,6 +37,8 @@ export class ScopeOfWorkService {
     @InjectModel(Contractor.name)
     private readonly contractorModel: AppModel<Contractor>,
     private readonly sessionService: SessionService,
+    @Inject(forwardRef(() => InvoicesService))
+    private readonly invoicesService: InvoicesService,
   ) {}
 
   async findAllPaginated(
@@ -542,6 +551,13 @@ export class ScopeOfWorkService {
         { _id: { $in: tickets.map((ticket) => ticket._id) } },
         { $set: { status: TicketStatus.CLOSED } },
         { session },
+      );
+
+      // Auto-confirm all pending invoices for this scope of work
+      await this.invoicesService.confirmInvoicesByLinkedEntity(
+        scopeOfWork._id as Types.ObjectId,
+        InvoiceLinkedEntityType.SCOPE_OF_WORK,
+        session,
       );
 
       return this.findOne(id, currentUser, session);

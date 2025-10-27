@@ -27,3 +27,18 @@ export enum TicketStatus {
   DONE = 'DONE', // Work finished
   CLOSED = 'CLOSED', // Ticket resolved
 }
+
+export enum InvoiceStatus {
+  PENDING = 'PENDING', // Invoice not yet confirmed
+  CONFIRMED = 'CONFIRMED', // Invoice confirmed
+}
+
+export enum InvoiceIssuer {
+  CONTRACTOR = 'CONTRACTOR',
+  LANDLORD = 'LANDLORD',
+}
+
+export enum InvoiceLinkedEntityType {
+  TICKET = 'TICKET',
+  SCOPE_OF_WORK = 'SCOPE_OF_WORK',
+}
