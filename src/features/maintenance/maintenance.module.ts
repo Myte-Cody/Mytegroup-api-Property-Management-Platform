@@ -15,10 +15,14 @@ import { Invoice, InvoiceSchema } from './schemas/invoice.schema';
 import { MaintenanceTicket, MaintenanceTicketSchema } from './schemas/maintenance-ticket.schema';
 import { ScopeOfWork, ScopeOfWorkSchema } from './schemas/scope-of-work.schema';
 import { TicketComment, TicketCommentSchema } from './schemas/ticket-comment.schema';
+import { Thread, ThreadSchema } from './schemas/thread.schema';
+import { ThreadMessage, ThreadMessageSchema } from './schemas/thread-message.schema';
+import { ThreadParticipant, ThreadParticipantSchema } from './schemas/thread-participant.schema';
 import { InvoicesService } from './services/invoices.service';
 import { MaintenanceTicketsService } from './services/maintenance-tickets.service';
 import { ScopeOfWorkService } from './services/scope-of-work.service';
 import { TicketCommentsService } from './services/ticket-comments.service';
+import { ThreadsService } from './services/threads.service';
 
 @Module({
   imports: [
@@ -29,6 +33,9 @@ import { TicketCommentsService } from './services/ticket-comments.service';
       { name: Lease.name, schema: LeaseSchema },
       { name: ScopeOfWork.name, schema: ScopeOfWorkSchema },
       { name: Invoice.name, schema: InvoiceSchema },
+      { name: Thread.name, schema: ThreadSchema },
+      { name: ThreadMessage.name, schema: ThreadMessageSchema },
+      { name: ThreadParticipant.name, schema: ThreadParticipantSchema },
     ]),
     CaslModule,
     PropertiesModule,
@@ -44,7 +51,8 @@ import { TicketCommentsService } from './services/ticket-comments.service';
     TicketCommentsService,
     ScopeOfWorkService,
     InvoicesService,
+    ThreadsService,
   ],
-  exports: [MaintenanceTicketsService, TicketCommentsService, ScopeOfWorkService, InvoicesService],
+  exports: [MaintenanceTicketsService, TicketCommentsService, ScopeOfWorkService, InvoicesService, ThreadsService],
 })
 export class MaintenanceModule {}
