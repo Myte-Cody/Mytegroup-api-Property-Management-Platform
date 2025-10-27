@@ -21,6 +21,12 @@ import { FormDataRequest } from 'nestjs-form-data';
 import { CheckPolicies } from '../../../common/casl/decorators/check-policies.decorator';
 import { CaslGuard } from '../../../common/casl/guards/casl.guard';
 import {
+  CreateInvoicePolicyHandler,
+  DeleteInvoicePolicyHandler,
+  ReadInvoicePolicyHandler,
+  UpdateInvoicePolicyHandler,
+} from '../../../common/casl/policies/invoice.policies';
+import {
   CreateMaintenanceTicketPolicyHandler,
   DeleteMaintenanceTicketPolicyHandler,
   ManageMaintenanceTicketPolicyHandler,
@@ -34,12 +40,15 @@ import { User } from '../../users/schemas/user.schema';
 import {
   AcceptTicketDto,
   AssignTicketDto,
+  CreateInvoiceDto,
   CreateTicketDto,
   RefuseTicketDto,
   TicketQueryDto,
+  UpdateInvoiceDto,
   UpdateTicketDto,
 } from '../dto';
 import { MarkDoneTicketDto } from '../dto/mark-done-ticket.dto';
+import { InvoicesService } from '../services/invoices.service';
 import { MaintenanceTicketsService } from '../services/maintenance-tickets.service';
 
 @ApiTags('Maintenance Tickets')
@@ -49,6 +58,7 @@ import { MaintenanceTicketsService } from '../services/maintenance-tickets.servi
 export class MaintenanceTicketsController {
   constructor(
     private readonly ticketsService: MaintenanceTicketsService,
+    private readonly invoicesService: InvoicesService,
     private readonly mediaService: MediaService,
   ) {}
 
@@ -217,5 +227,68 @@ export class MaintenanceTicketsController {
       success: true,
       data: media,
     };
+  }
+
+  @Post(':id/invoices')
+  @CheckPolicies(new CreateInvoicePolicyHandler())
+  @FormDataRequest()
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Add an invoice to a maintenance ticket' })
+  @ApiResponse({ status: 201, description: 'Invoice created successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Only landlords and contractors' })
+  @ApiResponse({ status: 404, description: 'Ticket not found' })
+  async addInvoice(
+    @Param('id') ticketId: string,
+    @Body() createInvoiceDto: CreateInvoiceDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.invoicesService.createInvoiceForTicket(ticketId, createInvoiceDto, user);
+  }
+
+  @Get(':id/invoices')
+  @CheckPolicies(new ReadInvoicePolicyHandler())
+  @ApiOperation({ summary: 'Get all invoices for a maintenance ticket' })
+  @ApiResponse({ status: 200, description: 'Invoices retrieved successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Only landlords and contractors' })
+  @ApiResponse({ status: 404, description: 'Ticket not found' })
+  async getTicketInvoices(@Param('id') ticketId: string, @CurrentUser() user: User) {
+    return this.invoicesService.getInvoicesByTicket(ticketId);
+  }
+
+  @Patch(':ticketId/invoices/:invoiceId')
+  @CheckPolicies(new UpdateInvoicePolicyHandler())
+  @FormDataRequest()
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Update an invoice for a maintenance ticket' })
+  @ApiResponse({ status: 200, description: 'Invoice updated successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Only landlords can update invoices' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async updateTicketInvoice(
+    @Param('ticketId') ticketId: string,
+    @Param('invoiceId') invoiceId: string,
+    @Body() updateInvoiceDto: UpdateInvoiceDto,
+    @CurrentUser() user: User,
+  ) {
+    // Verify ticket exists
+    await this.ticketsService.findOne(ticketId, user);
+    return this.invoicesService.updateInvoice(invoiceId, updateInvoiceDto, user);
+  }
+
+  @Delete(':ticketId/invoices/:invoiceId')
+  @CheckPolicies(new DeleteInvoicePolicyHandler())
+  @ApiOperation({ summary: 'Delete an invoice from a maintenance ticket' })
+  @ApiResponse({ status: 200, description: 'Invoice deleted successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Invoice not found' })
+  async deleteTicketInvoice(
+    @Param('ticketId') ticketId: string,
+    @Param('invoiceId') invoiceId: string,
+    @CurrentUser() user: User,
+  ) {
+    // Verify ticket exists
+    await this.ticketsService.findOne(ticketId, user);
+    return this.invoicesService.deleteInvoice(invoiceId, user);
   }
 }

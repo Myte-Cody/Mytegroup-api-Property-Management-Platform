@@ -11,9 +11,11 @@ import { TenantsModule } from '../tenants/tenant.module';
 import { MaintenanceTicketsController } from './controllers/maintenance-tickets.controller';
 import { ScopeOfWorkController } from './controllers/scope-of-work.controller';
 import { TicketCommentsController } from './controllers/ticket-comments.controller';
+import { Invoice, InvoiceSchema } from './schemas/invoice.schema';
 import { MaintenanceTicket, MaintenanceTicketSchema } from './schemas/maintenance-ticket.schema';
 import { ScopeOfWork, ScopeOfWorkSchema } from './schemas/scope-of-work.schema';
 import { TicketComment, TicketCommentSchema } from './schemas/ticket-comment.schema';
+import { InvoicesService } from './services/invoices.service';
 import { MaintenanceTicketsService } from './services/maintenance-tickets.service';
 import { ScopeOfWorkService } from './services/scope-of-work.service';
 import { TicketCommentsService } from './services/ticket-comments.service';
@@ -26,6 +28,7 @@ import { TicketCommentsService } from './services/ticket-comments.service';
       { name: Contractor.name, schema: ContractorSchema },
       { name: Lease.name, schema: LeaseSchema },
       { name: ScopeOfWork.name, schema: ScopeOfWorkSchema },
+      { name: Invoice.name, schema: InvoiceSchema },
     ]),
     CaslModule,
     PropertiesModule,
@@ -36,7 +39,12 @@ import { TicketCommentsService } from './services/ticket-comments.service';
     NestjsFormDataModule,
   ],
   controllers: [MaintenanceTicketsController, TicketCommentsController, ScopeOfWorkController],
-  providers: [MaintenanceTicketsService, TicketCommentsService, ScopeOfWorkService],
-  exports: [MaintenanceTicketsService, TicketCommentsService, ScopeOfWorkService],
+  providers: [
+    MaintenanceTicketsService,
+    TicketCommentsService,
+    ScopeOfWorkService,
+    InvoicesService,
+  ],
+  exports: [MaintenanceTicketsService, TicketCommentsService, ScopeOfWorkService, InvoicesService],
 })
 export class MaintenanceModule {}
