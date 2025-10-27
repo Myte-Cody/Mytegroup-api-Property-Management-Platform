@@ -70,14 +70,6 @@ export class Invoice extends Document implements SoftDelete {
 
 export const InvoiceSchema = SchemaFactory.createForClass(Invoice);
 
-InvoiceSchema.virtual('invoiceFile', {
-  ref: 'Media',
-  localField: '_id',
-  foreignField: 'model_id',
-  match: { model_type: 'Invoice', collection_name: 'invoice_files' },
-  justOne: true,
-});
-
 InvoiceSchema.index({ linkedEntityId: 1, linkedEntityType: 1 });
 InvoiceSchema.index({ status: 1 });
 InvoiceSchema.index({ issuer: 1 });

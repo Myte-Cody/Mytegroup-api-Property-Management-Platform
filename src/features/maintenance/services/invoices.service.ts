@@ -70,7 +70,7 @@ export class InvoicesService {
         );
       }
 
-      return this.findById(String(invoice._id), session);
+      return this.findById(String(invoice._id), currentUser, session);
     });
   }
 
@@ -116,7 +116,7 @@ export class InvoicesService {
         );
       }
 
-      return this.findById(String(invoice._id), session);
+      return this.findById(String(invoice._id), currentUser, session);
     });
   }
 
@@ -127,15 +127,32 @@ export class InvoicesService {
       throw new NotFoundException('Ticket not found');
     }
 
-    return this.invoiceModel
+    const invoices = await this.invoiceModel
       .find({
         linkedEntityId: new Types.ObjectId(ticketId),
         linkedEntityType: InvoiceLinkedEntityType.TICKET,
       })
-      .populate('invoiceFile')
       .populate('createdBy', 'first_name last_name email')
       .sort({ createdAt: -1 })
       .exec();
+
+    // Manually fetch invoice files using media service
+    const invoicesWithFiles = await Promise.all(
+      invoices.map(async (invoice) => {
+        const files = await this.mediaService.getMediaForEntity(
+          'Invoice',
+          String(invoice._id),
+          invoice.createdBy as any,
+          'invoice_files',
+        );
+        return {
+          ...invoice.toObject(),
+          invoiceFile: files.length > 0 ? files[0] : null,
+        };
+      }),
+    );
+
+    return invoicesWithFiles;
   }
 
   async getInvoicesByScopeOfWork(sowId: string) {
@@ -145,15 +162,32 @@ export class InvoicesService {
       throw new NotFoundException('Scope of Work not found');
     }
 
-    return this.invoiceModel
+    const invoices = await this.invoiceModel
       .find({
         linkedEntityId: new Types.ObjectId(sowId),
         linkedEntityType: InvoiceLinkedEntityType.SCOPE_OF_WORK,
       })
-      .populate('invoiceFile')
       .populate('createdBy', 'first_name last_name email')
       .sort({ createdAt: -1 })
       .exec();
+
+    // Manually fetch invoice files using media service
+    const invoicesWithFiles = await Promise.all(
+      invoices.map(async (invoice) => {
+        const files = await this.mediaService.getMediaForEntity(
+          'Invoice',
+          String(invoice._id),
+          invoice.createdBy as any,
+          'invoice_files',
+        );
+        return {
+          ...invoice.toObject(),
+          invoiceFile: files.length > 0 ? files[0] : null,
+        };
+      }),
+    );
+
+    return invoicesWithFiles;
   }
 
   async updateInvoice(
@@ -203,7 +237,7 @@ export class InvoicesService {
           session,
         );
       }
-      return this.findById(String(invoice._id), session);
+      return this.findById(String(invoice._id), currentUser, session);
     });
   }
 
@@ -252,10 +286,13 @@ export class InvoicesService {
       .exec();
   }
 
-  async findById(invoiceId: string, session: ClientSession | null = null) {
+  async findById(
+    invoiceId: string,
+    currentUser: UserDocument,
+    session: ClientSession | null = null,
+  ) {
     const invoice = await this.invoiceModel
       .findById(invoiceId, null, { session })
-      .populate('invoiceFile')
       .populate('createdBy', 'first_name last_name email')
       .exec();
 
@@ -263,6 +300,17 @@ export class InvoicesService {
       throw new NotFoundException('Invoice not found');
     }
 
-    return invoice;
+    // Manually fetch invoice file using media service
+    const files = await this.mediaService.getMediaForEntity(
+      'Invoice',
+      String(invoice._id),
+      currentUser,
+      'invoice_files',
+    );
+
+    return {
+      ...invoice.toObject(),
+      invoiceFile: files.length > 0 ? files[0] : null,
+    };
   }
 }
