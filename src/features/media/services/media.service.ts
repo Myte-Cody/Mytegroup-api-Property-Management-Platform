@@ -157,7 +157,7 @@ export class MediaService implements MediaServiceInterface {
     return this.enrichMediaWithUrl(media);
   }
 
-  async deleteMedia(id: string, user: User): Promise<void> {
+  async deleteMedia(id: string, user: User, session: ClientSession | null = null): Promise<void> {
     // Get media without URL enrichment for deletion (more efficient)
     const media = await this.mediaModel.findById(id).exec();
 
@@ -176,7 +176,7 @@ export class MediaService implements MediaServiceInterface {
     await driver.delete(media.path);
 
     // Delete from database
-    await this.mediaModel.findByIdAndDelete(id);
+    await this.mediaModel.findByIdAndDelete(id, { session });
   }
 
   async getMediaUrl(media: Media, expiresIn?: number): Promise<string> {
