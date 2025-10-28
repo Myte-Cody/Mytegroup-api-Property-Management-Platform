@@ -1,10 +1,4 @@
-import {
-  IsEnum,
-  IsMongoId,
-  IsNotEmpty,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsEnum, IsMongoId, IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import { MessageSenderType } from '../schemas/thread-message.schema';
 
 export class CreateThreadMessageDto {

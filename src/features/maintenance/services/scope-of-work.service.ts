@@ -7,10 +7,12 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Types } from 'mongoose';
+import { LeaseStatus } from '../../../common/enums/lease.enum';
 import { InvoiceLinkedEntityType, TicketStatus } from '../../../common/enums/maintenance.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { createPaginatedResponse, PaginatedResponse } from '../../../common/utils/pagination.utils';
 import { Contractor } from '../../../features/contractors/schema/contractor.schema';
+import { Lease } from '../../../features/leases/schemas/lease.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';
 import { AcceptSowDto } from '../dto/accept-sow.dto';
 import { AddTicketSowDto } from '../dto/add-ticket-sow.dto';
@@ -24,6 +26,7 @@ import { ScopeOfWork } from '../schemas/scope-of-work.schema';
 import { TicketReferenceUtils } from '../utils/ticket-reference.utils';
 import { SessionService } from './../../../common/services/session.service';
 import { InvoicesService } from './invoices.service';
+import { ThreadsService } from './threads.service';
 
 @Injectable()
 export class ScopeOfWorkService {
@@ -36,9 +39,13 @@ export class ScopeOfWorkService {
     private readonly userModel: AppModel<User>,
     @InjectModel(Contractor.name)
     private readonly contractorModel: AppModel<Contractor>,
+    @InjectModel(Lease.name)
+    private readonly leaseModel: AppModel<Lease>,
     private readonly sessionService: SessionService,
     @Inject(forwardRef(() => InvoicesService))
     private readonly invoicesService: InvoicesService,
+    @Inject(forwardRef(() => ThreadsService))
+    private readonly threadsService: ThreadsService,
   ) {}
 
   async findAllPaginated(
@@ -236,6 +243,9 @@ export class ScopeOfWorkService {
         { $set: { scopeOfWork: scopeOfWork._id } },
         { session },
       );
+
+      // Create threads for the SOW
+      await this.createSowThreads(scopeOfWork, tickets, currentUser, session);
 
       // Return the created SOW with populated data
       return this.findOne(scopeOfWork._id.toString(), currentUser, session);
@@ -456,6 +466,19 @@ export class ScopeOfWorkService {
         },
         { session },
       );
+
+      // Add contractor to SOW threads
+      if (scopeOfWork.assignedContractor) {
+        try {
+          await this.threadsService.addContractorToSowThreads(
+            scopeOfWork._id as Types.ObjectId,
+            scopeOfWork.assignedContractor.toString(),
+          );
+        } catch (error) {
+          // Log error but don't fail SOW acceptance
+          console.error('Failed to add contractor to SOW threads:', error);
+        }
+      }
 
       // Recursively update parent SOWs to IN_PROGRESS if they exist
       await this.updateParentSowsStatus(scopeOfWork.parentSow, TicketStatus.IN_PROGRESS, session);
@@ -728,5 +751,74 @@ export class ScopeOfWorkService {
       .exec();
 
     return contractors;
+  }
+
+  /**
+   * Create threads automatically when a scope of work is created
+   */
+  private async createSowThreads(
+    sow: ScopeOfWork,
+    tickets: MaintenanceTicket[],
+    currentUser: UserDocument,
+    session: ClientSession | null,
+  ): Promise<void> {
+    try {
+      // Get unique tenant IDs from tickets
+      const tenantIds = new Set<string>();
+
+      for (const ticket of tickets) {
+        if (!ticket.unit) continue;
+
+        // Get tenant from active lease
+        const lease = await this.leaseModel
+          .findOne(
+            {
+              unit: ticket.unit,
+              status: LeaseStatus.ACTIVE,
+            },
+            null,
+            { session },
+          )
+          .exec();
+
+        if (lease && lease.tenant) {
+          tenantIds.add(lease.tenant.toString());
+        }
+      }
+
+      if (tenantIds.size === 0) {
+        // No tenants found, can't create threads
+        return;
+      }
+
+      // Get landlord ID
+      let landlordId: string;
+
+      if (currentUser.user_type === 'Landlord') {
+        landlordId = currentUser.organization_id.toString();
+      } else {
+        // If not created by landlord, find a landlord user
+        const landlordUser = await this.userModel
+          .findOne({ user_type: 'Landlord' }, null, { session })
+          .exec();
+
+        if (!landlordUser) {
+          // No landlord found, can't create threads
+          return;
+        }
+
+        landlordId = landlordUser.organization_id.toString();
+      }
+
+      // Create threads for the SOW
+      await this.threadsService.createThreadsForScopeOfWork(
+        sow as any,
+        landlordId,
+        Array.from(tenantIds),
+      );
+    } catch (error) {
+      // Log error but don't fail SOW creation
+      console.error('Failed to create threads for SOW:', error);
+    }
   }
 }

@@ -28,13 +28,9 @@ import {
 } from '../../../common/casl/policies/scope-of-work.policies';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { User } from '../../users/schemas/user.schema';
-import { Thread } from '../schemas/thread.schema';
-import { ThreadMessage } from '../schemas/thread-message.schema';
-import { ThreadParticipant } from '../schemas/thread-participant.schema';
 import {
   AcceptThreadDto,
   CreateInvoiceDto,
-  CreateThreadDto,
   CreateThreadMessageDto,
   DeclineThreadDto,
   ThreadQueryDto,
@@ -47,6 +43,9 @@ import { CreateScopeOfWorkDto } from '../dto/create-scope-of-work.dto';
 import { RefuseSowDto } from '../dto/refuse-sow.dto';
 import { RemoveTicketSowDto } from '../dto/remove-ticket-sow.dto';
 import { ScopeOfWorkQueryDto } from '../dto/scope-of-work-query.dto';
+import { ThreadMessage } from '../schemas/thread-message.schema';
+import { ThreadParticipant } from '../schemas/thread-participant.schema';
+import { Thread } from '../schemas/thread.schema';
 import { InvoicesService } from '../services/invoices.service';
 import { ScopeOfWorkService } from '../services/scope-of-work.service';
 import { ThreadsService } from '../services/threads.service';
@@ -267,21 +266,6 @@ export class ScopeOfWorkController {
   }
 
   // Thread endpoints
-  @Post(':id/threads')
-  @CheckPolicies((ability) => ability.can(Action.Create, Thread))
-  @ApiOperation({ summary: 'Create a thread for a scope of work' })
-  @ApiResponse({ status: 201, description: 'Thread created successfully' })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  async createThread(
-    @Param('id') sowId: string,
-    @Body() createThreadDto: CreateThreadDto,
-    @CurrentUser() user: User,
-  ) {
-    // Verify scope of work exists
-    await this.scopeOfWorkService.findOne(sowId, user);
-    return this.threadsService.create(createThreadDto);
-  }
 
   @Get(':id/threads')
   @CheckPolicies((ability) => ability.can(Action.Read, Thread))
@@ -314,10 +298,7 @@ export class ScopeOfWorkController {
   @ApiResponse({ status: 200, description: 'Thread accepted successfully' })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
-  async acceptThread(
-    @Param('threadId') threadId: string,
-    @Body() acceptDto: AcceptThreadDto,
-  ) {
+  async acceptThread(@Param('threadId') threadId: string, @Body() acceptDto: AcceptThreadDto) {
     return this.threadsService.acceptThread(threadId, acceptDto);
   }
 
@@ -327,10 +308,7 @@ export class ScopeOfWorkController {
   @ApiResponse({ status: 200, description: 'Thread declined successfully' })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
-  async declineThread(
-    @Param('threadId') threadId: string,
-    @Body() declineDto: DeclineThreadDto,
-  ) {
+  async declineThread(@Param('threadId') threadId: string, @Body() declineDto: DeclineThreadDto) {
     return this.threadsService.declineThread(threadId, declineDto);
   }
 

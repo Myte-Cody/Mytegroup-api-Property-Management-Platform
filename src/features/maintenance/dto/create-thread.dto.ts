@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import {
   IsArray,
   IsEnum,
@@ -8,9 +9,8 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
-import { ThreadLinkedEntityType, ThreadType } from '../schemas/thread.schema';
 import { ParticipantType } from '../schemas/thread-participant.schema';
+import { ThreadLinkedEntityType, ThreadType } from '../schemas/thread.schema';
 
 export class ThreadParticipantDto {
   @IsNotEmpty()

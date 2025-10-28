@@ -38,15 +38,11 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { MediaType } from '../../media/schemas/media.schema';
 import { MediaService } from '../../media/services/media.service';
 import { User } from '../../users/schemas/user.schema';
-import { Thread } from '../schemas/thread.schema';
-import { ThreadMessage } from '../schemas/thread-message.schema';
-import { ThreadParticipant } from '../schemas/thread-participant.schema';
 import {
-  AcceptTicketDto,
   AcceptThreadDto,
+  AcceptTicketDto,
   AssignTicketDto,
   CreateInvoiceDto,
-  CreateThreadDto,
   CreateThreadMessageDto,
   CreateTicketDto,
   DeclineThreadDto,
@@ -57,6 +53,9 @@ import {
   UpdateTicketDto,
 } from '../dto';
 import { MarkDoneTicketDto } from '../dto/mark-done-ticket.dto';
+import { ThreadMessage } from '../schemas/thread-message.schema';
+import { ThreadParticipant } from '../schemas/thread-participant.schema';
+import { Thread } from '../schemas/thread.schema';
 import { InvoicesService } from '../services/invoices.service';
 import { MaintenanceTicketsService } from '../services/maintenance-tickets.service';
 import { ThreadsService } from '../services/threads.service';
@@ -304,21 +303,6 @@ export class MaintenanceTicketsController {
   }
 
   // Thread endpoints
-  @Post(':id/threads')
-  @CheckPolicies((ability) => ability.can(Action.Create, Thread))
-  @ApiOperation({ summary: 'Create a thread for a maintenance ticket' })
-  @ApiResponse({ status: 201, description: 'Thread created successfully' })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  async createThread(
-    @Param('id') ticketId: string,
-    @Body() createThreadDto: CreateThreadDto,
-    @CurrentUser() user: User,
-  ) {
-    // Verify ticket exists
-    await this.ticketsService.findOne(ticketId, user);
-    return this.threadsService.create(createThreadDto);
-  }
 
   @Get(':id/threads')
   @CheckPolicies((ability) => ability.can(Action.Read, Thread))
@@ -351,10 +335,7 @@ export class MaintenanceTicketsController {
   @ApiResponse({ status: 200, description: 'Thread accepted successfully' })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
-  async acceptThread(
-    @Param('threadId') threadId: string,
-    @Body() acceptDto: AcceptThreadDto,
-  ) {
+  async acceptThread(@Param('threadId') threadId: string, @Body() acceptDto: AcceptThreadDto) {
     return this.threadsService.acceptThread(threadId, acceptDto);
   }
 
@@ -364,10 +345,7 @@ export class MaintenanceTicketsController {
   @ApiResponse({ status: 200, description: 'Thread declined successfully' })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
-  async declineThread(
-    @Param('threadId') threadId: string,
-    @Body() declineDto: DeclineThreadDto,
-  ) {
+  async declineThread(@Param('threadId') threadId: string, @Body() declineDto: DeclineThreadDto) {
     return this.threadsService.declineThread(threadId, declineDto);
   }
 

@@ -34,6 +34,7 @@ import { SessionService } from './../../../common/services/session.service';
 import { ScopeOfWork } from './../schemas/scope-of-work.schema';
 import { InvoicesService } from './invoices.service';
 import { ScopeOfWorkService } from './scope-of-work.service';
+import { ThreadsService } from './threads.service';
 
 @Injectable()
 export class MaintenanceTicketsService {
@@ -60,6 +61,8 @@ export class MaintenanceTicketsService {
     private readonly scopeOfWorkService: ScopeOfWorkService,
     @Inject(forwardRef(() => InvoicesService))
     private readonly invoicesService: InvoicesService,
+    @Inject(forwardRef(() => ThreadsService))
+    private readonly threadsService: ThreadsService,
   ) {}
 
   async findAllPaginated(ticketQueryDto: TicketQueryDto, currentUser: UserDocument) {
@@ -285,6 +288,9 @@ export class MaintenanceTicketsService {
 
       const ticket = await newTicket.save({ session });
 
+      // Create thread for the ticket
+      await this.createTicketThread(ticket, currentUser, session);
+
       if (createTicketDto.media_files && createTicketDto.media_files.length > 0) {
         const uploadPromises = createTicketDto.media_files.map(async (file) => {
           return this.mediaService.upload(
@@ -420,6 +426,19 @@ export class MaintenanceTicketsService {
       ticket.status = TicketStatus.IN_PROGRESS;
 
       const savedTicket = await ticket.save();
+
+      // Add contractor to the thread
+      if (ticket.assignedContractor) {
+        try {
+          await this.threadsService.addContractorToTicketThread(
+            ticket._id as Types.ObjectId,
+            ticket.assignedContractor.toString(),
+          );
+        } catch (error) {
+          // Log error but don't fail ticket acceptance
+          console.error('Failed to add contractor to thread:', error);
+        }
+      }
 
       if (ticket.scopeOfWork) {
         await this.updateSowStatusOnTicketChange(
@@ -800,6 +819,71 @@ export class MaintenanceTicketsService {
 
     if (sow.parentSow) {
       await this.reopenSowsRecursively(sow.parentSow, session);
+    }
+  }
+
+  /**
+   * Create thread automatically when a ticket is created
+   */
+  private async createTicketThread(
+    ticket: MaintenanceTicket,
+    currentUser: UserDocument,
+    session: ClientSession | null,
+  ): Promise<void> {
+    try {
+      // Determine landlord and tenant IDs
+      let landlordId: string;
+      let tenantId: string;
+
+      if (currentUser.user_type === 'Landlord') {
+        // Landlord created the ticket
+        landlordId = currentUser.organization_id.toString();
+
+        // Get tenant from active lease
+        const lease = await this.leaseModel
+          .findOne(
+            {
+              unit: ticket.unit,
+              status: LeaseStatus.ACTIVE,
+            },
+            null,
+            { session },
+          )
+          .exec();
+
+        if (!lease) {
+          // No active lease, can't create thread without tenant
+          return;
+        }
+
+        tenantId = lease.tenant.toString();
+      } else if (currentUser.user_type === 'Tenant') {
+        // Tenant created the ticket
+        tenantId = currentUser.organization_id.toString();
+
+        // Get landlord - we need to find who owns the property
+        // For now, we'll look for a landlord user associated with this property
+        // This is a limitation - ideally property should have a landlord reference
+        const landlordUser = await this.userModel
+          .findOne({ user_type: 'Landlord' }, null, { session })
+          .exec();
+
+        if (!landlordUser) {
+          // No landlord found, can't create thread
+          return;
+        }
+
+        landlordId = landlordUser.organization_id.toString();
+      } else {
+        // Other user types shouldn't be creating tickets
+        return;
+      }
+
+      // Create the thread
+      await this.threadsService.createThreadForTicket(ticket as any, landlordId, tenantId);
+    } catch (error) {
+      // Log error but don't fail ticket creation
+      console.error('Failed to create thread for ticket:', error);
     }
   }
 }

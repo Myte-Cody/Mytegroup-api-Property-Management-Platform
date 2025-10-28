@@ -1,8 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsMongoId, IsOptional, Max, Min } from 'class-validator';
-import { ThreadLinkedEntityType, ThreadType } from '../schemas/thread.schema';
 import { ParticipantStatus } from '../schemas/thread-participant.schema';
+import { ThreadLinkedEntityType, ThreadType } from '../schemas/thread.schema';
 
 export class ThreadQueryDto {
   @ApiPropertyOptional({

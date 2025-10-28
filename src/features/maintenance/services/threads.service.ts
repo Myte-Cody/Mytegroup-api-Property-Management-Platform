@@ -1,21 +1,32 @@
 import {
-  Injectable,
-  NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Thread, ThreadDocument, ThreadLinkedEntityType, ThreadType } from '../schemas/thread.schema';
-import { ThreadMessage, ThreadMessageDocument } from '../schemas/thread-message.schema';
-import { ThreadParticipant, ThreadParticipantDocument, ParticipantStatus, ParticipantType } from '../schemas/thread-participant.schema';
+import { Lease } from '../../leases/schemas/lease.schema';
+import { AcceptThreadDto } from '../dto/accept-thread.dto';
+import { CreateThreadMessageDto } from '../dto/create-thread-message.dto';
+import { CreateThreadDto } from '../dto/create-thread.dto';
+import { DeclineThreadDto } from '../dto/decline-thread.dto';
+import { ThreadQueryDto } from '../dto/thread-query.dto';
 import { MaintenanceTicket, MaintenanceTicketDocument } from '../schemas/maintenance-ticket.schema';
 import { ScopeOfWork, ScopeOfWorkDocument } from '../schemas/scope-of-work.schema';
-import { CreateThreadDto } from '../dto/create-thread.dto';
-import { CreateThreadMessageDto } from '../dto/create-thread-message.dto';
-import { ThreadQueryDto } from '../dto/thread-query.dto';
-import { AcceptThreadDto } from '../dto/accept-thread.dto';
-import { DeclineThreadDto } from '../dto/decline-thread.dto';
+import { ThreadMessage, ThreadMessageDocument } from '../schemas/thread-message.schema';
+import {
+  ParticipantStatus,
+  ParticipantType,
+  ThreadParticipant,
+  ThreadParticipantDocument,
+} from '../schemas/thread-participant.schema';
+import {
+  Thread,
+  ThreadDocument,
+  ThreadLinkedEntityType,
+  ThreadType,
+} from '../schemas/thread.schema';
 
 @Injectable()
 export class ThreadsService {
@@ -30,6 +41,8 @@ export class ThreadsService {
     private ticketModel: Model<MaintenanceTicketDocument>,
     @InjectModel(ScopeOfWork.name)
     private scopeOfWorkModel: Model<ScopeOfWorkDocument>,
+    @InjectModel(Lease.name)
+    private leaseModel: Model<Lease>,
   ) {}
 
   async create(createThreadDto: CreateThreadDto): Promise<ThreadDocument> {
@@ -39,9 +52,7 @@ export class ThreadsService {
     if (linkedEntityType === ThreadLinkedEntityType.SCOPE_OF_WORK) {
       const sow = await this.scopeOfWorkModel.findById(linkedEntityId);
       if (sow?.parentSow) {
-        throw new BadRequestException(
-          'Threads cannot be created for sub-scopes of work',
-        );
+        throw new BadRequestException('Threads cannot be created for sub-scopes of work');
       }
     }
 
@@ -56,9 +67,7 @@ export class ThreadsService {
     });
 
     if (existingThread) {
-      throw new BadRequestException(
-        'Thread of this type already exists for this entity',
-      );
+      throw new BadRequestException('Thread of this type already exists for this entity');
     }
 
     const linkedEntityModel = this.getLinkedEntityModel(linkedEntityType);
@@ -226,7 +235,10 @@ export class ThreadsService {
       throw new ForbiddenException('You are not a participant in this thread');
     }
 
-    if (participant.status !== ParticipantStatus.ACCEPTED && participant.status !== ParticipantStatus.ACTIVE) {
+    if (
+      participant.status !== ParticipantStatus.ACCEPTED &&
+      participant.status !== ParticipantStatus.ACTIVE
+    ) {
       throw new ForbiddenException('You must accept the thread invitation before sending messages');
     }
 
@@ -264,7 +276,10 @@ export class ThreadsService {
         throw new ForbiddenException('You are not a participant in this thread');
       }
 
-      if (participant.status !== ParticipantStatus.ACCEPTED && participant.status !== ParticipantStatus.ACTIVE) {
+      if (
+        participant.status !== ParticipantStatus.ACCEPTED &&
+        participant.status !== ParticipantStatus.ACTIVE
+      ) {
         throw new ForbiddenException('You must accept the thread invitation to view messages');
       }
     }
@@ -286,12 +301,13 @@ export class ThreadsService {
       throw new NotFoundException('Thread not found');
     }
 
-    return this.threadParticipantModel
-      .find({ thread: new Types.ObjectId(threadId) })
-      .exec();
+    return this.threadParticipantModel.find({ thread: new Types.ObjectId(threadId) }).exec();
   }
 
-  async acceptThread(threadId: string, acceptDto: AcceptThreadDto): Promise<ThreadParticipantDocument> {
+  async acceptThread(
+    threadId: string,
+    acceptDto: AcceptThreadDto,
+  ): Promise<ThreadParticipantDocument> {
     if (!Types.ObjectId.isValid(threadId)) {
       throw new BadRequestException('Invalid thread ID');
     }
@@ -323,7 +339,10 @@ export class ThreadsService {
     return participant.save();
   }
 
-  async declineThread(threadId: string, declineDto: DeclineThreadDto): Promise<ThreadParticipantDocument> {
+  async declineThread(
+    threadId: string,
+    declineDto: DeclineThreadDto,
+  ): Promise<ThreadParticipantDocument> {
     if (!Types.ObjectId.isValid(threadId)) {
       throw new BadRequestException('Invalid thread ID');
     }
@@ -377,7 +396,10 @@ export class ThreadsService {
     await this.threadParticipantModel.insertMany(participantDocs);
   }
 
-  private isParticipantMandatory(threadType: ThreadType, participantType: ParticipantType): boolean {
+  private isParticipantMandatory(
+    threadType: ThreadType,
+    participantType: ParticipantType,
+  ): boolean {
     // Landlords are always mandatory
     if (participantType === ParticipantType.LANDLORD) {
       return true;
@@ -397,12 +419,13 @@ export class ThreadsService {
     return false;
   }
 
-  private validateThreadType(linkedEntityType: ThreadLinkedEntityType, threadType: ThreadType): void {
+  private validateThreadType(
+    linkedEntityType: ThreadLinkedEntityType,
+    threadType: ThreadType,
+  ): void {
     if (linkedEntityType === ThreadLinkedEntityType.TICKET) {
       if (threadType !== ThreadType.LANDLORD_TENANT) {
-        throw new BadRequestException(
-          'Tickets can only have LANDLORD_TENANT thread type',
-        );
+        throw new BadRequestException('Tickets can only have LANDLORD_TENANT thread type');
       }
     } else if (linkedEntityType === ThreadLinkedEntityType.SCOPE_OF_WORK) {
       if (threadType === ThreadType.LANDLORD_TENANT) {
@@ -413,9 +436,7 @@ export class ThreadsService {
     }
   }
 
-  private getLinkedEntityModel(
-    linkedEntityType: ThreadLinkedEntityType,
-  ): string {
+  private getLinkedEntityModel(linkedEntityType: ThreadLinkedEntityType): string {
     switch (linkedEntityType) {
       case ThreadLinkedEntityType.TICKET:
         return 'MaintenanceTicket';
@@ -437,5 +458,425 @@ export class ThreadsService {
       default:
         throw new BadRequestException('Invalid sender type');
     }
+  }
+
+  /**
+   * Auto-create thread for a ticket
+   * Creates a LANDLORD_TENANT thread with landlord and tenant as mandatory participants
+   * Contractor will be added later when they accept the ticket
+   */
+  async createThreadForTicket(
+    ticket: MaintenanceTicketDocument,
+    landlordId: string,
+    tenantId: string,
+  ): Promise<ThreadDocument> {
+    // Check if thread already exists
+    const existingThread = await this.threadModel.findOne({
+      linkedEntityType: ThreadLinkedEntityType.TICKET,
+      linkedEntityId: ticket._id,
+      threadType: ThreadType.LANDLORD_TENANT,
+    });
+
+    if (existingThread) {
+      return existingThread;
+    }
+
+    // Create thread
+    const thread = new this.threadModel({
+      title: `Ticket #${ticket.ticketNumber} - ${ticket.title}`,
+      linkedEntityType: ThreadLinkedEntityType.TICKET,
+      linkedEntityId: ticket._id,
+      linkedEntityModel: 'MaintenanceTicket',
+      threadType: ThreadType.LANDLORD_TENANT,
+    });
+
+    const savedThread = await thread.save();
+
+    // Create participants: landlord and tenant (both mandatory)
+    const participants = [
+      {
+        thread: savedThread._id,
+        participantType: ParticipantType.LANDLORD,
+        participantId: new Types.ObjectId(landlordId),
+        participantModel: 'Landlord',
+        status: ParticipantStatus.ACTIVE,
+        isMandatory: true,
+      },
+      {
+        thread: savedThread._id,
+        participantType: ParticipantType.TENANT,
+        participantId: new Types.ObjectId(tenantId),
+        participantModel: 'Tenant',
+        status: ParticipantStatus.ACTIVE,
+        isMandatory: true,
+      },
+    ];
+
+    await this.threadParticipantModel.insertMany(participants);
+
+    return savedThread;
+  }
+
+  /**
+   * Auto-create threads for a scope of work
+   * Creates multiple threads based on the SOW type:
+   * - LANDLORD_TENANT_SOW (mandatory for landlord and tenant)
+   * - LANDLORD_CONTRACTOR (optional for contractor, mandatory for landlord)
+   * - CONTRACTOR_TENANT (optional for both)
+   * - SOW_GROUP (optional for contractors/tenants, mandatory for landlord)
+   */
+  async createThreadsForScopeOfWork(
+    sow: ScopeOfWorkDocument,
+    landlordId: string,
+    tenantIds: string[],
+  ): Promise<ThreadDocument[]> {
+    const threads: ThreadDocument[] = [];
+
+    // 1. Create LANDLORD_TENANT_SOW thread (always created)
+    const landlordTenantThread = await this.createLandlordTenantSowThread(
+      sow,
+      landlordId,
+      tenantIds,
+    );
+    threads.push(landlordTenantThread);
+
+    // 2. Create SOW_GROUP thread (always created)
+    const sowGroupThread = await this.createSowGroupThread(sow, landlordId, tenantIds);
+    threads.push(sowGroupThread);
+
+    return threads;
+  }
+
+  private async createLandlordTenantSowThread(
+    sow: ScopeOfWorkDocument,
+    landlordId: string,
+    tenantIds: string[],
+  ): Promise<ThreadDocument> {
+    // Check if thread already exists
+    const existingThread = await this.threadModel.findOne({
+      linkedEntityType: ThreadLinkedEntityType.SCOPE_OF_WORK,
+      linkedEntityId: sow._id,
+      threadType: ThreadType.LANDLORD_TENANT_SOW,
+    });
+
+    if (existingThread) {
+      return existingThread;
+    }
+
+    const thread = new this.threadModel({
+      title: `SOW #${sow.sowNumber} - Landlord-Tenant`,
+      linkedEntityType: ThreadLinkedEntityType.SCOPE_OF_WORK,
+      linkedEntityId: sow._id,
+      linkedEntityModel: 'ScopeOfWork',
+      threadType: ThreadType.LANDLORD_TENANT_SOW,
+    });
+
+    const savedThread = await thread.save();
+
+    // Create participants: landlord (mandatory) and all tenants (mandatory)
+    const participants = [
+      {
+        thread: savedThread._id,
+        participantType: ParticipantType.LANDLORD,
+        participantId: new Types.ObjectId(landlordId),
+        participantModel: 'Landlord',
+        status: ParticipantStatus.ACTIVE,
+        isMandatory: true,
+      },
+      ...tenantIds.map((tenantId) => ({
+        thread: savedThread._id,
+        participantType: ParticipantType.TENANT,
+        participantId: new Types.ObjectId(tenantId),
+        participantModel: 'Tenant',
+        status: ParticipantStatus.ACTIVE,
+        isMandatory: true,
+      })),
+    ];
+
+    await this.threadParticipantModel.insertMany(participants);
+
+    return savedThread;
+  }
+
+  private async createSowGroupThread(
+    sow: ScopeOfWorkDocument,
+    landlordId: string,
+    tenantIds: string[],
+  ): Promise<ThreadDocument> {
+    // Check if thread already exists
+    const existingThread = await this.threadModel.findOne({
+      linkedEntityType: ThreadLinkedEntityType.SCOPE_OF_WORK,
+      linkedEntityId: sow._id,
+      threadType: ThreadType.SOW_GROUP,
+    });
+
+    if (existingThread) {
+      return existingThread;
+    }
+
+    const thread = new this.threadModel({
+      title: `SOW #${sow.sowNumber} - Group Chat`,
+      linkedEntityType: ThreadLinkedEntityType.SCOPE_OF_WORK,
+      linkedEntityId: sow._id,
+      linkedEntityModel: 'ScopeOfWork',
+      threadType: ThreadType.SOW_GROUP,
+    });
+
+    const savedThread = await thread.save();
+
+    // Create participants: landlord (mandatory), tenants (optional)
+    const participants = [
+      {
+        thread: savedThread._id,
+        participantType: ParticipantType.LANDLORD,
+        participantId: new Types.ObjectId(landlordId),
+        participantModel: 'Landlord',
+        status: ParticipantStatus.ACTIVE,
+        isMandatory: true,
+      },
+      ...tenantIds.map((tenantId) => ({
+        thread: savedThread._id,
+        participantType: ParticipantType.TENANT,
+        participantId: new Types.ObjectId(tenantId),
+        participantModel: 'Tenant',
+        status: ParticipantStatus.PENDING,
+        isMandatory: false,
+      })),
+    ];
+
+    await this.threadParticipantModel.insertMany(participants);
+
+    return savedThread;
+  }
+
+  /**
+   * Add contractor to ticket thread when they accept the ticket
+   */
+  async addContractorToTicketThread(ticketId: Types.ObjectId, contractorId: string): Promise<void> {
+    // Find the LANDLORD_TENANT thread for this ticket
+    const thread = await this.threadModel.findOne({
+      linkedEntityType: ThreadLinkedEntityType.TICKET,
+      linkedEntityId: ticketId,
+      threadType: ThreadType.LANDLORD_TENANT,
+    });
+
+    if (!thread) {
+      throw new NotFoundException('Thread not found for this ticket');
+    }
+
+    // Check if contractor is already a participant
+    const existingParticipant = await this.threadParticipantModel.findOne({
+      thread: thread._id,
+      participantType: ParticipantType.CONTRACTOR,
+      participantId: new Types.ObjectId(contractorId),
+    });
+
+    if (existingParticipant) {
+      return; // Already added
+    }
+
+    // Add contractor as active participant
+    const participant = new this.threadParticipantModel({
+      thread: thread._id,
+      participantType: ParticipantType.CONTRACTOR,
+      participantId: new Types.ObjectId(contractorId),
+      participantModel: 'Contractor',
+      status: ParticipantStatus.ACTIVE,
+      isMandatory: true, // Mandatory once accepted
+    });
+
+    await participant.save();
+  }
+
+  /**
+   * Add contractor to SOW threads when they accept the SOW
+   */
+  async addContractorToSowThreads(sowId: Types.ObjectId, contractorId: string): Promise<void> {
+    // Find all threads for this SOW
+    const threads = await this.threadModel.find({
+      linkedEntityType: ThreadLinkedEntityType.SCOPE_OF_WORK,
+      linkedEntityId: sowId,
+    });
+
+    for (const thread of threads) {
+      // Check if contractor is already a participant
+      const existingParticipant = await this.threadParticipantModel.findOne({
+        thread: thread._id,
+        participantType: ParticipantType.CONTRACTOR,
+        participantId: new Types.ObjectId(contractorId),
+      });
+
+      if (existingParticipant) {
+        continue; // Already added to this thread
+      }
+
+      // Determine if mandatory based on thread type
+      let isMandatory = false;
+      let status = ParticipantStatus.PENDING;
+
+      if (thread.threadType === ThreadType.SOW_GROUP) {
+        // In group thread, contractor is optional
+        isMandatory = false;
+        status = ParticipantStatus.PENDING;
+      } else if (thread.threadType === ThreadType.LANDLORD_CONTRACTOR) {
+        // In landlord-contractor thread, contractor is optional but typically active
+        isMandatory = false;
+        status = ParticipantStatus.PENDING;
+      } else if (thread.threadType === ThreadType.CONTRACTOR_TENANT) {
+        // In contractor-tenant thread, both are optional
+        isMandatory = false;
+        status = ParticipantStatus.PENDING;
+      }
+
+      // Add contractor as participant
+      const participant = new this.threadParticipantModel({
+        thread: thread._id,
+        participantType: ParticipantType.CONTRACTOR,
+        participantId: new Types.ObjectId(contractorId),
+        participantModel: 'Contractor',
+        status,
+        isMandatory,
+      });
+
+      await participant.save();
+    }
+
+    // Create LANDLORD_CONTRACTOR thread if it doesn't exist
+    await this.createLandlordContractorThread(sowId, contractorId);
+
+    // Create CONTRACTOR_TENANT thread if it doesn't exist
+    await this.createContractorTenantThread(sowId, contractorId);
+  }
+
+  private async createLandlordContractorThread(
+    sowId: Types.ObjectId,
+    contractorId: string,
+  ): Promise<void> {
+    const sow = await this.scopeOfWorkModel.findById(sowId);
+    if (!sow) return;
+
+    // Check if thread already exists
+    const existingThread = await this.threadModel.findOne({
+      linkedEntityType: ThreadLinkedEntityType.SCOPE_OF_WORK,
+      linkedEntityId: sowId,
+      threadType: ThreadType.LANDLORD_CONTRACTOR,
+    });
+
+    if (existingThread) return;
+
+    // Get landlord ID from the SOW's tickets
+    const ticket = await this.ticketModel.findOne({ scopeOfWork: sowId }).populate('requestedBy');
+    if (!ticket) return;
+
+    // Get landlord from the user who created the ticket
+    const requestedByUser = ticket.requestedBy as any;
+
+    let landlordId: Types.ObjectId;
+    if (requestedByUser && requestedByUser.user_type === 'Landlord') {
+      landlordId = requestedByUser.organization_id;
+    } else {
+      // If requestedBy is not landlord, we need another way to get landlord
+      // This is a limitation - we might need to add landlord to property schema
+      return;
+    }
+
+    const thread = new this.threadModel({
+      title: `SOW #${sow.sowNumber} - Landlord-Contractor`,
+      linkedEntityType: ThreadLinkedEntityType.SCOPE_OF_WORK,
+      linkedEntityId: sowId,
+      linkedEntityModel: 'ScopeOfWork',
+      threadType: ThreadType.LANDLORD_CONTRACTOR,
+    });
+
+    const savedThread = await thread.save();
+
+    const participants = [
+      {
+        thread: savedThread._id,
+        participantType: ParticipantType.LANDLORD,
+        participantId: landlordId,
+        participantModel: 'Landlord',
+        status: ParticipantStatus.ACTIVE,
+        isMandatory: true,
+      },
+      {
+        thread: savedThread._id,
+        participantType: ParticipantType.CONTRACTOR,
+        participantId: new Types.ObjectId(contractorId),
+        participantModel: 'Contractor',
+        status: ParticipantStatus.PENDING,
+        isMandatory: false,
+      },
+    ];
+
+    await this.threadParticipantModel.insertMany(participants);
+  }
+
+  private async createContractorTenantThread(
+    sowId: Types.ObjectId,
+    contractorId: string,
+  ): Promise<void> {
+    const sow = await this.scopeOfWorkModel.findById(sowId);
+    if (!sow) return;
+
+    // Check if thread already exists
+    const existingThread = await this.threadModel.findOne({
+      linkedEntityType: ThreadLinkedEntityType.SCOPE_OF_WORK,
+      linkedEntityId: sowId,
+      threadType: ThreadType.CONTRACTOR_TENANT,
+    });
+
+    if (existingThread) return;
+
+    // Get tenant IDs from the SOW's tickets
+    const tickets = await this.ticketModel.find({ scopeOfWork: sowId });
+    const tenantIds = new Set<string>();
+
+    for (const ticket of tickets) {
+      if (!ticket.unit) continue;
+
+      // Get tenant from lease
+      const lease = await this.leaseModel.findOne({
+        unit: ticket.unit,
+        status: 'ACTIVE',
+      });
+
+      if (lease && lease.tenant) {
+        tenantIds.add(lease.tenant.toString());
+      }
+    }
+
+    if (tenantIds.size === 0) return;
+
+    const thread = new this.threadModel({
+      title: `SOW #${sow.sowNumber} - Contractor-Tenant`,
+      linkedEntityType: ThreadLinkedEntityType.SCOPE_OF_WORK,
+      linkedEntityId: sowId,
+      linkedEntityModel: 'ScopeOfWork',
+      threadType: ThreadType.CONTRACTOR_TENANT,
+    });
+
+    const savedThread = await thread.save();
+
+    const participants = [
+      {
+        thread: savedThread._id,
+        participantType: ParticipantType.CONTRACTOR,
+        participantId: new Types.ObjectId(contractorId),
+        participantModel: 'Contractor',
+        status: ParticipantStatus.PENDING,
+        isMandatory: false,
+      },
+      ...Array.from(tenantIds).map((tenantId) => ({
+        thread: savedThread._id,
+        participantType: ParticipantType.TENANT,
+        participantId: new Types.ObjectId(tenantId),
+        participantModel: 'Tenant',
+        status: ParticipantStatus.PENDING,
+        isMandatory: false,
+      })),
+    ];
+
+    await this.threadParticipantModel.insertMany(participants);
   }
 }

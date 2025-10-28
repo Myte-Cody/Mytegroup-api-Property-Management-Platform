@@ -14,15 +14,15 @@ import { TicketCommentsController } from './controllers/ticket-comments.controll
 import { Invoice, InvoiceSchema } from './schemas/invoice.schema';
 import { MaintenanceTicket, MaintenanceTicketSchema } from './schemas/maintenance-ticket.schema';
 import { ScopeOfWork, ScopeOfWorkSchema } from './schemas/scope-of-work.schema';
-import { TicketComment, TicketCommentSchema } from './schemas/ticket-comment.schema';
-import { Thread, ThreadSchema } from './schemas/thread.schema';
 import { ThreadMessage, ThreadMessageSchema } from './schemas/thread-message.schema';
 import { ThreadParticipant, ThreadParticipantSchema } from './schemas/thread-participant.schema';
+import { Thread, ThreadSchema } from './schemas/thread.schema';
+import { TicketComment, TicketCommentSchema } from './schemas/ticket-comment.schema';
 import { InvoicesService } from './services/invoices.service';
 import { MaintenanceTicketsService } from './services/maintenance-tickets.service';
 import { ScopeOfWorkService } from './services/scope-of-work.service';
-import { TicketCommentsService } from './services/ticket-comments.service';
 import { ThreadsService } from './services/threads.service';
+import { TicketCommentsService } from './services/ticket-comments.service';
 
 @Module({
   imports: [
@@ -53,6 +53,12 @@ import { ThreadsService } from './services/threads.service';
     InvoicesService,
     ThreadsService,
   ],
-  exports: [MaintenanceTicketsService, TicketCommentsService, ScopeOfWorkService, InvoicesService, ThreadsService],
+  exports: [
+    MaintenanceTicketsService,
+    TicketCommentsService,
+    ScopeOfWorkService,
+    InvoicesService,
+    ThreadsService,
+  ],
 })
 export class MaintenanceModule {}
