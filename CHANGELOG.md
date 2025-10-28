@@ -1,5 +1,82 @@
 # MyteGroup API - Changelog
 
+## October 28, 2025
+
+### Thread Management Enhancements
+
+**Thread creation and validation improvements for tickets and scope of work**
+
+#### Thread Features
+
+- **SOW Tickets Validation**
+  - Added validation for SOW tickets before thread creation
+  - Improved decline thread logic
+  - Enhanced thread workflow for scope of work
+  - Better error handling and status checks
+
+- **Thread Creation with Ticket/SOW**
+  - Create threads directly from tickets
+  - Create threads from scope of work
+  - Link threads to tickets and SOWs
+  - Integration with maintenance workflow
+
+#### Technical Implementation
+
+- Enhanced thread validation logic
+- Improved thread decline workflow
+- Integration with ticket and SOW modules
+- Better status management for threads
+
+#### Commits
+
+- `12035a5` - feat: add sow tickets validation and imporve decline thread logic
+- `54b49ef` - feat: create thread with ticket/sow
+
+---
+
+## October 27, 2025
+
+### Maintenance Threads & Invoice System
+
+**Complete thread management system and invoice functionality**
+
+#### Maintenance Threads
+
+- **Thread Endpoints**
+  - Full CRUD operations for maintenance threads
+  - Thread creation and management
+  - Thread status tracking
+  - Integration with maintenance tickets
+
+- **Thread Features**
+  - Link threads to maintenance tickets
+  - Track thread status and updates
+  - Thread messaging and communication
+  - Policy-based authorization for thread access
+
+#### Invoice System
+
+- **Invoice Management**
+  - Invoice creation and tracking
+  - Invoice status management
+  - Integration with maintenance workflow
+  - Financial tracking for maintenance work
+
+#### Technical Implementation
+
+- Created thread schema and DTOs
+- Thread service with CRUD operations
+- Policy-based permissions for threads
+- Integration with maintenance module
+- Invoice service layer implementation
+
+#### Commits
+
+- `ba67ced` - feat: maintenance threads endpoints
+- `3b69693` - feat: invoices
+
+---
+
 ## October 26, 2025
 
 ### Invoice Management & Maintenance Improvements
