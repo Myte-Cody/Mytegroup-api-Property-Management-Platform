@@ -342,7 +342,7 @@ export class ThreadsService {
   async declineThread(
     threadId: string,
     declineDto: DeclineThreadDto,
-  ): Promise<ThreadParticipantDocument> {
+  ): Promise<ThreadParticipantDocument | null> {
     if (!Types.ObjectId.isValid(threadId)) {
       throw new BadRequestException('Invalid thread ID');
     }
@@ -371,7 +371,68 @@ export class ThreadsService {
     }
 
     participant.status = ParticipantStatus.DECLINED;
-    return participant.save();
+    await participant.save();
+
+    // Check if thread should be deleted
+    // Delete if:
+    // 1. Only landlord remains as non-declined participant, OR
+    // 2. All remaining non-mandatory participants have declined
+    const shouldDeleteThread = await this.shouldDeleteThreadAfterDecline(threadId);
+
+    if (shouldDeleteThread) {
+      // Delete all messages
+      await this.threadMessageModel.deleteMany({ thread: new Types.ObjectId(threadId) });
+
+      // Delete all participants
+      await this.threadParticipantModel.deleteMany({ thread: new Types.ObjectId(threadId) });
+
+      // Delete the thread
+      await this.threadModel.findByIdAndDelete(threadId);
+
+      return null;
+    }
+
+    return participant;
+  }
+
+  /**
+   * Check if thread should be deleted after a participant declines
+   * Returns true if:
+   * 1. Only landlord remains as active/accepted participant (all others declined), OR
+   * 2. All non-mandatory participants have declined
+   */
+  private async shouldDeleteThreadAfterDecline(threadId: string): Promise<boolean> {
+    // Get all participants
+    const participants = await this.threadParticipantModel.find({
+      thread: new Types.ObjectId(threadId),
+    });
+
+    // Count participants by status and type
+    const activeOrAcceptedNonLandlords = participants.filter(
+      (p) =>
+        p.participantType !== ParticipantType.LANDLORD &&
+        (p.status === ParticipantStatus.ACTIVE ||
+         p.status === ParticipantStatus.ACCEPTED ||
+         p.status === ParticipantStatus.PENDING),
+    );
+
+    // If only landlord remains (all non-landlords have declined), delete the thread
+    if (activeOrAcceptedNonLandlords.length === 0) {
+      return true;
+    }
+
+    // Check if all non-mandatory participants have declined
+    const nonMandatoryParticipants = participants.filter((p) => !p.isMandatory);
+    const allNonMandatoryDeclined = nonMandatoryParticipants.every(
+      (p) => p.status === ParticipantStatus.DECLINED,
+    );
+
+    // If all non-mandatory participants declined and there are no mandatory non-landlord participants
+    if (allNonMandatoryDeclined && activeOrAcceptedNonLandlords.length === 0) {
+      return true;
+    }
+
+    return false;
   }
 
   private async createParticipants(

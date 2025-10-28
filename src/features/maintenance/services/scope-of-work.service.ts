@@ -208,6 +208,37 @@ export class ScopeOfWorkService {
         );
       }
 
+      // Validate that all tickets are from the same unit or same property (for property-level tickets)
+      const ticketsWithUnit = tickets.filter((ticket) => ticket.unit);
+      const ticketsWithoutUnit = tickets.filter((ticket) => !ticket.unit);
+
+      // Case 1: All tickets are property-level (no unit)
+      if (ticketsWithoutUnit.length === tickets.length) {
+        // Check that all tickets belong to the same property
+        const propertyIds = new Set(ticketsWithoutUnit.map((ticket) => ticket.property.toString()));
+        if (propertyIds.size > 1) {
+          throw new BadRequestException(
+            'All property-level tickets must be associated with the same property',
+          );
+        }
+      }
+      // Case 2: All tickets are unit-level
+      else if (ticketsWithUnit.length === tickets.length) {
+        // Check that all tickets belong to the same unit
+        const unitIds = new Set(ticketsWithUnit.map((ticket) => ticket.unit.toString()));
+        if (unitIds.size > 1) {
+          throw new BadRequestException(
+            'All unit-level tickets must be associated with the same unit',
+          );
+        }
+      }
+      // Case 3: Mixed property-level and unit-level tickets
+      else {
+        throw new BadRequestException(
+          'Cannot mix property-level tickets and unit-level tickets in the same scope of work',
+        );
+      }
+
       // Validate parent SOW if provided
       if (createDto.parentSow) {
         const parentSow = await this.scopeOfWorkModel
@@ -386,6 +417,45 @@ export class ScopeOfWorkService {
       // Check if ticket is already in another SOW
       if (ticket.scopeOfWork && ticket.scopeOfWork.toString() !== id) {
         throw new BadRequestException('Ticket is already assigned to another scope of work');
+      }
+
+      // Get existing tickets in this SOW
+      const existingTickets = await this.ticketModel
+        .find({ scopeOfWork: scopeOfWork._id }, null, { session })
+        .exec();
+
+      // Validate that the new ticket is compatible with existing tickets
+      if (existingTickets.length > 0) {
+        const firstTicket = existingTickets[0];
+
+        // Case 1: All existing tickets are property-level (no unit)
+        if (!firstTicket.unit) {
+          // New ticket must also be property-level and same property
+          if (ticket.unit) {
+            throw new BadRequestException(
+              'Cannot add unit-level ticket to a scope of work with property-level tickets',
+            );
+          }
+          if (ticket.property.toString() !== firstTicket.property.toString()) {
+            throw new BadRequestException(
+              'Ticket must be associated with the same property as existing tickets in this scope of work',
+            );
+          }
+        }
+        // Case 2: All existing tickets are unit-level
+        else {
+          // New ticket must also be unit-level and same unit
+          if (!ticket.unit) {
+            throw new BadRequestException(
+              'Cannot add property-level ticket to a scope of work with unit-level tickets',
+            );
+          }
+          if (ticket.unit.toString() !== firstTicket.unit.toString()) {
+            throw new BadRequestException(
+              'Ticket must be associated with the same unit as existing tickets in this scope of work',
+            );
+          }
+        }
       }
 
       // Add ticket to SOW
