@@ -1,5 +1,51 @@
 # MyteGroup API - Changelog
 
+## October 29, 2025
+
+### Expense Endpoints & Thread Integration
+
+**Complete expense management system for maintenance workflow**
+
+#### Expense System
+
+- **Expense Endpoints**
+  - Full CRUD operations for expenses
+  - Create expenses for maintenance tickets and SOWs
+  - Update expense details and amounts
+  - Delete expenses (soft delete)
+  - List expenses with filtering and pagination
+  - Expense schema with maintenance references
+
+- **Expense Features**
+  - Link expenses to maintenance tickets and SOWs
+  - Track expense amounts and categories
+  - Integration with maintenance and SOW workflow
+  - Policy-based authorization for expense management
+  - Financial tracking for work orders
+
+#### Thread System Enhancement
+
+- **Thread Integration**
+  - Enhanced thread system integration
+  - Thread feature merge from pull request #25
+  - Improved thread workflow with tickets and SOWs
+  - Better thread management capabilities
+
+#### Technical Implementation
+
+- Created expense schema and DTOs
+- Expense service with CRUD operations
+- Policy-based permissions for expenses
+- Integration with maintenance and thread modules
+- Improved service layer architecture
+
+#### Commits
+
+- `a110cb1` - feat: expense endpoints
+- `e90cff2` - Feat/threads
+
+---
+
 ## October 28, 2025
 
 ### Thread Management Enhancements
