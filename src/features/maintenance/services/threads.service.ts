@@ -7,6 +7,9 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Lease } from '../../leases/schemas/lease.schema';
+import { Media } from '../../media/schemas/media.schema';
+import { MediaService } from '../../media/services/media.service';
+import { User } from '../../users/schemas/user.schema';
 import { AcceptThreadDto } from '../dto/accept-thread.dto';
 import { CreateThreadMessageDto } from '../dto/create-thread-message.dto';
 import { CreateThreadDto } from '../dto/create-thread.dto';
@@ -43,6 +46,9 @@ export class ThreadsService {
     private scopeOfWorkModel: Model<ScopeOfWorkDocument>,
     @InjectModel(Lease.name)
     private leaseModel: Model<Lease>,
+    @InjectModel(Media.name)
+    private mediaModel: Model<Media>,
+    private mediaService: MediaService,
   ) {}
 
   async create(createThreadDto: CreateThreadDto): Promise<ThreadDocument> {
@@ -174,6 +180,18 @@ export class ThreadsService {
       throw new NotFoundException('Thread not found');
     }
 
+    // Enrich media with URLs for all messages in the thread
+    if ((thread as any).messages && (thread as any).messages.length > 0) {
+      for (const message of (thread as any).messages) {
+        if ((message as any).media && (message as any).media.length > 0) {
+          const enrichedMedia = await Promise.all(
+            (message as any).media.map((media: any) => this.mediaService.enrichMediaWithUrl(media)),
+          );
+          (message as any).media = enrichedMedia;
+        }
+      }
+    }
+
     return thread;
   }
 
@@ -208,12 +226,27 @@ export class ThreadsService {
       })
       .exec();
 
+    // Enrich media with URLs for all messages in all threads
+    for (const thread of threads) {
+      if ((thread as any).messages && (thread as any).messages.length > 0) {
+        for (const message of (thread as any).messages) {
+          if (message.media && message.media.length > 0) {
+            const enrichedMedia = await Promise.all(
+              message.media.map((media: any) => this.mediaService.enrichMediaWithUrl(media)),
+            );
+            message.media = enrichedMedia;
+          }
+        }
+      }
+    }
+
     return threads;
   }
 
   async addMessage(
     threadId: string,
     createMessageDto: CreateThreadMessageDto,
+    currentUser: User,
   ): Promise<ThreadMessageDocument> {
     if (!Types.ObjectId.isValid(threadId)) {
       throw new BadRequestException('Invalid thread ID');
@@ -252,7 +285,67 @@ export class ThreadsService {
       senderModel,
     });
 
-    return message.save();
+    const savedMessage = await message.save();
+    // Upload media files if provided
+    if (createMessageDto.media && createMessageDto.media.length > 0) {
+      for (const file of createMessageDto.media) {
+        // Validate media type (only image or PDF allowed)
+        const allowedMimeTypes = [
+          'image/jpeg',
+          'image/png',
+          'image/gif',
+          'image/webp',
+          'image/jpg',
+          'application/pdf',
+        ];
+
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+          // Delete the message and throw error
+          await this.threadMessageModel.findByIdAndDelete(savedMessage._id);
+          throw new BadRequestException(
+            `Invalid media type. Only images and PDFs are allowed. Found: ${file.mimetype}`,
+          );
+        }
+        try {
+          // Upload media and link to the message using the actual user
+          await this.mediaService.upload(
+            file,
+            savedMessage,
+            currentUser,
+            'thread-messages',
+            undefined,
+            'ThreadMessage',
+          );
+        } catch (error) {
+          // If upload fails, delete the message and re-throw
+          await this.threadMessageModel.findByIdAndDelete(savedMessage._id);
+          throw error;
+        }
+      }
+    }
+
+    // Populate media with URLs before returning
+    const messageWithMedia = await this.threadMessageModel
+      .findById(savedMessage._id)
+      .populate('media')
+      .exec();
+
+    // Enrich media with URLs
+    if (
+      messageWithMedia &&
+      (messageWithMedia as any).media &&
+      (messageWithMedia as any).media.length > 0
+    ) {
+      const enrichedMedia = await Promise.all(
+        (messageWithMedia as any).media.map((media: any) =>
+          this.mediaService.enrichMediaWithUrl(media),
+        ),
+      );
+      // Replace media array with enriched version
+      (messageWithMedia as any).media = enrichedMedia;
+    }
+
+    return messageWithMedia || savedMessage;
   }
 
   async getMessages(threadId: string, participantId?: string): Promise<ThreadMessageDocument[]> {
@@ -284,11 +377,23 @@ export class ThreadsService {
       }
     }
 
-    return this.threadMessageModel
+    const messages = await this.threadMessageModel
       .find({ thread: new Types.ObjectId(threadId) })
       .sort({ createdAt: 1 })
       .populate('media')
       .exec();
+
+    // Enrich media with URLs for all messages
+    for (const message of messages) {
+      if ((message as any).media && (message as any).media.length > 0) {
+        const enrichedMedia = await Promise.all(
+          (message as any).media.map((media: any) => this.mediaService.enrichMediaWithUrl(media)),
+        );
+        (message as any).media = enrichedMedia;
+      }
+    }
+
+    return messages;
   }
 
   async getParticipants(threadId: string): Promise<ThreadParticipantDocument[]> {
@@ -412,8 +517,8 @@ export class ThreadsService {
       (p) =>
         p.participantType !== ParticipantType.LANDLORD &&
         (p.status === ParticipantStatus.ACTIVE ||
-         p.status === ParticipantStatus.ACCEPTED ||
-         p.status === ParticipantStatus.PENDING),
+          p.status === ParticipantStatus.ACCEPTED ||
+          p.status === ParticipantStatus.PENDING),
     );
 
     // If only landlord remains (all non-landlords have declined), delete the thread

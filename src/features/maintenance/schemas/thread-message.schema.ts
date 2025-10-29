@@ -48,6 +48,6 @@ ThreadMessageSchema.index({ senderId: 1, senderType: 1 });
 ThreadMessageSchema.virtual('media', {
   ref: 'Media',
   localField: '_id',
-  foreignField: 'linkedEntity',
-  match: { linkedEntityModel: 'ThreadMessage' },
+  foreignField: 'model_id',
+  match: { model_type: 'ThreadMessage' },
 });

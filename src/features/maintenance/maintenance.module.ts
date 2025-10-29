@@ -6,6 +6,7 @@ import { ContractorModule } from '../contractors/contractor.module';
 import { Contractor, ContractorSchema } from '../contractors/schema/contractor.schema';
 import { Lease, LeaseSchema, LeasesModule } from '../leases';
 import { MediaModule } from '../media/media.module';
+import { Media, MediaSchema } from '../media/schemas/media.schema';
 import { PropertiesModule } from '../properties/properties.module';
 import { TenantsModule } from '../tenants/tenant.module';
 import { MaintenanceTicketsController } from './controllers/maintenance-tickets.controller';
@@ -36,6 +37,7 @@ import { TicketCommentsService } from './services/ticket-comments.service';
       { name: Thread.name, schema: ThreadSchema },
       { name: ThreadMessage.name, schema: ThreadMessageSchema },
       { name: ThreadParticipant.name, schema: ThreadParticipantSchema },
+      { name: Media.name, schema: MediaSchema },
     ]),
     CaslModule,
     PropertiesModule,

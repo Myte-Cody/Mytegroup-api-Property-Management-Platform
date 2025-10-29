@@ -313,15 +313,18 @@ export class ScopeOfWorkController {
   }
 
   @Post(':sowId/threads/:threadId/messages')
+  @FormDataRequest()
+  @ApiConsumes('multipart/form-data')
   @CheckPolicies((ability) => ability.can(Action.Create, ThreadMessage))
-  @ApiOperation({ summary: 'Add a message to a thread' })
+  @ApiOperation({ summary: 'Add a message to a thread (with optional media)' })
   @ApiResponse({ status: 201, description: 'Message created successfully' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   async addThreadMessage(
     @Param('threadId') threadId: string,
     @Body() createMessageDto: CreateThreadMessageDto,
+    @CurrentUser() user: User,
   ) {
-    return this.threadsService.addMessage(threadId, createMessageDto);
+    return this.threadsService.addMessage(threadId, createMessageDto, user);
   }
 
   @Get(':sowId/threads/:threadId/messages')

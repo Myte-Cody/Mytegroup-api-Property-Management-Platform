@@ -67,6 +67,6 @@ import { StorageManager } from './services/storage-manager.service';
   ],
   controllers: [MediaController],
   providers: [MediaService, StorageManager, LocalStorageDriver, S3StorageDriver],
-  exports: [MediaService, StorageManager],
+  exports: [MediaService, StorageManager, MongooseModule],
 })
 export class MediaModule {}
