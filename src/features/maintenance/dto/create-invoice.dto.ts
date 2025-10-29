@@ -36,6 +36,16 @@ export class CreateInvoiceDto {
   @MaxLength(2000)
   description?: string;
 
+  @ApiPropertyOptional({
+    description: 'Additional notes for the invoice',
+    example: 'Payment due within 30 days',
+    maxLength: 5000,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  notes?: string;
+
   @ApiProperty({
     type: 'string',
     format: 'binary',

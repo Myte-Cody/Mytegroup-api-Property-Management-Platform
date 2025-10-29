@@ -64,6 +64,9 @@ export class Invoice extends Document implements SoftDelete {
   })
   createdBy: Types.ObjectId;
 
+  @Prop({ type: String, maxlength: 5000, required: false })
+  notes?: string;
+
   deleted: boolean;
   deletedAt?: Date;
 }

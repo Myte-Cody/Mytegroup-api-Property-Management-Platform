@@ -44,6 +44,7 @@ export class InvoicesService {
         amount: createInvoiceDto.amount,
         currency: createInvoiceDto.currency,
         description: createInvoiceDto.description,
+        notes: createInvoiceDto.notes,
         issuer:
           currentUser.user_type === 'Contractor'
             ? InvoiceIssuer.CONTRACTOR
@@ -90,6 +91,7 @@ export class InvoicesService {
         amount: createInvoiceDto.amount,
         currency: createInvoiceDto.currency,
         description: createInvoiceDto.description,
+        notes: createInvoiceDto.notes,
         issuer:
           currentUser.user_type === 'Contractor'
             ? InvoiceIssuer.CONTRACTOR

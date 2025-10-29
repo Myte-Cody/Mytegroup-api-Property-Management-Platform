@@ -11,6 +11,7 @@ import renewalConfig from './config/renewal.config';
 import { AuthModule } from './features/auth/auth.module';
 import { ContractorModule } from './features/contractors/contractor.module';
 import { EmailModule } from './features/email/email.module';
+import { ExpensesModule } from './features/expenses/expenses.module';
 import { FeedPostsModule } from './features/feed-posts/feed-posts.module';
 import { InquiriesModule } from './features/inquiries/inquiries.module';
 import { InvitationsModule } from './features/invitations/invitations.module';
@@ -61,6 +62,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     PropertiesModule,
     LeasesModule,
     MaintenanceModule,
+    ExpensesModule,
     FeedPostsModule,
     MediaModule,
     InquiriesModule,
