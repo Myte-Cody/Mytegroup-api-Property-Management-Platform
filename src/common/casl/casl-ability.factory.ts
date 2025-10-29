@@ -16,6 +16,9 @@ import { Transaction } from '../../features/leases/schemas/transaction.schema';
 import { Invoice } from '../../features/maintenance/schemas/invoice.schema';
 import { MaintenanceTicket } from '../../features/maintenance/schemas/maintenance-ticket.schema';
 import { ScopeOfWork } from '../../features/maintenance/schemas/scope-of-work.schema';
+import { ThreadMessage } from '../../features/maintenance/schemas/thread-message.schema';
+import { ThreadParticipant } from '../../features/maintenance/schemas/thread-participant.schema';
+import { Thread } from '../../features/maintenance/schemas/thread.schema';
 import { Media } from '../../features/media/schemas/media.schema';
 import { Property } from '../../features/properties/schemas/property.schema';
 import { Unit } from '../../features/properties/schemas/unit.schema';
@@ -38,6 +41,9 @@ export const SUBJECTS = {
   MAINTENANCE_TICKET: MaintenanceTicket,
   SCOPE_OF_WORK: ScopeOfWork,
   INVOICE: Invoice,
+  THREAD: Thread,
+  THREAD_MESSAGE: ThreadMessage,
+  THREAD_PARTICIPANT: ThreadParticipant,
   FEED_POST: FeedPost,
 } as const;
 
@@ -56,6 +62,9 @@ const SUBJECT_MODEL_MAPPING = {
   MaintenanceTicket: MaintenanceTicket,
   ScopeOfWork: ScopeOfWork,
   Invoice: Invoice,
+  Thread: Thread,
+  ThreadMessage: ThreadMessage,
+  ThreadParticipant: ThreadParticipant,
   FeedPost: FeedPost,
 } as const;
 
@@ -125,6 +134,9 @@ export class CaslAbilityFactory {
     can(Action.Manage, MaintenanceTicket);
     can(Action.Manage, ScopeOfWork);
     can(Action.Manage, Invoice);
+    can(Action.Manage, Thread);
+    can(Action.Manage, ThreadMessage);
+    can(Action.Manage, ThreadParticipant);
     can(Action.Manage, FeedPost);
   }
 
@@ -179,6 +191,13 @@ export class CaslAbilityFactory {
 
     // Tenants can only read scope of work (cannot create)
     can(Action.Read, ScopeOfWork);
+
+    // Tenants can read threads and create messages in threads
+    can(Action.Read, Thread);
+    can(Action.Create, ThreadMessage);
+    can(Action.Read, ThreadMessage);
+    can(Action.Read, ThreadParticipant);
+    can(Action.Update, ThreadParticipant); // For accepting/declining threads
 
     // Tenants can read all feed posts and react (upvote/downvote)
     can(Action.Read, FeedPost);
@@ -264,6 +283,13 @@ export class CaslAbilityFactory {
       // Contractors can read all scope of work and update scopes assigned to them
       can(Action.Read, ScopeOfWork);
       can(Action.Update, ScopeOfWork, { assignedContractor: contractorOrganizationId });
+
+      // Contractors can read threads and create messages in threads
+      can(Action.Read, Thread);
+      can(Action.Create, ThreadMessage);
+      can(Action.Read, ThreadMessage);
+      can(Action.Read, ThreadParticipant);
+      can(Action.Update, ThreadParticipant); // For accepting/declining threads
     }
     can(Action.Create, Invoice);
     can(Action.Read, Invoice);

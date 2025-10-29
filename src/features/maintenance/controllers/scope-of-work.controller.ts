@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { FormDataRequest } from 'nestjs-form-data';
+import { Action } from '../../../common/casl/casl-ability.factory';
 import { CheckPolicies } from '../../../common/casl/decorators/check-policies.decorator';
 import { CaslGuard } from '../../../common/casl/guards/casl.guard';
 import {
@@ -27,7 +28,14 @@ import {
 } from '../../../common/casl/policies/scope-of-work.policies';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { User } from '../../users/schemas/user.schema';
-import { CreateInvoiceDto, UpdateInvoiceDto } from '../dto';
+import {
+  AcceptThreadDto,
+  CreateInvoiceDto,
+  CreateThreadMessageDto,
+  DeclineThreadDto,
+  ThreadQueryDto,
+  UpdateInvoiceDto,
+} from '../dto';
 import { AcceptSowDto } from '../dto/accept-sow.dto';
 import { AddTicketSowDto } from '../dto/add-ticket-sow.dto';
 import { AssignContractorSowDto } from '../dto/assign-contractor-sow.dto';
@@ -35,8 +43,12 @@ import { CreateScopeOfWorkDto } from '../dto/create-scope-of-work.dto';
 import { RefuseSowDto } from '../dto/refuse-sow.dto';
 import { RemoveTicketSowDto } from '../dto/remove-ticket-sow.dto';
 import { ScopeOfWorkQueryDto } from '../dto/scope-of-work-query.dto';
+import { ThreadMessage } from '../schemas/thread-message.schema';
+import { ThreadParticipant } from '../schemas/thread-participant.schema';
+import { Thread } from '../schemas/thread.schema';
 import { InvoicesService } from '../services/invoices.service';
 import { ScopeOfWorkService } from '../services/scope-of-work.service';
+import { ThreadsService } from '../services/threads.service';
 
 @ApiTags('Scope of Work')
 @ApiBearerAuth()
@@ -46,6 +58,7 @@ export class ScopeOfWorkController {
   constructor(
     private readonly scopeOfWorkService: ScopeOfWorkService,
     private readonly invoicesService: InvoicesService,
+    private readonly threadsService: ThreadsService,
   ) {}
 
   @Post()
@@ -250,5 +263,75 @@ export class ScopeOfWorkController {
     // Verify scope of work exists
     await this.scopeOfWorkService.findOne(sowId, user);
     return this.invoicesService.deleteInvoice(invoiceId, user);
+  }
+
+  // Thread endpoints
+
+  @Get(':id/threads')
+  @CheckPolicies((ability) => ability.can(Action.Read, Thread))
+  @ApiOperation({ summary: 'Get all threads for a scope of work' })
+  @ApiResponse({ status: 200, description: 'Threads retrieved successfully' })
+  async getSowThreads(@Param('id') sowId: string, @Query() query: ThreadQueryDto) {
+    return this.threadsService.findAll({ ...query, linkedEntityId: sowId });
+  }
+
+  @Get(':sowId/threads/:threadId')
+  @CheckPolicies((ability) => ability.can(Action.Read, Thread))
+  @ApiOperation({ summary: 'Get a specific thread by ID' })
+  @ApiResponse({ status: 200, description: 'Thread found' })
+  @ApiResponse({ status: 404, description: 'Thread not found' })
+  async getThread(@Param('threadId') threadId: string) {
+    return this.threadsService.findOne(threadId);
+  }
+
+  @Get(':sowId/threads/:threadId/participants')
+  @CheckPolicies((ability) => ability.can(Action.Read, ThreadParticipant))
+  @ApiOperation({ summary: 'Get all participants for a thread' })
+  @ApiResponse({ status: 200, description: 'Participants retrieved successfully' })
+  async getThreadParticipants(@Param('threadId') threadId: string) {
+    return this.threadsService.getParticipants(threadId);
+  }
+
+  @Post(':sowId/threads/:threadId/accept')
+  @CheckPolicies((ability) => ability.can(Action.Update, ThreadParticipant))
+  @ApiOperation({ summary: 'Accept a thread invitation' })
+  @ApiResponse({ status: 200, description: 'Thread accepted successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async acceptThread(@Param('threadId') threadId: string, @Body() acceptDto: AcceptThreadDto) {
+    return this.threadsService.acceptThread(threadId, acceptDto);
+  }
+
+  @Post(':sowId/threads/:threadId/decline')
+  @CheckPolicies((ability) => ability.can(Action.Update, ThreadParticipant))
+  @ApiOperation({ summary: 'Decline a thread invitation' })
+  @ApiResponse({ status: 200, description: 'Thread declined successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async declineThread(@Param('threadId') threadId: string, @Body() declineDto: DeclineThreadDto) {
+    return this.threadsService.declineThread(threadId, declineDto);
+  }
+
+  @Post(':sowId/threads/:threadId/messages')
+  @FormDataRequest()
+  @ApiConsumes('multipart/form-data')
+  @CheckPolicies((ability) => ability.can(Action.Create, ThreadMessage))
+  @ApiOperation({ summary: 'Add a message to a thread (with optional media)' })
+  @ApiResponse({ status: 201, description: 'Message created successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async addThreadMessage(
+    @Param('threadId') threadId: string,
+    @Body() createMessageDto: CreateThreadMessageDto,
+    @CurrentUser() user: User,
+  ) {
+    return this.threadsService.addMessage(threadId, createMessageDto, user);
+  }
+
+  @Get(':sowId/threads/:threadId/messages')
+  @CheckPolicies((ability) => ability.can(Action.Read, ThreadMessage))
+  @ApiOperation({ summary: 'Get all messages for a thread' })
+  @ApiResponse({ status: 200, description: 'Messages retrieved successfully' })
+  async getThreadMessages(@Param('threadId') threadId: string) {
+    return this.threadsService.getMessages(threadId);
   }
 }
