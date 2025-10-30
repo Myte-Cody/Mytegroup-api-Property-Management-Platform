@@ -2,10 +2,18 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Invoice, InvoiceDocument } from '../../maintenance/schemas/invoice.schema';
+import {
+  MaintenanceTicket,
+  MaintenanceTicketDocument,
+} from '../../maintenance/schemas/maintenance-ticket.schema';
+import { ScopeOfWork, ScopeOfWorkDocument } from '../../maintenance/schemas/scope-of-work.schema';
 import { MediaService } from '../../media/services/media.service';
+import { Property, PropertyDocument } from '../../properties/schemas/property.schema';
+import { Unit, UnitDocument } from '../../properties/schemas/unit.schema';
 import { User } from '../../users/schemas/user.schema';
 import { CreateExpenseDto } from '../dto/create-expense.dto';
 import { ExpenseQueryDto } from '../dto/expense-query.dto';
+import { ExpenseResponseDto, ExpenseScope, ExpenseSource } from '../dto/expense-response.dto';
 import { UpdateExpenseDto } from '../dto/update-expense.dto';
 import { Expense, ExpenseCategory, ExpenseDocument } from '../schemas/expense.schema';
 
@@ -16,8 +24,39 @@ export class ExpensesService {
     private expenseModel: Model<ExpenseDocument>,
     @InjectModel(Invoice.name)
     private invoiceModel: Model<InvoiceDocument>,
+    @InjectModel(MaintenanceTicket.name)
+    private maintenanceTicketModel: Model<MaintenanceTicketDocument>,
+    @InjectModel(ScopeOfWork.name)
+    private scopeOfWorkModel: Model<ScopeOfWorkDocument>,
+    @InjectModel(Property.name)
+    private propertyModel: Model<PropertyDocument>,
+    @InjectModel(Unit.name)
+    private unitModel: Model<UnitDocument>,
     private mediaService: MediaService,
   ) {}
+
+  /**
+   * Format expense with computed source and scope fields
+   */
+  private formatExpenseResponse(expense: any, isInvoice = false): ExpenseResponseDto {
+    const expenseObj = expense.toObject ? expense.toObject() : expense;
+
+    // Determine source
+    const source =
+      isInvoice || expenseObj.isInvoice || expenseObj.scopeOfWork || expenseObj.ticket
+        ? ExpenseSource.MAINTENANCE
+        : ExpenseSource.MANUAL;
+
+    // Determine scope
+    const scope = expenseObj.unit ? ExpenseScope.UNIT : ExpenseScope.PROPERTY;
+
+    return {
+      ...expenseObj,
+      source,
+      scope,
+      isInvoice: isInvoice || expenseObj.isInvoice || false,
+    };
+  }
 
   async create(createExpenseDto: CreateExpenseDto, currentUser: User): Promise<ExpenseDocument> {
     // Validate property ID
@@ -83,12 +122,27 @@ export class ExpensesService {
   }
 
   async findAll(query: ExpenseQueryDto): Promise<{
-    data: any[];
+    data: ExpenseResponseDto[];
     total: number;
     page: number;
     limit: number;
+    totalPages: number;
   }> {
-    const { page = 1, limit = 10, property, unit, category, status } = query;
+    const {
+      page = 1,
+      limit = 10,
+      property,
+      unit,
+      category,
+      status,
+      scopeOfWork,
+      ticket,
+      source,
+      scope,
+      startDate,
+      endDate,
+      search,
+    } = query;
     const skip = (page - 1) * limit;
 
     // Build filter for manual expenses
@@ -97,20 +151,31 @@ export class ExpensesService {
     if (unit) expenseFilter.unit = new Types.ObjectId(unit);
     if (category) expenseFilter.category = category;
     if (status) expenseFilter.status = status;
+    if (scopeOfWork) expenseFilter.scopeOfWork = new Types.ObjectId(scopeOfWork);
+    if (ticket) expenseFilter.ticket = new Types.ObjectId(ticket);
+
+    // Date range filter
+    if (startDate || endDate) {
+      expenseFilter.date = {};
+      if (startDate) expenseFilter.date.$gte = new Date(startDate);
+      if (endDate) expenseFilter.date.$lte = new Date(endDate);
+    }
+
+    // Search filter
+    if (search) {
+      expenseFilter.description = { $regex: search, $options: 'i' };
+    }
 
     // Fetch manual expenses
-    const [expenses, expensesCount] = await Promise.all([
-      this.expenseModel
-        .find(expenseFilter)
-        .populate('property')
-        .populate('unit')
-        .populate('scopeOfWork')
-        .populate('ticket')
-        .populate('media')
-        .sort({ date: -1 })
-        .exec(),
-      this.expenseModel.countDocuments(expenseFilter),
-    ]);
+    const expenses = await this.expenseModel
+      .find(expenseFilter)
+      .populate('property')
+      .populate('unit')
+      .populate('scopeOfWork')
+      .populate('ticket')
+      .populate('media')
+      .sort({ date: -1 })
+      .exec();
 
     // Enrich expenses media with URLs
     for (const expense of expenses) {
@@ -145,47 +210,31 @@ export class ExpensesService {
       // Check the linkedEntityModel and fetch the appropriate entity
       if (invoice.linkedEntityModel === 'MaintenanceTicket') {
         // Invoice is linked to a ticket directly
-        ticketData = await this.invoiceModel.db
-          .collection('maintenancetickets')
-          .findOne({ _id: invoice.linkedEntityId });
+        ticketData = await this.maintenanceTicketModel
+          .findById(invoice.linkedEntityId)
+          .lean()
+          .exec();
 
         if (ticketData) {
           // Get property from ticket
-          propertyData = await this.invoiceModel.db
-            .collection('properties')
-            .findOne({ _id: ticketData.property });
+          propertyData = await this.propertyModel.findById(ticketData.property).lean().exec();
 
           // Get unit from ticket if exists
           if (ticketData.unit) {
-            unitData = await this.invoiceModel.db
-              .collection('units')
-              .findOne({ _id: ticketData.unit });
+            unitData = await this.unitModel.findById(ticketData.unit).lean().exec();
           }
         }
       } else if (invoice.linkedEntityModel === 'ScopeOfWork') {
         // Invoice is linked to a scope of work
-        sowData = await this.invoiceModel.db
-          .collection('scopeofworks')
-          .findOne({ _id: invoice.linkedEntityId });
+        sowData = await this.scopeOfWorkModel.findById(invoice.linkedEntityId).lean().exec();
+        if (sowData) {
+          // Get property and unit directly from SOW
+          if (sowData.property) {
+            propertyData = await this.propertyModel.findById(sowData.property).lean().exec();
+          }
 
-        if (sowData && sowData.ticket) {
-          // Get ticket from scope of work
-          ticketData = await this.invoiceModel.db
-            .collection('maintenancetickets')
-            .findOne({ _id: sowData.ticket });
-
-          if (ticketData) {
-            // Get property from ticket
-            propertyData = await this.invoiceModel.db
-              .collection('properties')
-              .findOne({ _id: ticketData.property });
-
-            // Get unit from ticket if exists
-            if (ticketData.unit) {
-              unitData = await this.invoiceModel.db
-                .collection('units')
-                .findOne({ _id: ticketData.unit });
-            }
+          if (sowData.unit) {
+            unitData = await this.unitModel.findById(sowData.unit).lean().exec();
           }
         }
       }
@@ -231,28 +280,46 @@ export class ExpensesService {
       });
     }
 
-    // Combine and sort all expenses
-    const allExpenses = [...expenses.map((e) => e.toObject()), ...invoiceExpenses].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-    );
+    // Format expenses with computed fields
+    const formattedExpenses = expenses.map((e) => this.formatExpenseResponse(e, false));
+    const formattedInvoices = invoiceExpenses.map((e) => this.formatExpenseResponse(e, true));
+
+    // Combine all expenses
+    let allExpenses = [...formattedExpenses, ...formattedInvoices];
+
+    // Apply source filter
+    if (source) {
+      allExpenses = allExpenses.filter((e) => e.source === source);
+    }
+
+    // Apply scope filter
+    if (scope) {
+      allExpenses = allExpenses.filter((e) => e.scope === scope);
+    }
+
+    // Sort by date (most recent first)
+    allExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Apply pagination to combined results
+    const totalCount = allExpenses.length;
     const paginatedExpenses = allExpenses.slice(skip, skip + limit);
-    const totalCount = expensesCount + invoiceExpenses.length;
+    const totalPages = Math.ceil(totalCount / limit);
 
     return {
       data: paginatedExpenses,
       total: totalCount,
       page,
       limit,
+      totalPages,
     };
   }
 
-  async findOne(id: string): Promise<ExpenseDocument> {
+  async findOne(id: string): Promise<ExpenseResponseDto> {
     if (!Types.ObjectId.isValid(id)) {
       throw new BadRequestException('Invalid expense ID');
     }
 
+    // Try to find in expenses collection first
     const expense = await this.expenseModel
       .findById(id)
       .populate('property')
@@ -262,19 +329,89 @@ export class ExpensesService {
       .populate('media')
       .exec();
 
-    if (!expense) {
+    if (expense) {
+      // Enrich media with URLs
+      if ((expense as any).media && (expense as any).media.length > 0) {
+        const enrichedMedia = await Promise.all(
+          (expense as any).media.map((media: any) => this.mediaService.enrichMediaWithUrl(media)),
+        );
+        (expense as any).media = enrichedMedia;
+      }
+
+      return this.formatExpenseResponse(expense);
+    }
+
+    // If not found in expenses, check if it's an invoice
+    const invoice = await this.invoiceModel.findById(id).populate('media').exec();
+
+    if (!invoice) {
       throw new NotFoundException('Expense not found');
     }
 
-    // Enrich media with URLs
-    if ((expense as any).media && (expense as any).media.length > 0) {
-      const enrichedMedia = await Promise.all(
-        (expense as any).media.map((media: any) => this.mediaService.enrichMediaWithUrl(media)),
-      );
-      (expense as any).media = enrichedMedia;
+    // Build expense object from invoice
+    let ticketData: any = null;
+    let sowData: any = null;
+    let propertyData: any = null;
+    let unitData: any = null;
+
+    // Check the linkedEntityModel and fetch the appropriate entity
+    if (invoice.linkedEntityModel === 'MaintenanceTicket') {
+      // Invoice is linked to a ticket directly
+      ticketData = await this.maintenanceTicketModel.findById(invoice.linkedEntityId).lean().exec();
+
+      if (ticketData) {
+        // Get property from ticket
+        propertyData = await this.propertyModel.findById(ticketData.property).lean().exec();
+
+        // Get unit from ticket if exists
+        if (ticketData.unit) {
+          unitData = await this.unitModel.findById(ticketData.unit).lean().exec();
+        }
+      }
+    } else if (invoice.linkedEntityModel === 'ScopeOfWork') {
+      // Invoice is linked to a scope of work
+      sowData = await this.scopeOfWorkModel.findById(invoice.linkedEntityId).lean().exec();
+
+      if (sowData) {
+        // Get property and unit directly from SOW
+        if (sowData.property) {
+          propertyData = await this.propertyModel.findById(sowData.property).lean().exec();
+        }
+
+        if (sowData.unit) {
+          unitData = await this.unitModel.findById(sowData.unit).lean().exec();
+        }
+      }
     }
 
-    return expense;
+    // Enrich invoice media with URLs
+    if ((invoice as any).media && (invoice as any).media.length > 0) {
+      const enrichedMedia = await Promise.all(
+        (invoice as any).media.map((media: any) => this.mediaService.enrichMediaWithUrl(media)),
+      );
+      (invoice as any).media = enrichedMedia;
+    }
+
+    // Build the expense object from invoice
+    const invoiceExpense = {
+      _id: invoice._id,
+      property: propertyData || null,
+      unit: unitData || null,
+      scopeOfWork: sowData?._id || null,
+      ticket: ticketData?._id || null,
+      category: ExpenseCategory.MAINTENANCE_REPAIRS,
+      amount: invoice.amount,
+      description: `Invoice - ${invoice.description || sowData?.title || ticketData?.title || 'Maintenance'}`,
+      date: (invoice as any).createdAt,
+      status: invoice.status,
+      media: (invoice as any).media,
+      createdAt: (invoice as any).createdAt,
+      updatedAt: (invoice as any).updatedAt,
+      isInvoice: true,
+      invoiceNumber: null,
+    };
+
+    return this.formatExpenseResponse(invoiceExpense, true);
   }
 
   async update(

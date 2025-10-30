@@ -255,6 +255,12 @@ export class ScopeOfWorkService {
         !!createDto.parentSow,
       );
 
+      // Determine property and unit from tickets
+      // All tickets are guaranteed to have the same property and unit at this point due to validation above
+      const firstTicket = tickets[0];
+      const property = firstTicket.property;
+      const unit = firstTicket.unit || null;
+
       // Create the scope of work
       const [scopeOfWork] = await this.scopeOfWorkModel.create(
         [
@@ -263,6 +269,8 @@ export class ScopeOfWorkService {
             title: createDto.title,
             description: createDto.description,
             parentSow: createDto.parentSow || null,
+            property,
+            unit,
           },
         ],
         { session },
