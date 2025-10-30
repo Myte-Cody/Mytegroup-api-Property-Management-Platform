@@ -108,4 +108,23 @@ export class ExpensesController {
       message: 'Expense deleted successfully',
     };
   }
+
+  @Patch(':id/confirm')
+  @CheckPolicies(new UpdateExpensePolicyHandler())
+  @ApiOperation({ summary: 'Confirm an expense (change status to Confirmed)' })
+  @ApiResponse({ status: 200, description: 'Expense confirmed successfully' })
+  @ApiResponse({ status: 404, description: 'Expense not found' })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request (e.g., already confirmed or is an invoice)',
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async confirm(@Param('id', MongoIdValidationPipe) id: string) {
+    const expense = await this.expensesService.confirm(id);
+    return {
+      success: true,
+      data: expense,
+      message: 'Expense confirmed successfully',
+    };
+  }
 }

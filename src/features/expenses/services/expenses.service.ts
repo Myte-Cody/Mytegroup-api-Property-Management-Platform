@@ -15,7 +15,12 @@ import { CreateExpenseDto } from '../dto/create-expense.dto';
 import { ExpenseQueryDto } from '../dto/expense-query.dto';
 import { ExpenseResponseDto, ExpenseScope, ExpenseSource } from '../dto/expense-response.dto';
 import { UpdateExpenseDto } from '../dto/update-expense.dto';
-import { Expense, ExpenseCategory, ExpenseDocument } from '../schemas/expense.schema';
+import {
+  Expense,
+  ExpenseCategory,
+  ExpenseDocument,
+  ExpenseStatus,
+} from '../schemas/expense.schema';
 
 @Injectable()
 export class ExpensesService {
@@ -497,5 +502,48 @@ export class ExpensesService {
     }
 
     await this.expenseModel.findByIdAndDelete(id);
+  }
+
+  async confirm(id: string): Promise<ExpenseResponseDto> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid expense ID');
+    }
+
+    const expense = await this.expenseModel.findById(id).exec();
+
+    if (!expense) {
+      throw new NotFoundException('Expense not found');
+    }
+
+    // Check if expense is already confirmed
+    if (expense.status === ExpenseStatus.CONFIRMED) {
+      throw new BadRequestException('Expense is already confirmed');
+    }
+
+    // Update status to confirmed
+    expense.status = ExpenseStatus.CONFIRMED;
+    await expense.save();
+
+    // Return the updated expense with all populated fields
+    const updatedExpense = await this.expenseModel
+      .findById(id)
+      .populate('property')
+      .populate('unit')
+      .populate('scopeOfWork')
+      .populate('ticket')
+      .populate('media')
+      .exec();
+
+    // Enrich media with URLs
+    if ((updatedExpense as any).media && (updatedExpense as any).media.length > 0) {
+      const enrichedMedia = await Promise.all(
+        (updatedExpense as any).media.map((media: any) =>
+          this.mediaService.enrichMediaWithUrl(media),
+        ),
+      );
+      (updatedExpense as any).media = enrichedMedia;
+    }
+
+    return this.formatExpenseResponse(updatedExpense);
   }
 }
