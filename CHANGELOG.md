@@ -1,5 +1,87 @@
 # MyteGroup API - Changelog
 
+## October 30, 2025
+
+### Expense System Enhancement & Policy Updates
+
+**Enhanced expense management with improved authorization and service layer refinements**
+
+#### Expense System Improvements
+
+- **Expense Service Enhancements**
+  - Refined expense CRUD operations
+  - Improved expense query handling
+  - Better integration with maintenance workflow
+  - Enhanced expense filtering and pagination
+  - Optimized expense data retrieval
+
+- **Expense Schema Updates**
+  - Refined expense schema structure
+  - Better relationship management with tickets and SOWs
+  - Improved data validation
+  - Enhanced schema indexing for performance
+
+- **Expense DTOs**
+  - Comprehensive expense query DTO
+  - Create expense DTO with validation
+  - Update expense DTO for modifications
+  - Response DTO for consistent API responses
+
+#### Authorization & Policies
+
+- **CASL Policy Updates**
+  - Enhanced expense policies for role-based access
+  - Updated CASL ability factory
+  - Improved permission checking for expense operations
+  - Better integration with existing policy framework
+
+#### Maintenance Integration
+
+- **Invoice Schema Updates**
+  - Refined invoice schema structure
+  - Better integration with expense tracking
+  - Enhanced invoice-expense relationships
+
+- **Scope of Work Updates**
+  - Improved SOW service layer
+  - Enhanced SOW-expense integration
+  - Better expense tracking for work orders
+
+- **Maintenance Enums**
+  - Updated maintenance-related enumerations
+  - Added expense-related status types
+  - Better type safety across maintenance module
+
+#### Technical Implementation
+
+- Expense controller with full CRUD endpoints
+- Expense module configuration
+- Integration with app module
+- Enhanced service layer architecture
+- Improved data consistency and validation
+
+#### Files Modified
+
+- `api/src/common/casl/policies/expense.policies.ts`
+- `api/src/common/casl/casl-ability.factory.ts`
+- `api/src/common/enums/maintenance.enum.ts`
+- `api/src/features/expenses/schemas/expense.schema.ts`
+- `api/src/features/expenses/services/expenses.service.ts`
+- `api/src/features/expenses/expenses.module.ts`
+- `api/src/features/expenses/controllers/expenses.controller.ts`
+- `api/src/features/expenses/dto/expense-query.dto.ts`
+- `api/src/features/expenses/dto/create-expense.dto.ts`
+- `api/src/features/expenses/dto/expense-response.dto.ts`
+- `api/src/features/expenses/dto/update-expense.dto.ts`
+- `api/src/features/maintenance/schemas/invoice.schema.ts`
+- `api/src/features/maintenance/schemas/scope-of-work.schema.ts`
+- `api/src/features/maintenance/services/scope-of-work.service.ts`
+- `api/src/features/maintenance/services/invoices.service.ts`
+- `api/src/features/maintenance/dto/create-invoice.dto.ts`
+- `api/src/app.module.ts`
+
+---
+
 ## October 29, 2025
 
 ### Expense Endpoints & Thread Integration
