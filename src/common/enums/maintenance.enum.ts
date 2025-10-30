@@ -29,8 +29,8 @@ export enum TicketStatus {
 }
 
 export enum InvoiceStatus {
-  PENDING = 'PENDING', // Invoice not yet confirmed
-  CONFIRMED = 'CONFIRMED', // Invoice confirmed
+  DRAFT = 'Draft', // Invoice not yet confirmed
+  CONFIRMED = 'Confirmed', // Invoice confirmed
 }
 
 export enum InvoiceIssuer {

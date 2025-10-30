@@ -8,6 +8,7 @@ import {
 } from '@casl/ability';
 import { Injectable } from '@nestjs/common';
 import { Contractor } from '../../features/contractors/schema/contractor.schema';
+import { Expense } from '../../features/expenses/schemas/expense.schema';
 import { FeedPost } from '../../features/feed-posts/schemas/feed-post.schema';
 import { Invitation } from '../../features/invitations/schemas/invitation.schema';
 import { Lease } from '../../features/leases/schemas/lease.schema';
@@ -41,6 +42,7 @@ export const SUBJECTS = {
   MAINTENANCE_TICKET: MaintenanceTicket,
   SCOPE_OF_WORK: ScopeOfWork,
   INVOICE: Invoice,
+  EXPENSE: Expense,
   THREAD: Thread,
   THREAD_MESSAGE: ThreadMessage,
   THREAD_PARTICIPANT: ThreadParticipant,
@@ -62,6 +64,7 @@ const SUBJECT_MODEL_MAPPING = {
   MaintenanceTicket: MaintenanceTicket,
   ScopeOfWork: ScopeOfWork,
   Invoice: Invoice,
+  Expense: Expense,
   Thread: Thread,
   ThreadMessage: ThreadMessage,
   ThreadParticipant: ThreadParticipant,
@@ -134,6 +137,7 @@ export class CaslAbilityFactory {
     can(Action.Manage, MaintenanceTicket);
     can(Action.Manage, ScopeOfWork);
     can(Action.Manage, Invoice);
+    can(Action.Manage, Expense);
     can(Action.Manage, Thread);
     can(Action.Manage, ThreadMessage);
     can(Action.Manage, ThreadParticipant);
