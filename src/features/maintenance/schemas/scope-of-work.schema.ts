@@ -30,6 +30,20 @@ export class ScopeOfWork extends Document implements SoftDelete {
   })
   parentSow?: Types.ObjectId;
 
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Property',
+    required: false,
+  })
+  property?: Types.ObjectId;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Unit',
+    required: false,
+  })
+  unit?: Types.ObjectId;
+
   @Prop({ required: true, unique: true })
   sowNumber: string;
 
@@ -67,6 +81,8 @@ export const ScopeOfWorkSchema = SchemaFactory.createForClass(ScopeOfWork);
 
 ScopeOfWorkSchema.index({ assignedContractor: 1, status: 1 });
 ScopeOfWorkSchema.index({ parentSow: 1 });
+ScopeOfWorkSchema.index({ property: 1 });
+ScopeOfWorkSchema.index({ unit: 1 });
 
 ScopeOfWorkSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 ScopeOfWorkSchema.plugin(accessibleRecordsPlugin);
