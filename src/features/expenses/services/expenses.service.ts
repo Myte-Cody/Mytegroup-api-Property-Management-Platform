@@ -122,8 +122,16 @@ export class ExpensesService {
       }
     }
 
+    // Build filter for invoice expenses
+    const invoiceFilter: any = {};
+    if (status) invoiceFilter.status = status;
+
     // Fetch maintenance invoices without populate - we'll manually resolve references
-    const invoices = await this.invoiceModel.find({}).sort({ createdAt: -1 }).exec();
+    const invoices = await this.invoiceModel
+      .find(invoiceFilter)
+      .populate('media')
+      .sort({ createdAt: -1 })
+      .exec();
 
     // Convert invoices to expense format by manually resolving references
     const invoiceExpenses: any[] = [];
@@ -193,6 +201,16 @@ export class ExpensesService {
         continue;
       }
 
+      // Enrich invoices media with URLs
+      for (const invoice of invoices) {
+        if ((invoice as any).media && (invoice as any).media.length > 0) {
+          const enrichedMedia = await Promise.all(
+            (invoice as any).media.map((media: any) => this.mediaService.enrichMediaWithUrl(media)),
+          );
+          (invoice as any).media = enrichedMedia;
+        }
+      }
+
       // Build the expense object
       invoiceExpenses.push({
         _id: invoice._id,
@@ -204,8 +222,8 @@ export class ExpensesService {
         amount: invoice.amount,
         description: `Invoice - ${invoice.description || sowData?.title || ticketData?.title || 'Maintenance'}`,
         date: (invoice as any).createdAt,
-        status: 'Confirmed',
-        media: [],
+        status: invoice.status,
+        media: (invoice as any).media,
         createdAt: (invoice as any).createdAt,
         updatedAt: (invoice as any).updatedAt,
         isInvoice: true,

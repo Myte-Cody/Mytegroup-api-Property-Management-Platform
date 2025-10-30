@@ -52,7 +52,7 @@ export class InvoicesService {
         linkedEntityType: InvoiceLinkedEntityType.TICKET,
         linkedEntityId: new Types.ObjectId(ticketId),
         linkedEntityModel: 'MaintenanceTicket',
-        status: InvoiceStatus.PENDING,
+        status: InvoiceStatus.DRAFT,
         createdBy: currentUser._id,
       });
 
@@ -99,7 +99,7 @@ export class InvoicesService {
         linkedEntityType: InvoiceLinkedEntityType.SCOPE_OF_WORK,
         linkedEntityId: new Types.ObjectId(sowId),
         linkedEntityModel: 'ScopeOfWork',
-        status: InvoiceStatus.PENDING,
+        status: InvoiceStatus.DRAFT,
         createdBy: currentUser._id,
       });
 
@@ -278,7 +278,7 @@ export class InvoicesService {
         {
           linkedEntityId,
           linkedEntityType,
-          status: InvoiceStatus.PENDING,
+          status: InvoiceStatus.DRAFT,
         },
         {
           $set: { status: InvoiceStatus.CONFIRMED },

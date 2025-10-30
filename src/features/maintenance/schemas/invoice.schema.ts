@@ -52,7 +52,7 @@ export class Invoice extends Document implements SoftDelete {
   @Prop({
     type: String,
     enum: InvoiceStatus,
-    default: InvoiceStatus.PENDING,
+    default: InvoiceStatus.DRAFT,
     required: true,
   })
   status: InvoiceStatus;
@@ -72,6 +72,14 @@ export class Invoice extends Document implements SoftDelete {
 }
 
 export const InvoiceSchema = SchemaFactory.createForClass(Invoice);
+
+// Virtual populate for media attachments
+InvoiceSchema.virtual('media', {
+  ref: 'Media',
+  localField: '_id',
+  foreignField: 'model_id',
+  match: { model_type: 'Invoice' },
+});
 
 InvoiceSchema.index({ linkedEntityId: 1, linkedEntityType: 1 });
 InvoiceSchema.index({ status: 1 });
