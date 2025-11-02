@@ -10,10 +10,10 @@ export class Transaction extends Document implements SoftDelete {
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Lease',
-    required: true,
+    required: false,
     index: true,
   })
-  lease: Types.ObjectId;
+  lease?: Types.ObjectId;
 
   @Prop({
     type: MongooseSchema.Types.ObjectId,
@@ -21,6 +21,20 @@ export class Transaction extends Document implements SoftDelete {
     index: true,
   })
   rentalPeriod?: Types.ObjectId;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Property',
+    index: true,
+  })
+  property?: Types.ObjectId;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Unit',
+    index: true,
+  })
+  unit?: Types.ObjectId;
 
   @Prop({ required: true })
   amount: number;
