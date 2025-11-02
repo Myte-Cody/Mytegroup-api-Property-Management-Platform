@@ -45,12 +45,36 @@ export class RevenuesService {
       baseQuery = baseQuery.where({ type });
     }
 
+    // Property filter: include transactions with direct property OR with lease that has property
     if (propertyId) {
-      baseQuery = baseQuery.where({ property: propertyId });
+      // Get all units for this property
+      const Unit = this.transactionModel.db.model('Unit');
+      const unitsInProperty = await Unit.find({ property: propertyId }).select('_id').lean();
+      const unitIds = unitsInProperty.map((unit: any) => unit._id);
+
+      // Get all leases for units in this property
+      const leasesInProperty = await this.leaseModel
+        .find({ unit: { $in: unitIds } })
+        .select('_id')
+        .lean();
+      const leaseIds = leasesInProperty.map((lease) => lease._id);
+
+      // Match transactions with direct property OR with lease in this property
+      baseQuery = baseQuery.where({
+        $or: [{ property: propertyId }, { lease: { $in: leaseIds } }],
+      });
     }
 
+    // Unit filter: include transactions with direct unit OR with lease that has unit
     if (unitId) {
-      baseQuery = baseQuery.where({ unit: unitId });
+      // Get all leases for this unit
+      const leasesForUnit = await this.leaseModel.find({ unit: unitId }).select('_id').lean();
+      const leaseIds = leasesForUnit.map((lease) => lease._id);
+
+      // Match transactions with direct unit OR with lease for this unit
+      baseQuery = baseQuery.where({
+        $or: [{ unit: unitId }, { lease: { $in: leaseIds } }],
+      });
     }
 
     if (leaseId) {
@@ -88,7 +112,14 @@ export class RevenuesService {
         .populate({
           path: 'lease',
           select: 'tenant',
-          populate: { path: 'tenant', select: 'name email phone' },
+          populate: [
+            { path: 'tenant', select: 'name email phone' },
+            {
+              path: 'unit',
+              select: 'unitNumber type',
+              populate: { path: 'property', select: 'name address' },
+            },
+          ],
         })
         .exec(),
       baseQuery.clone().countDocuments().exec(),
@@ -105,7 +136,14 @@ export class RevenuesService {
       .populate({
         path: 'lease',
         select: 'tenant terms',
-        populate: { path: 'tenant', select: 'name email phone' },
+        populate: [
+          { path: 'tenant', select: 'name email phone' },
+          {
+            path: 'unit',
+            select: 'unitNumber type',
+            populate: { path: 'property', select: 'name address' },
+          },
+        ],
       })
       .exec();
 
@@ -179,11 +217,25 @@ export class RevenuesService {
   async getRevenueSummary(currentUser: UserDocument) {
     const transactions = await this.transactionModel.find().exec();
 
+    const totalPaid = transactions
+      .filter((t) => t.status === PaymentStatus.PAID)
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const totalOutstanding = transactions
+      .filter((t) => t.status === PaymentStatus.PENDING || t.status === PaymentStatus.OVERDUE)
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const totalExpected = totalPaid + totalOutstanding;
+    const collectionRate = totalExpected > 0 ? (totalPaid / totalExpected) * 100 : 0;
+
     const summary = {
       totalTransactions: transactions.length,
-      totalRevenue: transactions
-        .filter((t) => t.status === PaymentStatus.PAID)
-        .reduce((sum, t) => sum + t.amount, 0),
+      totals: {
+        paid: totalPaid,
+        outstanding: totalOutstanding,
+      },
+      collectionRate: Math.round(collectionRate * 100) / 100, // Round to 2 decimal places
+      totalRevenue: totalPaid,
       pendingRevenue: transactions
         .filter((t) => t.status === PaymentStatus.PENDING)
         .reduce((sum, t) => sum + t.amount, 0),
