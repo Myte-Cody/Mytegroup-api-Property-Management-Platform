@@ -27,6 +27,17 @@ services:
     networks:
       - mytegroup-network
 
+  ai-api:
+    build:
+      context: ./ai_features
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    networks:
+      - mytegroup-network
+
 networks:
   mytegroup-network:
     driver: bridge
