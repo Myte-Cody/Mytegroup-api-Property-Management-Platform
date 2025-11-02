@@ -471,12 +471,19 @@ export class LeasesService {
           lease.paymentCycle,
         );
 
+        // Get property ID from unit
+        const unit = await this.unitModel.findById(lease.unit, null, { session }).exec();
+        const propertyId = unit?.property?.toString();
+        const unitId = lease.unit?.toString();
+
         await this.createTransactionsForSchedule(
           id,
           savedNewRentalPeriod._id.toString(),
           newRentAmount,
           transactionSchedule,
           session,
+          propertyId,
+          unitId,
         );
 
         await currentRentalPeriod.save({ session });
@@ -1159,12 +1166,21 @@ export class LeasesService {
         lease.paymentCycle,
       );
 
+      // Get property ID from unit
+      const unit = await this.unitModel
+        .findById(lease.unit, null, { session: session ?? null })
+        .exec();
+      const propertyId = unit?.property?.toString();
+      const unitId = lease.unit?.toString();
+
       await this.createTransactionsForSchedule(
         lease._id.toString(),
         initialRentalPeriod._id.toString(),
         lease.rentAmount,
         transactionSchedule,
         session,
+        propertyId,
+        unitId,
       );
 
       if (lease.isSecurityDeposit && lease.securityDepositAmount) {
@@ -1173,6 +1189,8 @@ export class LeasesService {
           lease.securityDepositAmount,
           lease.startDate,
           session,
+          propertyId,
+          unitId,
         );
       }
 
@@ -1251,6 +1269,11 @@ export class LeasesService {
         status: 'completed',
       };
 
+      // Get property ID from unit
+      const unit = await this.unitModel.findById(lease.unit, null, { session }).exec();
+      const propertyId = unit?.property?.toString();
+      const unitId = lease.unit?.toString();
+
       // Create both refund and deduction transactions
       await this.createDepositSettlementTransactions(
         leaseId,
@@ -1258,6 +1281,8 @@ export class LeasesService {
         totalDeductions,
         assessmentDto,
         session,
+        propertyId,
+        unitId,
       );
 
       // Update lease with assessment and refund information
@@ -1354,6 +1379,13 @@ export class LeasesService {
       newPaymentCycle,
     );
 
+    // Get property ID from unit
+    const unit = await this.unitModel
+      .findById(lease.unit, null, { session: session ?? null })
+      .exec();
+    const propertyId = unit?.property?.toString();
+    const unitId = lease.unit?.toString();
+
     // Create new transactions for the remaining period
     await this.createTransactionsForSchedule(
       lease._id.toString(),
@@ -1361,6 +1393,8 @@ export class LeasesService {
       currentRentalPeriod.rentAmount,
       transactionSchedule,
       session,
+      propertyId,
+      unitId,
     );
   }
 
@@ -1382,6 +1416,8 @@ export class LeasesService {
     amount: number,
     dueDates: Date[],
     session?: ClientSession,
+    propertyId?: string,
+    unitId?: string,
   ): Promise<void> {
     const transactionPromises = dueDates.map((dueDate) => {
       const transaction = new this.transactionModel({
@@ -1391,6 +1427,8 @@ export class LeasesService {
         type: PaymentType.RENT,
         status: PaymentStatus.PENDING,
         dueDate: dueDate,
+        ...(propertyId && { property: propertyId }),
+        ...(unitId && { unit: unitId }),
       });
       return transaction.save({ session: session ?? null });
     });
@@ -1403,6 +1441,8 @@ export class LeasesService {
     amount: number,
     dueDate: Date,
     session?: ClientSession,
+    propertyId?: string,
+    unitId?: string,
   ): Promise<void> {
     const securityDepositTransaction = new this.transactionModel({
       lease: leaseId,
@@ -1411,6 +1451,8 @@ export class LeasesService {
       status: PaymentStatus.PENDING,
       dueDate: dueDate,
       notes: 'Security deposit for lease activation',
+      ...(propertyId && { property: propertyId }),
+      ...(unitId && { unit: unitId }),
     });
 
     await securityDepositTransaction.save({ session: session ?? null });
@@ -1763,6 +1805,8 @@ export class LeasesService {
     totalDeductions: number,
     assessmentDto: any,
     session: ClientSession | null,
+    propertyId?: string,
+    unitId?: string,
   ): Promise<void> {
     // Always create refund transaction (negative amount - money going TO tenant)
     const refundTransaction = new this.transactionModel({
@@ -1773,6 +1817,8 @@ export class LeasesService {
       paidAt: new Date(),
       notes: `Security deposit refund: ${assessmentDto.refundReason}`,
       paymentMethod: PaymentMethod.OTHER, // Default method for refunds
+      ...(propertyId && { property: propertyId }),
+      ...(unitId && { unit: unitId }),
     });
 
     await refundTransaction.save({ session });
@@ -1787,6 +1833,8 @@ export class LeasesService {
         paidAt: new Date(),
         notes: `Security deposit deductions`,
         paymentMethod: PaymentMethod.OTHER, // No actual payment method for deductions
+        ...(propertyId && { property: propertyId }),
+        ...(unitId && { unit: unitId }),
       });
 
       await deductionTransaction.save({ session });
