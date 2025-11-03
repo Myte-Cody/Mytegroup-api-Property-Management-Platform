@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { plainToInstance, Transform, Type } from 'class-transformer';
 import {
   IsMongoId,
   IsNotEmpty,
@@ -45,6 +45,13 @@ export class CreateFeedPostDto {
     type: CreatePollDto,
   })
   @IsOptional()
+  @Transform(({ value }) => {
+    try {
+      return plainToInstance(CreatePollDto, JSON.parse(value));
+    } catch {
+      return value;
+    }
+  })
   @ValidateNested()
   @Type(() => CreatePollDto)
   poll?: CreatePollDto;
