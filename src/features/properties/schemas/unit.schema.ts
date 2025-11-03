@@ -7,6 +7,8 @@ import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enu
 import { Address } from '../../../common/interfaces/address.interface';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
 
+export type UnitDocument = Unit & Document & SoftDelete;
+
 @Schema({ timestamps: true })
 export class Unit extends Document implements SoftDelete {
   @Prop({

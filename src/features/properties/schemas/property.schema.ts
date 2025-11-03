@@ -22,6 +22,8 @@ export class Address {
   country: string;
 }
 
+export type PropertyDocument = Property & Document & SoftDelete;
+
 @Schema({ timestamps: true })
 export class Property extends Document implements SoftDelete {
   @Prop({ required: true, trim: true, maxlength: 128 })

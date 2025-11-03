@@ -1,6 +1,6 @@
 import { Expense } from '../../../features/expenses/schemas/expense.schema';
 import { Action, AppAbility } from '../casl-ability.factory';
-import { IPolicyHandler } from '../policy-handler.interface';
+import { IPolicyHandler } from '../guards/casl.guard';
 
 export class CreateExpensePolicyHandler implements IPolicyHandler {
   handle(ability: AppAbility) {
