@@ -105,6 +105,11 @@ export class FeedPostsService {
       query.property = queryDto.property;
     }
 
+    // Filter by multiple properties if provided
+    if (queryDto.properties && queryDto.properties.length > 0) {
+      query.property = { $in: queryDto.properties };
+    }
+
     // Search in title and description
     if (queryDto.search) {
       query.$or = [

@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsArray, IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class FeedPostQueryDto {
   @ApiPropertyOptional({
@@ -10,6 +10,21 @@ export class FeedPostQueryDto {
   @IsOptional()
   @IsMongoId()
   property?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by multiple property IDs (comma-separated)',
+    example: '673d8b8f123456789abcdef0,673d8b8f123456789abcdef1',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return value.split(',').map((id) => id.trim());
+    }
+    return value;
+  })
+  @IsArray()
+  @IsMongoId({ each: true })
+  properties?: string[];
 
   @ApiPropertyOptional({
     description: 'Search term (searches in title and description)',
