@@ -1,5 +1,88 @@
 # MyteGroup API - Changelog
 
+## November 3, 2025
+
+### Feed Posts Enhancement & Lease Data Improvements
+
+**Enhanced feed post querying and lease data enrichment**
+
+#### Feed Posts System Updates
+
+- **Multiple Property Query Support**
+  - Added `properties` query parameter to filter feed posts by multiple property IDs
+  - Accepts comma-separated property IDs in query string
+  - Enhanced DTO with array validation and transformation
+  - Improved feed post filtering with MongoDB `$in` operator
+  - Better support for tenant-facing feed aggregation across properties
+
+- **Poll Data Handling**
+  - Fixed poll data parsing in create feed post DTO
+  - Improved JSON parsing for poll options
+  - Better error handling for poll data transformation
+  - Enhanced poll validation and structure
+
+#### Build & Maintenance
+
+- **Build Fixes**
+  - Resolved compilation issues
+  - Fixed type errors and imports
+  - Improved build stability
+
+#### Lease System Enhancements
+
+- **Lease Response Enrichment**
+  - Return populated property data with lease details
+  - Return populated unit data with lease details
+  - Better relationship data for lease queries
+  - Improved data structure for frontend consumption
+
+#### Commits
+
+- `9ec3829` - feat: add properties to feed posts query (BadreddineZatout, 2 hours ago)
+- `4c94cc7` - fix: parse poll data dto (BadreddineZatout, 4 hours ago)
+- `cb5323d` - fix: build (BadreddineZatout, 4 hours ago)
+
+---
+
+## November 2, 2025
+
+### AI Features & Revenue System
+
+**Added AI-powered invoice classification and comprehensive revenue management**
+
+#### AI Invoice Classifier
+
+- **Machine Learning Integration**
+  - Invoice classification using AI models
+  - Docker integration for AI services
+  - Automated invoice categorization
+  - Improved invoice processing workflow
+
+#### Revenue Management System
+
+- **Revenue Tracking**
+  - Complete revenue module implementation
+  - Revenue CRUD operations
+  - Revenue categorization and tracking
+  - Integration with financial reporting
+  - Revenue analytics capabilities
+
+#### Lease Data Enhancement
+
+- **Improved Lease Responses**
+  - Return property details with leases
+  - Return unit information with leases
+  - Enhanced lease data structure
+  - Better relationship management
+
+#### Commits
+
+- `154a0e9` - feat: return property and unit with lease (BadreddineZatout, 24 hours ago)
+- `f04bbc7` - Add AI features (invoice classifier + Docker integration) (ilyas, 24 hours ago)
+- `1871ad5` - feat: revenues module (BadreddineZatout, 26 hours ago)
+
+---
+
 ## October 30, 2025
 
 ### Expense System Enhancement & Policy Updates
