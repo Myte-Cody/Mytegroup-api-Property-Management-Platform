@@ -12,7 +12,9 @@ import {
   AiExtractionService,
   InvoiceExtractionResult,
 } from '../../ai/services/ai-extraction.service';
-import { UserDocument } from '../../users/schemas/user.schema';
+import { Contractor } from '../../contractors/schema/contractor.schema';
+import { NotificationsService } from '../../notifications/notifications.service';
+import { User, UserDocument } from '../../users/schemas/user.schema';
 import { CreateInvoiceDto, UpdateInvoiceDto } from '../dto';
 import { Invoice } from '../schemas/invoice.schema';
 import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
@@ -28,9 +30,14 @@ export class InvoicesService {
     private readonly ticketModel: AppModel<MaintenanceTicket>,
     @InjectModel(ScopeOfWork.name)
     private readonly scopeOfWorkModel: AppModel<ScopeOfWork>,
+    @InjectModel(User.name)
+    private readonly userModel: AppModel<User>,
+    @InjectModel(Contractor.name)
+    private readonly contractorModel: AppModel<Contractor>,
     private readonly mediaService: MediaService,
     private readonly sessionService: SessionService,
     private readonly aiExtractionService: AiExtractionService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async createInvoiceForTicket(
@@ -84,6 +91,16 @@ export class InvoicesService {
           'invoice_files',
           undefined,
           'Invoice',
+          session,
+        );
+      }
+
+      // Send notification to landlord if invoice was uploaded by contractor
+      if (currentUser.user_type === 'Contractor') {
+        await this.notifyLandlordOfInvoiceUpload(
+          ticket,
+          null,
+          currentUser,
           session,
         );
       }
@@ -143,6 +160,16 @@ export class InvoicesService {
           'invoice_files',
           undefined,
           'Invoice',
+          session,
+        );
+      }
+
+      // Send notification to landlord if invoice was uploaded by contractor
+      if (currentUser.user_type === 'Contractor') {
+        await this.notifyLandlordOfInvoiceUpload(
+          null,
+          sow,
+          currentUser,
           session,
         );
       }
@@ -351,5 +378,49 @@ export class InvoicesService {
       ...invoice.toObject(),
       invoiceFile: files.length > 0 ? files[0] : null,
     };
+  }
+
+  /**
+   * Notify landlord when an invoice is uploaded by contractor
+   */
+  private async notifyLandlordOfInvoiceUpload(
+    ticket: MaintenanceTicket | null,
+    sow: ScopeOfWork | null,
+    currentUser: UserDocument,
+    session: ClientSession | null,
+  ): Promise<void> {
+    try {
+      // Find the landlord user
+      const landlordUser = await this.userModel
+        .findOne({ user_type: 'Landlord' }, null, { session })
+        .exec();
+
+      if (!landlordUser) {
+        return;
+      }
+
+      // Get contractor information
+      const contractor = await this.contractorModel
+        .findById(currentUser.organization_id, null, { session })
+        .exec();
+
+      const contractorName = contractor?.name || 'Contractor';
+
+      // Determine the entity reference (ticket or SOW code)
+      let entityReference = '';
+      if (ticket) {
+        entityReference = ticket.ticketNumber || ticket.title;
+      } else if (sow) {
+        entityReference = (sow as any).code || 'Scope of Work';
+      }
+
+      await this.notificationsService.createNotification(
+        landlordUser._id.toString(),
+        'Invoice Uploaded',
+        `Contractor ${contractorName} uploaded invoice for ${entityReference}.`,
+      );
+    } catch (error) {
+      console.error('Failed to notify landlord of invoice upload:', error);
+    }
   }
 }

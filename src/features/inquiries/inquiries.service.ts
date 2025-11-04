@@ -1,11 +1,14 @@
 import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Types } from 'mongoose';
+import { InquiryType } from '../../common/enums/inquiry.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
+import { NotificationsService } from '../notifications/notifications.service';
 import { Property } from '../properties/schemas/property.schema';
 import { Unit } from '../properties/schemas/unit.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateInquiryDto } from './dto/create-inquiry.dto';
 import { InquiryQueryDto, PaginatedInquiriesResponse } from './dto/inquiry-query.dto';
 import { UpdateInquiryDto } from './dto/update-inquiry.dto';
@@ -20,7 +23,10 @@ export class InquiriesService {
     private readonly propertyModel: AppModel<Property>,
     @InjectModel(Unit.name)
     private readonly unitModel: AppModel<Unit>,
+    @InjectModel(User.name)
+    private readonly userModel: AppModel<User>,
     private readonly sessionService: SessionService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async create(createInquiryDto: CreateInquiryDto) {
@@ -70,6 +76,9 @@ export class InquiriesService {
 
       const newInquiry = new this.inquiryModel(inquiryData);
       const inquiry = await newInquiry.save({ session });
+
+      // Send notification to landlord based on inquiry type
+      await this.notifyLandlordOfNewInquiry(inquiry, session);
 
       return {
         success: true,
@@ -245,5 +254,73 @@ export class InquiriesService {
       success: true,
       message: 'Inquiry deleted successfully',
     };
+  }
+
+  /**
+   * Notify landlord of new inquiry (contact request or visit booking)
+   */
+  private async notifyLandlordOfNewInquiry(
+    inquiry: Inquiry,
+    session: ClientSession | null,
+  ): Promise<void> {
+    try {
+      // Find the landlord user
+      const landlordUser = await this.userModel
+        .findOne({ user_type: 'Landlord' }, null, { session })
+        .exec();
+
+      if (!landlordUser) {
+        return;
+      }
+
+      const leadName = inquiry.name;
+
+      // Get property/unit information
+      let entityName = 'Property';
+      if (inquiry.property) {
+        const property = await this.propertyModel.findById(inquiry.property, null, { session });
+        if (property) {
+          entityName = property.name;
+
+          // If unit is specified, add unit number
+          if (inquiry.unit) {
+            const unit = await this.unitModel.findById(inquiry.unit, null, { session });
+            if (unit) {
+              entityName = `${property.name} - Unit ${unit.unitNumber}`;
+            }
+          }
+        }
+      }
+
+      // Send appropriate notification based on inquiry type
+      if (inquiry.inquiryType === InquiryType.CONTACT) {
+        await this.notificationsService.createNotification(
+          landlordUser._id.toString(),
+          'New Contact Request',
+          `New contact request for ${entityName} from ${leadName}. Check details.`,
+        );
+      } else if (inquiry.inquiryType === InquiryType.VISIT) {
+        // Format the preferred date if available
+        let dateTimeStr = 'soon';
+        if (inquiry.preferredDate) {
+          const date = new Date(inquiry.preferredDate);
+          dateTimeStr = date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+        }
+
+        await this.notificationsService.createNotification(
+          landlordUser._id.toString(),
+          'New Visit Booking',
+          `New visit booking request for ${entityName} on ${dateTimeStr}.`,
+        );
+      }
+    } catch (error) {
+      console.error('Failed to notify landlord of new inquiry:', error);
+    }
   }
 }

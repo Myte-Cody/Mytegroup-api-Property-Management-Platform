@@ -6,10 +6,13 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { Contractor } from '../../contractors/schema/contractor.schema';
 import { Lease } from '../../leases/schemas/lease.schema';
+import { Tenant } from '../../tenants/schema/tenant.schema';
 import { Media } from '../../media/schemas/media.schema';
 import { MediaService } from '../../media/services/media.service';
-import { User } from '../../users/schemas/user.schema';
+import { NotificationsService } from '../../notifications/notifications.service';
+import { User, UserDocument } from '../../users/schemas/user.schema';
 import { AcceptThreadDto } from '../dto/accept-thread.dto';
 import { CreateThreadMessageDto } from '../dto/create-thread-message.dto';
 import { CreateThreadDto } from '../dto/create-thread.dto';
@@ -48,7 +51,14 @@ export class ThreadsService {
     private leaseModel: Model<Lease>,
     @InjectModel(Media.name)
     private mediaModel: Model<Media>,
+    @InjectModel(User.name)
+    private userModel: Model<UserDocument>,
+    @InjectModel(Contractor.name)
+    private contractorModel: Model<Contractor>,
+    @InjectModel(Tenant.name)
+    private tenantModel: Model<Tenant>,
     private mediaService: MediaService,
+    private notificationsService: NotificationsService,
   ) {}
 
   async create(createThreadDto: CreateThreadDto): Promise<ThreadDocument> {
@@ -331,11 +341,12 @@ export class ThreadsService {
       .exec();
 
     // Enrich media with URLs
-    if (
+    const hasAttachments =
       messageWithMedia &&
       (messageWithMedia as any).media &&
-      (messageWithMedia as any).media.length > 0
-    ) {
+      (messageWithMedia as any).media.length > 0;
+
+    if (hasAttachments) {
       const enrichedMedia = await Promise.all(
         (messageWithMedia as any).media.map((media: any) =>
           this.mediaService.enrichMediaWithUrl(media),
@@ -343,6 +354,19 @@ export class ThreadsService {
       );
       // Replace media array with enriched version
       (messageWithMedia as any).media = enrichedMedia;
+    }
+
+    // Send notification to landlord if message was sent by tenant or contractor
+    if (
+      createMessageDto.senderType === 'TENANT' ||
+      createMessageDto.senderType === 'CONTRACTOR'
+    ) {
+      await this.notifyLandlordOfNewMessage(
+        thread,
+        createMessageDto.senderType,
+        createMessageDto.senderId,
+        hasAttachments,
+      );
     }
 
     return messageWithMedia || savedMessage;
@@ -1044,5 +1068,80 @@ export class ThreadsService {
     ];
 
     await this.threadParticipantModel.insertMany(participants);
+  }
+
+  /**
+   * Notify landlord of new message or attachment in thread
+   */
+  private async notifyLandlordOfNewMessage(
+    thread: ThreadDocument,
+    senderType: string,
+    senderId: string,
+    hasAttachments: boolean,
+  ): Promise<void> {
+    try {
+      // Find the landlord user
+      const landlordUser = await this.userModel.findOne({ user_type: 'Landlord' }).exec();
+
+      if (!landlordUser) {
+        return;
+      }
+
+      // Get sender information
+      let senderName = 'User';
+      if (senderType === 'TENANT') {
+        const tenant = await this.tenantModel.findById(senderId).exec();
+        if (tenant) {
+          const tenantUser = await this.userModel
+            .findOne({ organization_id: tenant._id, user_type: 'Tenant' })
+            .exec();
+          if (tenantUser) {
+            senderName =
+              tenantUser.firstName && tenantUser.lastName
+                ? `${tenantUser.firstName} ${tenantUser.lastName}`
+                : tenantUser.username;
+          }
+        }
+      } else if (senderType === 'CONTRACTOR') {
+        const contractor = await this.contractorModel.findById(senderId).exec();
+        if (contractor) {
+          senderName = contractor.name || 'Contractor';
+        }
+      }
+
+      // Get the entity title (ticket or SOW)
+      let entityTitle = 'Thread';
+      if (thread.linkedEntityType === ThreadLinkedEntityType.TICKET && thread.linkedEntityId) {
+        const ticket = await this.ticketModel.findById(thread.linkedEntityId).exec();
+        if (ticket) {
+          entityTitle = ticket.title;
+        }
+      } else if (
+        thread.linkedEntityType === ThreadLinkedEntityType.SCOPE_OF_WORK &&
+        thread.linkedEntityId
+      ) {
+        const sow = await this.scopeOfWorkModel.findById(thread.linkedEntityId).exec();
+        if (sow) {
+          entityTitle = `SOW #${(sow as any).sowNumber || sow._id}`;
+        }
+      }
+
+      // Send appropriate notification based on whether there are attachments
+      if (hasAttachments) {
+        await this.notificationsService.createNotification(
+          landlordUser._id.toString(),
+          'New Attachment',
+          `📎 ${senderName} attached a file in ${entityTitle}.`,
+        );
+      } else {
+        await this.notificationsService.createNotification(
+          landlordUser._id.toString(),
+          'New Message',
+          `💬 ${senderName} sent a new message in ${entityTitle}.`,
+        );
+      }
+    } catch (error) {
+      console.error('Failed to notify landlord of new message:', error);
+    }
   }
 }
