@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import {
+  AiExtractionService,
+  InvoiceExtractionResult,
+} from '../../ai/services/ai-extraction.service';
 import { Invoice, InvoiceDocument } from '../../maintenance/schemas/invoice.schema';
 import {
   MaintenanceTicket,
@@ -38,6 +42,7 @@ export class ExpensesService {
     @InjectModel(Unit.name)
     private unitModel: Model<UnitDocument>,
     private mediaService: MediaService,
+    private aiExtractionService: AiExtractionService,
   ) {}
 
   /**
@@ -74,11 +79,23 @@ export class ExpensesService {
       throw new BadRequestException('Invalid unit ID');
     }
 
+    // Extract data from media if provided
+    let extractedData: InvoiceExtractionResult = null;
+    if (createExpenseDto.media) {
+      extractedData = await this.aiExtractionService.extractInvoiceData(createExpenseDto.media);
+    }
+
+    // Use extracted data if available, otherwise use provided values
+    const amount = extractedData?.total_amount || createExpenseDto.amount;
+    const category = extractedData?.expense_class
+      ? (extractedData.expense_class as ExpenseCategory)
+      : createExpenseDto.category;
+
     const expense = new this.expenseModel({
       property: new Types.ObjectId(createExpenseDto.property),
       unit: createExpenseDto.unit ? new Types.ObjectId(createExpenseDto.unit) : undefined,
-      category: createExpenseDto.category,
-      amount: createExpenseDto.amount,
+      category: category,
+      amount: amount,
       description: createExpenseDto.description,
       status: createExpenseDto.status,
     });
@@ -255,14 +272,12 @@ export class ExpensesService {
         continue;
       }
 
-      // Enrich invoices media with URLs
-      for (const invoice of invoices) {
-        if ((invoice as any).media && (invoice as any).media.length > 0) {
-          const enrichedMedia = await Promise.all(
-            (invoice as any).media.map((media: any) => this.mediaService.enrichMediaWithUrl(media)),
-          );
-          (invoice as any).media = enrichedMedia;
-        }
+      // Enrich invoice media with URLs
+      let enrichedMedia: any[] = [];
+      if ((invoice as any).media && (invoice as any).media.length > 0) {
+        enrichedMedia = await Promise.all(
+          (invoice as any).media.map((media: any) => this.mediaService.enrichMediaWithUrl(media)),
+        );
       }
 
       // Build the expense object
@@ -277,7 +292,7 @@ export class ExpensesService {
         description: `Invoice - ${invoice.description || sowData?.title || ticketData?.title || 'Maintenance'}`,
         date: (invoice as any).createdAt,
         status: invoice.status,
-        media: (invoice as any).media,
+        media: enrichedMedia,
         createdAt: (invoice as any).createdAt,
         updatedAt: (invoice as any).updatedAt,
         isInvoice: true,
@@ -441,19 +456,52 @@ export class ExpensesService {
       throw new BadRequestException('Invalid unit ID');
     }
 
+    // Extract data from media if provided
+    let extractedData: InvoiceExtractionResult = null;
+    if (updateExpenseDto.media) {
+      extractedData = await this.aiExtractionService.extractInvoiceData(updateExpenseDto.media);
+    }
+
     // Update fields
     if (updateExpenseDto.property) expense.property = new Types.ObjectId(updateExpenseDto.property);
     if (updateExpenseDto.unit) expense.unit = new Types.ObjectId(updateExpenseDto.unit);
     if (updateExpenseDto.category) expense.category = updateExpenseDto.category;
-    if (updateExpenseDto.amount !== undefined) expense.amount = updateExpenseDto.amount;
+
+    // Use extracted amount if available, otherwise use provided value
+    if (extractedData?.total_amount) {
+      expense.amount = extractedData.total_amount;
+    } else if (updateExpenseDto.amount !== undefined) {
+      expense.amount = updateExpenseDto.amount;
+    }
+
+    // Use extracted category if available, otherwise use provided value
+    if (extractedData?.expense_class) {
+      expense.category = extractedData.expense_class as ExpenseCategory;
+    } else if (updateExpenseDto.category) {
+      expense.category = updateExpenseDto.category;
+    }
+
     if (updateExpenseDto.description !== undefined)
       expense.description = updateExpenseDto.description;
     if (updateExpenseDto.status) expense.status = updateExpenseDto.status;
 
     const updatedExpense = await expense.save();
 
-    // Upload new media if provided
+    // Replace media if provided
     if (updateExpenseDto.media) {
+      // Delete existing media
+      const existingMedia = await this.mediaService.getMediaForEntity(
+        'Expense',
+        String(updatedExpense._id),
+        currentUser,
+        'expenses',
+      );
+
+      for (const media of existingMedia) {
+        await this.mediaService.deleteMedia(String(media._id), currentUser);
+      }
+
+      // Upload new media
       await this.mediaService.upload(
         updateExpenseDto.media,
         updatedExpense,

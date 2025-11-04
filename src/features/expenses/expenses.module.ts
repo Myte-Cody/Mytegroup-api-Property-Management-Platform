@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { NestjsFormDataModule } from 'nestjs-form-data';
 import { CaslModule } from '../../common/casl/casl.module';
+import { AiModule } from '../ai/ai.module';
 import { Invoice, InvoiceSchema } from '../maintenance/schemas/invoice.schema';
 import {
   MaintenanceTicket,
@@ -28,6 +29,7 @@ import { ExpensesService } from './services/expenses.service';
     NestjsFormDataModule,
     CaslModule,
     MediaModule,
+    AiModule,
   ],
   controllers: [ExpensesController],
   providers: [ExpensesService],
