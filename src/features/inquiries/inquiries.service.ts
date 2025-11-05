@@ -5,10 +5,11 @@ import { InquiryType } from '../../common/enums/inquiry.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
+import { InquiryEmailService } from '../email/services/inquiry-email.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Property } from '../properties/schemas/property.schema';
 import { Unit } from '../properties/schemas/unit.schema';
-import { User, UserDocument } from '../users/schemas/user.schema';
+import { User } from '../users/schemas/user.schema';
 import { CreateInquiryDto } from './dto/create-inquiry.dto';
 import { InquiryQueryDto, PaginatedInquiriesResponse } from './dto/inquiry-query.dto';
 import { UpdateInquiryDto } from './dto/update-inquiry.dto';
@@ -27,6 +28,7 @@ export class InquiriesService {
     private readonly userModel: AppModel<User>,
     private readonly sessionService: SessionService,
     private readonly notificationsService: NotificationsService,
+    private readonly inquiryEmailService: InquiryEmailService,
   ) {}
 
   async create(createInquiryDto: CreateInquiryDto) {
@@ -277,27 +279,54 @@ export class InquiriesService {
 
       // Get property/unit information
       let entityName = 'Property';
+      let propertyName = 'Unknown Property';
+      let unitIdentifier: string | undefined;
+
       if (inquiry.property) {
         const property = await this.propertyModel.findById(inquiry.property, null, { session });
         if (property) {
+          propertyName = property.name;
           entityName = property.name;
 
           // If unit is specified, add unit number
           if (inquiry.unit) {
             const unit = await this.unitModel.findById(inquiry.unit, null, { session });
             if (unit) {
+              unitIdentifier = unit.unitNumber;
               entityName = `${property.name} - Unit ${unit.unitNumber}`;
             }
           }
         }
       }
 
+      const landlordName =
+        landlordUser.firstName && landlordUser.lastName
+          ? `${landlordUser.firstName} ${landlordUser.lastName}`
+          : landlordUser.username;
+
       // Send appropriate notification based on inquiry type
       if (inquiry.inquiryType === InquiryType.CONTACT) {
+        // Send in-app notification
         await this.notificationsService.createNotification(
           landlordUser._id.toString(),
           'New Contact Request',
           `New contact request for ${entityName} from ${leadName}. Check details.`,
+        );
+
+        // Send email notification
+        await this.inquiryEmailService.sendContactRequestEmail(
+          {
+            recipientName: landlordName,
+            recipientEmail: landlordUser.email,
+            leadName,
+            leadEmail: inquiry.email,
+            leadPhone: inquiry.phone,
+            propertyName,
+            unitIdentifier,
+            message: inquiry.message,
+            submittedAt: inquiry.createdAt || new Date(),
+          },
+          { queue: true },
         );
       } else if (inquiry.inquiryType === InquiryType.VISIT) {
         // Format the preferred date if available
@@ -313,10 +342,28 @@ export class InquiriesService {
           });
         }
 
+        // Send in-app notification
         await this.notificationsService.createNotification(
           landlordUser._id.toString(),
           'New Visit Booking',
           `New visit booking request for ${entityName} on ${dateTimeStr}.`,
+        );
+
+        // Send email notification
+        await this.inquiryEmailService.sendVisitRequestEmail(
+          {
+            recipientName: landlordName,
+            recipientEmail: landlordUser.email,
+            leadName,
+            leadEmail: inquiry.email,
+            leadPhone: inquiry.phone,
+            propertyName,
+            unitIdentifier,
+            preferredDate: inquiry.preferredDate,
+            message: inquiry.message,
+            submittedAt: inquiry.createdAt || new Date(),
+          },
+          { queue: true },
         );
       }
     } catch (error) {

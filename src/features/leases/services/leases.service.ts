@@ -23,6 +23,7 @@ import { addDaysToDate, getToday } from '../../../common/utils/date.utils';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { LeaseEmailService } from '../../email/services/lease-email.service';
 import { MediaService } from '../../media/services/media.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 import { Unit } from '../../properties/schemas/unit.schema';
 import { Tenant } from '../../tenants/schema/tenant.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';
@@ -70,6 +71,7 @@ export class LeasesService {
     private readonly leaseEmailService: LeaseEmailService,
     private readonly mediaService: MediaService,
     private readonly sessionService: SessionService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async findAllPaginated(leaseQueryDto: LeaseQueryDto, currentUser: UserDocument) {
@@ -1523,6 +1525,26 @@ export class LeasesService {
       );
 
       await Promise.all([...tenantEmailPromises, ...landlordEmailPromises]);
+
+      // Send in-app notifications to tenants
+      const tenantNotificationPromises = users.map((user) =>
+        this.notificationsService.createNotification(
+          user._id.toString(),
+          'Lease Activated',
+          `Your lease for ${property.name} - Unit ${unit.unitNumber} has been activated.`,
+        ),
+      );
+
+      // Send in-app notifications to landlords
+      const landlordNotificationPromises = landlordUsers.map((user) =>
+        this.notificationsService.createNotification(
+          user._id.toString(),
+          'Lease Activated',
+          `Lease for ${property.name} - Unit ${unit.unitNumber} has been activated.`,
+        ),
+      );
+
+      await Promise.all([...tenantNotificationPromises, ...landlordNotificationPromises]);
     } catch (error) {
       // Log error but don't fail the lease activation if email sending fails
       console.error('Failed to send lease activation emails:', error);
@@ -1604,6 +1626,26 @@ export class LeasesService {
       );
 
       await Promise.all([...tenantEmailPromises, ...landlordEmailPromises]);
+
+      // Send in-app notifications to tenants
+      const tenantNotificationPromises = users.map((user) =>
+        this.notificationsService.createNotification(
+          user._id.toString(),
+          'Lease Terminated',
+          `Your lease for ${property.name} - Unit ${unit.unitNumber} has been terminated.`,
+        ),
+      );
+
+      // Send in-app notifications to landlords
+      const landlordNotificationPromises = landlordUsers.map((user) =>
+        this.notificationsService.createNotification(
+          user._id.toString(),
+          'Lease Terminated',
+          `Lease for ${property.name} - Unit ${unit.unitNumber} has been terminated.`,
+        ),
+      );
+
+      await Promise.all([...tenantNotificationPromises, ...landlordNotificationPromises]);
     } catch (error) {
       console.error('Failed to send lease termination emails:', error);
     }
@@ -1685,6 +1727,27 @@ export class LeasesService {
       );
 
       await Promise.all([...tenantEmailPromises, ...landlordEmailPromises]);
+
+      // Send in-app notifications to tenants
+      const renewalType = isAutoRenewal ? 'auto-renewed' : 'renewed';
+      const tenantNotificationPromises = users.map((user) =>
+        this.notificationsService.createNotification(
+          user._id.toString(),
+          'Lease Renewal',
+          `Your lease for ${property.name} - Unit ${unit.unitNumber} has been ${renewalType}.`,
+        ),
+      );
+
+      // Send in-app notifications to landlords
+      const landlordNotificationPromises = landlordUsers.map((user) =>
+        this.notificationsService.createNotification(
+          user._id.toString(),
+          'Lease Renewal',
+          `Lease for ${property.name} - Unit ${unit.unitNumber} has been ${renewalType}.`,
+        ),
+      );
+
+      await Promise.all([...tenantNotificationPromises, ...landlordNotificationPromises]);
     } catch (error) {
       // Log error but don't fail the lease renewal if email sending fails
       console.error('Failed to send lease renewal emails:', error);
@@ -1783,6 +1846,26 @@ export class LeasesService {
           ),
         );
         await Promise.all([...tenantEmailPromises, ...landlordEmailPromises]);
+
+        // Send in-app notifications to tenants
+        const tenantNotificationPromises = users.map((user) =>
+          this.notificationsService.createNotification(
+            user._id.toString(),
+            'Lease Expiring Soon',
+            `Your lease for ${property.name} - Unit ${unit.unitNumber} expires in ${daysRemaining} days.`,
+          ),
+        );
+
+        // Send in-app notifications to landlords
+        const landlordNotificationPromises = landlordUsers.map((user) =>
+          this.notificationsService.createNotification(
+            user._id.toString(),
+            'Lease Expiring Soon',
+            `Lease for ${property.name} - Unit ${unit.unitNumber} expires in ${daysRemaining} days.`,
+          ),
+        );
+
+        await Promise.all([...tenantNotificationPromises, ...landlordNotificationPromises]);
       }
       const referenceDateStr = referenceDate.toISOString().split('T')[0];
       console.log(

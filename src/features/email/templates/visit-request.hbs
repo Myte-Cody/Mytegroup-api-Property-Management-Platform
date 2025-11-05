@@ -1,0 +1,135 @@
+<html>
+  <head>
+    <meta charset='utf-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>New Visit Request - Property Management Platform</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .header {
+        background-color: #fd7e14;
+        color: white;
+        padding: 20px;
+        text-align: center;
+      }
+      .content {
+        padding: 20px;
+        background-color: #f9f9f9;
+      }
+      .button {
+        display: inline-block;
+        padding: 10px 20px;
+        background-color: #fd7e14;
+        color: white;
+        text-decoration: none;
+        border-radius: 5px;
+        margin: 15px 0;
+      }
+      .info-box {
+        background-color: #fff3e6;
+        padding: 15px;
+        border: 1px solid #ffe0b3;
+        border-radius: 5px;
+        margin: 15px 0;
+      }
+      .footer {
+        text-align: center;
+        padding: 20px;
+        font-size: 12px;
+        color: #666;
+      }
+      .visit-details {
+        margin-top: 20px;
+        border-top: 1px solid #ddd;
+        padding-top: 15px;
+      }
+      .detail-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 5px;
+      }
+      .detail-label {
+        font-weight: bold;
+        color: #555;
+      }
+      .preferred-date {
+        font-size: 18px;
+        color: #fd7e14;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class='container'>
+      <div class='header'>
+        <h1>🏠 New Visit Request</h1>
+      </div>
+      <div class='content'>
+        <h2>Hello {{capitalize recipientName}}!</h2>
+
+        <p>You have received a new visit booking request from {{leadName}}.</p>
+
+        <div class='info-box'>
+          <h3>Visit Request Details</h3>
+          <div class='visit-details'>
+            <div class='detail-row'>
+              <span class='detail-label'>Name:</span>
+              <span>{{leadName}}</span>
+            </div>
+            <div class='detail-row'>
+              <span class='detail-label'>Email:</span>
+              <span>{{leadEmail}}</span>
+            </div>
+            {{#if leadPhone}}
+              <div class='detail-row'>
+                <span class='detail-label'>Phone:</span>
+                <span>{{leadPhone}}</span>
+              </div>
+            {{/if}}
+            <div class='detail-row'>
+              <span class='detail-label'>Property:</span>
+              <span>{{propertyName}}</span>
+            </div>
+            {{#if unitIdentifier}}
+              <div class='detail-row'>
+                <span class='detail-label'>Unit:</span>
+                <span>{{unitIdentifier}}</span>
+              </div>
+            {{/if}}
+            {{#if preferredDate}}
+              <div class='detail-row'>
+                <span class='detail-label'>Preferred Date:</span>
+                <span class='preferred-date'>{{formatDate preferredDate}}</span>
+              </div>
+            {{/if}}
+            <div class='detail-row'>
+              <span class='detail-label'>Submitted:</span>
+              <span>{{formatDate submittedAt}}</span>
+            </div>
+          </div>
+        </div>
+
+        {{#if message}}
+          <div style='margin: 15px 0;'>
+            <p><strong>Additional Notes:</strong></p>
+            <p style='background: white; padding: 10px; border-radius: 5px;'>{{message}}</p>
+          </div>
+        {{/if}}
+
+        <p>Please contact the prospective tenant to confirm the visit appointment.</p>
+      </div>
+      <div class='footer'>
+        <p>Best regards,<br />The Property Management Team</p>
+        <p>© 2025 Property Management Platform. All rights reserved.</p>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,12 +1,12 @@
+import { Logger } from '@nestjs/common';
 import {
-  WebSocketGateway,
-  WebSocketServer,
   OnGatewayConnection,
   OnGatewayDisconnect,
   OnGatewayInit,
+  WebSocketGateway,
+  WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger } from '@nestjs/common';
 
 @WebSocketGateway({
   cors: {
@@ -47,7 +47,9 @@ export class NotificationsGateway
     client.join(`user:${userId}`);
 
     this.logger.log(`Client ${client.id} connected for user ${userId}`);
-    this.logger.debug(`Active connections for user ${userId}: ${this.userSocketMap.get(userId as string)?.size}`);
+    this.logger.debug(
+      `Active connections for user ${userId}: ${this.userSocketMap.get(userId as string)?.size}`,
+    );
   }
 
   handleDisconnect(client: Socket) {

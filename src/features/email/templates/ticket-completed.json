@@ -1,0 +1,4 @@
+{
+  "subject": "Ticket Completed: {{ticketTitle}}",
+  "text": "Hello {{recipientName}}, Maintenance ticket #{{ticketNumber}} ({{ticketTitle}}) has been marked as completed by {{contractorName}}. Property: {{propertyName}}{{#if unitIdentifier}} - Unit {{unitIdentifier}}{{/if}}. Completed on: {{completedAt}}."
+}

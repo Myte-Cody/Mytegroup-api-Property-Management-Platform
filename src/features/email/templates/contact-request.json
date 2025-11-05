@@ -1,0 +1,4 @@
+{
+  "subject": "New Contact Request from {{leadName}}",
+  "text": "Hello {{recipientName}}, You have received a new contact request from {{leadName}} ({{leadEmail}}) for {{propertyName}}{{#if unitIdentifier}} - Unit {{unitIdentifier}}{{/if}}. Submitted on: {{submittedAt}}."
+}

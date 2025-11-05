@@ -13,6 +13,7 @@ import { InvoiceLinkedEntityType, TicketStatus } from '../../../common/enums/mai
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { Contractor } from '../../contractors/schema/contractor.schema';
+import { MaintenanceEmailService } from '../../email/services/maintenance-email.service';
 import { Lease } from '../../leases';
 import { MediaService } from '../../media/services/media.service';
 import { NotificationsService } from '../../notifications/notifications.service';
@@ -59,6 +60,7 @@ export class MaintenanceTicketsService {
     private readonly sessionService: SessionService,
     private readonly mediaService: MediaService,
     private readonly notificationsService: NotificationsService,
+    private readonly maintenanceEmailService: MaintenanceEmailService,
     @Inject(forwardRef(() => ScopeOfWorkService))
     private readonly scopeOfWorkService: ScopeOfWorkService,
     @Inject(forwardRef(() => InvoicesService))
@@ -507,9 +509,7 @@ export class MaintenanceTicketsService {
 
       // Send notification to landlord that ticket is marked done by contractor
       if (currentUser.user_type === 'Contractor' && ticket.assignedContractor) {
-        const contractor = await this.contractorModel
-          .findById(ticket.assignedContractor)
-          .exec();
+        const contractor = await this.contractorModel.findById(ticket.assignedContractor).exec();
         await this.notifyLandlordOfTicketCompletion(savedTicket, contractor);
       }
 
@@ -608,9 +608,7 @@ export class MaintenanceTicketsService {
 
       // Send notification to landlord that work was rejected (ticket reopened)
       if (ticket.assignedContractor) {
-        const contractor = await this.contractorModel
-          .findById(ticket.assignedContractor)
-          .exec();
+        const contractor = await this.contractorModel.findById(ticket.assignedContractor).exec();
         await this.notifyLandlordOfWorkRejection(savedTicket, contractor);
       }
 
@@ -933,14 +931,48 @@ export class MaintenanceTicketsService {
         return;
       }
 
-      const tenantName = currentUser.firstName && currentUser.lastName
-        ? `${currentUser.firstName} ${currentUser.lastName}`
-        : currentUser.username;
+      const tenantName =
+        currentUser.firstName && currentUser.lastName
+          ? `${currentUser.firstName} ${currentUser.lastName}`
+          : currentUser.username;
 
+      // Send in-app notification
       await this.notificationsService.createNotification(
         landlordUser._id.toString(),
         'New Maintenance Request',
         `🔧 New maintenance request ${ticket.title} from ${tenantName}.`,
+      );
+
+      // Get property and unit information
+      const property = await this.propertyModel.findById(ticket.property, null, { session }).exec();
+
+      let unitIdentifier: string | undefined;
+      if (ticket.unit) {
+        const unit = await this.unitModel.findById(ticket.unit, null, { session }).exec();
+        unitIdentifier = unit?.unitNumber;
+      }
+
+      const landlordName =
+        landlordUser.firstName && landlordUser.lastName
+          ? `${landlordUser.firstName} ${landlordUser.lastName}`
+          : landlordUser.username;
+
+      // Send email notification
+      await this.maintenanceEmailService.sendTicketCreatedEmail(
+        {
+          recipientName: landlordName,
+          recipientEmail: landlordUser.email,
+          tenantName,
+          ticketNumber: ticket.ticketNumber,
+          ticketTitle: ticket.title,
+          priority: ticket.priority,
+          category: ticket.category,
+          propertyName: property?.name || 'Unknown Property',
+          unitIdentifier,
+          description: ticket.description,
+          createdAt: ticket.createdAt || new Date(),
+        },
+        { queue: true },
       );
     } catch (error) {
       console.error('Failed to notify landlord of new ticket:', error);
@@ -965,9 +997,10 @@ export class MaintenanceTicketsService {
         return;
       }
 
-      const tenantName = currentUser.firstName && currentUser.lastName
-        ? `${currentUser.firstName} ${currentUser.lastName}`
-        : currentUser.username;
+      const tenantName =
+        currentUser.firstName && currentUser.lastName
+          ? `${currentUser.firstName} ${currentUser.lastName}`
+          : currentUser.username;
 
       await this.notificationsService.createNotification(
         landlordUser._id.toString(),
@@ -996,10 +1029,43 @@ export class MaintenanceTicketsService {
 
       const contractorName = contractor?.name || 'Contractor';
 
+      // Send in-app notification
       await this.notificationsService.createNotification(
         landlordUser._id.toString(),
         'Ticket Completed',
         `Ticket ${ticket.title} was marked done by ${contractorName}.`,
+      );
+
+      // Get property and unit information
+      const property = await this.propertyModel.findById(ticket.property).exec();
+
+      let unitIdentifier: string | undefined;
+      if (ticket.unit) {
+        const unit = await this.unitModel.findById(ticket.unit).exec();
+        unitIdentifier = unit?.unitNumber;
+      }
+
+      const landlordName =
+        landlordUser.firstName && landlordUser.lastName
+          ? `${landlordUser.firstName} ${landlordUser.lastName}`
+          : landlordUser.username;
+
+      // Send email notification
+      await this.maintenanceEmailService.sendTicketCompletedEmail(
+        {
+          recipientName: landlordName,
+          recipientEmail: landlordUser.email,
+          contractorName,
+          ticketNumber: ticket.ticketNumber,
+          ticketTitle: ticket.title,
+          category: ticket.category,
+          propertyName: property?.name || 'Unknown Property',
+          unitIdentifier,
+          completedAt: new Date(),
+          cost: ticket.cost,
+          completionNotes: ticket.completionNotes,
+        },
+        { queue: true },
       );
     } catch (error) {
       console.error('Failed to notify landlord of ticket completion:', error);

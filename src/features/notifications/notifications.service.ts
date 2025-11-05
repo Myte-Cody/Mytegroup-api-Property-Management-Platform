@@ -1,11 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import {
-  Notification,
-  NotificationDocument,
-} from './schemas/notification.schema';
 import { NotificationsGateway } from './notifications.gateway';
+import { Notification, NotificationDocument } from './schemas/notification.schema';
 
 @Injectable()
 export class NotificationsService {
@@ -29,17 +26,13 @@ export class NotificationsService {
     });
 
     // Emit real-time notification to the user
-    this.notificationsGateway.emitToUser(
-      userId.toString(),
-      'notification:new',
-      {
-        id: notification._id,
-        title: notification.title,
-        content: notification.content,
-        readAt: notification.readAt,
-        createdAt: (notification as any).createdAt,
-      },
-    );
+    this.notificationsGateway.emitToUser(userId.toString(), 'notification:new', {
+      id: notification._id,
+      title: notification.title,
+      content: notification.content,
+      readAt: notification.readAt,
+      createdAt: (notification as any).createdAt,
+    });
 
     return notification;
   }
@@ -58,12 +51,7 @@ export class NotificationsService {
     }
 
     const [notifications, total] = await Promise.all([
-      this.notificationModel
-        .find(filter)
-        .sort({ createdAt: -1 })
-        .skip(offset)
-        .limit(limit)
-        .exec(),
+      this.notificationModel.find(filter).sort({ createdAt: -1 }).skip(offset).limit(limit).exec(),
       this.notificationModel.countDocuments(filter),
     ]);
 
@@ -77,10 +65,7 @@ export class NotificationsService {
   }
 
   // Mark a notification as read
-  async markAsRead(
-    notificationId: string,
-    userId: string,
-  ): Promise<NotificationDocument> {
+  async markAsRead(notificationId: string, userId: string): Promise<NotificationDocument> {
     const notification = await this.notificationModel.findOne({
       _id: new Types.ObjectId(notificationId),
       userId: new Types.ObjectId(userId),
@@ -133,10 +118,7 @@ export class NotificationsService {
   }
 
   // Delete a notification
-  async deleteNotification(
-    notificationId: string,
-    userId: string,
-  ): Promise<void> {
+  async deleteNotification(notificationId: string, userId: string): Promise<void> {
     const result = await this.notificationModel.deleteOne({
       _id: new Types.ObjectId(notificationId),
       userId: new Types.ObjectId(userId),
@@ -158,11 +140,7 @@ export class NotificationsService {
   }
 
   // Helper method to emit to multiple users
-  async emitEventToUsers(
-    userIds: string[],
-    event: string,
-    data: any,
-  ): Promise<void> {
+  async emitEventToUsers(userIds: string[], event: string, data: any): Promise<void> {
     this.notificationsGateway.emitToUsers(userIds, event, data);
   }
 }

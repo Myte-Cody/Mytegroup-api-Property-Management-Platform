@@ -13,6 +13,7 @@ import {
   InvoiceExtractionResult,
 } from '../../ai/services/ai-extraction.service';
 import { Contractor } from '../../contractors/schema/contractor.schema';
+import { MaintenanceEmailService } from '../../email/services/maintenance-email.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { User, UserDocument } from '../../users/schemas/user.schema';
 import { CreateInvoiceDto, UpdateInvoiceDto } from '../dto';
@@ -38,6 +39,7 @@ export class InvoicesService {
     private readonly sessionService: SessionService,
     private readonly aiExtractionService: AiExtractionService,
     private readonly notificationsService: NotificationsService,
+    private readonly maintenanceEmailService: MaintenanceEmailService,
   ) {}
 
   async createInvoiceForTicket(
@@ -97,12 +99,7 @@ export class InvoicesService {
 
       // Send notification to landlord if invoice was uploaded by contractor
       if (currentUser.user_type === 'Contractor') {
-        await this.notifyLandlordOfInvoiceUpload(
-          ticket,
-          null,
-          currentUser,
-          session,
-        );
+        await this.notifyLandlordOfInvoiceUpload(ticket, null, invoice, currentUser, session);
       }
 
       return this.findById(String(invoice._id), currentUser, session);
@@ -166,12 +163,7 @@ export class InvoicesService {
 
       // Send notification to landlord if invoice was uploaded by contractor
       if (currentUser.user_type === 'Contractor') {
-        await this.notifyLandlordOfInvoiceUpload(
-          null,
-          sow,
-          currentUser,
-          session,
-        );
+        await this.notifyLandlordOfInvoiceUpload(null, sow, invoice, currentUser, session);
       }
 
       return this.findById(String(invoice._id), currentUser, session);
@@ -386,6 +378,7 @@ export class InvoicesService {
   private async notifyLandlordOfInvoiceUpload(
     ticket: MaintenanceTicket | null,
     sow: ScopeOfWork | null,
+    invoice: Invoice,
     currentUser: UserDocument,
     session: ClientSession | null,
   ): Promise<void> {
@@ -414,10 +407,30 @@ export class InvoicesService {
         entityReference = (sow as any).code || 'Scope of Work';
       }
 
+      // Send in-app notification
       await this.notificationsService.createNotification(
         landlordUser._id.toString(),
         'Invoice Uploaded',
         `Contractor ${contractorName} uploaded invoice for ${entityReference}.`,
+      );
+
+      const landlordName =
+        landlordUser.firstName && landlordUser.lastName
+          ? `${landlordUser.firstName} ${landlordUser.lastName}`
+          : landlordUser.username;
+
+      // Send email notification
+      await this.maintenanceEmailService.sendInvoiceUploadedEmail(
+        {
+          recipientName: landlordName,
+          recipientEmail: landlordUser.email,
+          contractorName,
+          entityReference,
+          invoiceNumber: invoice.invoiceNumber,
+          amount: invoice.amount,
+          uploadedAt: invoice.createdAt || new Date(),
+        },
+        { queue: true },
       );
     } catch (error) {
       console.error('Failed to notify landlord of invoice upload:', error);

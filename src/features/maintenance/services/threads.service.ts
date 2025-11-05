@@ -8,10 +8,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Contractor } from '../../contractors/schema/contractor.schema';
 import { Lease } from '../../leases/schemas/lease.schema';
-import { Tenant } from '../../tenants/schema/tenant.schema';
 import { Media } from '../../media/schemas/media.schema';
 import { MediaService } from '../../media/services/media.service';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { Tenant } from '../../tenants/schema/tenant.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';
 import { AcceptThreadDto } from '../dto/accept-thread.dto';
 import { CreateThreadMessageDto } from '../dto/create-thread-message.dto';
@@ -357,10 +357,7 @@ export class ThreadsService {
     }
 
     // Send notification to landlord if message was sent by tenant or contractor
-    if (
-      createMessageDto.senderType === 'TENANT' ||
-      createMessageDto.senderType === 'CONTRACTOR'
-    ) {
+    if (createMessageDto.senderType === 'TENANT' || createMessageDto.senderType === 'CONTRACTOR') {
       await this.notifyLandlordOfNewMessage(
         thread,
         createMessageDto.senderType,

@@ -5,8 +5,10 @@ import { EmailService } from './email.service';
 import { EmailQueueProcessor } from './processors/email-queue.processor';
 import { AuthEmailService } from './services/auth-email.service';
 import { EmailQueueService } from './services/email-queue.service';
+import { InquiryEmailService } from './services/inquiry-email.service';
 import { InvitationEmailService } from './services/invitation-email.service';
 import { LeaseEmailService } from './services/lease-email.service';
+import { MaintenanceEmailService } from './services/maintenance-email.service';
 import { PaymentEmailService } from './services/payment-email.service';
 import { TemplateService } from './services/template.service';
 import { WelcomeEmailService } from './services/welcome-email.service';
@@ -37,6 +39,8 @@ import { WelcomeEmailService } from './services/welcome-email.service';
     InvitationEmailService,
     LeaseEmailService,
     PaymentEmailService,
+    MaintenanceEmailService,
+    InquiryEmailService,
     EmailQueueProcessor,
   ],
   exports: [
@@ -48,6 +52,8 @@ import { WelcomeEmailService } from './services/welcome-email.service';
     InvitationEmailService,
     LeaseEmailService,
     PaymentEmailService,
+    MaintenanceEmailService,
+    InquiryEmailService,
   ],
 })
 export class EmailModule {}

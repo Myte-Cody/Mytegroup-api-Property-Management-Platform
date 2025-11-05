@@ -1,0 +1,4 @@
+{
+  "subject": "Invoice Uploaded by {{contractorName}}",
+  "text": "Hello {{recipientName}}, {{contractorName}} has uploaded an invoice for {{entityReference}}. Invoice Number: {{invoiceNumber}}. Uploaded on: {{uploadedAt}}."
+}
