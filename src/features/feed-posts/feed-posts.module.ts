@@ -4,11 +4,13 @@ import { NestjsFormDataModule } from 'nestjs-form-data';
 import { CaslModule } from '../../common/casl/casl.module';
 import { SessionService } from '../../common/services/session.service';
 import { Landlord, LandlordSchema } from '../landlords/schema/landlord.schema';
+import { Lease, LeaseSchema } from '../leases/schemas/lease.schema';
 import {
   MaintenanceTicket,
   MaintenanceTicketSchema,
 } from '../maintenance/schemas/maintenance-ticket.schema';
 import { MediaModule } from '../media/media.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { Property, PropertySchema } from '../properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../properties/schemas/unit.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
@@ -25,9 +27,11 @@ import { FeedPostsService } from './services/feed-posts.service';
       { name: Unit.name, schema: UnitSchema },
       { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
       { name: User.name, schema: UserSchema },
+      { name: Lease.name, schema: LeaseSchema },
     ]),
     CaslModule,
     MediaModule,
+    NotificationsModule,
     NestjsFormDataModule,
   ],
   controllers: [FeedPostsController],

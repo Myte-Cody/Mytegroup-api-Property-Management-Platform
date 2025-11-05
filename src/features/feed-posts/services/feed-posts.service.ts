@@ -5,7 +5,9 @@ import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { SessionService } from '../../../common/services/session.service';
 import { createPaginatedResponse, PaginatedResponse } from '../../../common/utils/pagination.utils';
 import { Landlord } from '../../landlords/schema/landlord.schema';
+import { Lease } from '../../leases/schemas/lease.schema';
 import { MediaService } from '../../media/services/media.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 import { Property } from '../../properties/schemas/property.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';
 import { CreateFeedPostDto } from '../dto/create-feed-post.dto';
@@ -26,8 +28,11 @@ export class FeedPostsService {
     private readonly landlordModel: AppModel<Landlord>,
     @InjectModel(User.name)
     private readonly userModel: AppModel<User>,
+    @InjectModel(Lease.name)
+    private readonly leaseModel: AppModel<Lease>,
     private readonly sessionService: SessionService,
     private readonly mediaService: MediaService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -89,6 +94,9 @@ export class FeedPostsService {
           session,
         );
       }
+
+      // Notify tenants of the property about new feed post
+      await this.notifyTenantsOfNewFeedPost(savedFeedPost, property);
 
       return savedFeedPost;
     });
@@ -248,6 +256,12 @@ export class FeedPostsService {
         );
       }
 
+      // Notify tenants of the property about feed post update
+      const property = await this.propertyModel.findById(feedPost.property);
+      if (property) {
+        await this.notifyTenantsOfFeedPostUpdate(feedPost, property);
+      }
+
       return updatedFeedPost;
     });
   }
@@ -376,5 +390,90 @@ export class FeedPostsService {
     }
 
     return await feedPost.save();
+  }
+
+  /**
+   * Get tenant users for a property
+   */
+  private async getTenantUsersForProperty(propertyId: Types.ObjectId): Promise<UserDocument[]> {
+    try {
+      // Get all active leases for the property
+      const leases = await this.leaseModel
+        .find({
+          status: 'ACTIVE',
+        })
+        .populate('unit')
+        .exec();
+
+      // Filter leases for this property
+      const propertyLeases = leases.filter((lease) => {
+        const unit = lease.unit as any;
+        return unit && unit.property && unit.property.toString() === propertyId.toString();
+      });
+
+      // Get unique tenant IDs
+      const tenantIds = [...new Set(propertyLeases.map((lease) => lease.tenant.toString()))];
+
+      // Get tenant users
+      const tenantUsers = await this.userModel
+        .find({
+          user_type: 'Tenant',
+          organization_id: { $in: tenantIds },
+        })
+        .exec();
+
+      return tenantUsers;
+    } catch (error) {
+      console.error('Failed to get tenant users for property:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Notify tenants of new feed post
+   */
+  private async notifyTenantsOfNewFeedPost(
+    feedPost: FeedPostDocument,
+    property: any,
+  ): Promise<void> {
+    try {
+      const tenantUsers = await this.getTenantUsersForProperty(feedPost.property as Types.ObjectId);
+
+      const notificationPromises = tenantUsers.map((user) =>
+        this.notificationsService.createNotification(
+          user._id.toString(),
+          'New Announcement',
+          `📢 New announcement posted for ${property.name}: "${feedPost.title}"`,
+        ),
+      );
+
+      await Promise.all(notificationPromises);
+    } catch (error) {
+      console.error('Failed to notify tenants of new feed post:', error);
+    }
+  }
+
+  /**
+   * Notify tenants of feed post update
+   */
+  private async notifyTenantsOfFeedPostUpdate(
+    feedPost: FeedPostDocument,
+    property: any,
+  ): Promise<void> {
+    try {
+      const tenantUsers = await this.getTenantUsersForProperty(feedPost.property as Types.ObjectId);
+
+      const notificationPromises = tenantUsers.map((user) =>
+        this.notificationsService.createNotification(
+          user._id.toString(),
+          'Announcement Updated',
+          `📝 An announcement for ${property.name} has been updated: "${feedPost.title}"`,
+        ),
+      );
+
+      await Promise.all(notificationPromises);
+    } catch (error) {
+      console.error('Failed to notify tenants of feed post update:', error);
+    }
   }
 }

@@ -1531,7 +1531,7 @@ export class LeasesService {
         this.notificationsService.createNotification(
           user._id.toString(),
           'Lease Activated',
-          `Your lease for ${property.name} - Unit ${unit.unitNumber} has been activated.`,
+          `🏠 Your lease for ${property.name} - Unit ${unit.unitNumber} has been activated. Welcome to your new home!`,
         ),
       );
 
@@ -1540,7 +1540,7 @@ export class LeasesService {
         this.notificationsService.createNotification(
           user._id.toString(),
           'Lease Activated',
-          `Lease for ${property.name} - Unit ${unit.unitNumber} has been activated.`,
+          `🏠 Lease for ${property.name} - Unit ${unit.unitNumber} has been activated.`,
         ),
       );
 
@@ -1632,7 +1632,7 @@ export class LeasesService {
         this.notificationsService.createNotification(
           user._id.toString(),
           'Lease Terminated',
-          `Your lease for ${property.name} - Unit ${unit.unitNumber} has been terminated.`,
+          `🚪 Your lease for ${property.name} - Unit ${unit.unitNumber} has been terminated. Please check your email for move-out details.`,
         ),
       );
 
@@ -1641,7 +1641,7 @@ export class LeasesService {
         this.notificationsService.createNotification(
           user._id.toString(),
           'Lease Terminated',
-          `Lease for ${property.name} - Unit ${unit.unitNumber} has been terminated.`,
+          `🚪 Lease for ${property.name} - Unit ${unit.unitNumber} has been terminated.`,
         ),
       );
 
@@ -1730,11 +1730,12 @@ export class LeasesService {
 
       // Send in-app notifications to tenants
       const renewalType = isAutoRenewal ? 'auto-renewed' : 'renewed';
+      const tenantEmoji = isAutoRenewal ? '🔄' : '📝';
       const tenantNotificationPromises = users.map((user) =>
         this.notificationsService.createNotification(
           user._id.toString(),
           'Lease Renewal',
-          `Your lease for ${property.name} - Unit ${unit.unitNumber} has been ${renewalType}.`,
+          `${tenantEmoji} Your lease for ${property.name} - Unit ${unit.unitNumber} has been ${renewalType}. Check your email for updated terms.`,
         ),
       );
 
@@ -1743,7 +1744,7 @@ export class LeasesService {
         this.notificationsService.createNotification(
           user._id.toString(),
           'Lease Renewal',
-          `Lease for ${property.name} - Unit ${unit.unitNumber} has been ${renewalType}.`,
+          `${tenantEmoji} Lease for ${property.name} - Unit ${unit.unitNumber} has been ${renewalType}.`,
         ),
       );
 
@@ -1848,20 +1849,28 @@ export class LeasesService {
         await Promise.all([...tenantEmailPromises, ...landlordEmailPromises]);
 
         // Send in-app notifications to tenants
+        const expiringMessage =
+          daysRemaining > 0
+            ? `⏰ Your lease for ${property.name} - Unit ${unit.unitNumber} expires in ${daysRemaining} days. Please contact us to discuss renewal options.`
+            : `⏰ Your lease for ${property.name} - Unit ${unit.unitNumber} has expired. Please contact us immediately.`;
         const tenantNotificationPromises = users.map((user) =>
           this.notificationsService.createNotification(
             user._id.toString(),
             'Lease Expiring Soon',
-            `Your lease for ${property.name} - Unit ${unit.unitNumber} expires in ${daysRemaining} days.`,
+            expiringMessage,
           ),
         );
 
         // Send in-app notifications to landlords
+        const landlordMessage =
+          daysRemaining > 0
+            ? `⏰ Lease for ${property.name} - Unit ${unit.unitNumber} expires in ${daysRemaining} days.`
+            : `⏰ Lease for ${property.name} - Unit ${unit.unitNumber} has expired.`;
         const landlordNotificationPromises = landlordUsers.map((user) =>
           this.notificationsService.createNotification(
             user._id.toString(),
             'Lease Expiring Soon',
-            `Lease for ${property.name} - Unit ${unit.unitNumber} expires in ${daysRemaining} days.`,
+            landlordMessage,
           ),
         );
 
