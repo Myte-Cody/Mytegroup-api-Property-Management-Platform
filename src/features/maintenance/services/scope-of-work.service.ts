@@ -13,6 +13,7 @@ import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { createPaginatedResponse, PaginatedResponse } from '../../../common/utils/pagination.utils';
 import { Contractor } from '../../../features/contractors/schema/contractor.schema';
 import { Lease } from '../../../features/leases/schemas/lease.schema';
+import { NotificationsService } from '../../notifications/notifications.service';
 import { User, UserDocument } from '../../users/schemas/user.schema';
 import { AcceptSowDto } from '../dto/accept-sow.dto';
 import { AddTicketSowDto } from '../dto/add-ticket-sow.dto';
@@ -42,6 +43,7 @@ export class ScopeOfWorkService {
     @InjectModel(Lease.name)
     private readonly leaseModel: AppModel<Lease>,
     private readonly sessionService: SessionService,
+    private readonly notificationsService: NotificationsService,
     @Inject(forwardRef(() => InvoicesService))
     private readonly invoicesService: InvoicesService,
     @Inject(forwardRef(() => ThreadsService))
@@ -283,6 +285,11 @@ export class ScopeOfWorkService {
         { session },
       );
 
+      // Notify tenants that their tickets have been grouped into SOW
+      for (const ticket of tickets) {
+        await this.notifyTenantOfTicketGroupedToSow(ticket, scopeOfWork, session);
+      }
+
       // Create threads for the SOW
       await this.createSowThreads(scopeOfWork, tickets, currentUser, session);
 
@@ -482,6 +489,9 @@ export class ScopeOfWorkService {
 
       await ticket.save({ session });
 
+      // Notify tenant that ticket has been grouped into SOW
+      await this.notifyTenantOfTicketGroupedToSow(ticket, scopeOfWork, session);
+
       return this.findOne(id, currentUser, session);
     });
   }
@@ -641,6 +651,9 @@ export class ScopeOfWorkService {
       // Update SOW status to CLOSED
       scopeOfWork.status = TicketStatus.CLOSED;
       await scopeOfWork.save({ session });
+
+      // Notify tenants that thread is closed
+      await this.threadsService.notifyTenantsOfThreadClosed(scopeOfWork._id as Types.ObjectId);
 
       await this.scopeOfWorkModel.updateMany(
         { _id: { $in: childSows.map((sow) => sow._id) } },
@@ -897,6 +910,33 @@ export class ScopeOfWorkService {
     } catch (error) {
       // Log error but don't fail SOW creation
       console.error('Failed to create threads for SOW:', error);
+    }
+  }
+
+  /**
+   * Notify tenant when their ticket is grouped into a SOW
+   */
+  private async notifyTenantOfTicketGroupedToSow(
+    ticket: MaintenanceTicket,
+    scopeOfWork: ScopeOfWork,
+    session: ClientSession | null = null,
+  ): Promise<void> {
+    try {
+      const requestedByUser = await this.userModel
+        .findById(ticket.requestedBy, null, { session })
+        .exec();
+
+      if (!requestedByUser || requestedByUser.user_type !== 'Tenant') {
+        return;
+      }
+
+      await this.notificationsService.createNotification(
+        requestedByUser._id.toString(),
+        'Ticket Grouped',
+        `📦 Your maintenance request "${ticket.title}" has been grouped into a maintenance job (${scopeOfWork.sowNumber}). The work will still be processed as part of that job.`,
+      );
+    } catch (error) {
+      console.error('Failed to notify tenant of ticket grouped to SOW:', error);
     }
   }
 }

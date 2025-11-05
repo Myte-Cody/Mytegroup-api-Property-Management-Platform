@@ -10,6 +10,9 @@ jest.config.js
 tsconfig.json
 docker-compose.yml
 
+# Features to ignore
+ai_features
+
 # Logs
 *.log
 

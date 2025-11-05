@@ -8,8 +8,11 @@ import { Contractor, ContractorSchema } from '../contractors/schema/contractor.s
 import { Lease, LeaseSchema, LeasesModule } from '../leases';
 import { MediaModule } from '../media/media.module';
 import { Media, MediaSchema } from '../media/schemas/media.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { PropertiesModule } from '../properties/properties.module';
+import { Tenant, TenantSchema } from '../tenants/schema/tenant.schema';
 import { TenantsModule } from '../tenants/tenant.module';
+import { User, UserSchema } from '../users/schemas/user.schema';
 import { MaintenanceTicketsController } from './controllers/maintenance-tickets.controller';
 import { ScopeOfWorkController } from './controllers/scope-of-work.controller';
 import { TicketCommentsController } from './controllers/ticket-comments.controller';
@@ -32,6 +35,8 @@ import { TicketCommentsService } from './services/ticket-comments.service';
       { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
       { name: TicketComment.name, schema: TicketCommentSchema },
       { name: Contractor.name, schema: ContractorSchema },
+      { name: Tenant.name, schema: TenantSchema },
+      { name: User.name, schema: UserSchema },
       { name: Lease.name, schema: LeaseSchema },
       { name: ScopeOfWork.name, schema: ScopeOfWorkSchema },
       { name: Invoice.name, schema: InvoiceSchema },
@@ -48,6 +53,7 @@ import { TicketCommentsService } from './services/ticket-comments.service';
     MediaModule,
     NestjsFormDataModule,
     AiModule,
+    NotificationsModule,
   ],
   controllers: [MaintenanceTicketsController, TicketCommentsController, ScopeOfWorkController],
   providers: [

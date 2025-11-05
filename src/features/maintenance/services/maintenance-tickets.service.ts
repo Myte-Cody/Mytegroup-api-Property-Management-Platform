@@ -13,8 +13,10 @@ import { InvoiceLinkedEntityType, TicketStatus } from '../../../common/enums/mai
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { Contractor } from '../../contractors/schema/contractor.schema';
+import { MaintenanceEmailService } from '../../email/services/maintenance-email.service';
 import { Lease } from '../../leases';
 import { MediaService } from '../../media/services/media.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 import { Property } from '../../properties/schemas/property.schema';
 import { Unit } from '../../properties/schemas/unit.schema';
 import { Tenant } from '../../tenants/schema/tenant.schema';
@@ -57,6 +59,8 @@ export class MaintenanceTicketsService {
     private readonly scopeOfWorkModel: AppModel<ScopeOfWork>,
     private readonly sessionService: SessionService,
     private readonly mediaService: MediaService,
+    private readonly notificationsService: NotificationsService,
+    private readonly maintenanceEmailService: MaintenanceEmailService,
     @Inject(forwardRef(() => ScopeOfWorkService))
     private readonly scopeOfWorkService: ScopeOfWorkService,
     @Inject(forwardRef(() => InvoicesService))
@@ -291,6 +295,11 @@ export class MaintenanceTicketsService {
       // Create thread for the ticket
       await this.createTicketThread(ticket, currentUser, session);
 
+      // Send notification to landlord if ticket was created by tenant
+      if (currentUser.user_type === 'Tenant') {
+        await this.notifyLandlordOfNewTicket(ticket, currentUser, session);
+      }
+
       if (createTicketDto.media_files && createTicketDto.media_files.length > 0) {
         const uploadPromises = createTicketDto.media_files.map(async (file) => {
           return this.mediaService.upload(
@@ -353,6 +362,20 @@ export class MaintenanceTicketsService {
       Object.assign(existingTicket, updateTicketDto);
       const savedTicket = await existingTicket.save({ session });
 
+      // Send notification to landlord if ticket was updated by tenant
+      if (currentUser.user_type === 'Tenant') {
+        await this.notifyLandlordOfTicketUpdate(savedTicket, currentUser, session);
+      }
+
+      // Send notification to tenant when ticket status changes to IN_REVIEW
+      if (
+        statusChanged &&
+        newStatus === TicketStatus.IN_REVIEW &&
+        currentUser.user_type === 'Landlord'
+      ) {
+        await this.notifyTenantOfTicketReview(savedTicket, session);
+      }
+
       // If status changed and ticket has a scope of work, check if SOW status should be updated
       if (statusChanged && existingTicket.scopeOfWork) {
         await this.updateSowStatusOnTicketChange(existingTicket.scopeOfWork, newStatus, session);
@@ -391,6 +414,10 @@ export class MaintenanceTicketsService {
       ticket.status = TicketStatus.ASSIGNED;
 
       const savedTicket = await ticket.save();
+
+      // Notify tenant that contractor has been assigned
+      await this.notifyTenantOfContractorAssignment(savedTicket, session);
+
       if (ticket.scopeOfWork) {
         await this.updateSowStatusOnTicketChange(
           ticket.scopeOfWork,
@@ -426,6 +453,9 @@ export class MaintenanceTicketsService {
       ticket.status = TicketStatus.IN_PROGRESS;
 
       const savedTicket = await ticket.save();
+
+      // Notify tenant that work has started
+      await this.notifyTenantOfWorkStarted(savedTicket, session);
 
       // Add contractor to the thread
       if (ticket.assignedContractor) {
@@ -493,6 +523,14 @@ export class MaintenanceTicketsService {
 
       const savedTicket = await ticket.save();
 
+      // Send notification to landlord that ticket is marked done by contractor
+      if (currentUser.user_type === 'Contractor' && ticket.assignedContractor) {
+        const contractor = await this.contractorModel.findById(ticket.assignedContractor).exec();
+        await this.notifyLandlordOfTicketCompletion(savedTicket, contractor);
+        // Also notify tenant that work is done
+        await this.notifyTenantOfWorkDone(savedTicket, session);
+      }
+
       // Check if the ticket has a scope of work
       if (ticket.scopeOfWork) {
         // Update SOW status if all tickets are done
@@ -535,7 +573,10 @@ export class MaintenanceTicketsService {
       // Update ticket status to CLOSED
       ticket.status = TicketStatus.CLOSED;
 
-      await ticket.save({ session });
+      const savedTicket = await ticket.save({ session });
+
+      // Notify tenant that ticket has been completed
+      await this.notifyTenantOfTicketClosed(savedTicket, session);
 
       // Auto-confirm all pending invoices for this ticket
       await this.invoicesService.confirmInvoicesByLinkedEntity(
@@ -544,7 +585,7 @@ export class MaintenanceTicketsService {
         session,
       );
 
-      return ticket;
+      return savedTicket;
     });
   }
 
@@ -585,6 +626,15 @@ export class MaintenanceTicketsService {
       ticket.completedDate = null;
 
       const savedTicket = await ticket.save({ session });
+
+      // Notify tenant that ticket has been reopened
+      await this.notifyTenantOfTicketReopened(savedTicket, session);
+
+      // Send notification to landlord that work was rejected (ticket reopened)
+      if (ticket.assignedContractor) {
+        const contractor = await this.contractorModel.findById(ticket.assignedContractor).exec();
+        await this.notifyLandlordOfWorkRejection(savedTicket, contractor);
+      }
 
       if (scopeOfWork) {
         await this.reopenSowsRecursively(scopeOfWork._id as Types.ObjectId, session);
@@ -813,9 +863,16 @@ export class MaintenanceTicketsService {
       return;
     }
 
+    const wasClosedBefore = sow.status === TicketStatus.CLOSED;
+
     sow.status = TicketStatus.IN_PROGRESS;
     sow.completedDate = null;
     await sow.save({ session });
+
+    // Notify tenants that thread is reopened if SOW was closed
+    if (wasClosedBefore) {
+      await this.threadsService.notifyTenantsOfThreadReopened(sowId);
+    }
 
     if (sow.parentSow) {
       await this.reopenSowsRecursively(sow.parentSow, session);
@@ -884,6 +941,354 @@ export class MaintenanceTicketsService {
     } catch (error) {
       // Log error but don't fail ticket creation
       console.error('Failed to create thread for ticket:', error);
+    }
+  }
+
+  /**
+   * Notify landlord when a new ticket is created by tenant
+   */
+  private async notifyLandlordOfNewTicket(
+    ticket: MaintenanceTicket,
+    currentUser: UserDocument,
+    session: ClientSession | null,
+  ): Promise<void> {
+    try {
+      // Find the landlord user
+      const landlordUser = await this.userModel
+        .findOne({ user_type: 'Landlord' }, null, { session })
+        .exec();
+
+      if (!landlordUser) {
+        return;
+      }
+
+      const tenantName =
+        currentUser.firstName && currentUser.lastName
+          ? `${currentUser.firstName} ${currentUser.lastName}`
+          : currentUser.username;
+
+      // Send in-app notification
+      await this.notificationsService.createNotification(
+        landlordUser._id.toString(),
+        'New Maintenance Request',
+        `🔧 New maintenance request ${ticket.title} from ${tenantName}.`,
+      );
+
+      // Get property and unit information
+      const property = await this.propertyModel.findById(ticket.property, null, { session }).exec();
+
+      let unitIdentifier: string | undefined;
+      if (ticket.unit) {
+        const unit = await this.unitModel.findById(ticket.unit, null, { session }).exec();
+        unitIdentifier = unit?.unitNumber;
+      }
+
+      const landlordName =
+        landlordUser.firstName && landlordUser.lastName
+          ? `${landlordUser.firstName} ${landlordUser.lastName}`
+          : landlordUser.username;
+
+      // Send email notification
+      await this.maintenanceEmailService.sendTicketCreatedEmail(
+        {
+          recipientName: landlordName,
+          recipientEmail: landlordUser.email,
+          tenantName,
+          ticketNumber: ticket.ticketNumber,
+          ticketTitle: ticket.title,
+          priority: ticket.priority,
+          category: ticket.category,
+          propertyName: property?.name || 'Unknown Property',
+          unitIdentifier,
+          description: ticket.description,
+          createdAt: ticket.createdAt || new Date(),
+        },
+        { queue: true },
+      );
+    } catch (error) {
+      console.error('Failed to notify landlord of new ticket:', error);
+    }
+  }
+
+  /**
+   * Notify landlord when a ticket is updated by tenant
+   */
+  private async notifyLandlordOfTicketUpdate(
+    ticket: MaintenanceTicket,
+    currentUser: UserDocument,
+    session: ClientSession | null,
+  ): Promise<void> {
+    try {
+      // Find the landlord user
+      const landlordUser = await this.userModel
+        .findOne({ user_type: 'Landlord' }, null, { session })
+        .exec();
+
+      if (!landlordUser) {
+        return;
+      }
+
+      const tenantName =
+        currentUser.firstName && currentUser.lastName
+          ? `${currentUser.firstName} ${currentUser.lastName}`
+          : currentUser.username;
+
+      await this.notificationsService.createNotification(
+        landlordUser._id.toString(),
+        'Ticket Updated',
+        `Ticket ${ticket.title} was updated by ${tenantName}.`,
+      );
+    } catch (error) {
+      console.error('Failed to notify landlord of ticket update:', error);
+    }
+  }
+
+  /**
+   * Notify landlord when a ticket is marked done by contractor
+   */
+  private async notifyLandlordOfTicketCompletion(
+    ticket: MaintenanceTicket,
+    contractor: any,
+  ): Promise<void> {
+    try {
+      // Find the landlord user
+      const landlordUser = await this.userModel.findOne({ user_type: 'Landlord' }).exec();
+
+      if (!landlordUser) {
+        return;
+      }
+
+      const contractorName = contractor?.name || 'Contractor';
+
+      // Send in-app notification
+      await this.notificationsService.createNotification(
+        landlordUser._id.toString(),
+        'Ticket Completed',
+        `Ticket ${ticket.title} was marked done by ${contractorName}.`,
+      );
+
+      // Get property and unit information
+      const property = await this.propertyModel.findById(ticket.property).exec();
+
+      let unitIdentifier: string | undefined;
+      if (ticket.unit) {
+        const unit = await this.unitModel.findById(ticket.unit).exec();
+        unitIdentifier = unit?.unitNumber;
+      }
+
+      const landlordName =
+        landlordUser.firstName && landlordUser.lastName
+          ? `${landlordUser.firstName} ${landlordUser.lastName}`
+          : landlordUser.username;
+
+      // Send email notification
+      await this.maintenanceEmailService.sendTicketCompletedEmail(
+        {
+          recipientName: landlordName,
+          recipientEmail: landlordUser.email,
+          contractorName,
+          ticketNumber: ticket.ticketNumber,
+          ticketTitle: ticket.title,
+          category: ticket.category,
+          propertyName: property?.name || 'Unknown Property',
+          unitIdentifier,
+          completedAt: new Date(),
+          cost: ticket.cost,
+          completionNotes: ticket.completionNotes,
+        },
+        { queue: true },
+      );
+    } catch (error) {
+      console.error('Failed to notify landlord of ticket completion:', error);
+    }
+  }
+
+  /**
+   * Notify landlord when work is rejected (ticket reopened)
+   */
+  private async notifyLandlordOfWorkRejection(
+    ticket: MaintenanceTicket,
+    contractor: any,
+  ): Promise<void> {
+    try {
+      // Find the landlord user
+      const landlordUser = await this.userModel.findOne({ user_type: 'Landlord' }).exec();
+
+      if (!landlordUser) {
+        return;
+      }
+
+      const contractorName = contractor?.name || 'Contractor';
+
+      await this.notificationsService.createNotification(
+        landlordUser._id.toString(),
+        'Work Rejected',
+        `Contractor ${contractorName} rejected work for ${ticket.title}.`,
+      );
+    } catch (error) {
+      console.error('Failed to notify landlord of work rejection:', error);
+    }
+  }
+
+  /**
+   * Notify tenant when ticket is reviewed by landlord
+   */
+  private async notifyTenantOfTicketReview(
+    ticket: MaintenanceTicket,
+    session: ClientSession | null = null,
+  ): Promise<void> {
+    try {
+      const requestedByUser = await this.userModel
+        .findById(ticket.requestedBy, null, { session })
+        .exec();
+
+      if (!requestedByUser || requestedByUser.user_type !== 'Tenant') {
+        return;
+      }
+
+      await this.notificationsService.createNotification(
+        requestedByUser._id.toString(),
+        'Ticket Under Review',
+        `👀 Your maintenance request "${ticket.title}" is now under review.`,
+      );
+    } catch (error) {
+      console.error('Failed to notify tenant of ticket review:', error);
+    }
+  }
+
+  /**
+   * Notify tenant when ticket is assigned to contractor
+   */
+  private async notifyTenantOfContractorAssignment(
+    ticket: MaintenanceTicket,
+    session: ClientSession | null = null,
+  ): Promise<void> {
+    try {
+      const requestedByUser = await this.userModel
+        .findById(ticket.requestedBy, null, { session })
+        .exec();
+
+      if (!requestedByUser || requestedByUser.user_type !== 'Tenant') {
+        return;
+      }
+
+      const contractor = ticket.assignedContractor
+        ? await this.contractorModel.findById(ticket.assignedContractor, null, { session }).exec()
+        : null;
+
+      const contractorName = contractor?.name || 'a contractor';
+
+      await this.notificationsService.createNotification(
+        requestedByUser._id.toString(),
+        'Contractor Assigned',
+        `👷 Your maintenance request "${ticket.title}" has been assigned to ${contractorName}.`,
+      );
+    } catch (error) {
+      console.error('Failed to notify tenant of contractor assignment:', error);
+    }
+  }
+
+  /**
+   * Notify tenant when work starts on their ticket
+   */
+  private async notifyTenantOfWorkStarted(
+    ticket: MaintenanceTicket,
+    session: ClientSession | null = null,
+  ): Promise<void> {
+    try {
+      const requestedByUser = await this.userModel
+        .findById(ticket.requestedBy, null, { session })
+        .exec();
+
+      if (!requestedByUser || requestedByUser.user_type !== 'Tenant') {
+        return;
+      }
+
+      await this.notificationsService.createNotification(
+        requestedByUser._id.toString(),
+        'Work Started',
+        `🔧 Work on "${ticket.title}" has started.`,
+      );
+    } catch (error) {
+      console.error('Failed to notify tenant of work started:', error);
+    }
+  }
+
+  /**
+   * Notify tenant when work is completed on their ticket
+   */
+  private async notifyTenantOfWorkDone(
+    ticket: MaintenanceTicket,
+    session: ClientSession | null = null,
+  ): Promise<void> {
+    try {
+      const requestedByUser = await this.userModel
+        .findById(ticket.requestedBy, null, { session })
+        .exec();
+
+      if (!requestedByUser || requestedByUser.user_type !== 'Tenant') {
+        return;
+      }
+
+      await this.notificationsService.createNotification(
+        requestedByUser._id.toString(),
+        'Work Complete',
+        `✅ Work on "${ticket.title}" is complete and pending landlord approval.`,
+      );
+    } catch (error) {
+      console.error('Failed to notify tenant of work done:', error);
+    }
+  }
+
+  /**
+   * Notify tenant when ticket is closed
+   */
+  private async notifyTenantOfTicketClosed(
+    ticket: MaintenanceTicket,
+    session: ClientSession | null = null,
+  ): Promise<void> {
+    try {
+      const requestedByUser = await this.userModel
+        .findById(ticket.requestedBy, null, { session })
+        .exec();
+
+      if (!requestedByUser || requestedByUser.user_type !== 'Tenant') {
+        return;
+      }
+
+      await this.notificationsService.createNotification(
+        requestedByUser._id.toString(),
+        'Ticket Completed',
+        `🎉 Your maintenance request "${ticket.title}" has been completed.`,
+      );
+    } catch (error) {
+      console.error('Failed to notify tenant of ticket closed:', error);
+    }
+  }
+
+  /**
+   * Notify tenant when ticket is reopened
+   */
+  private async notifyTenantOfTicketReopened(
+    ticket: MaintenanceTicket,
+    session: ClientSession | null = null,
+  ): Promise<void> {
+    try {
+      const requestedByUser = await this.userModel
+        .findById(ticket.requestedBy, null, { session })
+        .exec();
+
+      if (!requestedByUser || requestedByUser.user_type !== 'Tenant') {
+        return;
+      }
+
+      await this.notificationsService.createNotification(
+        requestedByUser._id.toString(),
+        'Ticket Reopened',
+        `🔁 Your maintenance request "${ticket.title}" has been reopened for additional work.`,
+      );
+    } catch (error) {
+      console.error('Failed to notify tenant of ticket reopened:', error);
     }
   }
 }

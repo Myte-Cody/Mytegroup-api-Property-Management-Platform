@@ -8,6 +8,7 @@ import {
   MaintenanceTicketSchema,
 } from '../maintenance/schemas/maintenance-ticket.schema';
 import { MediaModule } from '../media/media.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { PropertiesModule } from '../properties/properties.module';
 import { Property, PropertySchema } from '../properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../properties/schemas/unit.schema';
@@ -42,6 +43,7 @@ import { TransactionsController } from './transactions.controller';
     CaslModule,
     CommonModule,
     MediaModule,
+    NotificationsModule,
     PropertiesModule,
     TenantsModule,
     UsersModule,

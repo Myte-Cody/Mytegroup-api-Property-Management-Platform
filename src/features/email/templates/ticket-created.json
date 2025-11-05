@@ -1,0 +1,4 @@
+{
+  "subject": "New Maintenance Ticket: {{ticketTitle}}",
+  "text": "Hello {{recipientName}}, A new maintenance ticket has been created by {{tenantName}}. Ticket #{{ticketNumber}}: {{ticketTitle}}. Priority: {{priority}}. Category: {{category}}. Property: {{propertyName}}{{#if unitIdentifier}} - Unit {{unitIdentifier}}{{/if}}."
+}

@@ -6,10 +6,13 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { Contractor } from '../../contractors/schema/contractor.schema';
 import { Lease } from '../../leases/schemas/lease.schema';
 import { Media } from '../../media/schemas/media.schema';
 import { MediaService } from '../../media/services/media.service';
-import { User } from '../../users/schemas/user.schema';
+import { NotificationsService } from '../../notifications/notifications.service';
+import { Tenant } from '../../tenants/schema/tenant.schema';
+import { User, UserDocument } from '../../users/schemas/user.schema';
 import { AcceptThreadDto } from '../dto/accept-thread.dto';
 import { CreateThreadMessageDto } from '../dto/create-thread-message.dto';
 import { CreateThreadDto } from '../dto/create-thread.dto';
@@ -48,7 +51,14 @@ export class ThreadsService {
     private leaseModel: Model<Lease>,
     @InjectModel(Media.name)
     private mediaModel: Model<Media>,
+    @InjectModel(User.name)
+    private userModel: Model<UserDocument>,
+    @InjectModel(Contractor.name)
+    private contractorModel: Model<Contractor>,
+    @InjectModel(Tenant.name)
+    private tenantModel: Model<Tenant>,
     private mediaService: MediaService,
+    private notificationsService: NotificationsService,
   ) {}
 
   async create(createThreadDto: CreateThreadDto): Promise<ThreadDocument> {
@@ -331,11 +341,12 @@ export class ThreadsService {
       .exec();
 
     // Enrich media with URLs
-    if (
+    const hasAttachments =
       messageWithMedia &&
       (messageWithMedia as any).media &&
-      (messageWithMedia as any).media.length > 0
-    ) {
+      (messageWithMedia as any).media.length > 0;
+
+    if (hasAttachments) {
       const enrichedMedia = await Promise.all(
         (messageWithMedia as any).media.map((media: any) =>
           this.mediaService.enrichMediaWithUrl(media),
@@ -343,6 +354,29 @@ export class ThreadsService {
       );
       // Replace media array with enriched version
       (messageWithMedia as any).media = enrichedMedia;
+    }
+
+    // Send notification to landlord if message was sent by tenant or contractor
+    if (createMessageDto.senderType === 'TENANT' || createMessageDto.senderType === 'CONTRACTOR') {
+      await this.notifyLandlordOfNewMessage(
+        thread,
+        createMessageDto.senderType,
+        createMessageDto.senderId,
+        hasAttachments,
+      );
+    }
+
+    // Send notification to tenants if message was sent by landlord or contractor
+    if (
+      createMessageDto.senderType === 'LANDLORD' ||
+      createMessageDto.senderType === 'CONTRACTOR'
+    ) {
+      await this.notifyTenantsOfNewMessage(
+        thread,
+        createMessageDto.senderType,
+        createMessageDto.senderId,
+        hasAttachments,
+      );
     }
 
     return messageWithMedia || savedMessage;
@@ -812,6 +846,9 @@ export class ThreadsService {
 
     await this.threadParticipantModel.insertMany(participants);
 
+    // Notify tenants that they've been invited to the group thread
+    await this.notifyTenantsOfThreadInvitation(savedThread, tenantIds);
+
     return savedThread;
   }
 
@@ -1044,5 +1081,347 @@ export class ThreadsService {
     ];
 
     await this.threadParticipantModel.insertMany(participants);
+  }
+
+  /**
+   * Notify landlord of new message or attachment in thread
+   */
+  private async notifyLandlordOfNewMessage(
+    thread: ThreadDocument,
+    senderType: string,
+    senderId: string,
+    hasAttachments: boolean,
+  ): Promise<void> {
+    try {
+      // Find the landlord user
+      const landlordUser = await this.userModel.findOne({ user_type: 'Landlord' }).exec();
+
+      if (!landlordUser) {
+        return;
+      }
+
+      // Get sender information
+      let senderName = 'User';
+      if (senderType === 'TENANT') {
+        const tenant = await this.tenantModel.findById(senderId).exec();
+        if (tenant) {
+          const tenantUser = await this.userModel
+            .findOne({ organization_id: tenant._id, user_type: 'Tenant' })
+            .exec();
+          if (tenantUser) {
+            senderName =
+              tenantUser.firstName && tenantUser.lastName
+                ? `${tenantUser.firstName} ${tenantUser.lastName}`
+                : tenantUser.username;
+          }
+        }
+      } else if (senderType === 'CONTRACTOR') {
+        const contractor = await this.contractorModel.findById(senderId).exec();
+        if (contractor) {
+          senderName = contractor.name || 'Contractor';
+        }
+      }
+
+      // Get the entity title (ticket or SOW)
+      let entityTitle = 'Thread';
+      if (thread.linkedEntityType === ThreadLinkedEntityType.TICKET && thread.linkedEntityId) {
+        const ticket = await this.ticketModel.findById(thread.linkedEntityId).exec();
+        if (ticket) {
+          entityTitle = ticket.title;
+        }
+      } else if (
+        thread.linkedEntityType === ThreadLinkedEntityType.SCOPE_OF_WORK &&
+        thread.linkedEntityId
+      ) {
+        const sow = await this.scopeOfWorkModel.findById(thread.linkedEntityId).exec();
+        if (sow) {
+          entityTitle = `SOW #${(sow as any).sowNumber || sow._id}`;
+        }
+      }
+
+      // Send appropriate notification based on whether there are attachments
+      if (hasAttachments) {
+        await this.notificationsService.createNotification(
+          landlordUser._id.toString(),
+          'New Attachment',
+          `📎 ${senderName} attached a file in ${entityTitle}.`,
+        );
+      } else {
+        await this.notificationsService.createNotification(
+          landlordUser._id.toString(),
+          'New Message',
+          `💬 ${senderName} sent a new message in ${entityTitle}.`,
+        );
+      }
+    } catch (error) {
+      console.error('Failed to notify landlord of new message:', error);
+    }
+  }
+
+  /**
+   * Notify tenants of new message or attachment in thread
+   */
+  private async notifyTenantsOfNewMessage(
+    thread: ThreadDocument,
+    senderType: string,
+    senderId: string,
+    hasAttachments: boolean,
+  ): Promise<void> {
+    try {
+      // Get all tenant participants in this thread
+      const tenantParticipants = await this.threadParticipantModel
+        .find({
+          thread: thread._id,
+          participantType: ParticipantType.TENANT,
+          status: { $in: [ParticipantStatus.ACCEPTED, ParticipantStatus.ACTIVE] },
+        })
+        .exec();
+
+      if (tenantParticipants.length === 0) {
+        return;
+      }
+
+      // Get sender information
+      let senderName = 'User';
+      if (senderType === 'LANDLORD') {
+        const landlord = await this.userModel.findOne({ user_type: 'Landlord' }).exec();
+        if (landlord) {
+          senderName =
+            landlord.firstName && landlord.lastName
+              ? `${landlord.firstName} ${landlord.lastName}`
+              : landlord.username;
+        }
+      } else if (senderType === 'CONTRACTOR') {
+        const contractor = await this.contractorModel.findById(senderId).exec();
+        if (contractor) {
+          senderName = contractor.name || 'Contractor';
+        }
+      }
+
+      // Get the entity title (ticket or SOW)
+      let entityTitle = thread.title || 'Thread';
+      if (
+        thread.linkedEntityType === ThreadLinkedEntityType.SCOPE_OF_WORK &&
+        thread.linkedEntityId
+      ) {
+        const sow = await this.scopeOfWorkModel.findById(thread.linkedEntityId).exec();
+        if (sow) {
+          entityTitle = sow.title || `SOW #${(sow as any).sowNumber || sow._id}`;
+        }
+      } else if (
+        thread.linkedEntityType === ThreadLinkedEntityType.TICKET &&
+        thread.linkedEntityId
+      ) {
+        const ticket = await this.ticketModel.findById(thread.linkedEntityId).exec();
+        if (ticket) {
+          entityTitle = ticket.title;
+        }
+      }
+
+      // Get tenant users
+      const tenantIds = tenantParticipants.map((p) => p.participantId);
+      const tenantUsers = await this.userModel
+        .find({
+          user_type: 'Tenant',
+          organization_id: { $in: tenantIds },
+        })
+        .exec();
+
+      // Send appropriate notification based on whether there are attachments
+      const notificationPromises = tenantUsers.map((user) => {
+        if (hasAttachments) {
+          return this.notificationsService.createNotification(
+            user._id.toString(),
+            'New Attachment',
+            `📎 A new file was shared in ${entityTitle}.`,
+          );
+        } else {
+          return this.notificationsService.createNotification(
+            user._id.toString(),
+            'New Message',
+            `💬 ${senderName} sent you a message in ${entityTitle}.`,
+          );
+        }
+      });
+
+      await Promise.all(notificationPromises);
+    } catch (error) {
+      console.error('Failed to notify tenants of new message:', error);
+    }
+  }
+
+  /**
+   * Notify tenants when invited to SOW group thread
+   */
+  private async notifyTenantsOfThreadInvitation(
+    thread: ThreadDocument,
+    tenantIds: string[],
+  ): Promise<void> {
+    try {
+      // Get SOW title
+      let sowTitle = 'discussion';
+      if (thread.linkedEntityId) {
+        const sow = await this.scopeOfWorkModel.findById(thread.linkedEntityId).exec();
+        if (sow) {
+          sowTitle = sow.title || `SOW #${(sow as any).sowNumber || sow._id}`;
+        }
+      }
+
+      // Get tenant users
+      const tenantUsers = await this.userModel
+        .find({
+          user_type: 'Tenant',
+          organization_id: { $in: tenantIds.map((id) => new Types.ObjectId(id)) },
+        })
+        .exec();
+
+      // Send notifications
+      const notificationPromises = tenantUsers.map((user) =>
+        this.notificationsService.createNotification(
+          user._id.toString(),
+          'Thread Invitation',
+          `📨 You've been invited to join the discussion in ${sowTitle}.`,
+        ),
+      );
+
+      await Promise.all(notificationPromises);
+
+      // TODO: Add email notification here if needed
+      // await this.sendThreadInvitationEmail(tenantUsers, sowTitle);
+    } catch (error) {
+      console.error('Failed to notify tenants of thread invitation:', error);
+    }
+  }
+
+  /**
+   * Notify tenants when thread is closed (SOW completed)
+   * Should be called when SOW status changes to CLOSED
+   */
+  async notifyTenantsOfThreadClosed(sowId: Types.ObjectId): Promise<void> {
+    try {
+      // Get SOW
+      const sow = await this.scopeOfWorkModel.findById(sowId).exec();
+      if (!sow) {
+        return;
+      }
+
+      // Get all threads for this SOW
+      const threads = await this.threadModel
+        .find({
+          linkedEntityType: ThreadLinkedEntityType.SCOPE_OF_WORK,
+          linkedEntityId: sowId,
+        })
+        .exec();
+
+      if (threads.length === 0) {
+        return;
+      }
+
+      // Get all tenant participants from all threads
+      const tenantParticipants = await this.threadParticipantModel
+        .find({
+          thread: { $in: threads.map((t) => t._id) },
+          participantType: ParticipantType.TENANT,
+        })
+        .exec();
+
+      if (tenantParticipants.length === 0) {
+        return;
+      }
+
+      // Get unique tenant IDs
+      const uniqueTenantIds = [
+        ...new Set(tenantParticipants.map((p) => p.participantId.toString())),
+      ];
+
+      // Get tenant users
+      const tenantUsers = await this.userModel
+        .find({
+          user_type: 'Tenant',
+          organization_id: { $in: uniqueTenantIds.map((id) => new Types.ObjectId(id)) },
+        })
+        .exec();
+
+      const sowTitle = sow.title || `SOW #${(sow as any).sowNumber || sow._id}`;
+
+      // Send notifications
+      const notificationPromises = tenantUsers.map((user) =>
+        this.notificationsService.createNotification(
+          user._id.toString(),
+          'Discussion Closed',
+          `✅ The discussion for ${sowTitle} has been closed.`,
+        ),
+      );
+
+      await Promise.all(notificationPromises);
+    } catch (error) {
+      console.error('Failed to notify tenants of thread closed:', error);
+    }
+  }
+
+  /**
+   * Notify tenants when thread is reopened (SOW reactivated)
+   * Should be called when SOW status changes from CLOSED to another status
+   */
+  async notifyTenantsOfThreadReopened(sowId: Types.ObjectId): Promise<void> {
+    try {
+      // Get SOW
+      const sow = await this.scopeOfWorkModel.findById(sowId).exec();
+      if (!sow) {
+        return;
+      }
+
+      // Get all threads for this SOW
+      const threads = await this.threadModel
+        .find({
+          linkedEntityType: ThreadLinkedEntityType.SCOPE_OF_WORK,
+          linkedEntityId: sowId,
+        })
+        .exec();
+
+      if (threads.length === 0) {
+        return;
+      }
+
+      // Get all tenant participants from all threads
+      const tenantParticipants = await this.threadParticipantModel
+        .find({
+          thread: { $in: threads.map((t) => t._id) },
+          participantType: ParticipantType.TENANT,
+        })
+        .exec();
+
+      if (tenantParticipants.length === 0) {
+        return;
+      }
+
+      // Get unique tenant IDs
+      const uniqueTenantIds = [
+        ...new Set(tenantParticipants.map((p) => p.participantId.toString())),
+      ];
+
+      // Get tenant users
+      const tenantUsers = await this.userModel
+        .find({
+          user_type: 'Tenant',
+          organization_id: { $in: uniqueTenantIds.map((id) => new Types.ObjectId(id)) },
+        })
+        .exec();
+
+      const sowTitle = sow.title || `SOW #${(sow as any).sowNumber || sow._id}`;
+
+      // Send notifications
+      const notificationPromises = tenantUsers.map((user) =>
+        this.notificationsService.createNotification(
+          user._id.toString(),
+          'Discussion Reopened',
+          `🔁 The discussion for ${sowTitle} has been reopened.`,
+        ),
+      );
+
+      await Promise.all(notificationPromises);
+    } catch (error) {
+      console.error('Failed to notify tenants of thread reopened:', error);
+    }
   }
 }
