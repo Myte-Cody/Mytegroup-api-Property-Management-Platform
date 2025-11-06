@@ -1001,7 +1001,7 @@ export class MaintenanceTicketsService {
           propertyName: property?.name || 'Unknown Property',
           unitIdentifier,
           description: ticket.description,
-          createdAt: ticket.createdAt || new Date(),
+          createdAt: (ticket as any).createdAt || new Date(),
         },
         { queue: true },
       );
@@ -1093,8 +1093,7 @@ export class MaintenanceTicketsService {
           propertyName: property?.name || 'Unknown Property',
           unitIdentifier,
           completedAt: new Date(),
-          cost: ticket.cost,
-          completionNotes: ticket.completionNotes,
+          completionNotes: ticket.notes,
         },
         { queue: true },
       );

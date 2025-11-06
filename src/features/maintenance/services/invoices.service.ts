@@ -426,9 +426,9 @@ export class InvoicesService {
           recipientEmail: landlordUser.email,
           contractorName,
           entityReference,
-          invoiceNumber: invoice.invoiceNumber,
+          invoiceNumber: invoice._id.toString(),
           amount: invoice.amount,
-          uploadedAt: invoice.createdAt || new Date(),
+          uploadedAt: (invoice as any).createdAt || new Date(),
         },
         { queue: true },
       );

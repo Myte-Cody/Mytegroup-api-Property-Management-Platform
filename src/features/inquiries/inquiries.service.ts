@@ -324,7 +324,7 @@ export class InquiriesService {
             propertyName,
             unitIdentifier,
             message: inquiry.message,
-            submittedAt: inquiry.createdAt || new Date(),
+            submittedAt: (inquiry as any).createdAt || new Date(),
           },
           { queue: true },
         );
@@ -361,7 +361,7 @@ export class InquiriesService {
             unitIdentifier,
             preferredDate: inquiry.preferredDate,
             message: inquiry.message,
-            submittedAt: inquiry.createdAt || new Date(),
+            submittedAt: (inquiry as any).createdAt || new Date(),
           },
           { queue: true },
         );
