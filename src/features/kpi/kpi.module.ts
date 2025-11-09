@@ -11,9 +11,12 @@ import {
 import { ScopeOfWork, ScopeOfWorkSchema } from '../maintenance/schemas/scope-of-work.schema';
 import { Property, PropertySchema } from '../properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../properties/schemas/unit.schema';
+import { User, UserSchema } from '../users/schemas/user.schema';
 import { FinancialKPIController } from './controllers/financial-kpi.controller';
+import { MaintenanceKPIController } from './controllers/maintenance-kpi.controller';
 import { OccupancyLeasingKPIController } from './controllers/occupancy-leasing-kpi.controller';
 import { FinancialKPIService } from './services/financial-kpi.service';
+import { MaintenanceKPIService } from './services/maintenance-kpi.service';
 import { OccupancyLeasingKPIService } from './services/occupancy-leasing-kpi.service';
 
 @Module({
@@ -27,10 +30,11 @@ import { OccupancyLeasingKPIService } from './services/occupancy-leasing-kpi.ser
       { name: Invoice.name, schema: InvoiceSchema },
       { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
       { name: ScopeOfWork.name, schema: ScopeOfWorkSchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
-  controllers: [FinancialKPIController, OccupancyLeasingKPIController],
-  providers: [FinancialKPIService, OccupancyLeasingKPIService],
-  exports: [FinancialKPIService, OccupancyLeasingKPIService],
+  controllers: [FinancialKPIController, OccupancyLeasingKPIController, MaintenanceKPIController],
+  providers: [FinancialKPIService, OccupancyLeasingKPIService, MaintenanceKPIService],
+  exports: [FinancialKPIService, OccupancyLeasingKPIService, MaintenanceKPIService],
 })
 export class KPIModule {}
