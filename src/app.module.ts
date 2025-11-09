@@ -15,6 +15,7 @@ import { ExpensesModule } from './features/expenses/expenses.module';
 import { FeedPostsModule } from './features/feed-posts/feed-posts.module';
 import { InquiriesModule } from './features/inquiries/inquiries.module';
 import { InvitationsModule } from './features/invitations/invitations.module';
+import { KPIModule } from './features/kpi/kpi.module';
 import { LandlordModule } from './features/landlords/landlord.module';
 import { LeasesModule } from './features/leases/leases.module';
 import { MaintenanceModule } from './features/maintenance/maintenance.module';
@@ -66,6 +67,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     RevenuesModule,
     MaintenanceModule,
     ExpensesModule,
+    KPIModule,
     FeedPostsModule,
     MediaModule,
     InquiriesModule,
