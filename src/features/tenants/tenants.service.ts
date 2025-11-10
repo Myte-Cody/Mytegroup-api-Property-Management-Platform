@@ -15,6 +15,7 @@ import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
 import { Lease } from '../leases/schemas/lease.schema';
 import { Transaction } from '../leases/schemas/transaction.schema';
+import { Unit } from '../properties/schemas/unit.schema';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { UpdateUserDto } from '../users/dto/update-user.dto';
 import { UserQueryDto } from '../users/dto/user-query.dto';
@@ -38,6 +39,8 @@ export class TenantsService {
     private readonly leaseModel: AppModel<Lease>,
     @InjectModel(Transaction.name)
     private readonly transactionModel: AppModel<Transaction>,
+    @InjectModel(Unit.name)
+    private readonly unitModel: AppModel<Unit>,
     private caslAuthorizationService: CaslAuthorizationService,
     private usersService: UsersService,
     private readonly sessionService: SessionService,
@@ -347,6 +350,152 @@ export class TenantsService {
     return tenant;
   }
 
+  async findMyNeighbors(currentUser: UserDocument) {
+    // Only tenant users can access neighbors
+    if (currentUser.user_type !== 'Tenant') {
+      throw new ForbiddenException('Only tenant users can access this endpoint');
+    }
+
+    const tenantId = currentUser.organization_id;
+    if (!tenantId) {
+      throw new ForbiddenException('No tenant profile associated with this user');
+    }
+
+    // Step 1: Find all active leases for the current tenant
+    const myLeases = await this.leaseModel
+      .find({
+        tenant: tenantId,
+        status: LeaseStatus.ACTIVE,
+        deleted: false,
+      })
+      .populate('unit')
+      .exec();
+
+    if (!myLeases || myLeases.length === 0) {
+      return [];
+    }
+
+    // Step 2: Extract property IDs from the units
+    const propertyIds = myLeases
+      .map((lease) => {
+        const unit = lease.unit as any;
+        return unit?.property;
+      })
+      .filter((propertyId) => propertyId);
+
+    if (propertyIds.length === 0) {
+      return [];
+    }
+
+    // Step 3: Find all units in the same properties
+    const unitsInSameProperties = await this.unitModel
+      .find({
+        property: { $in: propertyIds },
+        deleted: false,
+      })
+      .populate('property')
+      .exec();
+
+    if (!unitsInSameProperties || unitsInSameProperties.length === 0) {
+      return [];
+    }
+
+    const unitIds = unitsInSameProperties.map((unit) => unit._id);
+
+    // Step 4: Find all active leases for those units (excluding current tenant's leases)
+    const neighborLeases = await this.leaseModel.aggregate([
+      {
+        $match: {
+          unit: { $in: unitIds },
+          tenant: { $ne: new mongoose.Types.ObjectId(tenantId) }, // Exclude current tenant
+          status: LeaseStatus.ACTIVE,
+          deleted: false,
+        },
+      },
+      {
+        $lookup: {
+          from: 'units',
+          localField: 'unit',
+          foreignField: '_id',
+          as: 'unitDetails',
+        },
+      },
+      {
+        $unwind: '$unitDetails',
+      },
+      {
+        $lookup: {
+          from: 'properties',
+          localField: 'unitDetails.property',
+          foreignField: '_id',
+          as: 'propertyDetails',
+        },
+      },
+      {
+        $unwind: '$propertyDetails',
+      },
+      {
+        $lookup: {
+          from: 'tenants',
+          localField: 'tenant',
+          foreignField: '_id',
+          as: 'tenantDetails',
+        },
+      },
+      {
+        $unwind: '$tenantDetails',
+      },
+      {
+        $lookup: {
+          from: 'media',
+          let: { unitId: '$unitDetails._id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$model_id', '$$unitId'] },
+                    { $eq: ['$model_type', 'Unit'] },
+                    { $eq: ['$collection_name', 'unit_photos'] },
+                  ],
+                },
+              },
+            },
+            { $limit: 1 },
+          ],
+          as: 'unitMedia',
+        },
+      },
+      {
+        $project: {
+          _id: '$unitDetails._id',
+          unitNumber: '$unitDetails.unitNumber',
+          size: '$unitDetails.size',
+          type: '$unitDetails.type',
+          property: {
+            _id: '$propertyDetails._id',
+            name: '$propertyDetails.name',
+            address: '$propertyDetails.address',
+          },
+          activeLease: {
+            _id: '$_id',
+            rentAmount: '$rentAmount',
+            startDate: '$startDate',
+            endDate: '$endDate',
+            status: '$status',
+            tenant: {
+              _id: '$tenantDetails._id',
+              name: '$tenantDetails.name',
+            },
+          },
+          media: '$unitMedia',
+        },
+      },
+    ]);
+
+    return neighborLeases;
+  }
+
   async create(createTenantDto: CreateTenantDto, currentUser: UserDocument) {
     // CASL: Check create permission
 
@@ -552,21 +701,102 @@ export class TenantsService {
       throw new NotFoundException(`Tenant with ID ${tenantId} not found`);
     }
 
-    // For tenant users, ensure they can only access their own tenant's users
+    // For tenant users, validate access based on action
     if (currentUser.user_type === 'Tenant') {
-      if (currentUser.organization_id?.toString() !== tenantId) {
-        throw new ForbiddenException('You can only manage users within your own tenant');
+      const currentTenantId = currentUser.organization_id?.toString();
+
+      // For read actions, allow access to own tenant or neighbor tenants
+      if (action === Action.Read) {
+        if (currentTenantId === tenantId) {
+          // Accessing own tenant - allowed
+          return tenant;
+        }
+
+        // Check if the target tenant is a neighbor
+        const isNeighbor = await this.isNeighborTenant(currentTenantId, tenantId);
+        if (!isNeighbor) {
+          throw new ForbiddenException(
+            'You can only view users within your own tenant or neighbor tenants',
+          );
+        }
+      } else {
+        // For non-read actions (create, update, delete), only allow own tenant
+        if (currentTenantId !== tenantId) {
+          throw new ForbiddenException('You can only manage users within your own tenant');
+        }
       }
     }
 
     return tenant;
   }
 
+  // Helper method to check if a tenant is a neighbor
+  private async isNeighborTenant(
+    currentTenantId: string | undefined,
+    targetTenantId: string,
+  ): Promise<boolean> {
+    if (!currentTenantId) {
+      return false;
+    }
+
+    // Step 1: Find all active leases for the current tenant
+    const myLeases = await this.leaseModel
+      .find({
+        tenant: currentTenantId,
+        status: LeaseStatus.ACTIVE,
+        deleted: false,
+      })
+      .populate('unit')
+      .exec();
+
+    if (!myLeases || myLeases.length === 0) {
+      return false;
+    }
+
+    // Step 2: Extract property IDs from the units
+    const propertyIds = myLeases
+      .map((lease) => {
+        const unit = lease.unit as any;
+        return unit?.property;
+      })
+      .filter((propertyId) => propertyId);
+
+    if (propertyIds.length === 0) {
+      return false;
+    }
+
+    // Step 3: Find all units in the same properties
+    const unitsInSameProperties = await this.unitModel
+      .find({
+        property: { $in: propertyIds },
+        deleted: false,
+      })
+      .exec();
+
+    if (!unitsInSameProperties || unitsInSameProperties.length === 0) {
+      return false;
+    }
+
+    const unitIds = unitsInSameProperties.map((unit) => unit._id);
+
+    // Step 4: Check if the target tenant has an active lease in any of these units
+    const neighborLease = await this.leaseModel
+      .findOne({
+        unit: { $in: unitIds },
+        tenant: new mongoose.Types.ObjectId(targetTenantId),
+        status: LeaseStatus.ACTIVE,
+        deleted: false,
+      })
+      .exec();
+
+    return !!neighborLease;
+  }
+
   // Helper method to validate that a user belongs to a specific tenant
   private async validateUserBelongsToTenant(
     userId: string,
     tenantId: string,
-    currentUser: UserDocument,
+    _currentUser: UserDocument,
   ) {
     // Validation: Ensure userId is a valid ObjectId format
     if (!userId.match(/^[0-9a-fA-F]{24}$/)) {

@@ -184,6 +184,12 @@ export class CaslAbilityFactory {
         organization_id: tenantOrganizationId,
         user_type: UserType.TENANT,
       });
+
+      // Tenants can also read other tenant users (neighbors)
+      // The actual neighbor validation is done in the service layer
+      can(Action.Read, User, {
+        user_type: UserType.TENANT,
+      });
     }
 
     // Tenants can create and read maintenance tickets they requested

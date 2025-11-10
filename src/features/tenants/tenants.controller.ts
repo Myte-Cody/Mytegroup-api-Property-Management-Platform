@@ -61,6 +61,13 @@ export class TenantsController {
     return this.tenantsService.findMyProfile(user);
   }
 
+  @Get('me/neighbors')
+  @CheckPolicies(new ReadTenantPolicyHandler())
+  @ApiOperation({ summary: 'Get neighbors (tenants in same properties)' })
+  findMyNeighbors(@CurrentUser() user: User) {
+    return this.tenantsService.findMyNeighbors(user);
+  }
+
   @Get(':id')
   @CheckPolicies(new ReadTenantPolicyHandler())
   @ApiOperation({ summary: 'Get tenant by ID' })
