@@ -13,28 +13,90 @@ services:
       - .env
     environment:
       - NODE_ENV=${NODE_ENV:-development}
-      - APP_PORT=${APP_PORT}
-      - PORT_DEV=${PORT_DEV}
-      - PORT_PROD=${PORT_PROD}
-      - APP_BASE_URL=${APP_BASE_URL}
-      - CLIENT_BASE_URL=${CLIENT_BASE_URL}
-      - CORS_ORIGINS_DEV=${CORS_ORIGINS_DEV}
-      - CORS_ORIGINS_PROD=${CORS_ORIGINS_PROD}
+      - DB_URL=mongodb://${MONGO_ROOT_USERNAME:-admin}:${MONGO_ROOT_PASSWORD:-password}@mongodb:27017/${MONGO_DB_NAME:-mytegroup}?authSource=admin
+      - MONGO_DB_NAME=${MONGO_DB_NAME:-mytegroup}
+      - AI_ENDPOINT=http://ai-api:8000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     volumes:
       - ./src:/app/src
-      - ./node_modules:/app/node_modules
     command: npm run start:dev
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mytegroup-network
+
+  mongodb:
+    image: mongo:7
+    container_name: mytegroup-mongodb
+    restart: always
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME:-admin}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-password}
+      - MONGO_INITDB_DATABASE=${MONGO_DB_NAME:-mytegroup}
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - mytegroup-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: mytegroup-redis
+    restart: always
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
     networks:
       - mytegroup-network
 
   ai-api:
     build:
       context: ./ai_features
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
+    container_name: mytegroup-ai
+    restart: always
     ports:
       - "8000:8000"
     env_file:
       - .env
+    volumes:
+      - ./ai_features:/app  
+    networks:
+      - mytegroup-network
+
+  frontend:
+    build:
+      context: ${FRONTEND_REPO_URL}
+    container_name: mytegroup-frontend
+    restart: always
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_PROJECT_ID=${NEXT_PUBLIC_PROJECT_ID:-your-project-id}
+      - NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY:-}
+    depends_on:
+      api:
+        condition: service_started
     networks:
       - mytegroup-network
 
@@ -42,4 +104,8 @@ networks:
   mytegroup-network:
     driver: bridge
 
-volumes: {}
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
