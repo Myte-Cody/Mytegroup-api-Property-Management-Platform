@@ -10,7 +10,7 @@ env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
   CONTAINER_PORT: ${{ secrets.CONTAINER_PORT }}
-  IMAGE_TAG: '${{ github.sha }}'
+  IMAGE_TAG: "${{ github.sha }}"
 
 jobs:
   build_and_deploy:
@@ -252,6 +252,10 @@ jobs:
                   {
                     "name": "PORT",
                     "value": "80"
+                  },
+                  {
+                    "name": "AI_ENDPOINT",
+                    "value": "https://${{ steps.get_repo_name.outputs.repo_name }}-ai.mytecody.com"
                   }
                 ], 
                 "logConfiguration": {
@@ -495,6 +499,7 @@ jobs:
           LOWER_REPO=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
           AI_REPO="${LOWER_REPO}-ai"
           echo "repo_name=$AI_REPO" >> $GITHUB_OUTPUT
+          echo "api_repo_name=$LOWER_REPO" >> $GITHUB_OUTPUT
 
           SHORTENED_NAME=$(echo "${AI_REPO}" | cut -c 1-24)
           echo "task_family=${AI_REPO}-task" >> $GITHUB_OUTPUT
@@ -649,6 +654,14 @@ jobs:
                   {
                     "name": "PORT",
                     "value": "80"
+                  },
+                  {
+                    "name": "API_HOST",
+                    "value": "https://${{ steps.get_repo_name.outputs.api_repo_name }}.mytecody.com"
+                  },
+                  {
+                    "name": "OPENAI_API_KEY",
+                    "value": "${{ secrets.OPENAI_API_KEY }}"
                   }
                 ], 
                 "logConfiguration": {
