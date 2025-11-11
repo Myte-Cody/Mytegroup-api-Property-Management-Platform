@@ -4,6 +4,7 @@ import { Document, Schema as MongooseSchema } from 'mongoose';
 export enum ThreadLinkedEntityType {
   TICKET = 'TICKET',
   SCOPE_OF_WORK = 'SCOPE_OF_WORK',
+  TENANT_CHAT = 'TENANT_CHAT',
 }
 
 export enum ThreadType {
@@ -15,6 +16,9 @@ export enum ThreadType {
   LANDLORD_CONTRACTOR = 'LANDLORD_CONTRACTOR', // Landlord ↔ Contractor (optional for contractor)
   CONTRACTOR_TENANT = 'CONTRACTOR_TENANT', // Contractor ↔ Tenant (optional for both)
   SOW_GROUP = 'SOW_GROUP', // Group thread (optional for contractors/tenants, mandatory for landlord)
+
+  // For Tenant-to-Tenant Chat
+  TENANT_TENANT = 'TENANT_TENANT', // Tenant ↔ Tenant direct chat
 }
 
 export type ThreadDocument = Thread & Document;

@@ -9,6 +9,7 @@ import { CommonModule } from './common/common.module';
 import configuration from './config/configuration';
 import renewalConfig from './config/renewal.config';
 import { AuthModule } from './features/auth/auth.module';
+import { ChatModule } from './features/chat/chat.module';
 import { ContractorModule } from './features/contractors/contractor.module';
 import { EmailModule } from './features/email/email.module';
 import { ExpensesModule } from './features/expenses/expenses.module';
@@ -56,6 +57,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     }),
     CommonModule,
     AuthModule,
+    ChatModule,
     EmailModule,
     UsersModule,
     LandlordModule,
