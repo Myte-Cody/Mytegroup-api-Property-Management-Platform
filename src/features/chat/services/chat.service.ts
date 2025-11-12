@@ -170,17 +170,18 @@ export class ChatService {
     // Manually load all users in one query
     const users = await this.userModel
       .find({ _id: { $in: allUserIds } })
-      .select('_id firstName lastName email profilePicture')
+      .select('_id firstName lastName email user_type organization_id')
       .lean();
 
     // Create a map of userId to user data
     const usersMap = new Map(users.map((user) => [user._id.toString(), user]));
 
     // Get all last messages for all threads in one query
+    // Use threads array to maintain correct order
     const lastMessages = await Promise.all(
-      chatThreadIds.map((threadId) =>
+      threads.map((thread) =>
         this.threadMessageModel
-          .findOne({ thread: threadId })
+          .findOne({ thread: thread._id })
           .sort({ createdAt: -1 })
           .populate('senderId', 'firstName lastName')
           .lean(),
@@ -231,6 +232,8 @@ export class ChatService {
               firstName: otherUserInfo.firstName,
               lastName: otherUserInfo.lastName,
               email: otherUserInfo.email,
+              user_type: otherUserInfo.user_type,
+              organization_id: otherUserInfo.organization_id,
             }
           : null,
         participants: participants
