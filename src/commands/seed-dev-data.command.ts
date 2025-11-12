@@ -3,14 +3,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
 import { Model } from 'mongoose';
 import { Command, CommandRunner, Option } from 'nest-commander';
-import { UserType } from '../common/enums/user-type.enum';
 import { LeaseStatus, PaymentCycle } from '../common/enums/lease.enum';
-import {
-  TicketCategory,
-  TicketPriority,
-  TicketStatus,
-} from '../common/enums/maintenance.enum';
+import { TicketCategory, TicketPriority, TicketStatus } from '../common/enums/maintenance.enum';
 import { UnitAvailabilityStatus, UnitType } from '../common/enums/unit.enum';
+import { UserType } from '../common/enums/user-type.enum';
 import { Contractor } from '../features/contractors/schema/contractor.schema';
 import { Landlord } from '../features/landlords/schema/landlord.schema';
 import { Lease } from '../features/leases/schemas/lease.schema';
@@ -68,20 +64,13 @@ export class SeedDevDataCommand extends CommandRunner {
       const tenants = await this.createTenants(verbose);
 
       // Create properties with units
-      const { properties, units } = await this.createPropertiesWithUnits(
-        verbose,
-      );
+      const { properties, units } = await this.createPropertiesWithUnits(verbose);
 
       // Create leases with different statuses
       const leases = await this.createLeases(tenants, units, verbose);
 
       // Create maintenance tickets and scopes of work
-      await this.createMaintenanceData(
-        properties,
-        units,
-        landlordUser,
-        verbose,
-      );
+      await this.createMaintenanceData(properties, units, landlordUser, verbose);
 
       await this.printSummary();
 
@@ -155,8 +144,18 @@ export class SeedDevDataCommand extends CommandRunner {
 
     const tenantsData = [
       { name: 'Smith Family', firstName: 'John', lastName: 'Smith', email: 'tenant1@example.com' },
-      { name: 'Johnson Household', firstName: 'Sarah', lastName: 'Johnson', email: 'tenant2@example.com' },
-      { name: 'Williams Residence', firstName: 'Michael', lastName: 'Williams', email: 'tenant3@example.com' },
+      {
+        name: 'Johnson Household',
+        firstName: 'Sarah',
+        lastName: 'Johnson',
+        email: 'tenant2@example.com',
+      },
+      {
+        name: 'Williams Residence',
+        firstName: 'Michael',
+        lastName: 'Williams',
+        email: 'tenant3@example.com',
+      },
       { name: 'Brown Living', firstName: 'Emily', lastName: 'Brown', email: 'tenant4@example.com' },
       { name: 'Davis Home', firstName: 'David', lastName: 'Davis', email: 'tenant5@example.com' },
     ];
@@ -289,11 +288,7 @@ export class SeedDevDataCommand extends CommandRunner {
     return { properties, units };
   }
 
-  private async createLeases(
-    tenants: any[],
-    units: any[],
-    verbose: boolean,
-  ): Promise<any[]> {
+  private async createLeases(tenants: any[], units: any[], verbose: boolean): Promise<any[]> {
     if (verbose) console.log('📄 Creating leases with different statuses...');
 
     const leases = [];
@@ -417,7 +412,8 @@ export class SeedDevDataCommand extends CommandRunner {
         property: properties[0]._id,
         unit: units[1]._id,
         title: 'Leaking faucet in kitchen',
-        description: 'The kitchen faucet has been leaking for the past week. Water drips constantly.',
+        description:
+          'The kitchen faucet has been leaking for the past week. Water drips constantly.',
         category: TicketCategory.PLUMBING,
         priority: TicketPriority.HIGH,
         status: TicketStatus.OPEN,
@@ -487,10 +483,7 @@ export class SeedDevDataCommand extends CommandRunner {
       }).save();
 
       tickets.push(ticket);
-      if (verbose)
-        console.log(
-          `  ✅ Created ${ticket.status} maintenance ticket: ${ticket.title}`,
-        );
+      if (verbose) console.log(`  ✅ Created ${ticket.status} maintenance ticket: ${ticket.title}`);
     }
 
     // Create scopes of work
@@ -499,7 +492,8 @@ export class SeedDevDataCommand extends CommandRunner {
         property: properties[0]._id,
         unit: units[1]._id,
         title: 'Complete Kitchen Plumbing Renovation',
-        description: 'Replace all kitchen plumbing fixtures including faucet, disposal, and under-sink pipes.',
+        description:
+          'Replace all kitchen plumbing fixtures including faucet, disposal, and under-sink pipes.',
         status: TicketStatus.IN_PROGRESS,
         assignedDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
       },

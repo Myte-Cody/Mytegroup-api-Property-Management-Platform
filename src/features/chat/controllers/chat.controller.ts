@@ -1,19 +1,10 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Put,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
-import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
+import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { User } from '../../users/schemas/user.schema';
-import { ChatService } from '../services/chat.service';
 import { CreateChatSessionDto } from '../dto/create-chat-session.dto';
 import { SendMessageDto } from '../dto/send-message.dto';
+import { ChatService } from '../services/chat.service';
 
 @Controller('chat')
 @UseGuards(JwtAuthGuard)
@@ -39,10 +30,7 @@ export class ChatController {
   ) {
     const currentUserId = user._id.toString();
 
-    return this.chatService.createOrGetChatSession(
-      currentUserId,
-      createChatSessionDto.userId,
-    );
+    return this.chatService.createOrGetChatSession(currentUserId, createChatSessionDto.userId);
   }
 
   /**
@@ -59,12 +47,7 @@ export class ChatController {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 50;
 
-    return this.chatService.getChatMessages(
-      threadId,
-      userId,
-      pageNum,
-      limitNum,
-    );
+    return this.chatService.getChatMessages(threadId, userId, pageNum, limitNum);
   }
 
   /**
@@ -90,10 +73,7 @@ export class ChatController {
    * Mark messages as read in a chat thread
    */
   @Put('sessions/:threadId/read')
-  async markAsRead(
-    @CurrentUser() user: User,
-    @Param('threadId') threadId: string,
-  ) {
+  async markAsRead(@CurrentUser() user: User, @Param('threadId') threadId: string) {
     const userId = user._id.toString();
 
     await this.chatService.markAsRead(threadId, userId);

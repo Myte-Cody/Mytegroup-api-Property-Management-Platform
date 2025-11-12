@@ -1,10 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import {
-  AiExtractionService,
-  InvoiceExtractionResult,
-} from '../../ai/services/ai-extraction.service';
 import { Invoice, InvoiceDocument } from '../../maintenance/schemas/invoice.schema';
 import {
   MaintenanceTicket,
@@ -42,7 +38,6 @@ export class ExpensesService {
     @InjectModel(Unit.name)
     private unitModel: Model<UnitDocument>,
     private mediaService: MediaService,
-    private aiExtractionService: AiExtractionService,
   ) {}
 
   /**
@@ -79,23 +74,11 @@ export class ExpensesService {
       throw new BadRequestException('Invalid unit ID');
     }
 
-    // Extract data from media if provided
-    let extractedData: InvoiceExtractionResult = null;
-    if (createExpenseDto.media) {
-      extractedData = await this.aiExtractionService.extractInvoiceData(createExpenseDto.media);
-    }
-
-    // Use extracted data if available, otherwise use provided values
-    const amount = extractedData?.total_amount || createExpenseDto.amount;
-    const category = extractedData?.expense_class
-      ? (extractedData.expense_class as ExpenseCategory)
-      : createExpenseDto.category;
-
     const expense = new this.expenseModel({
       property: new Types.ObjectId(createExpenseDto.property),
       unit: createExpenseDto.unit ? new Types.ObjectId(createExpenseDto.unit) : undefined,
-      category: category,
-      amount: amount,
+      category: createExpenseDto.category,
+      amount: createExpenseDto.amount,
       description: createExpenseDto.description,
       status: createExpenseDto.status,
     });
@@ -456,30 +439,11 @@ export class ExpensesService {
       throw new BadRequestException('Invalid unit ID');
     }
 
-    // Extract data from media if provided
-    let extractedData: InvoiceExtractionResult = null;
-    if (updateExpenseDto.media) {
-      extractedData = await this.aiExtractionService.extractInvoiceData(updateExpenseDto.media);
-    }
-
     // Update fields
     if (updateExpenseDto.property) expense.property = new Types.ObjectId(updateExpenseDto.property);
     if (updateExpenseDto.unit) expense.unit = new Types.ObjectId(updateExpenseDto.unit);
     if (updateExpenseDto.category) expense.category = updateExpenseDto.category;
-
-    // Use extracted amount if available, otherwise use provided value
-    if (extractedData?.total_amount) {
-      expense.amount = extractedData.total_amount;
-    } else if (updateExpenseDto.amount !== undefined) {
-      expense.amount = updateExpenseDto.amount;
-    }
-
-    // Use extracted category if available, otherwise use provided value
-    if (extractedData?.expense_class) {
-      expense.category = extractedData.expense_class as ExpenseCategory;
-    } else if (updateExpenseDto.category) {
-      expense.category = updateExpenseDto.category;
-    }
+    if (updateExpenseDto.amount !== undefined) expense.amount = updateExpenseDto.amount;
 
     if (updateExpenseDto.description !== undefined)
       expense.description = updateExpenseDto.description;

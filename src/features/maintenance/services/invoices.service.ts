@@ -8,10 +8,6 @@ import {
 } from '../../../common/enums/maintenance.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { SessionService } from '../../../common/services/session.service';
-import {
-  AiExtractionService,
-  InvoiceExtractionResult,
-} from '../../ai/services/ai-extraction.service';
 import { Contractor } from '../../contractors/schema/contractor.schema';
 import { MaintenanceEmailService } from '../../email/services/maintenance-email.service';
 import { NotificationsService } from '../../notifications/notifications.service';
@@ -37,7 +33,6 @@ export class InvoicesService {
     private readonly contractorModel: AppModel<Contractor>,
     private readonly mediaService: MediaService,
     private readonly sessionService: SessionService,
-    private readonly aiExtractionService: AiExtractionService,
     private readonly notificationsService: NotificationsService,
     private readonly maintenanceEmailService: MaintenanceEmailService,
   ) {}
@@ -54,21 +49,9 @@ export class InvoicesService {
         throw new NotFoundException('Ticket not found');
       }
 
-      // Extract data from invoice file if provided
-      let extractedData: InvoiceExtractionResult = null;
-      if (createInvoiceDto.invoice_file) {
-        extractedData = await this.aiExtractionService.extractInvoiceData(
-          createInvoiceDto.invoice_file,
-        );
-      }
-
-      // Use extracted data if available, otherwise use provided values
-      const amount = extractedData?.total_amount || createInvoiceDto.amount;
-      const currency = extractedData?.currency || createInvoiceDto.currency;
-
       const invoice = new this.invoiceModel({
-        amount: amount,
-        currency: currency,
+        amount: createInvoiceDto.amount,
+        currency: createInvoiceDto.currency,
         description: createInvoiceDto.description,
         notes: createInvoiceDto.notes,
         issuer:
@@ -118,21 +101,9 @@ export class InvoicesService {
         throw new NotFoundException('Scope of Work not found');
       }
 
-      // Extract data from invoice file if provided
-      let extractedData: InvoiceExtractionResult = null;
-      if (createInvoiceDto.invoice_file) {
-        extractedData = await this.aiExtractionService.extractInvoiceData(
-          createInvoiceDto.invoice_file,
-        );
-      }
-
-      // Use extracted data if available, otherwise use provided values
-      const amount = extractedData?.total_amount || createInvoiceDto.amount;
-      const currency = extractedData?.currency || createInvoiceDto.currency;
-
       const invoice = new this.invoiceModel({
-        amount: amount,
-        currency: currency,
+        amount: createInvoiceDto.amount,
+        currency: createInvoiceDto.currency,
         description: createInvoiceDto.description,
         notes: createInvoiceDto.notes,
         issuer:
@@ -252,17 +223,9 @@ export class InvoicesService {
         throw new NotFoundException('Invoice not found');
       }
 
-      // Extract data from invoice file if provided
-      let extractedData: InvoiceExtractionResult = null;
-      if (updateInvoiceDto.invoice_file) {
-        extractedData = await this.aiExtractionService.extractInvoiceData(
-          updateInvoiceDto.invoice_file,
-        );
-      }
-
-      // Update invoice fields - use extracted data if available
-      invoice.amount = extractedData?.total_amount || updateInvoiceDto.amount;
-      invoice.currency = extractedData?.currency || updateInvoiceDto.currency;
+      // Update invoice fields
+      invoice.amount = updateInvoiceDto.amount;
+      invoice.currency = updateInvoiceDto.currency;
 
       if (updateInvoiceDto.description !== undefined) {
         invoice.description = updateInvoiceDto.description;
