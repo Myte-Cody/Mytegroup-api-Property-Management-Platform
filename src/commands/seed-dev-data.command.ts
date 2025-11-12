@@ -4,8 +4,18 @@ import * as bcrypt from 'bcrypt';
 import { Model } from 'mongoose';
 import { Command, CommandRunner, Option } from 'nest-commander';
 import { UserType } from '../common/enums/user-type.enum';
+import { LeaseStatus, PaymentCycle } from '../common/enums/lease.enum';
+import {
+  TicketCategory,
+  TicketPriority,
+  TicketStatus,
+} from '../common/enums/maintenance.enum';
+import { UnitAvailabilityStatus, UnitType } from '../common/enums/unit.enum';
 import { Contractor } from '../features/contractors/schema/contractor.schema';
 import { Landlord } from '../features/landlords/schema/landlord.schema';
+import { Lease } from '../features/leases/schemas/lease.schema';
+import { MaintenanceTicket } from '../features/maintenance/schemas/maintenance-ticket.schema';
+import { ScopeOfWork } from '../features/maintenance/schemas/scope-of-work.schema';
 import { Property } from '../features/properties/schemas/property.schema';
 import { Unit } from '../features/properties/schemas/unit.schema';
 import { Tenant } from '../features/tenants/schema/tenant.schema';
@@ -28,6 +38,11 @@ export class SeedDevDataCommand extends CommandRunner {
     @InjectModel(Contractor.name) private readonly contractorModel: Model<Contractor>,
     @InjectModel(Property.name) private readonly propertyModel: Model<Property>,
     @InjectModel(Unit.name) private readonly unitModel: Model<Unit>,
+    @InjectModel(Lease.name) private readonly leaseModel: Model<Lease>,
+    @InjectModel(MaintenanceTicket.name)
+    private readonly maintenanceTicketModel: Model<MaintenanceTicket>,
+    @InjectModel(ScopeOfWork.name)
+    private readonly scopeOfWorkModel: Model<ScopeOfWork>,
   ) {
     super();
   }
@@ -47,14 +62,33 @@ export class SeedDevDataCommand extends CommandRunner {
       const landlord = await this.createLandlord(verbose);
 
       // Create 1 user for the landlord
-      await this.createUser(landlord, verbose);
+      const landlordUser = await this.createUser(landlord, verbose);
+
+      // Create multiple tenants with users
+      const tenants = await this.createTenants(verbose);
+
+      // Create properties with units
+      const { properties, units } = await this.createPropertiesWithUnits(
+        verbose,
+      );
+
+      // Create leases with different statuses
+      const leases = await this.createLeases(tenants, units, verbose);
+
+      // Create maintenance tickets and scopes of work
+      await this.createMaintenanceData(
+        properties,
+        units,
+        landlordUser,
+        verbose,
+      );
 
       await this.printSummary();
 
-      console.log('\n🎉 Minimal dev data seeding completed successfully!');
+      console.log('\n🎉 Comprehensive dev data seeding completed successfully!');
       console.log('\n📝 Login credentials:');
-      console.log('   Email: landlord@example.com');
-      console.log('   Password: password123');
+      console.log('   Landlord: landlord@example.com / password123');
+      console.log('   Tenants: tenant1@example.com, tenant2@example.com, etc. / password123');
     } catch (error) {
       console.error('❌ Dev data seeding failed:', error.message);
       if (error.stack) console.error(error.stack);
@@ -66,6 +100,9 @@ export class SeedDevDataCommand extends CommandRunner {
     if (verbose) console.log('🧹 Cleaning existing data...');
 
     await Promise.all([
+      this.maintenanceTicketModel.deleteMany({}),
+      this.scopeOfWorkModel.deleteMany({}),
+      this.leaseModel.deleteMany({}),
       this.userModel.deleteMany({}),
       this.tenantModel.deleteMany({}),
       this.contractorModel.deleteMany({}),
@@ -113,10 +150,416 @@ export class SeedDevDataCommand extends CommandRunner {
     return saved;
   }
 
+  private async createTenants(verbose: boolean): Promise<any[]> {
+    if (verbose) console.log('👥 Creating tenants with users...');
+
+    const tenantsData = [
+      { name: 'Smith Family', firstName: 'John', lastName: 'Smith', email: 'tenant1@example.com' },
+      { name: 'Johnson Household', firstName: 'Sarah', lastName: 'Johnson', email: 'tenant2@example.com' },
+      { name: 'Williams Residence', firstName: 'Michael', lastName: 'Williams', email: 'tenant3@example.com' },
+      { name: 'Brown Living', firstName: 'Emily', lastName: 'Brown', email: 'tenant4@example.com' },
+      { name: 'Davis Home', firstName: 'David', lastName: 'Davis', email: 'tenant5@example.com' },
+    ];
+
+    const hashedPassword = await bcrypt.hash('password123', 10);
+    const tenants = [];
+
+    for (const data of tenantsData) {
+      const tenant = await new this.tenantModel({
+        name: data.name,
+      }).save();
+
+      await new this.userModel({
+        username: data.firstName.toLowerCase(),
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        password: hashedPassword,
+        phone: `+1${Math.floor(Math.random() * 9000000000) + 1000000000}`,
+        user_type: UserType.TENANT,
+        organization_id: tenant._id,
+        isPrimary: true,
+      }).save();
+
+      tenants.push(tenant);
+      if (verbose) console.log(`  ✅ Created tenant: ${tenant.name} with user ${data.email}`);
+    }
+
+    return tenants;
+  }
+
+  private async createPropertiesWithUnits(verbose: boolean): Promise<{
+    properties: any[];
+    units: any[];
+  }> {
+    if (verbose) console.log('🏢 Creating properties with units...');
+
+    const propertiesData = [
+      {
+        name: 'Sunset Apartments',
+        address: {
+          street: '123 Sunset Blvd',
+          city: 'Los Angeles',
+          state: 'CA',
+          postalCode: '90028',
+          country: 'USA',
+        },
+        description: 'Modern apartment complex in downtown LA',
+        units: [
+          { number: 'A101', size: 850, type: UnitType.APARTMENT, rent: 2500, publish: true },
+          { number: 'A102', size: 900, type: UnitType.APARTMENT, rent: 2700, publish: true },
+          { number: 'A201', size: 1200, type: UnitType.APARTMENT, rent: 3200, publish: false },
+          { number: 'A202', size: 750, type: UnitType.STUDIO, rent: 2000, publish: true },
+        ],
+      },
+      {
+        name: 'Downtown Office Plaza',
+        address: {
+          street: '456 Business Ave',
+          city: 'San Francisco',
+          state: 'CA',
+          postalCode: '94102',
+          country: 'USA',
+        },
+        description: 'Premium office spaces in the financial district',
+        units: [
+          { number: 'Suite 300', size: 2500, type: UnitType.OFFICE, rent: 8000, publish: true },
+          { number: 'Suite 400', size: 3000, type: UnitType.OFFICE, rent: 10000, publish: false },
+        ],
+      },
+      {
+        name: 'Green Valley Houses',
+        address: {
+          street: '789 Valley Road',
+          city: 'Sacramento',
+          state: 'CA',
+          postalCode: '95814',
+          country: 'USA',
+        },
+        description: 'Family-friendly residential homes',
+        units: [
+          { number: '1', size: 2200, type: UnitType.HOUSE, rent: 4500, publish: true },
+          { number: '2', size: 1800, type: UnitType.HOUSE, rent: 3800, publish: false },
+          { number: '3', size: 2000, type: UnitType.HOUSE, rent: 4200, publish: true },
+        ],
+      },
+    ];
+
+    const properties = [];
+    const units = [];
+
+    for (const propData of propertiesData) {
+      const property = await new this.propertyModel({
+        name: propData.name,
+        address: propData.address,
+        description: propData.description,
+      }).save();
+
+      properties.push(property);
+      if (verbose) console.log(`  ✅ Created property: ${property.name}`);
+
+      for (const unitData of propData.units) {
+        const unit = await new this.unitModel({
+          property: property._id,
+          unitNumber: unitData.number,
+          size: unitData.size,
+          type: unitData.type,
+          availabilityStatus: UnitAvailabilityStatus.VACANT,
+          availableForRent: unitData.publish,
+          publishToMarketplace: unitData.publish,
+          marketRent: unitData.rent,
+          availableFrom: new Date(),
+          address: {
+            latitude: 34.0522 + Math.random() * 0.1,
+            longitude: -118.2437 + Math.random() * 0.1,
+            city: propData.address.city,
+            state: propData.address.state,
+            country: propData.address.country,
+          },
+        }).save();
+
+        units.push(unit);
+        if (verbose)
+          console.log(
+            `    ✅ Created unit: ${unit.unitNumber} (${unitData.publish ? 'Published' : 'Not Published'})`,
+          );
+      }
+    }
+
+    return { properties, units };
+  }
+
+  private async createLeases(
+    tenants: any[],
+    units: any[],
+    verbose: boolean,
+  ): Promise<any[]> {
+    if (verbose) console.log('📄 Creating leases with different statuses...');
+
+    const leases = [];
+    const now = new Date();
+
+    // DRAFT lease (pending)
+    const draftLease = await new this.leaseModel({
+      unit: units[0]._id,
+      tenant: tenants[0]._id,
+      startDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+      endDate: new Date(now.getTime() + 395 * 24 * 60 * 60 * 1000),
+      rentAmount: 2500,
+      isSecurityDeposit: true,
+      securityDepositAmount: 2500,
+      paymentCycle: PaymentCycle.MONTHLY,
+      status: LeaseStatus.DRAFT,
+      terms: 'Standard residential lease terms and conditions.',
+    }).save();
+    leases.push(draftLease);
+    if (verbose) console.log(`  ✅ Created DRAFT lease for unit ${units[0].unitNumber}`);
+
+    // ACTIVE leases
+    const activeLease1 = await new this.leaseModel({
+      unit: units[1]._id,
+      tenant: tenants[1]._id,
+      startDate: new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000),
+      endDate: new Date(now.getTime() + 305 * 24 * 60 * 60 * 1000),
+      rentAmount: 2700,
+      isSecurityDeposit: true,
+      securityDepositAmount: 2700,
+      paymentCycle: PaymentCycle.MONTHLY,
+      status: LeaseStatus.ACTIVE,
+      activatedAt: new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000),
+      terms: 'Standard residential lease with pet policy.',
+    }).save();
+    leases.push(activeLease1);
+
+    // Update unit status
+    await this.unitModel.findByIdAndUpdate(units[1]._id, {
+      availabilityStatus: UnitAvailabilityStatus.OCCUPIED,
+      availableForRent: false,
+      publishToMarketplace: false,
+    });
+    if (verbose) console.log(`  ✅ Created ACTIVE lease for unit ${units[1].unitNumber}`);
+
+    const activeLease2 = await new this.leaseModel({
+      unit: units[4]._id,
+      tenant: tenants[2]._id,
+      startDate: new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000),
+      endDate: new Date(now.getTime() + 185 * 24 * 60 * 60 * 1000),
+      rentAmount: 8000,
+      isSecurityDeposit: true,
+      securityDepositAmount: 16000,
+      paymentCycle: PaymentCycle.MONTHLY,
+      status: LeaseStatus.ACTIVE,
+      activatedAt: new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000),
+      terms: 'Commercial office lease agreement.',
+    }).save();
+    leases.push(activeLease2);
+
+    await this.unitModel.findByIdAndUpdate(units[4]._id, {
+      availabilityStatus: UnitAvailabilityStatus.OCCUPIED,
+      availableForRent: false,
+      publishToMarketplace: false,
+    });
+    if (verbose) console.log(`  ✅ Created ACTIVE lease for unit ${units[4].unitNumber}`);
+
+    // TERMINATED leases
+    const terminatedLease1 = await new this.leaseModel({
+      unit: units[6]._id,
+      tenant: tenants[3]._id,
+      startDate: new Date(now.getTime() - 400 * 24 * 60 * 60 * 1000),
+      endDate: new Date(now.getTime() - 35 * 24 * 60 * 60 * 1000),
+      rentAmount: 4500,
+      isSecurityDeposit: true,
+      securityDepositAmount: 4500,
+      paymentCycle: PaymentCycle.MONTHLY,
+      status: LeaseStatus.TERMINATED,
+      activatedAt: new Date(now.getTime() - 400 * 24 * 60 * 60 * 1000),
+      terminationDate: new Date(now.getTime() - 35 * 24 * 60 * 60 * 1000),
+      terminationReason: 'Tenant relocated for work',
+      securityDepositRefundedAt: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000),
+      terms: 'Standard residential house lease.',
+    }).save();
+    leases.push(terminatedLease1);
+    if (verbose) console.log(`  ✅ Created TERMINATED lease for unit ${units[6].unitNumber}`);
+
+    const terminatedLease2 = await new this.leaseModel({
+      unit: units[7]._id,
+      tenant: tenants[4]._id,
+      startDate: new Date(now.getTime() - 730 * 24 * 60 * 60 * 1000),
+      endDate: new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000),
+      rentAmount: 3800,
+      isSecurityDeposit: true,
+      securityDepositAmount: 3800,
+      paymentCycle: PaymentCycle.MONTHLY,
+      status: LeaseStatus.TERMINATED,
+      activatedAt: new Date(now.getTime() - 730 * 24 * 60 * 60 * 1000),
+      terminationDate: new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000),
+      terminationReason: 'End of lease term',
+      securityDepositRefundedAt: new Date(now.getTime() - 360 * 24 * 60 * 60 * 1000),
+      terms: 'Standard residential house lease.',
+    }).save();
+    leases.push(terminatedLease2);
+    if (verbose) console.log(`  ✅ Created TERMINATED lease for unit ${units[7].unitNumber}`);
+
+    return leases;
+  }
+
+  private async createMaintenanceData(
+    properties: any[],
+    units: any[],
+    landlordUser: any,
+    verbose: boolean,
+  ): Promise<void> {
+    if (verbose) console.log('🔧 Creating maintenance tickets and scopes of work...');
+
+    // Create maintenance tickets with various statuses
+    const ticketsData = [
+      {
+        property: properties[0]._id,
+        unit: units[1]._id,
+        title: 'Leaking faucet in kitchen',
+        description: 'The kitchen faucet has been leaking for the past week. Water drips constantly.',
+        category: TicketCategory.PLUMBING,
+        priority: TicketPriority.HIGH,
+        status: TicketStatus.OPEN,
+      },
+      {
+        property: properties[0]._id,
+        unit: units[2]._id,
+        title: 'Air conditioning not cooling',
+        description: 'AC unit runs but does not cool the apartment adequately.',
+        category: TicketCategory.HVAC,
+        priority: TicketPriority.URGENT,
+        status: TicketStatus.IN_PROGRESS,
+        assignedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      },
+      {
+        property: properties[0]._id,
+        unit: units[0]._id,
+        title: 'Broken window in living room',
+        description: 'Window pane is cracked and needs replacement.',
+        category: TicketCategory.STRUCTURAL,
+        priority: TicketPriority.MEDIUM,
+        status: TicketStatus.ASSIGNED,
+        assignedDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      },
+      {
+        property: properties[1]._id,
+        unit: units[4]._id,
+        title: 'Electrical outlet not working',
+        description: 'Multiple outlets in the conference room are not providing power.',
+        category: TicketCategory.ELECTRICAL,
+        priority: TicketPriority.HIGH,
+        status: TicketStatus.IN_REVIEW,
+      },
+      {
+        property: properties[2]._id,
+        unit: units[6]._id,
+        title: 'Pest control needed',
+        description: 'Noticed rodent activity in the garage area.',
+        category: TicketCategory.PEST_CONTROL,
+        priority: TicketPriority.URGENT,
+        status: TicketStatus.DONE,
+        assignedDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+        completedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      },
+      {
+        property: properties[2]._id,
+        unit: units[8]._id,
+        title: 'Repainting exterior walls',
+        description: 'House exterior needs fresh coat of paint.',
+        category: TicketCategory.PAINTING,
+        priority: TicketPriority.LOW,
+        status: TicketStatus.CLOSED,
+        assignedDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        completedDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+      },
+    ];
+
+    let ticketCounter = 1000;
+    const tickets = [];
+
+    for (const ticketData of ticketsData) {
+      const ticket = await new this.maintenanceTicketModel({
+        ...ticketData,
+        ticketNumber: `TKT-${ticketCounter++}`,
+        requestedBy: landlordUser._id,
+        requestDate: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
+      }).save();
+
+      tickets.push(ticket);
+      if (verbose)
+        console.log(
+          `  ✅ Created ${ticket.status} maintenance ticket: ${ticket.title}`,
+        );
+    }
+
+    // Create scopes of work
+    const sowsData = [
+      {
+        property: properties[0]._id,
+        unit: units[1]._id,
+        title: 'Complete Kitchen Plumbing Renovation',
+        description: 'Replace all kitchen plumbing fixtures including faucet, disposal, and under-sink pipes.',
+        status: TicketStatus.IN_PROGRESS,
+        assignedDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      },
+      {
+        property: properties[1]._id,
+        unit: units[4]._id,
+        title: 'Office Electrical System Upgrade',
+        description: 'Upgrade electrical panel and rewire conference room circuits.',
+        status: TicketStatus.ASSIGNED,
+        assignedDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+      },
+      {
+        property: properties[2]._id,
+        title: 'Annual HVAC Maintenance',
+        description: 'Scheduled maintenance for all HVAC units across the property.',
+        status: TicketStatus.DONE,
+        assignedDate: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
+        completedDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      },
+      {
+        property: properties[0]._id,
+        title: 'Building Exterior Pressure Washing',
+        description: 'Power wash building exterior and parking areas.',
+        status: TicketStatus.OPEN,
+      },
+    ];
+
+    let sowCounter = 5000;
+
+    for (const sowData of sowsData) {
+      const sow = await new this.scopeOfWorkModel({
+        ...sowData,
+        sowNumber: `SOW-${sowCounter++}`,
+      }).save();
+
+      if (verbose) console.log(`  ✅ Created ${sow.status} scope of work: ${sow.title}`);
+    }
+  }
+
   private async printSummary(): Promise<void> {
+    const counts = await Promise.all([
+      this.landlordModel.countDocuments(),
+      this.tenantModel.countDocuments(),
+      this.userModel.countDocuments(),
+      this.propertyModel.countDocuments(),
+      this.unitModel.countDocuments(),
+      this.leaseModel.countDocuments(),
+      this.maintenanceTicketModel.countDocuments(),
+      this.scopeOfWorkModel.countDocuments(),
+    ]);
+
     console.log('\n📊 Seeding Summary:');
-    console.log('├── Landlords: 1');
-    console.log('└── Users: 1');
+    console.log('├── Landlords: ' + counts[0]);
+    console.log('├── Tenants: ' + counts[1]);
+    console.log('├── Users: ' + counts[2]);
+    console.log('├── Properties: ' + counts[3]);
+    console.log('├── Units: ' + counts[4]);
+    console.log('├── Leases: ' + counts[5]);
+    console.log('├── Maintenance Tickets: ' + counts[6]);
+    console.log('└── Scopes of Work: ' + counts[7]);
   }
 
   // Command options
