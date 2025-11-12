@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Multer } from 'multer';
 import { CaslGuard } from '../../../common/casl/guards/casl.guard';
 import { AiExtractionService } from '../services/ai-extraction.service';
 
@@ -43,7 +44,7 @@ export class AiExtractionController {
   })
   @ApiResponse({ status: 400, description: 'Bad request - No file provided' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
-  async extractInvoiceData(@UploadedFile() file: Express.Multer.File) {
+  async extractInvoiceData(@UploadedFile() file: Multer.File) {
     if (!file) {
       throw new BadRequestException('No file provided');
     }
