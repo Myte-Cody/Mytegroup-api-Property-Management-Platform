@@ -3,13 +3,22 @@ import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
 import { Model } from 'mongoose';
 import { Command, CommandRunner, Option } from 'nest-commander';
-import { LeaseStatus, PaymentCycle } from '../common/enums/lease.enum';
+import {
+  LeaseStatus,
+  PaymentCycle,
+  PaymentMethod,
+  PaymentStatus,
+  PaymentType,
+  RentalPeriodStatus,
+} from '../common/enums/lease.enum';
 import { TicketCategory, TicketPriority, TicketStatus } from '../common/enums/maintenance.enum';
 import { UnitAvailabilityStatus, UnitType } from '../common/enums/unit.enum';
 import { UserType } from '../common/enums/user-type.enum';
 import { Contractor } from '../features/contractors/schema/contractor.schema';
 import { Landlord } from '../features/landlords/schema/landlord.schema';
 import { Lease } from '../features/leases/schemas/lease.schema';
+import { RentalPeriod } from '../features/leases/schemas/rental-period.schema';
+import { Transaction } from '../features/leases/schemas/transaction.schema';
 import { MaintenanceTicket } from '../features/maintenance/schemas/maintenance-ticket.schema';
 import { ScopeOfWork } from '../features/maintenance/schemas/scope-of-work.schema';
 import { Property } from '../features/properties/schemas/property.schema';
@@ -35,6 +44,8 @@ export class SeedDevDataCommand extends CommandRunner {
     @InjectModel(Property.name) private readonly propertyModel: Model<Property>,
     @InjectModel(Unit.name) private readonly unitModel: Model<Unit>,
     @InjectModel(Lease.name) private readonly leaseModel: Model<Lease>,
+    @InjectModel(RentalPeriod.name) private readonly rentalPeriodModel: Model<RentalPeriod>,
+    @InjectModel(Transaction.name) private readonly transactionModel: Model<Transaction>,
     @InjectModel(MaintenanceTicket.name)
     private readonly maintenanceTicketModel: Model<MaintenanceTicket>,
     @InjectModel(ScopeOfWork.name)
@@ -63,11 +74,14 @@ export class SeedDevDataCommand extends CommandRunner {
       // Create multiple tenants with users
       const tenants = await this.createTenants(verbose);
 
+      // Create contractors with users
+      const contractors = await this.createContractors(verbose);
+
       // Create properties with units
       const { properties, units } = await this.createPropertiesWithUnits(verbose);
 
-      // Create leases with different statuses
-      const leases = await this.createLeases(tenants, units, verbose);
+      // Create leases with different statuses, rental periods, and transactions
+      const leases = await this.createLeasesWithTransactions(tenants, units, verbose);
 
       // Create maintenance tickets and scopes of work
       await this.createMaintenanceData(properties, units, landlordUser, verbose);
@@ -78,6 +92,7 @@ export class SeedDevDataCommand extends CommandRunner {
       console.log('\n📝 Login credentials:');
       console.log('   Landlord: landlord@example.com / password123');
       console.log('   Tenants: tenant1@example.com, tenant2@example.com, etc. / password123');
+      console.log('   Contractors: contractor1@example.com, contractor2@example.com, etc. / password123');
     } catch (error) {
       console.error('❌ Dev data seeding failed:', error.message);
       if (error.stack) console.error(error.stack);
@@ -91,6 +106,8 @@ export class SeedDevDataCommand extends CommandRunner {
     await Promise.all([
       this.maintenanceTicketModel.deleteMany({}),
       this.scopeOfWorkModel.deleteMany({}),
+      this.transactionModel.deleteMany({}),
+      this.rentalPeriodModel.deleteMany({}),
       this.leaseModel.deleteMany({}),
       this.userModel.deleteMany({}),
       this.tenantModel.deleteMany({}),
@@ -185,6 +202,68 @@ export class SeedDevDataCommand extends CommandRunner {
     }
 
     return tenants;
+  }
+
+  private async createContractors(verbose: boolean): Promise<any[]> {
+    if (verbose) console.log('🔧 Creating contractors with users...');
+
+    const contractorsData = [
+      {
+        name: 'Premier Plumbing Services',
+        category: 'Plumbing',
+        firstName: 'Bob',
+        lastName: 'Martinez',
+        email: 'contractor1@example.com',
+      },
+      {
+        name: 'Elite HVAC Solutions',
+        category: 'HVAC',
+        firstName: 'Lisa',
+        lastName: 'Anderson',
+        email: 'contractor2@example.com',
+      },
+      {
+        name: 'ProElectric Inc',
+        category: 'Electrical',
+        firstName: 'Tom',
+        lastName: 'Wilson',
+        email: 'contractor3@example.com',
+      },
+      {
+        name: 'Quality Handyman Services',
+        category: 'General Maintenance',
+        firstName: 'Maria',
+        lastName: 'Garcia',
+        email: 'contractor4@example.com',
+      },
+    ];
+
+    const hashedPassword = await bcrypt.hash('password123', 10);
+    const contractors = [];
+
+    for (const data of contractorsData) {
+      const contractor = await new this.contractorModel({
+        name: data.name,
+        category: data.category,
+      }).save();
+
+      await new this.userModel({
+        username: data.firstName.toLowerCase(),
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        password: hashedPassword,
+        phone: `+1${Math.floor(Math.random() * 9000000000) + 1000000000}`,
+        user_type: UserType.CONTRACTOR,
+        organization_id: contractor._id,
+        isPrimary: true,
+      }).save();
+
+      contractors.push(contractor);
+      if (verbose) console.log(`  ✅ Created contractor: ${contractor.name} with user ${data.email}`);
+    }
+
+    return contractors;
   }
 
   private async createPropertiesWithUnits(verbose: boolean): Promise<{
@@ -288,8 +367,12 @@ export class SeedDevDataCommand extends CommandRunner {
     return { properties, units };
   }
 
-  private async createLeases(tenants: any[], units: any[], verbose: boolean): Promise<any[]> {
-    if (verbose) console.log('📄 Creating leases with different statuses...');
+  private async createLeasesWithTransactions(
+    tenants: any[],
+    units: any[],
+    verbose: boolean,
+  ): Promise<any[]> {
+    if (verbose) console.log('📄 Creating leases with rental periods and transactions...');
 
     const leases = [];
     const now = new Date();
@@ -310,21 +393,67 @@ export class SeedDevDataCommand extends CommandRunner {
     leases.push(draftLease);
     if (verbose) console.log(`  ✅ Created DRAFT lease for unit ${units[0].unitNumber}`);
 
-    // ACTIVE leases
+    // ACTIVE lease 1 with rental period and transactions
+    const activeLease1StartDate = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
     const activeLease1 = await new this.leaseModel({
       unit: units[1]._id,
       tenant: tenants[1]._id,
-      startDate: new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000),
+      startDate: activeLease1StartDate,
       endDate: new Date(now.getTime() + 305 * 24 * 60 * 60 * 1000),
       rentAmount: 2700,
       isSecurityDeposit: true,
       securityDepositAmount: 2700,
       paymentCycle: PaymentCycle.MONTHLY,
       status: LeaseStatus.ACTIVE,
-      activatedAt: new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000),
+      activatedAt: activeLease1StartDate,
       terms: 'Standard residential lease with pet policy.',
     }).save();
     leases.push(activeLease1);
+
+    // Create rental period for active lease 1
+    const rentalPeriod1 = await new this.rentalPeriodModel({
+      lease: activeLease1._id,
+      startDate: activeLease1.startDate,
+      endDate: activeLease1.endDate,
+      rentAmount: activeLease1.rentAmount,
+      status: RentalPeriodStatus.ACTIVE,
+    }).save();
+
+    // Create security deposit transaction (paid)
+    await new this.transactionModel({
+      lease: activeLease1._id,
+      rentalPeriod: rentalPeriod1._id,
+      property: units[1].property,
+      unit: units[1]._id,
+      amount: 2700,
+      dueDate: activeLease1StartDate,
+      paidAt: activeLease1StartDate,
+      status: PaymentStatus.PAID,
+      type: PaymentType.DEPOSIT,
+      paymentMethod: PaymentMethod.BANK_TRANSFER,
+      notes: 'Security deposit',
+    }).save();
+
+    // Create monthly rent transactions (some paid, some pending)
+    const monthsActive = 2; // 60 days / 30 days
+    for (let i = 0; i <= monthsActive; i++) {
+      const dueDate = new Date(activeLease1StartDate.getTime() + i * 30 * 24 * 60 * 60 * 1000);
+      const isPaid = i < monthsActive; // Last month is pending
+
+      await new this.transactionModel({
+        lease: activeLease1._id,
+        rentalPeriod: rentalPeriod1._id,
+        property: units[1].property,
+        unit: units[1]._id,
+        amount: 2700,
+        dueDate: dueDate,
+        paidAt: isPaid ? dueDate : undefined,
+        status: isPaid ? PaymentStatus.PAID : PaymentStatus.PENDING,
+        type: PaymentType.RENT,
+        paymentMethod: isPaid ? PaymentMethod.BANK_TRANSFER : undefined,
+        notes: `Monthly rent - Month ${i + 1}`,
+      }).save();
+    }
 
     // Update unit status
     await this.unitModel.findByIdAndUpdate(units[1]._id, {
@@ -332,29 +461,97 @@ export class SeedDevDataCommand extends CommandRunner {
       availableForRent: false,
       publishToMarketplace: false,
     });
-    if (verbose) console.log(`  ✅ Created ACTIVE lease for unit ${units[1].unitNumber}`);
+    if (verbose)
+      console.log(
+        `  ✅ Created ACTIVE lease for unit ${units[1].unitNumber} with ${monthsActive + 1} rent transactions (${monthsActive} paid, 1 pending)`,
+      );
 
+    // ACTIVE lease 2 with rental period and transactions (commercial)
+    const activeLease2StartDate = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
     const activeLease2 = await new this.leaseModel({
       unit: units[4]._id,
       tenant: tenants[2]._id,
-      startDate: new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000),
+      startDate: activeLease2StartDate,
       endDate: new Date(now.getTime() + 185 * 24 * 60 * 60 * 1000),
       rentAmount: 8000,
       isSecurityDeposit: true,
       securityDepositAmount: 16000,
       paymentCycle: PaymentCycle.MONTHLY,
       status: LeaseStatus.ACTIVE,
-      activatedAt: new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000),
+      activatedAt: activeLease2StartDate,
       terms: 'Commercial office lease agreement.',
     }).save();
     leases.push(activeLease2);
+
+    // Create rental period for active lease 2
+    const rentalPeriod2 = await new this.rentalPeriodModel({
+      lease: activeLease2._id,
+      startDate: activeLease2.startDate,
+      endDate: activeLease2.endDate,
+      rentAmount: activeLease2.rentAmount,
+      status: RentalPeriodStatus.ACTIVE,
+    }).save();
+
+    // Create security deposit transaction (paid)
+    await new this.transactionModel({
+      lease: activeLease2._id,
+      rentalPeriod: rentalPeriod2._id,
+      property: units[4].property,
+      unit: units[4]._id,
+      amount: 16000,
+      dueDate: activeLease2StartDate,
+      paidAt: activeLease2StartDate,
+      status: PaymentStatus.PAID,
+      type: PaymentType.DEPOSIT,
+      paymentMethod: PaymentMethod.CHECK,
+      notes: 'Commercial security deposit',
+    }).save();
+
+    // Create monthly rent transactions (6 months: 4 paid, 1 overdue, 1 pending)
+    const monthsActive2 = 6; // 180 days / 30 days
+    for (let i = 0; i <= monthsActive2; i++) {
+      const dueDate = new Date(activeLease2StartDate.getTime() + i * 30 * 24 * 60 * 60 * 1000);
+      let status: PaymentStatus;
+      let paidAt: Date | undefined;
+      let paymentMethod: PaymentMethod | undefined;
+
+      if (i < 4) {
+        // First 4 months paid
+        status = PaymentStatus.PAID;
+        paidAt = dueDate;
+        paymentMethod = PaymentMethod.BANK_TRANSFER;
+      } else if (i === 4) {
+        // 5th month overdue
+        status = PaymentStatus.OVERDUE;
+      } else {
+        // Last 2 months pending
+        status = PaymentStatus.PENDING;
+      }
+
+      await new this.transactionModel({
+        lease: activeLease2._id,
+        rentalPeriod: rentalPeriod2._id,
+        property: units[4].property,
+        unit: units[4]._id,
+        amount: 8000,
+        dueDate: dueDate,
+        paidAt: paidAt,
+        status: status,
+        type: PaymentType.RENT,
+        paymentMethod: paymentMethod,
+        notes: `Monthly rent - Month ${i + 1}`,
+      }).save();
+    }
 
     await this.unitModel.findByIdAndUpdate(units[4]._id, {
       availabilityStatus: UnitAvailabilityStatus.OCCUPIED,
       availableForRent: false,
       publishToMarketplace: false,
     });
-    if (verbose) console.log(`  ✅ Created ACTIVE lease for unit ${units[4].unitNumber}`);
+    if (verbose)
+      console.log(
+        `  ✅ Created ACTIVE lease for unit ${units[4].unitNumber} with ${monthsActive2 + 1} rent transactions (4 paid, 1 overdue, 2 pending)`,
+      );
 
     // TERMINATED leases
     const terminatedLease1 = await new this.leaseModel({
@@ -537,10 +734,13 @@ export class SeedDevDataCommand extends CommandRunner {
     const counts = await Promise.all([
       this.landlordModel.countDocuments(),
       this.tenantModel.countDocuments(),
+      this.contractorModel.countDocuments(),
       this.userModel.countDocuments(),
       this.propertyModel.countDocuments(),
       this.unitModel.countDocuments(),
       this.leaseModel.countDocuments(),
+      this.rentalPeriodModel.countDocuments(),
+      this.transactionModel.countDocuments(),
       this.maintenanceTicketModel.countDocuments(),
       this.scopeOfWorkModel.countDocuments(),
     ]);
@@ -548,12 +748,15 @@ export class SeedDevDataCommand extends CommandRunner {
     console.log('\n📊 Seeding Summary:');
     console.log('├── Landlords: ' + counts[0]);
     console.log('├── Tenants: ' + counts[1]);
-    console.log('├── Users: ' + counts[2]);
-    console.log('├── Properties: ' + counts[3]);
-    console.log('├── Units: ' + counts[4]);
-    console.log('├── Leases: ' + counts[5]);
-    console.log('├── Maintenance Tickets: ' + counts[6]);
-    console.log('└── Scopes of Work: ' + counts[7]);
+    console.log('├── Contractors: ' + counts[2]);
+    console.log('├── Users: ' + counts[3]);
+    console.log('├── Properties: ' + counts[4]);
+    console.log('├── Units: ' + counts[5]);
+    console.log('├── Leases: ' + counts[6]);
+    console.log('├── Rental Periods: ' + counts[7]);
+    console.log('├── Transactions: ' + counts[8]);
+    console.log('├── Maintenance Tickets: ' + counts[9]);
+    console.log('└── Scopes of Work: ' + counts[10]);
   }
 
   // Command options

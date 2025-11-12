@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { NestjsFormDataModule } from 'nestjs-form-data';
 import { CaslModule } from '../../common/casl/casl.module';
@@ -49,7 +49,7 @@ import { TicketCommentsService } from './services/ticket-comments.service';
     PropertiesModule,
     TenantsModule,
     ContractorModule,
-    LeasesModule,
+    forwardRef(() => LeasesModule),
     MediaModule,
     NestjsFormDataModule,
     AiModule,

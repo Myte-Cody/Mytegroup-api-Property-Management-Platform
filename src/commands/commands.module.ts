@@ -8,6 +8,8 @@ import { SeedersService } from './seeders.service';
 import { Contractor, ContractorSchema } from '../features/contractors/schema/contractor.schema';
 import { Landlord, LandlordSchema } from '../features/landlords/schema/landlord.schema';
 import { Lease, LeaseSchema } from '../features/leases/schemas/lease.schema';
+import { RentalPeriod, RentalPeriodSchema } from '../features/leases/schemas/rental-period.schema';
+import { Transaction, TransactionSchema } from '../features/leases/schemas/transaction.schema';
 import {
   MaintenanceTicket,
   MaintenanceTicketSchema,
@@ -32,6 +34,8 @@ import { User, UserSchema } from '../features/users/schemas/user.schema';
       { name: Property.name, schema: PropertySchema },
       { name: Unit.name, schema: UnitSchema },
       { name: Lease.name, schema: LeaseSchema },
+      { name: RentalPeriod.name, schema: RentalPeriodSchema },
+      { name: Transaction.name, schema: TransactionSchema },
       { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
       { name: ScopeOfWork.name, schema: ScopeOfWorkSchema },
     ]),
