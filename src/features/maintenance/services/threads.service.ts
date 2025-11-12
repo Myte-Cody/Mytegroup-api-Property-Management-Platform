@@ -718,6 +718,119 @@ export class ThreadsService {
   }
 
   /**
+   * Auto-create thread for a lease activation
+   * Creates a LANDLORD_TENANT thread connecting landlord and tenant organizations
+   */
+  async createThreadForLease(
+    leaseId: string,
+    landlordId: string,
+    tenantId: string,
+  ): Promise<ThreadDocument> {
+    // Check if thread already exists
+    const existingThread = await this.threadModel.findOne({
+      linkedEntityType: ThreadLinkedEntityType.LEASE,
+      linkedEntityId: new Types.ObjectId(leaseId),
+      threadType: ThreadType.LANDLORD_TENANT,
+    });
+
+    if (existingThread) {
+      return existingThread;
+    }
+
+    // Get lease details for thread title
+    const lease = await this.leaseModel
+      .findById(leaseId)
+      .populate('unit', 'unitNumber')
+      .populate('tenant', 'name');
+
+    if (!lease) {
+      throw new NotFoundException('Lease not found');
+    }
+
+    const unitNumber = (lease.unit as any)?.unitNumber || 'Unit';
+    const tenantName = (lease.tenant as any)?.name || 'Tenant';
+
+    // Create thread
+    const thread = new this.threadModel({
+      title: `Lease Communication - ${unitNumber} - ${tenantName}`,
+      linkedEntityType: ThreadLinkedEntityType.LEASE,
+      linkedEntityId: new Types.ObjectId(leaseId),
+      linkedEntityModel: 'Lease',
+      threadType: ThreadType.LANDLORD_TENANT,
+    });
+
+    const savedThread = await thread.save();
+
+    // Create participants: landlord and tenant (both mandatory and ACTIVE)
+    const participants = [
+      {
+        thread: savedThread._id,
+        participantType: ParticipantType.LANDLORD,
+        participantId: new Types.ObjectId(landlordId),
+        participantModel: 'Landlord',
+        status: ParticipantStatus.ACTIVE,
+        isMandatory: true,
+      },
+      {
+        thread: savedThread._id,
+        participantType: ParticipantType.TENANT,
+        participantId: new Types.ObjectId(tenantId),
+        participantModel: 'Tenant',
+        status: ParticipantStatus.ACTIVE,
+        isMandatory: true,
+      },
+    ];
+
+    await this.threadParticipantModel.insertMany(participants);
+
+    // Send notifications to all users of both landlord and tenant
+    await this.sendLeaseThreadNotifications(savedThread, landlordId, tenantId);
+
+    return savedThread;
+  }
+
+  /**
+   * Send notifications to all landlord and tenant users about the new lease thread
+   */
+  private async sendLeaseThreadNotifications(
+    thread: ThreadDocument,
+    landlordId: string,
+    tenantId: string,
+  ): Promise<void> {
+    try {
+      // Get all landlord users
+      const landlordUsers = await this.userModel
+        .find({
+          organization_id: new Types.ObjectId(landlordId),
+          user_type: 'Landlord',
+        })
+        .select('_id');
+
+      // Get all tenant users
+      const tenantUsers = await this.userModel
+        .find({
+          organization_id: new Types.ObjectId(tenantId),
+          user_type: 'Tenant',
+        })
+        .select('_id');
+
+      // Create notifications for all users
+      const allUsers = [...landlordUsers, ...tenantUsers];
+
+      for (const user of allUsers) {
+        await this.notificationsService.createNotification(
+          user._id.toString(),
+          'New Communication Channel',
+          `A new communication thread has been created for your lease: ${thread.title}`,
+        );
+      }
+    } catch (error) {
+      // Log error but don't fail the lease activation
+      console.error('Error sending lease thread notifications:', error);
+    }
+  }
+
+  /**
    * Auto-create threads for a scope of work
    * Creates multiple threads based on the SOW type:
    * - LANDLORD_TENANT_SOW (mandatory for landlord and tenant)

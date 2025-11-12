@@ -5,6 +5,7 @@ export enum ThreadLinkedEntityType {
   TICKET = 'TICKET',
   SCOPE_OF_WORK = 'SCOPE_OF_WORK',
   TENANT_CHAT = 'TENANT_CHAT',
+  LEASE = 'LEASE',
 }
 
 export enum ThreadType {

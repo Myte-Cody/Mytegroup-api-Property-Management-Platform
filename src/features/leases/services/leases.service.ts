@@ -22,6 +22,7 @@ import { SessionService } from '../../../common/services/session.service';
 import { addDaysToDate, getToday } from '../../../common/utils/date.utils';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { LeaseEmailService } from '../../email/services/lease-email.service';
+import { ThreadsService } from '../../maintenance/services/threads.service';
 import { MediaService } from '../../media/services/media.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { Unit } from '../../properties/schemas/unit.schema';
@@ -69,6 +70,7 @@ export class LeasesService {
     private readonly transactionsService: TransactionsService,
     private readonly caslAuthorizationService: CaslAuthorizationService,
     private readonly leaseEmailService: LeaseEmailService,
+    private readonly threadsService: ThreadsService,
     private readonly mediaService: MediaService,
     private readonly sessionService: SessionService,
     private readonly notificationsService: NotificationsService,
@@ -1206,6 +1208,9 @@ export class LeasesService {
 
       // Send lease activation email notifications
       await this.sendLeaseActivationEmails(lease);
+
+      // Create communication thread between landlord and tenant
+      await this.createLeaseThread(lease);
     } catch (error) {
       if (
         error.code === 11000 &&
@@ -1548,6 +1553,30 @@ export class LeasesService {
     } catch (error) {
       // Log error but don't fail the lease activation if email sending fails
       console.error('Failed to send lease activation emails:', error);
+    }
+  }
+
+  /**
+   * Create a communication thread for the lease between landlord and tenant
+   */
+  private async createLeaseThread(lease: Lease): Promise<void> {
+    try {
+      // Get landlord organization ID from the first landlord user
+      const landlordUsers = await this.findLandlordUsers();
+      if (!landlordUsers || landlordUsers.length === 0) {
+        console.error('Failed to create lease thread: No landlord users found');
+        return;
+      }
+
+      const landlordOrgId = landlordUsers[0].organization_id.toString();
+      const tenantId = lease.tenant.toString();
+      const leaseId = lease._id.toString();
+
+      // Create the thread using ThreadsService
+      await this.threadsService.createThreadForLease(leaseId, landlordOrgId, tenantId);
+    } catch (error) {
+      // Log error but don't fail the lease activation if thread creation fails
+      console.error('Failed to create lease thread:', error);
     }
   }
 

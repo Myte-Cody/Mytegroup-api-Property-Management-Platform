@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { NestjsFormDataModule } from 'nestjs-form-data';
 import { CaslModule } from '../../common/casl/casl.module';
@@ -7,6 +7,7 @@ import {
   MaintenanceTicket,
   MaintenanceTicketSchema,
 } from '../maintenance/schemas/maintenance-ticket.schema';
+import { MaintenanceModule } from '../maintenance/maintenance.module';
 import { MediaModule } from '../media/media.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PropertiesModule } from '../properties/properties.module';
@@ -42,6 +43,7 @@ import { TransactionsController } from './transactions.controller';
     NestjsFormDataModule,
     CaslModule,
     CommonModule,
+    forwardRef(() => MaintenanceModule),
     MediaModule,
     NotificationsModule,
     PropertiesModule,
