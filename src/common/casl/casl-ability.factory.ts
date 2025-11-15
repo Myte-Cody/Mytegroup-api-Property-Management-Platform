@@ -25,6 +25,7 @@ import { Property } from '../../features/properties/schemas/property.schema';
 import { Unit } from '../../features/properties/schemas/unit.schema';
 import { Tenant } from '../../features/tenants/schema/tenant.schema';
 import { User, UserDocument } from '../../features/users/schemas/user.schema';
+import { UserRole } from '../enums/user-role.enum';
 import { UserType } from '../enums/user-type.enum';
 
 // Centralized subject mapping
@@ -89,23 +90,36 @@ export type AppAbility = MongoAbility<[Action, Subjects], MongoQuery>;
 export class CaslAbilityFactory {
   createForUser(user: UserDocument): AppAbility {
     const { can, cannot, build } = new AbilityBuilder<AppAbility>(createMongoAbility);
+    const resolvedRole = this.getRoleForUser(user);
 
-    switch (user.user_type) {
-      case UserType.LANDLORD:
-        this.defineLandlordPermissions(can, cannot, user);
+    switch (resolvedRole) {
+      case UserRole.SUPER_ADMIN:
+      case UserRole.LANDLORD_ADMIN:
+        this.defineLandlordAdminPermissions(can, cannot, user);
         break;
-
-      case UserType.TENANT:
+      case UserRole.LANDLORD_STAFF:
+        this.defineLandlordStaffPermissions(can, cannot, user);
+        break;
+      case UserRole.TENANT:
         this.defineTenantPermissions(can, cannot, user);
         break;
-
-      case UserType.CONTRACTOR:
+      case UserRole.CONTRACTOR:
         this.defineContractorPermissions(can, cannot, user);
         break;
-
       default:
-        // Unknown user types get no permissions
-        break;
+        switch (user.user_type) {
+          case UserType.LANDLORD:
+            this.defineLandlordAdminPermissions(can, cannot, user);
+            break;
+          case UserType.TENANT:
+            this.defineTenantPermissions(can, cannot, user);
+            break;
+          case UserType.CONTRACTOR:
+            this.defineContractorPermissions(can, cannot, user);
+            break;
+          default:
+            break;
+        }
     }
 
     return build({
@@ -122,7 +136,7 @@ export class CaslAbilityFactory {
     });
   }
 
-  private defineLandlordPermissions(can: any, cannot: any, user: UserDocument) {
+  private defineLandlordAdminPermissions(can: any, cannot: any, user: UserDocument) {
     // Landlords can manage all resources
     can(Action.Manage, Property);
     can(Action.Manage, Unit);
@@ -142,6 +156,65 @@ export class CaslAbilityFactory {
     can(Action.Manage, ThreadMessage);
     can(Action.Manage, ThreadParticipant);
     can(Action.Manage, FeedPost);
+  }
+
+  private getRoleForUser(user: UserDocument): UserRole | null {
+    if (user.role) {
+      return user.role as UserRole;
+    }
+
+    switch (user.user_type) {
+      case UserType.LANDLORD:
+        return user.isPrimary ? UserRole.LANDLORD_ADMIN : UserRole.LANDLORD_STAFF;
+      case UserType.TENANT:
+        return UserRole.TENANT;
+      case UserType.CONTRACTOR:
+        return UserRole.CONTRACTOR;
+      case UserType.ADMIN:
+        return UserRole.SUPER_ADMIN;
+      default:
+        return null;
+    }
+  }
+
+  private defineLandlordStaffPermissions(can: any, cannot: any, user: UserDocument) {
+    // Staff can read everything by default
+    can(Action.Read, 'all');
+
+    // Allow day-to-day management actions
+    can(Action.Manage, Property);
+    can(Action.Manage, Unit);
+    can(Action.Manage, Tenant);
+    can(Action.Manage, Contractor);
+    can(Action.Manage, Invitation);
+    can(Action.Manage, Media);
+    can(Action.Manage, MaintenanceTicket);
+    can(Action.Manage, ScopeOfWork);
+    can(Action.Manage, Thread);
+    can(Action.Manage, ThreadMessage);
+    can(Action.Manage, ThreadParticipant);
+    can(Action.Manage, FeedPost);
+    can(Action.Manage, Lease);
+    can(Action.Manage, RentalPeriod);
+
+    // Read-only access for billing/financial records
+    can(Action.Read, Transaction);
+    can(Action.Read, Expense);
+    can(Action.Read, Invoice);
+
+    // Restrict billing modifications
+    cannot(Action.Create, Transaction);
+    cannot(Action.Update, Transaction);
+    cannot(Action.Delete, Transaction);
+    cannot(Action.Create, Expense);
+    cannot(Action.Update, Expense);
+    cannot(Action.Delete, Expense);
+    cannot(Action.Create, Invoice);
+    cannot(Action.Update, Invoice);
+    cannot(Action.Delete, Invoice);
+
+    // Staff cannot manage other user accounts or elevate permissions
+    cannot(Action.Manage, User);
   }
 
   private defineTenantPermissions(can: any, cannot: any, user: UserDocument) {

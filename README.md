@@ -131,9 +131,10 @@ EMAIL_PASS=your-app-password
 EMAIL_FROM=your-email@gmail.com
 EMAIL_USE_ETHEREAL=false  # Set to true for development testing
 
-# Media Storage (Local by default)
-MEDIA_UPLOAD_PATH=uploads
-# AWS S3 (optional - leave empty for local storage)
+# Media Storage
+# MEDIA_DEFAULT_DISK controls the backend (local or s3)
+# MEDIA_UPLOAD_PATH is derived from NODE_ENV (development → ./uploads, production → /tmp/myte-uploads)
+MEDIA_DEFAULT_DISK=local
 AWS_S3_BUCKET=
 AWS_S3_REGION=
 AWS_ACCESS_KEY_ID=

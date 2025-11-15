@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import * as https from 'https';
+import { URL } from 'url';
 import { Address } from '../interfaces/address.interface';
 
 @Injectable()
@@ -10,6 +11,10 @@ export class GeocodingService {
    * Extracts location data from a Google Maps link
    * @param googleMapsLink - The Google Maps URL (can be shortened)
    * @returns Address object with latitude, longitude, city, state, and country
+   *
+   * Supports two broad cases:
+   * - URLs containing explicit coordinates (q=lat,lng or @lat,lng)
+   * - Search URLs that contain an address query (e.g. /maps/search/?api=1&query=...)
    */
   async extractLocationFromMapsLink(googleMapsLink: string): Promise<Address> {
     try {
@@ -19,25 +24,49 @@ export class GeocodingService {
         fullUrl = await this.expandShortenedUrl(googleMapsLink);
       }
 
-      // Extract coordinates from the Google Maps link
+      // 1) Try to extract explicit coordinates from the URL
       const coordinates = this.extractCoordinatesFromUrl(fullUrl);
 
-      if (!coordinates) {
-        throw new BadRequestException('Could not extract coordinates from Google Maps link');
+      if (coordinates) {
+        const addressDetails = await this.reverseGeocode(
+          coordinates.latitude,
+          coordinates.longitude,
+        );
+
+        return {
+          latitude: coordinates.latitude,
+          longitude: coordinates.longitude,
+          city: addressDetails.city,
+          state: addressDetails.state,
+          country: addressDetails.country,
+        };
       }
 
-      // Reverse geocode to get address details
-      const addressDetails = await this.reverseGeocode(coordinates.latitude, coordinates.longitude);
+      // 2) Fallback: extract an address query and forward-geocode it
+      const addressQuery = this.extractAddressQueryFromUrl(fullUrl);
 
-      return {
-        latitude: coordinates.latitude,
-        longitude: coordinates.longitude,
-        city: addressDetails.city,
-        state: addressDetails.state,
-        country: addressDetails.country,
-      };
+      if (addressQuery) {
+        const result = await this.forwardGeocode(addressQuery);
+        if (result) {
+          return result;
+        }
+      }
+
+      this.logger.warn(
+        `Could not extract coordinates or address query from Google Maps link: ${fullUrl}`,
+      );
+      throw new BadRequestException('Could not extract location from Google Maps link');
     } catch (error) {
-      this.logger.error(`Failed to extract location from maps link: ${error.message}`);
+      const message = (error as any)?.message || String(error);
+
+      if (error instanceof BadRequestException) {
+        // User input issue – log as warning to avoid noisy error logs
+        this.logger.warn(`Failed to extract location from maps link: ${message}`);
+        throw error;
+      }
+
+      // Unexpected failure – keep as error
+      this.logger.error(`Unexpected error while extracting location from maps link: ${message}`);
       throw new BadRequestException('Invalid Google Maps link or unable to extract location data');
     }
   }
@@ -129,6 +158,106 @@ export class GeocodingService {
       this.logger.error(`Error extracting coordinates from URL: ${error.message}`);
       return null;
     }
+  }
+
+  /**
+   * Extracts a human-readable address query from Google Maps URLs
+   * Supports:
+   * - https://www.google.com/maps/search/?api=1&query=1600+Amphitheatre+Parkway,+Mountain+View,+CA
+   * - https://www.google.com/maps?q=1600+Amphitheatre+Parkway,+Mountain+View,+CA
+   */
+  private extractAddressQueryFromUrl(url: string): string | null {
+    try {
+      const parsed = new URL(url);
+
+      const queryParam = parsed.searchParams.get('q') || parsed.searchParams.get('query');
+
+      if (!queryParam) {
+        return null;
+      }
+
+      return queryParam.trim();
+    } catch (error) {
+      this.logger.warn(`Error parsing URL for address query: ${(error as any)?.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Forward geocodes an address string into coordinates + basic location details
+   * Uses OpenStreetMap's Nominatim API (no API key required)
+   */
+  private async forwardGeocode(addressQuery: string): Promise<Address | null> {
+    return new Promise((resolve) => {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        addressQuery,
+      )}&addressdetails=1&limit=1`;
+
+      const options = {
+        headers: {
+          'User-Agent': 'MyteGroup-API/1.0', // Required by Nominatim's usage policy
+        },
+      };
+
+      https
+        .get(url, options, (res) => {
+          let data = '';
+
+          res.on('data', (chunk) => {
+            data += chunk;
+          });
+
+          res.on('end', () => {
+            try {
+              const result = JSON.parse(data);
+
+              if (!Array.isArray(result) || result.length === 0) {
+                this.logger.warn(
+                  `Forward geocoding returned no results for query: ${addressQuery}`,
+                );
+                resolve(null);
+                return;
+              }
+
+              const first = result[0];
+              const address = first.address || {};
+
+              const latitude = parseFloat(first.lat);
+              const longitude = parseFloat(first.lon);
+
+              if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+                this.logger.warn(
+                  `Forward geocoding returned invalid coordinates for query: ${addressQuery}`,
+                );
+                resolve(null);
+                return;
+              }
+
+              resolve({
+                latitude,
+                longitude,
+                city:
+                  address.city ||
+                  address.town ||
+                  address.village ||
+                  address.municipality ||
+                  address.county,
+                state: address.state || address.province || address.region,
+                country: address.country,
+              });
+            } catch (error) {
+              this.logger.error(
+                `Error parsing forward geocoding response: ${(error as any)?.message}`,
+              );
+              resolve(null);
+            }
+          });
+        })
+        .on('error', (error) => {
+          this.logger.error(`Forward geocoding request failed: ${error.message}`);
+          resolve(null);
+        });
+    });
   }
 
   /**

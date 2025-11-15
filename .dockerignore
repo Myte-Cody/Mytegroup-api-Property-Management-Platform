@@ -1,0 +1,37 @@
+# Ignore dependencies and build artifacts
+node_modules
+npm-debug.log
+pnpm-lock.yaml
+yarn.lock
+
+# VCS
+.git
+.gitignore
+.idea
+.vscode
+
+# Env and secrets
+.env
+.env.*
+
+# Builds and caches
+dist
+coverage
+.cache
+
+# Local uploads (not needed in image)
+uploads
+
+# Frontend/Next artifacts if present
+.next
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python/AI service (exclude from API image build context)
+ai_features
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache

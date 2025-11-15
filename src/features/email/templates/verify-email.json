@@ -1,0 +1,5 @@
+{
+  "subject": "Verify your email for {{brandName}}",
+  "text": "Verify your email: {{verifyUrl}}. Or enter code {{code}}. Expires in {{hours}} hour(s)."
+}
+

@@ -1,27 +1,37 @@
-# Build stage
-FROM node:18-alpine AS build
+# Production Dockerfile (multi-stage) for the NestJS API
+FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
-RUN npm i -g @nestjs/cli
-COPY . .
-RUN nest build
+# Install only production deps to keep runtime small
+RUN npm install --omit=dev
 
-# Prod stage
-FROM node:18-alpine
+FROM node:22-alpine AS builder
 WORKDIR /app
-RUN apk add --no-cache curl
-COPY --from=build /app/dist ./dist
 COPY package*.json ./
-# Disable git hooks to avoid husky prepare during prod install
-ENV HUSKY=0
-RUN npm install --only=production
+# Install full deps (incl. dev) to compile TypeScript
+# Use npm install instead of npm ci here because some dev-only
+# dependencies have lockfile metadata that npm ci treats as out of sync
+# on Linux, even though production deps are consistent.
+RUN npm install
+COPY . .
+RUN npm run build
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+# Allow non-root node user to bind to privileged ports (e.g., 80)
+# Also install curl for container health checks
+RUN apk add --no-cache libcap curl \
+  && setcap 'cap_net_bind_service=+ep' /usr/local/bin/node
+USER node
+# Default app port inside container (aligns with ECS workflow expecting 80)
+ENV APP_PORT=80
 EXPOSE 80
 
-# Add labels for project identification
-##
-LABEL org.opencontainers.image.project_id="mytegroup-api-property-management-platform"
-LABEL org.opencontainers.image.organization="Mytegroup" 
+# Copy runtime deps and built code
+COPY --chown=node:node --from=deps /app/node_modules ./node_modules
+COPY --chown=node:node --from=builder /app/package*.json ./
+COPY --chown=node:node --from=builder /app/dist ./dist
 
+# Start compiled server
 CMD ["node", "dist/main.js"]
-

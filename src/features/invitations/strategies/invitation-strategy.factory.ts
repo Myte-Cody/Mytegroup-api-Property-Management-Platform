@@ -3,12 +3,14 @@ import { EntityType } from '../schemas/invitation.schema';
 import { ContractorInvitationStrategy } from './contractor-invitation.strategy';
 import { IInvitationStrategy } from './invitation-strategy.interface';
 import { TenantInvitationStrategy } from './tenant-invitation.strategy';
+import { LandlordStaffInvitationStrategy } from './landlord-staff-invitation.strategy';
 
 @Injectable()
 export class InvitationStrategyFactory {
   constructor(
     private readonly tenantInvitationStrategy: TenantInvitationStrategy,
     private readonly contractorInvitationStrategy: ContractorInvitationStrategy,
+    private readonly landlordStaffInvitationStrategy: LandlordStaffInvitationStrategy,
   ) {}
 
   getStrategy(entityType: EntityType): IInvitationStrategy {
@@ -17,6 +19,8 @@ export class InvitationStrategyFactory {
         return this.tenantInvitationStrategy;
       case EntityType.CONTRACTOR:
         return this.contractorInvitationStrategy;
+      case EntityType.LANDLORD_STAFF:
+        return this.landlordStaffInvitationStrategy;
       default:
         throw new Error(`No strategy found for entity type: ${entityType}`);
     }

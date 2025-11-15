@@ -20,21 +20,23 @@ export class S3StorageDriver implements StorageDriverInterface {
   private readonly s3Client: S3Client;
 
   constructor(private configService: ConfigService) {
-    this.bucket = this.configService.get('AWS_S3_BUCKET', '');
-    this.region = this.configService.get('AWS_S3_REGION', 'us-east-1');
-    this.accessKeyId = this.configService.get('AWS_ACCESS_KEY_ID', '');
-    this.secretAccessKey = this.configService.get('AWS_SECRET_ACCESS_KEY', '');
-    this.baseUrl = this.configService.get(
-      'AWS_S3_BASE_URL',
-      `https://${this.bucket}.s3.${this.region}.amazonaws.com`,
-    );
+    this.bucket = this.configService.get<string>('AWS_S3_BUCKET') || '';
+    this.region = this.configService.get<string>('AWS_S3_REGION') || 'us-east-1';
+    this.accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID') || '';
+    this.secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') || '';
+    this.baseUrl =
+      this.configService.get<string>('AWS_S3_BASE_URL') ||
+      (this.bucket && this.region
+        ? `https://${this.bucket}.s3.${this.region}.amazonaws.com`
+        : '');
 
+    // Create client with safe defaults; region must be non-empty
     this.s3Client = new S3Client({
-      region: this.region,
-      credentials: {
-        accessKeyId: this.accessKeyId,
-        secretAccessKey: this.secretAccessKey,
-      },
+      region: this.region || 'us-east-1',
+      // Only pass explicit credentials if provided; otherwise defer to default provider/IMDS
+      ...(this.accessKeyId && this.secretAccessKey
+        ? { credentials: { accessKeyId: this.accessKeyId, secretAccessKey: this.secretAccessKey } }
+        : {}),
     });
   }
 

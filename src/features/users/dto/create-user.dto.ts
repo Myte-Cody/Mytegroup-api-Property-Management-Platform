@@ -10,6 +10,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { UserRole } from '../../../common/enums/user-role.enum';
 import { UserType } from '../../../common/enums/user-type.enum';
 
 export class CreateUserDto {
@@ -97,4 +98,14 @@ export class CreateUserDto {
   @IsBoolean()
   @IsOptional()
   isPrimary?: boolean;
+
+  @ApiProperty({
+    example: UserRole.LANDLORD_STAFF,
+    description: 'Optional role override (defaults based on user_type/isPrimary)',
+    enum: UserRole,
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
 }

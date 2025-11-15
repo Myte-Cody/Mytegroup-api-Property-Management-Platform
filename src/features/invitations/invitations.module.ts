@@ -17,6 +17,7 @@ import { Invitation, InvitationSchema } from './schemas/invitation.schema';
 import { ContractorInvitationStrategy } from './strategies/contractor-invitation.strategy';
 import { InvitationStrategyFactory } from './strategies/invitation-strategy.factory';
 import { TenantInvitationStrategy } from './strategies/tenant-invitation.strategy';
+import { LandlordStaffInvitationStrategy } from './strategies/landlord-staff-invitation.strategy';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { TenantInvitationStrategy } from './strategies/tenant-invitation.strateg
     InvitationStrategyFactory,
     TenantInvitationStrategy,
     ContractorInvitationStrategy,
+    LandlordStaffInvitationStrategy,
   ],
   exports: [InvitationsService, MongooseModule],
 })

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -31,37 +31,46 @@ import { StorageManager } from './services/storage-manager.service';
       { name: Unit.name, schema: UnitSchema },
       { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
     ]),
-    MulterModule.register({
-      storage: diskStorage({
-        destination: './uploads/temp',
-        filename: (req, file, callback) => {
-          // Generate unique filename for temporary storage
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-          const extension = extname(file.originalname);
-          callback(null, `${file.fieldname}-${uniqueSuffix}${extension}`);
-        },
-      }),
-      limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB limit
-      },
-      fileFilter: (req, file, callback) => {
-        // Basic mime type filtering
-        const allowedMimes = [
-          'image/jpeg',
-          'image/png',
-          'image/gif',
-          'image/webp',
-          'application/pdf',
-          'application/msword',
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-          'text/plain',
-        ];
+    MulterModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+        const defaultBasePath = nodeEnv === 'production' ? '/tmp/myte-uploads' : 'uploads';
+        const basePath = configService.get<string>('MEDIA_UPLOAD_PATH', defaultBasePath);
+        const destinationPath = `${basePath}/temp`;
 
-        if (allowedMimes.includes(file.mimetype)) {
-          callback(null, true);
-        } else {
-          callback(new Error('Invalid file type'), false);
-        }
+        return {
+          storage: diskStorage({
+            destination: destinationPath,
+            filename: (req, file, callback) => {
+              const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+              const extension = extname(file.originalname);
+              callback(null, `${file.fieldname}-${uniqueSuffix}${extension}`);
+            },
+          }),
+          limits: {
+            fileSize: 10 * 1024 * 1024,
+          },
+          fileFilter: (req, file, callback) => {
+            const allowedMimes = [
+              'image/jpeg',
+              'image/png',
+              'image/gif',
+              'image/webp',
+              'application/pdf',
+              'application/msword',
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              'text/plain',
+            ];
+
+            if (allowedMimes.includes(file.mimetype)) {
+              callback(null, true);
+            } else {
+              callback(new Error('Invalid file type'), false);
+            }
+          },
+        };
       },
     }),
   ],

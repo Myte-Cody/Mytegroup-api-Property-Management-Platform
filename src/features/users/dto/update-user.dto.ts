@@ -2,12 +2,14 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsEmail,
+  IsEnum,
   IsOptional,
   IsString,
   Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { UserRole } from '../../../common/enums/user-role.enum';
 
 export class UpdateUserDto {
   @ApiProperty({
@@ -79,4 +81,14 @@ export class UpdateUserDto {
   @IsOptional()
   @IsBoolean()
   isPrimary?: boolean;
+
+  @ApiProperty({
+    example: UserRole.LANDLORD_STAFF,
+    description: 'Role for the user',
+    required: false,
+    enum: UserRole,
+  })
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
 }

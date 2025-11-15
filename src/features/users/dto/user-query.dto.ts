@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsEnum, IsMongoId, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { UserRole } from '../../../common/enums/user-role.enum';
 import { UserType } from '../../../common/enums/user-type.enum';
 
 export class UserQueryDto {
@@ -41,6 +42,15 @@ export class UserQueryDto {
   @IsOptional()
   @IsEnum(UserType)
   user_type?: UserType;
+
+  @ApiPropertyOptional({
+    description: 'Filter by user role',
+    enum: UserRole,
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
 
   @ApiPropertyOptional({
     description: 'Filter by organization ID (landlord, tenant, or contractor ID)',

@@ -1,7 +1,8 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { EmailQueueOptions, SendEmailOptions } from '../interfaces/email.interface';
+import { EmailService } from '../email.service';
 
 export interface QueueEmailData {
   emailOptions: SendEmailOptions;
@@ -11,13 +12,28 @@ export interface QueueEmailData {
 export class EmailQueueService {
   private readonly logger = new Logger(EmailQueueService.name);
 
-  constructor(@InjectQueue('email') private emailQueue: Queue) {}
+  constructor(
+    @Optional() @InjectQueue('email') private emailQueue: Queue | undefined,
+    private readonly emailService: EmailService,
+  ) {}
+
+  private get queuesEnabled(): boolean {
+    return process.env.REDIS_DISABLE !== 'true' && !!this.emailQueue;
+  }
 
   /**
    * Queue a compiled email for sending
    */
   async queueEmail(emailOptions: SendEmailOptions, options?: EmailQueueOptions): Promise<void> {
     try {
+      if (!this.queuesEnabled) {
+        this.logger.log(
+          `Queues disabled; sending email synchronously for ${emailOptions.to} in local/dev mode.`,
+        );
+        await this.emailService.sendMail(emailOptions);
+        return;
+      }
+
       const job = await this.emailQueue.add(
         'send-email',
         { emailOptions },
@@ -40,6 +56,16 @@ export class EmailQueueService {
    */
   async queueBulkEmails(emails: SendEmailOptions[], options?: EmailQueueOptions): Promise<void> {
     try {
+      if (!this.queuesEnabled) {
+        this.logger.log(
+          `Queues disabled; sending ${emails.length} emails synchronously in local/dev mode.`,
+        );
+        for (const email of emails) {
+          await this.emailService.sendMail(email);
+        }
+        return;
+      }
+
       const jobs = emails.map((emailOptions, index) => ({
         name: 'send-email',
         data: { emailOptions },

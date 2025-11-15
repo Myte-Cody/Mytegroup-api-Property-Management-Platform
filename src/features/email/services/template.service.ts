@@ -1,29 +1,29 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as fs from 'fs';
+import { InjectModel } from '@nestjs/mongoose';
 import * as handlebars from 'handlebars';
-import * as path from 'path';
+import { Model } from 'mongoose';
 import { formatAddress } from '../../../common/utils/address-formatter';
 import { formatCurrency } from '../../../common/utils/money';
 import { capitalize } from '../../../common/utils/string';
 import { TemplateContext } from '../interfaces/email.interface';
+import { EmailTemplate, EmailTemplateDocument } from '../schemas/email-template.schema';
+
+interface CompiledTemplate {
+  html: handlebars.TemplateDelegate;
+  subject: string;
+  text?: string;
+}
 
 @Injectable()
 export class TemplateService {
   private readonly logger = new Logger(TemplateService.name);
-  private readonly templatesCache = new Map<string, handlebars.TemplateDelegate>();
-  private readonly templatesDir: string;
+  private readonly templatesCache = new Map<string, CompiledTemplate>();
 
-  constructor() {
-    this.templatesDir = path.join(process.cwd(), 'src', 'features', 'email', 'templates');
-    this.ensureTemplatesDirectory();
+  constructor(
+    @InjectModel(EmailTemplate.name)
+    private readonly emailTemplateModel: Model<EmailTemplateDocument>,
+  ) {
     this.registerHelpers();
-  }
-
-  private ensureTemplatesDirectory(): void {
-    if (!fs.existsSync(this.templatesDir)) {
-      fs.mkdirSync(this.templatesDir, { recursive: true });
-      this.logger.log(`Created templates directory: ${this.templatesDir}`);
-    }
   }
 
   private registerHelpers(): void {
@@ -65,46 +65,30 @@ export class TemplateService {
     }
   }
 
-  private async getTemplate(
-    templateName: string,
-  ): Promise<{ html: handlebars.TemplateDelegate; subject: string; text?: string }> {
-    const cacheKey = templateName;
+  private async getTemplate(templateName: string): Promise<CompiledTemplate> {
+    const cached = this.templatesCache.get(templateName);
 
-    if (!this.templatesCache.has(cacheKey)) {
-      await this.loadTemplate(templateName);
+    if (cached) {
+      return cached;
     }
 
-    const htmlTemplate = this.templatesCache.get(cacheKey);
-    if (!htmlTemplate) {
-      throw new Error(`Template ${templateName} not found`);
+    const templateDoc = await this.emailTemplateModel.findOne({ name: templateName }).lean().exec();
+
+    if (!templateDoc) {
+      throw new Error(`Email template not found in database: ${templateName}`);
     }
 
-    const configPath = path.join(this.templatesDir, `${templateName}.json`);
-    let config = { subject: templateName, text: undefined };
+    const compiledHtml = handlebars.compile(templateDoc.html);
 
-    if (fs.existsSync(configPath)) {
-      const configContent = fs.readFileSync(configPath, 'utf-8');
-      config = JSON.parse(configContent);
-    }
-
-    return {
-      html: htmlTemplate,
-      subject: config.subject,
-      text: config.text,
+    const compiledTemplate: CompiledTemplate = {
+      html: compiledHtml,
+      subject: templateDoc.subject,
+      text: templateDoc.text,
     };
-  }
-
-  private async loadTemplate(templateName: string): Promise<void> {
-    const templatePath = path.join(this.templatesDir, `${templateName}.hbs`);
-
-    if (!fs.existsSync(templatePath)) {
-      throw new Error(`Template file not found: ${templatePath}`);
-    }
-
-    const templateContent = fs.readFileSync(templatePath, 'utf-8');
-    const compiledTemplate = handlebars.compile(templateContent);
 
     this.templatesCache.set(templateName, compiledTemplate);
-    this.logger.log(`Loaded template: ${templateName}`);
+    this.logger.log(`Loaded email template from database: ${templateName}`);
+
+    return compiledTemplate;
   }
 }

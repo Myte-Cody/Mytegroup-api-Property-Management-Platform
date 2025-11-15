@@ -3,9 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { Request, Response, NextFunction } from 'express';
 import { join } from 'path';
 import { AppModule } from './app.module';
 import { AppGuard } from './common/guards/app.guard';
+import { CsrfGuard } from './common/guards/csrf.guard';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -13,6 +15,23 @@ async function bootstrap() {
   app.useStaticAssets(join(__dirname, '..', 'uploads'), {
     prefix: '/uploads/',
     maxAge: '1d',
+  });
+
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    const jar: Record<string, string> = {};
+    (req as any).cookies = jar;
+    if (req.headers?.cookie) {
+      req.headers.cookie.split(';').forEach((entry) => {
+        const [rawKey, ...rawValue] = entry.split('=');
+        if (!rawKey) {
+          return;
+        }
+        const key = rawKey.trim();
+        const value = decodeURIComponent(rawValue.join('=').trim());
+        jar[key] = value;
+      });
+    }
+    next();
   });
 
   app.useGlobalPipes(
@@ -24,7 +43,8 @@ async function bootstrap() {
   );
 
   const reflector = app.get(Reflector);
-  app.useGlobalGuards(new AppGuard(reflector));
+  const csrfGuard = app.get(CsrfGuard);
+  app.useGlobalGuards(new AppGuard(reflector), csrfGuard);
 
   // Set up Swagger documentation
   const config = new DocumentBuilder()

@@ -23,7 +23,9 @@ export default () => {
     },
     auth: {
       jwtSecret: process.env.JWT_SECRET,
-      jwtExpiration: process.env.JWT_EXPIRATION || '1d',
+      jwtExpiration: process.env.JWT_EXPIRATION || '15m',
+      refreshTtl: process.env.REFRESH_TOKEN_TTL || '30d',
+      cookieDomain: process.env.AUTH_COOKIE_DOMAIN || undefined,
     },
     email: {
       host: process.env.EMAIL_HOST || 'smtp.gmail.com',

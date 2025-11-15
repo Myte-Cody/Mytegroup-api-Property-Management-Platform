@@ -1,0 +1,90 @@
+<html>
+  <head>
+    <meta charset='utf-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>You're invited to join the team</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        color: #1f2937;
+      }
+      .container {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 24px;
+        background: #f9fafb;
+      }
+      .panel {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+        padding: 24px;
+      }
+      .cta {
+        display: inline-block;
+        padding: 12px 20px;
+        color: #ffffff;
+        background: {{brandColor}};
+        text-decoration: none;
+        border-radius: 8px;
+        margin: 20px 0;
+      }
+      .meta {
+        background: #eef2ff;
+        border-radius: 8px;
+        padding: 16px;
+        margin: 16px 0;
+      }
+      .link {
+        color: {{brandColor}};
+        word-break: break-all;
+      }
+      .footer {
+        margin-top: 24px;
+        font-size: 12px;
+        color: #6b7280;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class='container'>
+      <div class='panel'>
+        {{#if brandLogoUrl}}
+          <div style='text-align: center; margin-bottom: 12px;'>
+            <img src='{{brandLogoUrl}}' alt='{{brandName}}' style='max-height: 48px;' />
+          </div>
+        {{/if}}
+        <p style='font-size: 20px; font-weight: bold; margin-top: 0;'>You're invited to join the
+          {{metadata.organizationName}} team</p>
+        <p>
+          {{#if metadata.invitedByName}}
+            {{metadata.invitedByName}} has invited you to collaborate inside the landlord workspace.
+          {{else}}
+            You've been invited to collaborate inside the landlord workspace.
+          {{/if}}
+        </p>
+
+        <div class='meta'>
+          <p style='margin: 0 0 8px;'>What to expect:</p>
+          <ul style='margin: 0; padding-left: 18px;'>
+            <li>Access to properties, units, tenants, and maintenance tools</li>
+            <li>Ability to assist with onboarding and daily operations</li>
+            <li>Secure login with your own credentials</li>
+          </ul>
+        </div>
+
+        <p>Use the link below to accept the invitation and create your account:</p>
+        <p><a href='{{invitationUrl}}' class='cta'>Accept & Join</a></p>
+
+        <p>This invitation expires on {{formatDate expiresAt}}.</p>
+        <p>If the button does not work, copy and paste this URL into your browser:</p>
+        <p class='link'>{{invitationUrl}}</p>
+      </div>
+      <div class='footer'>
+        <p>Need assistance? Reply to this email and our team will help.</p>
+      </div>
+    </div>
+  </body>
+</html>

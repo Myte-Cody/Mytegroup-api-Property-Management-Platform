@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -29,6 +30,8 @@ import { UnitBusinessValidator } from './validators/unit-business-validator';
 
 @Injectable()
 export class UnitsService {
+  private readonly logger = new Logger(UnitsService.name);
+
   constructor(
     @InjectModel(Unit.name) private readonly unitModel: AppModel<Unit>,
     @InjectModel(Property.name)
@@ -73,8 +76,11 @@ export class UnitsService {
             createUnitDto.googleMapsLink,
           );
         } catch (error) {
-          // Log the error but don't fail the unit creation
-          console.error('Failed to extract location from Google Maps link:', error.message);
+          // Log as warning but don't fail the unit creation
+          const message = (error as any)?.message || String(error);
+          this.logger.warn(
+            `Failed to extract location from Google Maps link during unit creation: ${message}`,
+          );
         }
       }
 
@@ -683,8 +689,11 @@ export class UnitsService {
           updateUnitDto.googleMapsLink,
         );
       } catch (error) {
-        // Log the error but don't fail the unit update
-        console.error('Failed to extract location from Google Maps link:', error.message);
+        // Log as warning but don't fail the unit update
+        const message = (error as any)?.message || String(error);
+        this.logger.warn(
+          `Failed to extract location from Google Maps link during unit update: ${message}`,
+        );
       }
     }
 

@@ -1,5 +1,79 @@
 # MyteGroup API - Changelog
 
+## November 15, 2025
+
+### Dashboard Sidebar UX (Frontend-Only Release)
+
+**No API surface changes; coordinated with the web app to provide stable, role-specific dashboards with a consistent sidebar and sign-out behavior.**
+
+- Confirmed existing auth/session endpoints and cookie-based `user-data` storage continue to support the new frontend role layouts without any changes to API contracts.
+- Verified that logout flows remain unchanged: the web app still calls the existing `/auth/logout` endpoint, which clears HttpOnly auth cookies while the client clears `user-data`.
+- Ensured middleware for `/dashboard/**` continues to rely on the `user-data` cookie for quick role routing and access control; new frontend sidebar/layout work simply consumes that cookie.
+
+---
+
+## November 14, 2025
+
+### Landing Chat Streaming, Markdown Output & Auto Feedback Pipeline
+
+**Streamed GPT‑4.1 replies, markdown-friendly assistant, and one-click landing feedback stored for follow-up.**
+
+#### AI Chat endpoints
+
+- Introduced `AiChatController` under `src/features/ai-chat` with two public, throttled routes:
+  - `POST /chat` — accepts `{ channel, messages }` and returns a JSON payload `{ reply: string }` for the given channel (currently `landing-marketing`).
+  - `POST /chat/stream` — same request body but streams the assistant reply as plain text chunks, used by the landing widget for token-by-token rendering.
+- Reused `MarketingChatService` as the implementation for the `landing-marketing` channel behind a new `AiChatService` router.
+- Switched the marketing persona to use GPT‑4.1 via the Responses API, with a soft preference for clean Markdown output (lists, headings, and tables) while keeping content unrestricted.
+
+#### Landing Auto Feedback & subscribers
+
+- Added a new public endpoint for turning a landing chat transcript into actionable product feedback:
+  - `POST /feedback/landing/auto` — takes `{ email, channel, conversation }` where `conversation` is the landing chat history (assistant + user turns).
+  - Classifies the feedback with GPT‑4.1 into summary, tags, sentiment, primary role, and rough priority via a strict-JSON prompt.
+  - Upserts the email + derived metadata into a new `subscribers` collection so we can build a future MYTE mailing/insight board.
+- Implemented `SubscribersModule` with a simple `Subscriber` schema and `SubscribersService.upsertFromFeedback` helper for normalizing and storing landing feedback snapshots.
+
+#### Email notifications & templates
+
+- Extended the central email system with two new templates:
+  - `landing-chat-feedback-internal` — internal notification to a configurable `FEEDBACK_INBOX_EMAIL` containing summary, tags, sentiment/priority, and the raw transcript.
+  - `landing-chat-feedback-confirmation` — user-facing confirmation email that wraps a GPT‑generated, profanity-free thank-you body tailored to their feedback.
+- All feedback emails are queued through the existing `EmailQueueService` so they can run asynchronously alongside other transactional mail.
+
+---
+
+## November 13, 2025
+
+### RBAC Hardening, Role Backfill & Invitation Context
+
+**Safer roles, consistent permissions, and richer onboarding metadata**
+
+#### Role Backfill & Guardrails
+
+- Added `users:backfill-roles` CLI command (via `src/cli.ts`) to populate `user.role` for legacy users based on `user_type` and `isPrimary`.
+- The command is idempotent and logs a summary of updated vs skipped records, warning on any unexpected `user_type` for manual follow-up.
+- Ran the backfill against the configured database; all users with a valid `user_type` now have a derived `role`, with only two legacy records skipped due to missing `user_type`.
+
+#### RBAC & User Management
+
+- Hardened user creation so explicit `role` assignments are only honored when performed by a `SuperAdmin`; all other flows derive roles from `user_type` + `isPrimary`.
+- Blocked `role` changes through the update endpoint unless the acting user is a `SuperAdmin`.
+- Prevented landlord staff (`LandlordStaff`) from toggling `isPrimary` on users, preserving single-primary semantics under landlord/owner control.
+- Ensured CASL landlord role tests cover the intended difference between `LandlordAdmin` (full manage including billing + users) and `LandlordStaff` (operational manage, read-only billing, no user management).
+
+#### Invitations & Tenant Context
+
+- Extended tenant invitations to carry onboarding context (e.g. `propertyId`, `unitId`, labels) into the created `Tenant` record as `invitationContext`.
+- Updated `TenantInvitationStrategy` and `TenantsService.createFromInvitation` to persist this metadata so onboarding tenants stay logically tied to the property/unit they were invited for, even before a lease is created.
+
+#### Security & CSRF
+
+- Added a focused e2e test for `CsrfGuard` to verify that non-GET requests are rejected without a matching `csrf_token` cookie and `x-csrf-token` header, and accepted when both are present.
+- Kept the global CSRF guard wiring aligned with the main app bootstrap while using a minimal test module for faster feedback.
+
+---
+
 ## November 3, 2025
 
 ### Feed Posts Enhancement & Lease Data Improvements

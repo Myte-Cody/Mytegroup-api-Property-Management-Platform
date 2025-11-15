@@ -1,4 +1,4 @@
-name: Build, Deploy and Register Project1
+name: Build, Deploy and Register Project
 
 on:
   push:
@@ -194,7 +194,7 @@ jobs:
               {
                 "name": "${CONTAINER_NAME}",
                 "image": "${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}",
-                "memory": 512,
+                "memory": 1024,
                 "cpu": 256,
                 "essential": true,
                 "portMappings": [
@@ -211,47 +211,54 @@ jobs:
                   "retries": 5,
                   "startPeriod": 180
                 },
+                "links": ["redis"],
                 "environment": [
-                  {
-                    "name": "NODE_ENV",
-                    "value": "production"
-                  },
-                  {
-                    "name": "APP_PORT",
-                    "value": "80"
-                  },
-                  {
-                    "name": "APP_BASE_URL",
-                    "value": "https://${{ steps.get_repo_name.outputs.repo_name }}.mytecody.com"
-                  },
-                  {
-                    "name": "CLIENT_BASE_URL",
-                    "value": "${{ secrets.CLIENT_BASE_URL }}"
-                  },
-                  {
-                    "name": "CORS_ORIGINS_PROD",
-                    "value": "${{ secrets.CORS_ORIGINS_PROD }}"
-                  },
-                  {
-                    "name": "DB_URL",
-                    "value": "${{ secrets.DB_URL }}"
-                  },
-                  {
-                    "name": "MONGO_DB_NAME",
-                    "value": "${{ secrets.MONGO_DB_NAME }}"
-                  },
-                  {
-                    "name": "JWT_SECRET",
-                    "value": "${{ secrets.JWT_SECRET }}"
-                  },
-                  {
-                    "name": "REPO_NAME",
-                    "value": "${REPOSITORY}"
-                  },
-                  {
-                    "name": "PORT",
-                    "value": "80"
-                  }
+                  { "name": "NODE_ENV", "value": "production" },
+                  { "name": "APP_PORT", "value": "80" },
+
+                  { "name": "APP_BASE_URL", "value": "https://${{ steps.get_repo_name.outputs.repo_name }}.mytecody.com" },
+                  { "name": "CLIENT_BASE_URL", "value": "${{ secrets.CLIENT_BASE_URL }}" },
+                  { "name": "CORS_ORIGINS_PROD", "value": "${{ secrets.CORS_ORIGINS_PROD }}" },
+
+                  { "name": "DB_URL", "value": "${{ secrets.DB_URL }}" },
+                  { "name": "MONGO_DB_NAME", "value": "${{ secrets.MONGO_DB_NAME }}" },
+                  { "name": "JWT_SECRET", "value": "${{ secrets.JWT_SECRET }}" },
+                  { "name": "JWT_EXPIRATION", "value": "${{ secrets.JWT_EXPIRATION }}" },
+
+                  { "name": "EMAIL_HOST", "value": "${{ secrets.EMAIL_HOST }}" },
+                  { "name": "EMAIL_PORT", "value": "${{ secrets.EMAIL_PORT }}" },
+                  { "name": "EMAIL_SECURE", "value": "${{ secrets.EMAIL_SECURE }}" },
+                  { "name": "EMAIL_USER", "value": "${{ secrets.EMAIL_USER }}" },
+                  { "name": "EMAIL_PASS", "value": "${{ secrets.EMAIL_PASS }}" },
+                  { "name": "EMAIL_FROM", "value": "${{ secrets.EMAIL_FROM }}" },
+                  { "name": "EMAIL_USE_ETHEREAL", "value": "${{ secrets.EMAIL_USE_ETHEREAL }}" },
+                  { "name": "FEEDBACK_INBOX_EMAIL", "value": "${{ secrets.FEEDBACK_INBOX_EMAIL }}" },
+
+                  { "name": "REDIS_HOST", "value": "${{ secrets.REDIS_HOST }}" },
+                  { "name": "REDIS_PORT", "value": "${{ secrets.REDIS_PORT }}" },
+                  { "name": "REDIS_PASSWORD", "value": "${{ secrets.REDIS_PASSWORD }}" },
+                  { "name": "REDIS_DISABLE", "value": "${{ secrets.REDIS_DISABLE }}" },
+
+                  { "name": "MEDIA_DEFAULT_DISK", "value": "${{ secrets.MEDIA_DEFAULT_DISK }}" },
+                  { "name": "AWS_S3_BUCKET", "value": "${{ secrets.AWS_S3_BUCKET }}" },
+                  { "name": "AWS_S3_REGION", "value": "${{ secrets.AWS_S3_REGION }}" },
+                  { "name": "AWS_ACCESS_KEY_ID", "value": "${{ secrets.AWS_ACCESS_KEY_ID }}" },
+                  { "name": "AWS_SECRET_ACCESS_KEY", "value": "${{ secrets.AWS_SECRET_ACCESS_KEY }}" },
+                  { "name": "AWS_S3_BASE_URL", "value": "${{ secrets.AWS_S3_BASE_URL }}" },
+                  { "name": "AWS_DEFAULT_REGION", "value": "${{ secrets.AWS_DEFAULT_REGION }}" },
+
+                  { "name": "AI_ENDPOINT", "value": "${{ secrets.AI_ENDPOINT }}" },
+                  { "name": "OPENAI_API_KEY", "value": "${{ secrets.OPENAI_API_KEY }}" },
+
+                  { "name": "RENEWAL_WINDOW_DAYS", "value": "${{ secrets.RENEWAL_WINDOW_DAYS }}" },
+                  { "name": "DEFAULT_RENEWAL_TERM_MONTHS", "value": "${{ secrets.DEFAULT_RENEWAL_TERM_MONTHS }}" },
+                  { "name": "DEFAULT_RENT_INCREASE_PERCENTAGE", "value": "${{ secrets.DEFAULT_RENT_INCREASE_PERCENTAGE }}" },
+                  { "name": "MAX_RENT_INCREASE_PERCENTAGE", "value": "${{ secrets.MAX_RENT_INCREASE_PERCENTAGE }}" },
+                  { "name": "RENEWAL_DRY_RUN", "value": "${{ secrets.RENEWAL_DRY_RUN }}" },
+                  { "name": "RENEWAL_BATCH_SIZE", "value": "${{ secrets.RENEWAL_BATCH_SIZE }}" },
+
+                  { "name": "REPO_NAME", "value": "${REPOSITORY}" },
+                  { "name": "PORT", "value": "80" }
                 ], 
                 "logConfiguration": {
                   "logDriver": "awslogs",
@@ -261,6 +268,27 @@ jobs:
                     "awslogs-region": "${{ env.AWS_REGION }}",
                     "awslogs-stream-prefix": "${CONTAINER_NAME}"
                   }
+                }
+              },
+              {
+                "name": "redis",
+                "image": "redis:7-alpine",
+                "memory": 128,
+                "cpu": 64,
+                "essential": true,
+                "portMappings": [
+                  {
+                    "containerPort": 6379,
+                    "hostPort": 0,
+                    "protocol": "tcp"
+                  }
+                ],
+                "healthCheck": {
+                  "command": ["CMD", "redis-cli", "ping"],
+                  "interval": 30,
+                  "timeout": 5,
+                  "retries": 3,
+                  "startPeriod": 10
                 }
               }
             ], 
@@ -466,3 +494,4 @@ jobs:
               echo "Less than 10 images found, no cleanup needed"
             fi
           fi
+

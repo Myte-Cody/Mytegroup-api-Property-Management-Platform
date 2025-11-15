@@ -34,6 +34,18 @@ export class PropertiesService {
     private readonly sessionService: SessionService,
   ) {}
 
+  async countByLandlord(_landlordId: any) {
+    const [properties, units] = await Promise.all([
+      this.propertyModel.countDocuments().exec(),
+      this.unitModel.countDocuments().exec(),
+    ]);
+
+    return {
+      totalProperties: properties,
+      totalUnits: units,
+    };
+  }
+
   async findAllPaginated(
     queryDto: PropertyQueryDto,
     currentUser: UserDocument,

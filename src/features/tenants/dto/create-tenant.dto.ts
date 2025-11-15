@@ -84,4 +84,13 @@ export class CreateTenantDto {
       'Password must contain at least one uppercase letter, one lowercase letter, and one number or special character',
   })
   password: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional context from an invitation or onboarding flow (e.g. propertyId, unitId, labels)',
+    type: Object,
+    required: false,
+  })
+  @IsOptional()
+  invitationContext?: Record<string, any>;
 }

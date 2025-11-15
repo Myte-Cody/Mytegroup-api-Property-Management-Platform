@@ -18,7 +18,7 @@ import type { UserDocument } from '../users/schemas/user.schema';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { InvitationQueryDto } from './dto/invitation-query.dto';
-import { Invitation, InvitationStatus } from './schemas/invitation.schema';
+import { Invitation, InvitationStatus, EntityType } from './schemas/invitation.schema';
 import { InvitationStrategyFactory } from './strategies/invitation-strategy.factory';
 
 @Injectable()
@@ -43,12 +43,21 @@ export class InvitationsService {
     }
 
     const strategy = this.invitationStrategyFactory.getStrategy(createInvitationDto.entityType);
+    const normalizedEmail = createInvitationDto.email.toLowerCase();
+    const entityData = {
+      ...(createInvitationDto.entityData || {}),
+    };
 
-    await strategy.validateEntityData(createInvitationDto.entityData);
+    if (createInvitationDto.entityType === EntityType.LANDLORD_STAFF && currentUser.organization_id) {
+      entityData.organizationId =
+        entityData.organizationId || currentUser.organization_id.toString();
+    }
+
+    await strategy.validateEntityData(entityData);
 
     const existingInvitation = await this.invitationModel
       .findOne({
-        email: createInvitationDto.email.toLowerCase(),
+        email: normalizedEmail,
         entityType: createInvitationDto.entityType,
         status: InvitationStatus.PENDING,
       })
@@ -67,7 +76,7 @@ export class InvitationsService {
       invitedBy: currentUser._id,
       entityType: createInvitationDto.entityType,
       email: createInvitationDto.email.toLowerCase(),
-      entityData: createInvitationDto.entityData || {},
+      entityData,
       invitationToken,
       status: InvitationStatus.PENDING,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
@@ -83,10 +92,12 @@ export class InvitationsService {
     try {
       // Additional info based on entity type
       let additionalInfo;
-      if (createInvitationDto.entityType === 'tenant') {
+      if (createInvitationDto.entityType === EntityType.TENANT) {
         additionalInfo = 'You will have access to property management features';
-      } else if (createInvitationDto.entityType === 'contractor') {
+      } else if (createInvitationDto.entityType === EntityType.CONTRACTOR) {
         additionalInfo = 'You will have access to maintenance and service features';
+      } else if (createInvitationDto.entityType === EntityType.LANDLORD_STAFF) {
+        additionalInfo = 'You have been invited to help manage the landlord workspace.';
       }
 
       await this.invitationEmailService.sendInvitationEmail(
@@ -97,6 +108,7 @@ export class InvitationsService {
         {
           additionalInfo,
           queue: true, // Use queue for background processing
+          metadata: savedInvitation.entityData,
         },
       );
     } catch (error) {

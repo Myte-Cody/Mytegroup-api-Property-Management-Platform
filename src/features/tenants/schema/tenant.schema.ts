@@ -9,6 +9,16 @@ export class Tenant extends Document implements SoftDelete {
   @Prop({ required: true })
   name: string;
 
+  @Prop({ type: Object, required: false })
+  invitationContext?: {
+    propertyId?: string;
+    unitId?: string;
+    propertyName?: string;
+    unitLabel?: string;
+    source?: string;
+    [key: string]: any;
+  };
+
   deleted: boolean;
   deletedAt?: Date;
 }

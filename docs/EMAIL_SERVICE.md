@@ -66,6 +66,10 @@ export class UserService {
 
 ## Template System
 
+Email templates are stored in MongoDB and loaded through the `TemplateService`. The source of truth
+for templates lives in `src/features/email/templates` as `.hbs` + `.json` pairs, and a backfill
+command syncs those into the database.
+
 ### Using Templates
 
 ```typescript
@@ -90,6 +94,23 @@ export class NotificationService {
   }
 }
 ```
+
+### Authoring & Seeding Templates
+
+1. Create or update template files under `src/features/email/templates`:
+
+   - `*.hbs` – Handlebars HTML body (stored as `html` in MongoDB)
+   - `*.json` – Template metadata (stored as `subject` and optional `text`)
+
+2. Backfill templates into MongoDB (idempotent):
+
+   ```bash
+   cd Mytegroup-api-Property-Management-Platform
+   npm run email-templates:backfill
+   ```
+
+   This command upserts one `EmailTemplate` document per template name, so it is safe to run
+   multiple times (e.g., after adding or changing templates).
 
 ## Background Queue Processing
 

@@ -1,0 +1,24 @@
+# Python build/cache
+__pycache__
+*.pyc
+.pytest_cache
+build
+dist
+
+# Virtual envs
+.venv
+venv
+
+# Env
+.env
+.env.*
+
+# VCS
+.git
+.gitignore
+.idea
+.vscode
+
+# OS
+.DS_Store
+Thumbs.db

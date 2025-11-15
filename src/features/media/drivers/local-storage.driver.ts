@@ -17,14 +17,16 @@ export class LocalStorageDriver implements StorageDriverInterface {
   private readonly baseUrl: string;
 
   constructor(private configService: ConfigService) {
-    this.uploadPath = this.configService.get('MEDIA_UPLOAD_PATH', 'uploads');
+    const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+    const defaultUploadPath = nodeEnv === 'production' ? '/tmp/myte-uploads' : 'uploads';
+    this.uploadPath = this.configService.get('MEDIA_UPLOAD_PATH', defaultUploadPath);
     this.baseUrl = this.configService.get('APP_BASE_URL', 'http://localhost:3000');
-
-    // Ensure upload directory exists
-    this.ensureUploadDirectory();
   }
 
   async store(file: any, relativePath: string): Promise<string> {
+    // Ensure base upload directory exists before writing
+    await this.ensureUploadDirectory();
+
     const fullPath = path.join(this.uploadPath, relativePath);
     const directory = path.dirname(fullPath);
 

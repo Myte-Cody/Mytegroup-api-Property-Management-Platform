@@ -1,0 +1,4 @@
+{
+  "subject": "You're invited to join {{#if metadata.organizationName}}{{metadata.organizationName}} {{/if}}on the platform",
+  "text": "You've been invited to collaborate with {{metadata.organizationName}}. Accept the invitation here: {{invitationUrl}}"
+}

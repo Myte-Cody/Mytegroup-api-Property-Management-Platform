@@ -1,6 +1,7 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
 import { EmailService } from './email.service';
 import { EmailQueueProcessor } from './processors/email-queue.processor';
 import { AuthEmailService } from './services/auth-email.service';
@@ -12,23 +13,31 @@ import { MaintenanceEmailService } from './services/maintenance-email.service';
 import { PaymentEmailService } from './services/payment-email.service';
 import { TemplateService } from './services/template.service';
 import { WelcomeEmailService } from './services/welcome-email.service';
+import { EmailTemplate, EmailTemplateSchema } from './schemas/email-template.schema';
+
+const enableQueues = process.env.REDIS_DISABLE !== 'true';
 
 @Global()
 @Module({
   imports: [
     ConfigModule,
-    BullModule.registerQueue({
-      name: 'email',
-      connection: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379', 10),
-        password: process.env.REDIS_PASSWORD,
-      },
-      defaultJobOptions: {
-        removeOnComplete: 100,
-        removeOnFail: 50,
-      },
-    }),
+    MongooseModule.forFeature([{ name: EmailTemplate.name, schema: EmailTemplateSchema }]),
+    ...(enableQueues
+      ? [
+          BullModule.registerQueue({
+            name: 'email',
+            connection: {
+              host: process.env.REDIS_HOST || 'localhost',
+              port: parseInt(process.env.REDIS_PORT || '6379', 10),
+              password: process.env.REDIS_PASSWORD,
+            },
+            defaultJobOptions: {
+              removeOnComplete: 100,
+              removeOnFail: 50,
+            },
+          }),
+        ]
+      : []),
   ],
   providers: [
     EmailService,

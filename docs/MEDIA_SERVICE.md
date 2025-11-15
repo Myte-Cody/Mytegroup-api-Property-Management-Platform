@@ -39,13 +39,19 @@ Stores files on the local filesystem.
 
 ```env
 MEDIA_DEFAULT_DISK=local
-MEDIA_UPLOAD_PATH=uploads
 APP_BASE_URL=http://localhost:3000
 ```
 
+**Path resolution:**
+
+- `NODE_ENV=development` → stores under `./uploads`
+- `NODE_ENV=production` → stores under `/tmp/myte-uploads`
+
+You can still override the base path via the `MEDIA_UPLOAD_PATH` config key if absolutely necessary, but by default it is derived from `NODE_ENV` and does not need to be set in `.env`.
+
 **Features:**
 
-- Files stored in `uploads/` directory
+- Files stored on the container filesystem
 - Automatic directory creation
 - URL format: `{APP_BASE_URL}/uploads/{path}`
 

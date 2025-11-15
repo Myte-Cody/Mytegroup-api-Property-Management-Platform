@@ -1,9 +1,12 @@
-import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
+import * as argon2 from 'argon2';
 import { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
+import { UserRole } from '../../common/enums/user-role.enum';
+import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
@@ -32,6 +35,7 @@ export class UsersService {
       user_type,
       organization_id,
       isPrimary,
+      role,
     } = createUserDto;
 
     // Check username uniqueness within the same landlord
@@ -83,8 +87,14 @@ export class UsersService {
       session,
     );
 
-    const salt = await bcrypt.genSalt();
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const hashedPassword = await argon2.hash(password, { type: argon2.argon2id });
+    const effectiveRequestedRole =
+      currentUser && currentUser.role === UserRole.SUPER_ADMIN ? role : undefined;
+    const resolvedRole = this.resolveRole(
+      user_type as UserType,
+      shouldBePrimary,
+      effectiveRequestedRole,
+    );
 
     const newUser = new this.userModel({
       username,
@@ -96,6 +106,7 @@ export class UsersService {
       user_type,
       organization_id: organization_id ?? currentUser?.organization_id,
       isPrimary: shouldBePrimary,
+      role: resolvedRole,
     });
 
     // Save the user first to ensure it exists in the database
@@ -128,6 +139,7 @@ export class UsersService {
       user_type,
       organization_id,
       isPrimary,
+      role,
     } = createUserDto;
 
     // Check username uniqueness within the same landlord
@@ -179,8 +191,8 @@ export class UsersService {
       session,
     );
 
-    const salt = await bcrypt.genSalt();
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const hashedPassword = await argon2.hash(password, { type: argon2.argon2id });
+    const resolvedRole = this.resolveRole(user_type as UserType, shouldBePrimary, role);
 
     const newUser = new this.userModel({
       username,
@@ -192,6 +204,7 @@ export class UsersService {
       user_type,
       organization_id,
       isPrimary: shouldBePrimary,
+      role: resolvedRole,
     });
 
     // Save the user first to ensure it exists in the database
@@ -247,6 +260,10 @@ export class UsersService {
       baseQuery = baseQuery.where({ organization_id });
     }
 
+    if (queryDto.role) {
+      baseQuery = baseQuery.where({ role: queryDto.role });
+    }
+
     // Filter by isPrimary if provided
     if (isPrimary !== undefined) {
       baseQuery = baseQuery.where({ isPrimary });
@@ -285,6 +302,19 @@ export class UsersService {
       const user = await this.userModel.findById(id, null, { session }).exec();
       if (!user) {
         throw new NotFoundException(`User with ID ${id} not found`);
+      }
+
+      const currentUserRole = currentUser?.role as UserRole | undefined;
+
+      if (updateUserDto.role !== undefined && currentUserRole !== UserRole.SUPER_ADMIN) {
+        throw new ForbiddenException('You are not allowed to change user roles');
+      }
+
+      if (
+        updateUserDto.isPrimary !== undefined &&
+        currentUserRole === UserRole.LANDLORD_STAFF
+      ) {
+        throw new ForbiddenException('Landlord staff cannot change primary user status');
       }
 
       if (updateUserDto.username && updateUserDto.username !== user.username) {
@@ -353,10 +383,22 @@ export class UsersService {
         }
       }
 
-      if (updateUserDto.password) {
-        const salt = await bcrypt.genSalt();
+      const evaluatedIsPrimary =
+        updateUserDto.isPrimary !== undefined ? updateUserDto.isPrimary : user.isPrimary;
 
-        updateUserDto.password = await bcrypt.hash(updateUserDto.password, salt);
+      if (!updateUserDto.role) {
+        const resolvedRole = this.resolveRole(
+          user.user_type as UserType,
+          evaluatedIsPrimary ?? false,
+          undefined,
+        );
+        if (resolvedRole) {
+          updateUserDto.role = resolvedRole;
+        }
+      }
+
+      if (updateUserDto.password) {
+        updateUserDto.password = await argon2.hash(updateUserDto.password, { type: argon2.argon2id });
       }
 
       return await this.userModel
@@ -405,6 +447,29 @@ export class UsersService {
       throw new UnprocessableEntityException(
         `A primary user already exists for this ${user_type.toLowerCase()}. Only one primary user is allowed per organization.`,
       );
+    }
+  }
+
+  private resolveRole(
+    userType: UserType,
+    isPrimary: boolean,
+    requestedRole?: UserRole,
+  ): UserRole | undefined {
+    if (requestedRole) {
+      return requestedRole;
+    }
+
+    switch (userType) {
+      case UserType.LANDLORD:
+        return isPrimary ? UserRole.LANDLORD_ADMIN : UserRole.LANDLORD_STAFF;
+      case UserType.TENANT:
+        return UserRole.TENANT;
+      case UserType.CONTRACTOR:
+        return UserRole.CONTRACTOR;
+      case UserType.ADMIN:
+        return UserRole.SUPER_ADMIN;
+      default:
+        return undefined;
     }
   }
 }

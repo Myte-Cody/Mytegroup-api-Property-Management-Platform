@@ -60,6 +60,7 @@ export class AcceptInvitationDto {
     example: 'Plumbing',
     maxLength: 100,
   })
+  @IsOptional()
   @IsString()
   @MaxLength(100)
   category: string;

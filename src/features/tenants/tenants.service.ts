@@ -506,16 +506,21 @@ export class TenantsService {
     }
 
     // Extract user data from DTO
-    const { email, password, name, username, firstName, lastName, phone } = createTenantDto;
+    const { email, password, name, username, firstName, lastName, phone, invitationContext } =
+      createTenantDto;
 
     // Validate tenant creation data
     await this.validateTenantCreationData(name, email, username);
 
     // Create tenant
     return await this.sessionService.withSession(async (session: ClientSession | null) => {
-      const tenantData = {
+      const tenantData: any = {
         name,
       };
+
+      if (invitationContext) {
+        tenantData.invitationContext = invitationContext;
+      }
 
       const newTenant = new this.tenantModel(tenantData);
       const savedTenant = await newTenant.save({ session });
@@ -540,15 +545,20 @@ export class TenantsService {
 
   async createFromInvitation(createTenantDto: CreateTenantDto, session?: ClientSession) {
     // Extract user data from DTO
-    const { email, password, name, username, firstName, lastName, phone } = createTenantDto;
+    const { email, password, name, username, firstName, lastName, phone, invitationContext } =
+      createTenantDto;
 
     // Validate tenant creation data (no CASL authorization needed for invitations)
     await this.validateTenantCreationData(name, email, username);
 
     // Create tenant
-    const tenantData = {
+    const tenantData: any = {
       name,
     };
+
+    if (invitationContext) {
+      tenantData.invitationContext = invitationContext;
+    }
 
     const newTenant = new this.tenantModel(tenantData);
     const savedTenant = await newTenant.save({ session: session ?? null });

@@ -3,6 +3,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
+import { UserRole } from '../../../common/enums/user-role.enum';
 
 // todo check this type
 export type UserDocument = User & Document & SoftDelete;
@@ -47,6 +48,28 @@ export class User extends Document implements SoftDelete {
 
   @Prop({ type: Boolean, required: true, default: false })
   isPrimary: boolean;
+
+  @Prop({ type: Date, required: false })
+  emailVerifiedAt?: Date;
+
+  @Prop({
+    type: String,
+    required: false,
+    enum: Object.values(UserRole),
+  })
+  role?: UserRole;
+
+  @Prop({ type: Number, default: 0 })
+  failedLoginAttempts: number;
+
+  @Prop({ type: Date, required: false })
+  lockoutExpiresAt?: Date;
+
+  @Prop({ type: Boolean, default: false })
+  isDisabled: boolean;
+
+  @Prop({ type: Date, required: false })
+  disabledAt?: Date;
 
   deleted: boolean;
   deletedAt?: Date;

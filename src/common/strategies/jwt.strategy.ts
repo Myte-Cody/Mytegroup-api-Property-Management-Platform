@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { PassportStrategy } from '@nestjs/passport';
@@ -12,7 +12,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     @InjectModel(User.name) private readonly userModel: AppModel<UserDocument>,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        (req: any) => {
+          if (!req || !req.cookies) return null;
+          return req.cookies['access_token'] || null;
+        },
+      ]),
       secretOrKey: configService.get<string>('JWT_SECRET') || 'super-secret-key',
       ignoreExpiration: false,
     });
@@ -23,9 +29,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       .select('_id username email user_type organization_id')
       .exec();
 
-    // Ensure user exists
-    if (!user) {
-      return null;
+    if (!user || (user as any).deleted || user.isDisabled) {
+      throw new UnauthorizedException();
     }
 
     return user;

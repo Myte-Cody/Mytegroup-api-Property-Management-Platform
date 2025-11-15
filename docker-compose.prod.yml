@@ -1,0 +1,82 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mytegroup-api
+    restart: always
+    # Do not mount source or override command; use compiled app
+    volumes: []
+    command: ["node", "dist/main.js"]
+    environment:
+      NODE_ENV: production
+      APP_PORT: ${APP_PORT:-3000}
+      DB_URL: ${DB_URL}
+      MONGO_DB_NAME: ${MONGO_DB_NAME}
+      JWT_SECRET: ${JWT_SECRET}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DISABLE: ${REDIS_DISABLE:-false}
+      AI_ENDPOINT: ${AI_ENDPOINT}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # Optional email/media config passed at runtime
+      EMAIL_HOST: ${EMAIL_HOST}
+      EMAIL_PORT: ${EMAIL_PORT}
+      EMAIL_SECURE: ${EMAIL_SECURE}
+      EMAIL_USER: ${EMAIL_USER}
+      EMAIL_PASS: ${EMAIL_PASS}
+      EMAIL_FROM: ${EMAIL_FROM}
+      MEDIA_DEFAULT_DISK: ${MEDIA_DEFAULT_DISK}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      AWS_S3_REGION: ${AWS_S3_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_BASE_URL: ${AWS_S3_BASE_URL}
+    ports:
+      - "${API_PORT:-3000}:3000"
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Keep Redis local by default; if using managed Redis (e.g., ElastiCache),
+  # set REDIS_HOST/REDIS_PORT and scale this service to 0 or remove it.
+  redis:
+    profiles: ["local"]
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Prefer Atlas/managed MongoDB in production.
+  # Mark local Mongo for the 'local' profile so it's not started unless requested.
+  mongodb:
+    profiles: ["local"]
+    command: ["mongod", "--bind_ip_all"]
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Frontend: using existing Dockerfile defaults; bake public env at build time via args.
+  frontend:
+    build:
+      context: ${FRONTEND_REPO_URL:-../Mytegroup-web-Property-Management-Platform}
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_PROJECT_ID: ${NEXT_PUBLIC_PROJECT_ID}
+        NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+    environment:
+      NODE_ENV: production
+    depends_on:
+      api:
+        condition: service_started
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"

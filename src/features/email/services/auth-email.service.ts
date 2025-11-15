@@ -51,28 +51,35 @@ export class AuthEmailService {
     }
   }
 
-  async sendEmailVerification(to: string, verificationToken: string): Promise<void> {
+  async sendEmailVerification(
+    to: string,
+    verificationToken: string,
+    code?: string,
+    options?: { queue?: boolean },
+  ): Promise<void> {
     try {
       const clientBaseUrl = this.configService.get<string>('app.clientBaseUrl');
-      const verificationUrl = `${clientBaseUrl}/verify-email?token=${verificationToken}`;
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandLogoUrl = this.configService.get<string>('BRAND_LOGO_URL') || '';
+      const brandColor = this.configService.get<string>('BRAND_PRIMARY_COLOR') || '#2563eb';
+      const verifyUrl = `${clientBaseUrl}/verify-email?token=${verificationToken}`;
 
       const context = {
-        verificationUrl,
-        expirationTime: 24, // 24 hours for email verification
-      };
+        verifyUrl,
+        brandName,
+        brandLogoUrl,
+        brandColor,
+        code: code || '',
+        hours: 24,
+      } as any;
 
-      // You can create an email-verification template later if needed
-      const subject = 'Verify Your Email Address';
-      const html = `
-        <h2>Email Verification Required</h2>
-        <p>Please click the link below to verify your email address:</p>
-        <p><a href="${verificationUrl}">Verify Email</a></p>
-        <p>This link will expire in 24 hours.</p>
-        <p>If you didn't create this account, please ignore this email.</p>
-      `;
-      const text = `Email verification required. Visit: ${verificationUrl}. This link expires in 24 hours.`;
-
-      await this.emailService.sendMail({ to, subject, html, text });
+      const { html, subject, text } = await this.templateService.compileTemplate('verify-email', context);
+      const emailOptions = { to, subject, html, text };
+      if (options?.queue) {
+        await this.emailQueueService.queueEmail(emailOptions);
+      } else {
+        await this.emailService.sendMail(emailOptions);
+      }
       this.logger.log(`Email verification sent successfully to ${to}`);
     } catch (error) {
       this.logger.error(`Failed to send email verification to ${to}`, error);

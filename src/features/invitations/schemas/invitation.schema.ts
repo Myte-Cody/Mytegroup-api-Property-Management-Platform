@@ -14,6 +14,7 @@ export enum InvitationStatus {
 export enum EntityType {
   TENANT = 'tenant',
   CONTRACTOR = 'contractor',
+  LANDLORD_STAFF = 'landlord-staff',
 }
 
 @Schema({ timestamps: true })

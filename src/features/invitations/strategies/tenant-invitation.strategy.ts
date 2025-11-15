@@ -42,6 +42,8 @@ export class TenantInvitationStrategy implements IInvitationStrategy {
     currentUser?: UserDocument,
     session?: ClientSession,
   ): Promise<any> {
+    const invitationContext = invitation.entityData || {};
+
     const createTenantDto = {
       name: acceptInvitationDto.name,
       email: invitation.email,
@@ -50,6 +52,7 @@ export class TenantInvitationStrategy implements IInvitationStrategy {
       lastName: acceptInvitationDto.lastName,
       password: acceptInvitationDto.password,
       phone: acceptInvitationDto.phone,
+      invitationContext,
     };
 
     // Create tenant using the invitation-specific method that doesn't require CASL authorization

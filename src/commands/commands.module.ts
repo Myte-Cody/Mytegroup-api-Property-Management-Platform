@@ -4,6 +4,8 @@ import { UsersModule } from '../features/users/users.module';
 import { SeedAllCommand } from './seed-all.command';
 import { SeedDevDataCommand } from './seed-dev-data.command';
 import { SeedersService } from './seeders.service';
+import { BackfillUserRolesCommand } from './backfill-user-roles.command';
+import { BackfillEmailTemplatesCommand } from './backfill-email-templates.command';
 
 import { Contractor, ContractorSchema } from '../features/contractors/schema/contractor.schema';
 import { Landlord, LandlordSchema } from '../features/landlords/schema/landlord.schema';
@@ -22,6 +24,10 @@ import { Property, PropertySchema } from '../features/properties/schemas/propert
 import { Unit, UnitSchema } from '../features/properties/schemas/unit.schema';
 import { Tenant, TenantSchema } from '../features/tenants/schema/tenant.schema';
 import { User, UserSchema } from '../features/users/schemas/user.schema';
+import {
+  EmailTemplate,
+  EmailTemplateSchema,
+} from '../features/email/schemas/email-template.schema';
 
 @Module({
   imports: [
@@ -38,8 +44,15 @@ import { User, UserSchema } from '../features/users/schemas/user.schema';
       { name: Transaction.name, schema: TransactionSchema },
       { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
       { name: ScopeOfWork.name, schema: ScopeOfWorkSchema },
+      { name: EmailTemplate.name, schema: EmailTemplateSchema },
     ]),
   ],
-  providers: [SeedAllCommand, SeedDevDataCommand, SeedersService],
+  providers: [
+    SeedAllCommand,
+    SeedDevDataCommand,
+    SeedersService,
+    BackfillUserRolesCommand,
+    BackfillEmailTemplatesCommand,
+  ],
 })
 export class CommandsModule {}

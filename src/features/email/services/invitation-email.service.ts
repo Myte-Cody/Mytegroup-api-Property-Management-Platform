@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../email.service';
 import { EmailQueueService } from './email-queue.service';
 import { TemplateService } from './template.service';
+import { EntityType } from '../../invitations/schemas/invitation.schema';
 
 @Injectable()
 export class InvitationEmailService {
@@ -21,16 +22,22 @@ export class InvitationEmailService {
   async sendInvitationEmail(
     to: string,
     invitationToken: string,
-    entityType: string,
+    entityType: EntityType,
     expiresAt: Date,
     options?: {
       additionalInfo?: string;
       queue?: boolean;
+      metadata?: Record<string, any>;
     },
   ): Promise<void> {
     try {
       // Build invitation URL
       const invitationUrl = `${this.frontendUrl}/invitation/${invitationToken}`;
+      const templateName =
+        entityType === EntityType.LANDLORD_STAFF ? 'invite-staff' : 'invitation';
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandLogoUrl = this.configService.get<string>('BRAND_LOGO_URL') || '';
+      const brandColor = this.configService.get<string>('BRAND_PRIMARY_COLOR') || '#2563eb';
 
       // Prepare template context
       const context = {
@@ -38,11 +45,15 @@ export class InvitationEmailService {
         invitationUrl,
         expiresAt,
         additionalInfo: options?.additionalInfo,
+        metadata: options?.metadata,
+        brandName,
+        brandLogoUrl,
+        brandColor,
       };
 
       // Compile the template
       const { html, subject, text } = await this.templateService.compileTemplate(
-        'invitation',
+        templateName,
         context,
       );
 

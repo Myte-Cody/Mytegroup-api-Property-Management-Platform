@@ -3,3 +3,4 @@ dist
 .env
 .idea
 uploads/*
+/ai_features/.venv
