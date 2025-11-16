@@ -122,6 +122,7 @@ export class CreateUnitDto {
     default: false,
   })
   @IsOptional()
+  @Transform(({ value }) => value == 'true')
   @IsBoolean()
   @Type(() => Boolean)
   publishToMarketplace?: boolean;
