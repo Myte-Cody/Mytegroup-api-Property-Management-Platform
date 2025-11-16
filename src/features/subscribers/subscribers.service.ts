@@ -46,7 +46,9 @@ export class SubscribersService {
     } catch (error) {
       // If a duplicate key error happens due to a race, treat as success
       if ((error as any)?.code === 11000) {
-        this.logger.warn(`Subscriber ${normalizedEmail} already exists (duplicate key); continuing.`);
+        this.logger.warn(
+          `Subscriber ${normalizedEmail} already exists (duplicate key); continuing.`,
+        );
         return;
       }
       this.logger.error(`Failed to upsert subscriber ${normalizedEmail} from feedback`, error);

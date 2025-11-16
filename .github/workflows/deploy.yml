@@ -494,4 +494,3 @@ jobs:
               echo "Less than 10 images found, no cleanup needed"
             fi
           fi
-

@@ -98,7 +98,6 @@ export class NotificationService {
 ### Authoring & Seeding Templates
 
 1. Create or update template files under `src/features/email/templates`:
-
    - `*.hbs` – Handlebars HTML body (stored as `html` in MongoDB)
    - `*.json` – Template metadata (stored as `subject` and optional `text`)
 

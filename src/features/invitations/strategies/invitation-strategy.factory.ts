@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { EntityType } from '../schemas/invitation.schema';
 import { ContractorInvitationStrategy } from './contractor-invitation.strategy';
 import { IInvitationStrategy } from './invitation-strategy.interface';
-import { TenantInvitationStrategy } from './tenant-invitation.strategy';
 import { LandlordStaffInvitationStrategy } from './landlord-staff-invitation.strategy';
+import { TenantInvitationStrategy } from './tenant-invitation.strategy';
 
 @Injectable()
 export class InvitationStrategyFactory {

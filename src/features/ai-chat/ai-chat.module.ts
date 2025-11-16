@@ -9,4 +9,3 @@ import { AiChatService } from './ai-chat.service';
   providers: [AiChatService],
 })
 export class AiChatModule {}
-

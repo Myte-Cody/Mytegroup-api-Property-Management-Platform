@@ -18,7 +18,7 @@ import type { UserDocument } from '../users/schemas/user.schema';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { InvitationQueryDto } from './dto/invitation-query.dto';
-import { Invitation, InvitationStatus, EntityType } from './schemas/invitation.schema';
+import { EntityType, Invitation, InvitationStatus } from './schemas/invitation.schema';
 import { InvitationStrategyFactory } from './strategies/invitation-strategy.factory';
 
 @Injectable()
@@ -48,7 +48,10 @@ export class InvitationsService {
       ...(createInvitationDto.entityData || {}),
     };
 
-    if (createInvitationDto.entityType === EntityType.LANDLORD_STAFF && currentUser.organization_id) {
+    if (
+      createInvitationDto.entityType === EntityType.LANDLORD_STAFF &&
+      currentUser.organization_id
+    ) {
       entityData.organizationId =
         entityData.organizationId || currentUser.organization_id.toString();
     }

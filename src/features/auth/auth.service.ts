@@ -1,24 +1,29 @@
-import { Injectable, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { InjectModel } from '@nestjs/mongoose';
-import * as bcrypt from 'bcrypt';
 import * as argon2 from 'argon2';
+import * as bcrypt from 'bcrypt';
 import * as nodeCrypto from 'crypto';
-import { ConfigService } from '@nestjs/config';
 import { Types } from 'mongoose';
-import { AppModel } from '../../common/interfaces/app-model.interface';
 import { UserRole } from '../../common/enums/user-role.enum';
-import { User, UserDocument } from '../users/schemas/user.schema';
 import { UserType } from '../../common/enums/user-type.enum';
-import { Landlord } from '../landlords/schema/landlord.schema';
-import { Session } from './schemas/session.schema';
-import { PasswordReset } from './schemas/password-reset.schema';
-import { VerificationToken } from './schemas/verification-token.schema';
+import { AppModel } from '../../common/interfaces/app-model.interface';
 import { AuthEmailService } from '../email/services/auth-email.service';
+import { Landlord } from '../landlords/schema/landlord.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { PasswordReset } from './schemas/password-reset.schema';
+import { Session } from './schemas/session.schema';
+import { VerificationToken } from './schemas/verification-token.schema';
 
 @Injectable()
 export class AuthService {
@@ -56,7 +61,12 @@ export class AuthService {
     if (match) {
       const val = parseInt(match[1], 10);
       const unit = match[2].toLowerCase();
-      const map: Record<string, number> = { s: 1000, m: 60 * 1000, h: 3600 * 1000, d: 24 * 3600 * 1000 };
+      const map: Record<string, number> = {
+        s: 1000,
+        m: 60 * 1000,
+        h: 3600 * 1000,
+        d: 24 * 3600 * 1000,
+      };
       ms = val * (map[unit] || map['d']);
     }
     return new Date(now.getTime() + ms);
@@ -91,7 +101,12 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
-  private async createSession(userId: Types.ObjectId, refreshToken: string, ip?: string, userAgent?: string) {
+  private async createSession(
+    userId: Types.ObjectId,
+    refreshToken: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
     const refreshTokenHash = await argon2.hash(refreshToken, { type: argon2.argon2id });
     const doc = new this.sessionModel({
       userId,
@@ -137,11 +152,13 @@ export class AuthService {
     res.cookie('access_token', '', { ...base, maxAge: 0 });
     res.cookie('refresh_token', '', { ...base, maxAge: 0 });
     res.cookie('user-data', '', { ...base, httpOnly: false, maxAge: 0 });
-    res.cookie(
-      'csrf_token',
-      '',
-      { secure: isProd, sameSite: 'strict', domain, path: '/', maxAge: 0 },
-    );
+    res.cookie('csrf_token', '', {
+      secure: isProd,
+      sameSite: 'strict',
+      domain,
+      path: '/',
+      maxAge: 0,
+    });
   }
 
   private newRefreshToken(): string {
@@ -328,7 +345,8 @@ export class AuthService {
       throw new BadRequestException('Email is already registered');
     }
 
-    const requestedOrgName = dto.organizationName?.trim() || `${dto.firstName} ${dto.lastName}`.trim() || 'Landlord';
+    const requestedOrgName =
+      dto.organizationName?.trim() || `${dto.firstName} ${dto.lastName}`.trim() || 'Landlord';
     const landlordName = await this.generateUniqueLandlordName(requestedOrgName);
     const landlord = new this.landlordModel({ name: landlordName });
     const savedLandlord = await landlord.save();
@@ -374,7 +392,12 @@ export class AuthService {
     const tokenHash = await argon2.hash(tokenRaw, { type: argon2.argon2id });
     const codeHash = await argon2.hash(code, { type: argon2.argon2id });
     const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    const doc = new this.verificationModel({ userId: user._id, tokenHash, codeHash, expiresAt: expiry });
+    const doc = new this.verificationModel({
+      userId: user._id,
+      tokenHash,
+      codeHash,
+      expiresAt: expiry,
+    });
     await doc.save();
     return { token: tokenRaw, code };
   }
@@ -548,7 +571,11 @@ export class AuthService {
     if (!user) return { success: true }; // do not leak
     const raw = this.newRefreshToken();
     const hash = await argon2.hash(raw, { type: argon2.argon2id });
-    const pr = new this.passwordResetModel({ userId: user._id, tokenHash: hash, expiresAt: new Date(Date.now() + 60 * 60 * 1000) });
+    const pr = new this.passwordResetModel({
+      userId: user._id,
+      tokenHash: hash,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
     await pr.save();
     try {
       await this.authEmailService.sendPasswordResetEmail(user.email, raw, 1, { queue: false });
@@ -560,7 +587,9 @@ export class AuthService {
 
   async resetPassword(dto: ResetPasswordDto) {
     const { token, password } = dto;
-    const candidates = await this.passwordResetModel.find({ used: false, expiresAt: { $gt: new Date() } }).exec();
+    const candidates = await this.passwordResetModel
+      .find({ used: false, expiresAt: { $gt: new Date() } })
+      .exec();
     let match: PasswordReset | null = null;
     for (const c of candidates) {
       try {
@@ -579,7 +608,12 @@ export class AuthService {
     match.usedAt = new Date();
     await match.save();
     // revoke all sessions for this user
-    await this.sessionModel.updateMany({ userId: user._id, revoked: false }, { $set: { revoked: true, revokedAt: new Date() } }).exec();
+    await this.sessionModel
+      .updateMany(
+        { userId: user._id, revoked: false },
+        { $set: { revoked: true, revokedAt: new Date() } },
+      )
+      .exec();
     return { success: true };
   }
 
@@ -594,7 +628,10 @@ export class AuthService {
 
   async revokeAllSessions(currentUser: UserDocument) {
     await this.sessionModel
-      .updateMany({ userId: currentUser._id, revoked: false }, { $set: { revoked: true, revokedAt: new Date() } })
+      .updateMany(
+        { userId: currentUser._id, revoked: false },
+        { $set: { revoked: true, revokedAt: new Date() } },
+      )
       .exec();
     return { success: true };
   }

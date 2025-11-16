@@ -21,4 +21,3 @@ export class EmailTemplate extends Document {
 export const EmailTemplateSchema = SchemaFactory.createForClass(EmailTemplate);
 
 EmailTemplateSchema.index({ name: 1 }, { unique: true, name: 'email_template_name_unique' });
-

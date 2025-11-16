@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Command, CommandRunner } from 'nest-commander';
-import { AppModel } from '../common/interfaces/app-model.interface';
 import { UserRole } from '../common/enums/user-role.enum';
 import { UserType } from '../common/enums/user-type.enum';
+import { AppModel } from '../common/interfaces/app-model.interface';
 import { User, UserDocument } from '../features/users/schemas/user.schema';
 
 @Injectable()
@@ -42,9 +42,7 @@ export class BackfillUserRolesCommand extends CommandRunner {
       const resolvedRole = this.resolveRole(user.user_type as UserType, !!user.isPrimary);
 
       if (!resolvedRole) {
-        this.logger.warn(
-          `Skipping user ${user._id} with unexpected user_type=${user.user_type}`,
-        );
+        this.logger.warn(`Skipping user ${user._id} with unexpected user_type=${user.user_type}`);
         skipped += 1;
         continue;
       }
@@ -54,9 +52,7 @@ export class BackfillUserRolesCommand extends CommandRunner {
         user.role = resolvedRole;
         await user.save();
         updated += 1;
-        this.logger.log(
-          `Updated user ${user._id} (${user.email}) to role=${resolvedRole}`,
-        );
+        this.logger.log(`Updated user ${user._id} (${user.email}) to role=${resolvedRole}`);
       }
     }
 

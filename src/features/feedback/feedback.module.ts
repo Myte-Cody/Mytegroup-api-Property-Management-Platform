@@ -2,6 +2,8 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { SubscribersModule } from '../subscribers/subscribers.module';
+import { UsersModule } from '../users/users.module';
 import { FeedbackController } from './controllers/feedback.controller';
 import { LandingFeedbackController } from './controllers/landing-feedback.controller';
 import { FeedbackProcessor } from './processors/feedback.processor';
@@ -10,8 +12,6 @@ import { FeedbackAnalysisService } from './services/feedback-analysis.service';
 import { FeedbackQueueService } from './services/feedback-queue.service';
 import { FeedbackService } from './services/feedback.service';
 import { LandingChatFeedbackService } from './services/landing-chat-feedback.service';
-import { SubscribersModule } from '../subscribers/subscribers.module';
-import { UsersModule } from '../users/users.module';
 
 const enableQueues = process.env.REDIS_DISABLE !== 'true';
 
@@ -39,7 +39,13 @@ const enableQueues = process.env.REDIS_DISABLE !== 'true';
     UsersModule,
   ],
   controllers: [FeedbackController, LandingFeedbackController],
-  providers: [FeedbackService, FeedbackQueueService, FeedbackAnalysisService, FeedbackProcessor, LandingChatFeedbackService],
+  providers: [
+    FeedbackService,
+    FeedbackQueueService,
+    FeedbackAnalysisService,
+    FeedbackProcessor,
+    LandingChatFeedbackService,
+  ],
   exports: [FeedbackService],
 })
 export class FeedbackModule {}

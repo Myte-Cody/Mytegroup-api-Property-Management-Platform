@@ -2,5 +2,4 @@ services:
   mongodb:
     # Dev-only: fully mute MongoDB container logs
     logging:
-      driver: "none"
-
+      driver: 'none'

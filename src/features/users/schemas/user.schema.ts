@@ -2,8 +2,8 @@ import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
-import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
 import { UserRole } from '../../../common/enums/user-role.enum';
+import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
 
 // todo check this type
 export type UserDocument = User & Document & SoftDelete;

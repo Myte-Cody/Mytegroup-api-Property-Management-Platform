@@ -1,14 +1,21 @@
-import { Body, Controller, Get, Post, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Post,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { AppModel } from '../../common/interfaces/app-model.interface';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserDocument } from '../users/schemas/user.schema';
+import { AppModel } from '../../common/interfaces/app-model.interface';
+import { InvitationsService } from '../invitations/invitations.service';
+import { EntityType } from '../invitations/schemas/invitation.schema';
 import { Landlord } from '../landlords/schema/landlord.schema';
 import { PropertiesService } from '../properties/properties.service';
 import { UnitsService } from '../properties/units.service';
-import { InvitationsService } from '../invitations/invitations.service';
-import { EntityType } from '../invitations/schemas/invitation.schema';
+import { UserDocument } from '../users/schemas/user.schema';
 import { InviteStaffDto } from './dto/invite-staff.dto';
 import { InviteTenantDto } from './dto/invite-tenant.dto';
 import { OnboardingStateDto } from './dto/onboarding-state.dto';
@@ -51,18 +58,18 @@ export class OnboardingController {
 
     const [propertiesAgg, tenantsCount, contractorsCount, ticketsCount] = await Promise.all([
       this.propertiesService.countByLandlord(user.organization_id as any),
-      this.landlordModel
-        .db.model('Tenant')
+      this.landlordModel.db
+        .model('Tenant')
         .countDocuments()
         .exec()
         .catch(() => 0),
-      this.landlordModel
-        .db.model('Contractor')
+      this.landlordModel.db
+        .model('Contractor')
         .countDocuments()
         .exec()
         .catch(() => 0),
-      this.landlordModel
-        .db.model('MaintenanceTicket')
+      this.landlordModel.db
+        .model('MaintenanceTicket')
         .countDocuments()
         .exec()
         .catch(() => 0),

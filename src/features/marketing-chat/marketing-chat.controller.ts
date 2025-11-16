@@ -22,4 +22,3 @@ export class MarketingChatController {
     return { reply };
   }
 }
-

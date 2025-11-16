@@ -54,7 +54,10 @@ export class MarketingChatService {
 
     try {
       const maxWords = opts?.maxWords && opts.maxWords > 0 ? Math.min(opts.maxWords, 2000) : 500;
-      const maxOutputTokens = opts?.maxOutputTokens && opts.maxOutputTokens > 0 ? Math.min(opts.maxOutputTokens, 4000) : 1000;
+      const maxOutputTokens =
+        opts?.maxOutputTokens && opts.maxOutputTokens > 0
+          ? Math.min(opts.maxOutputTokens, 4000)
+          : 1000;
       const conversation = messages
         .map((message) => {
           const speaker = message.role === 'user' ? 'User' : 'Assistant';
@@ -93,7 +96,10 @@ export class MarketingChatService {
 
     try {
       const maxWords = opts?.maxWords && opts.maxWords > 0 ? Math.min(opts.maxWords, 2000) : 500;
-      const maxOutputTokens = opts?.maxOutputTokens && opts.maxOutputTokens > 0 ? Math.min(opts.maxOutputTokens, 4000) : 1000;
+      const maxOutputTokens =
+        opts?.maxOutputTokens && opts.maxOutputTokens > 0
+          ? Math.min(opts.maxOutputTokens, 4000)
+          : 1000;
       const conversation = messages
         .map((message) => {
           const speaker = message.role === 'user' ? 'User' : 'Assistant';

@@ -14,4 +14,3 @@ export class MarketingChatMessageDto {
   @IsNotEmpty()
   content: string;
 }
-

@@ -1,10 +1,10 @@
 import { Body, Controller, Post, Res } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import type { Response } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
 import { AiChatService } from './ai-chat.service';
 import { ChatRequestDto } from './dto/chat-request.dto';
-import type { Response } from 'express';
 
 @ApiTags('AI Chat')
 @Public()
@@ -61,7 +61,9 @@ export class AiChatController {
         res.write(chunk);
       }
     } catch (error: any) {
-      res.write('\n\n[I’m having trouble finishing this reply right now. You can try again in a moment.]');
+      res.write(
+        '\n\n[I’m having trouble finishing this reply right now. You can try again in a moment.]',
+      );
     } finally {
       res.end();
     }

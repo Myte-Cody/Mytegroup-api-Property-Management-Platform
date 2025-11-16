@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession } from 'mongoose';
-import { UserType } from '../../../common/enums/user-type.enum';
 import { UserRole } from '../../../common/enums/user-role.enum';
+import { UserType } from '../../../common/enums/user-type.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { CreateUserDto } from '../../users/dto/create-user.dto';
 import { User, UserDocument } from '../../users/schemas/user.schema';
@@ -45,19 +45,15 @@ export class LandlordStaffInvitationStrategy implements IInvitationStrategy {
   ): Promise<UserDocument> {
     const organizationIdRaw = invitation.entityData?.organizationId;
     const organizationId =
-      typeof organizationIdRaw === 'string'
-        ? organizationIdRaw
-        : organizationIdRaw?.toString?.();
+      typeof organizationIdRaw === 'string' ? organizationIdRaw : organizationIdRaw?.toString?.();
     if (!organizationId) {
       throw new BadRequestException('Invitation is missing organization context');
     }
 
     const existingUserWithUsername = await this.userModel
-      .findOne(
-        { username: acceptInvitationDto.username.toLowerCase() },
-        null,
-        { session: session ?? null },
-      )
+      .findOne({ username: acceptInvitationDto.username.toLowerCase() }, null, {
+        session: session ?? null,
+      })
       .exec();
 
     if (existingUserWithUsername) {
@@ -79,6 +75,9 @@ export class LandlordStaffInvitationStrategy implements IInvitationStrategy {
       role: UserRole.LANDLORD_STAFF,
     };
 
-    return (await this.usersService.createFromInvitation(userPayload, session)) as unknown as UserDocument;
+    return (await this.usersService.createFromInvitation(
+      userPayload,
+      session,
+    )) as unknown as UserDocument;
   }
 }

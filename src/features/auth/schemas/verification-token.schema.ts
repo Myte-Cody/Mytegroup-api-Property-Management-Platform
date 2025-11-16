@@ -29,4 +29,3 @@ export const VerificationTokenSchema = SchemaFactory.createForClass(Verification
 VerificationTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 VerificationTokenSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 VerificationTokenSchema.plugin(accessibleRecordsPlugin);
-

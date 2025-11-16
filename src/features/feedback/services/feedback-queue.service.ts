@@ -11,7 +11,8 @@ export class FeedbackQueueService {
   private readonly logger = new Logger(FeedbackQueueService.name);
 
   constructor(
-    @Optional() @InjectQueue('feedback-analysis')
+    @Optional()
+    @InjectQueue('feedback-analysis')
     private readonly queue: Queue<FeedbackAnalysisJob> | undefined,
   ) {}
 

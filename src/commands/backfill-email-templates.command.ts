@@ -1,10 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Command, CommandRunner } from 'nest-commander';
 import * as fs from 'fs';
-import * as path from 'path';
 import { Model } from 'mongoose';
-import { EmailTemplate, EmailTemplateDocument } from '../features/email/schemas/email-template.schema';
+import { Command, CommandRunner } from 'nest-commander';
+import * as path from 'path';
+import {
+  EmailTemplate,
+  EmailTemplateDocument,
+} from '../features/email/schemas/email-template.schema';
 
 @Injectable()
 @Command({
@@ -98,4 +101,3 @@ export class BackfillEmailTemplatesCommand extends CommandRunner {
     this.logger.log(`Email templates backfill completed. Upserted=${upserted}`);
   }
 }
-

@@ -16,4 +16,3 @@ export class MarketingChatRequestDto {
   @Type(() => MarketingChatMessageDto)
   messages: MarketingChatMessageDto[];
 }
-

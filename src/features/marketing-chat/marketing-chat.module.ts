@@ -10,4 +10,3 @@ import { MarketingChatService } from './marketing-chat.service';
   exports: [MarketingChatService],
 })
 export class MarketingChatModule {}
-

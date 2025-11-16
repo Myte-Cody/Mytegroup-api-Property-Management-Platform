@@ -26,4 +26,3 @@ export const PasswordResetSchema = SchemaFactory.createForClass(PasswordReset);
 PasswordResetSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 PasswordResetSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 PasswordResetSchema.plugin(accessibleRecordsPlugin);
-

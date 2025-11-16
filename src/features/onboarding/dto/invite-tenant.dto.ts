@@ -17,4 +17,3 @@ export class InviteTenantDto {
   @IsMongoId()
   unitId?: string;
 }
-

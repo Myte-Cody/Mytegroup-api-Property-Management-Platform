@@ -1,12 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
-import {
-  FeedbackEntry,
-  FeedbackMessageRole,
-  FeedbackPriority,
-  FeedbackStatus,
-} from '../schemas/feedback.schema';
+import { FeedbackEntry, FeedbackMessageRole, FeedbackPriority } from '../schemas/feedback.schema';
 
 export interface FeedbackAnalysisResult {
   summary: string;
@@ -39,7 +34,9 @@ export class FeedbackAnalysisService {
 
   async analyze(feedback: FeedbackEntry): Promise<FeedbackAnalysisResult> {
     if (!this.openAi) {
-      this.logger.warn('OPENAI_API_KEY not configured. Using heuristic fallback for feedback analysis.');
+      this.logger.warn(
+        'OPENAI_API_KEY not configured. Using heuristic fallback for feedback analysis.',
+      );
       return this.buildFallback(feedback);
     }
 
@@ -85,7 +82,7 @@ export class FeedbackAnalysisService {
     const summary =
       latestUserMessage?.content.length && latestUserMessage.content.length > 240
         ? `${latestUserMessage.content.slice(0, 237)}...`
-        : latestUserMessage?.content ?? 'User shared general product feedback.';
+        : (latestUserMessage?.content ?? 'User shared general product feedback.');
 
     const tags = this.deriveTags(feedback);
     const actionItems = this.deriveActionItems(feedback);
@@ -113,7 +110,8 @@ export class FeedbackAnalysisService {
     tagMap.forEach((entry) => {
       if (
         feedback.conversation.some(
-          (message) => message.role === FeedbackMessageRole.USER && entry.pattern.test(message.content),
+          (message) =>
+            message.role === FeedbackMessageRole.USER && entry.pattern.test(message.content),
         )
       ) {
         tags.add(entry.value);
@@ -132,11 +130,13 @@ export class FeedbackAnalysisService {
     const patterns = [
       {
         regex: /automation|manual|duplicate/i,
-        action: 'Document the current workflow, flag repetitive steps, and spec automation opportunities.',
+        action:
+          'Document the current workflow, flag repetitive steps, and spec automation opportunities.',
       },
       {
         regex: /ticket|maintenance|scope/i,
-        action: 'Audit maintenance SLAs and tighten intake → dispatch routing with better telemetry.',
+        action:
+          'Audit maintenance SLAs and tighten intake → dispatch routing with better telemetry.',
       },
       {
         regex: /tenant|resident|communication/i,
@@ -144,7 +144,8 @@ export class FeedbackAnalysisService {
       },
       {
         regex: /report|dashboard|metric/i,
-        action: 'Capture the KPI definition, data source, and publish cadence for the requested insight.',
+        action:
+          'Capture the KPI definition, data source, and publish cadence for the requested insight.',
       },
     ];
 
@@ -155,7 +156,9 @@ export class FeedbackAnalysisService {
     });
 
     if (!actions.length) {
-      actions.push('Schedule a follow-up call to validate the workflow pain and co-design next steps.');
+      actions.push(
+        'Schedule a follow-up call to validate the workflow pain and co-design next steps.',
+      );
     }
 
     return actions.slice(0, 3);

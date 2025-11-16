@@ -26,9 +26,7 @@ export class S3StorageDriver implements StorageDriverInterface {
     this.secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY') || '';
     this.baseUrl =
       this.configService.get<string>('AWS_S3_BASE_URL') ||
-      (this.bucket && this.region
-        ? `https://${this.bucket}.s3.${this.region}.amazonaws.com`
-        : '');
+      (this.bucket && this.region ? `https://${this.bucket}.s3.${this.region}.amazonaws.com` : '');
 
     // Create client with safe defaults; region must be non-empty
     this.s3Client = new S3Client({

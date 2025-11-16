@@ -62,4 +62,3 @@ Helpful examples you can produce
 Goal
 - Turn scattered details into a plan someone can act on today.
 - Keep it human, specific, and respectful.`;
-

@@ -38,7 +38,8 @@ export class FeedbackProcessor extends WorkerHost {
     try {
       const analysis = await this.feedbackAnalysisService.analyze(feedback);
       feedback.analysis = analysis;
-      feedback.priority = analysis.recommendedPriority ?? feedback.priority ?? FeedbackPriority.MEDIUM;
+      feedback.priority =
+        analysis.recommendedPriority ?? feedback.priority ?? FeedbackPriority.MEDIUM;
       feedback.status = FeedbackStatus.COMPLETED;
       feedback.analyzedAt = new Date();
       feedback.failureReason = undefined;

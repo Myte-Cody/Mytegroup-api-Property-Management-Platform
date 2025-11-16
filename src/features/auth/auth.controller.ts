@@ -1,18 +1,17 @@
-import { Body, Controller, Get, Post, Request, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Request, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { Response } from 'express';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { OptionalJwtGuard } from '../../common/guards/optional-jwt.guard';
+import type { UserDocument } from '../users/schemas/user.schema';
 import { AuthService } from './auth.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
-import { Response } from 'express';
 import { VerifyEmailConfirmDto } from './dto/verify-email.dto';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import type { UserDocument } from '../users/schemas/user.schema';
-import { Throttle } from '@nestjs/throttler';
-import { Param } from '@nestjs/common';
-import { OptionalJwtGuard } from '../../common/guards/optional-jwt.guard';
 
 @ApiTags('auth')
 @ApiBearerAuth('JWT-auth')
@@ -84,7 +83,14 @@ export class AuthController {
   ) {
     const ip = (req.headers['x-forwarded-for'] as string) || req.ip;
     const ua = req.headers['user-agent'] as string;
-    return this.authService.confirmEmailVerification(user ?? null, dto.token, dto.code, res, ip, ua);
+    return this.authService.confirmEmailVerification(
+      user ?? null,
+      dto.token,
+      dto.code,
+      res,
+      ip,
+      ua,
+    );
   }
 
   @Get('sessions')

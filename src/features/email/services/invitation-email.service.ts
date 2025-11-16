@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EntityType } from '../../invitations/schemas/invitation.schema';
 import { EmailService } from '../email.service';
 import { EmailQueueService } from './email-queue.service';
 import { TemplateService } from './template.service';
-import { EntityType } from '../../invitations/schemas/invitation.schema';
 
 @Injectable()
 export class InvitationEmailService {
@@ -33,8 +33,7 @@ export class InvitationEmailService {
     try {
       // Build invitation URL
       const invitationUrl = `${this.frontendUrl}/invitation/${invitationToken}`;
-      const templateName =
-        entityType === EntityType.LANDLORD_STAFF ? 'invite-staff' : 'invitation';
+      const templateName = entityType === EntityType.LANDLORD_STAFF ? 'invite-staff' : 'invitation';
       const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
       const brandLogoUrl = this.configService.get<string>('BRAND_LOGO_URL') || '';
       const brandColor = this.configService.get<string>('BRAND_PRIMARY_COLOR') || '#2563eb';

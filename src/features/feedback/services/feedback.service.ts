@@ -1,7 +1,14 @@
-import { ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { User } from '../../users/schemas/user.schema';
+import { UsersService } from '../../users/users.service';
 import { CreateFeedbackDto } from '../dto/create-feedback.dto';
 import {
   FeedbackEntry,
@@ -11,7 +18,6 @@ import {
   FeedbackStatus,
 } from '../schemas/feedback.schema';
 import { FeedbackQueueService } from './feedback-queue.service';
-import { UsersService } from '../../users/users.service';
 
 const HOURLY_LIMIT = 5;
 const DAILY_LIMIT = 15;
@@ -54,7 +60,12 @@ export class FeedbackService {
   async createFromLandingEmail(
     email: string,
     conversation: { role: 'user' | 'assistant'; content: string }[],
-    classification: { summary: string; tags: string[]; sentiment: string; priority: FeedbackPriority },
+    classification: {
+      summary: string;
+      tags: string[];
+      sentiment: string;
+      priority: FeedbackPriority;
+    },
   ): Promise<FeedbackEntry | undefined> {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await this.usersService.findByEmail(normalizedEmail);
@@ -122,17 +133,30 @@ export class FeedbackService {
     ]);
 
     if (hourCount >= HOURLY_LIMIT) {
-      throw new HttpException(`You can only submit ${HOURLY_LIMIT} feedback items per hour.`, HttpStatus.TOO_MANY_REQUESTS);
+      throw new HttpException(
+        `You can only submit ${HOURLY_LIMIT} feedback items per hour.`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     if (dayCount >= DAILY_LIMIT) {
-      throw new HttpException(`You can only submit ${DAILY_LIMIT} feedback items per day.`, HttpStatus.TOO_MANY_REQUESTS);
+      throw new HttpException(
+        `You can only submit ${DAILY_LIMIT} feedback items per day.`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
   }
 
-  private derivePriorityFromConversation(conversation: FeedbackEntry['conversation']): FeedbackPriority {
+  private derivePriorityFromConversation(
+    conversation: FeedbackEntry['conversation'],
+  ): FeedbackPriority {
     const urgentPattern = /urgent|blocker|critical|can't|cannot|down|outage|asap/i;
-    if (conversation.some((message) => message.role === FeedbackMessageRole.USER && urgentPattern.test(message.content))) {
+    if (
+      conversation.some(
+        (message) =>
+          message.role === FeedbackMessageRole.USER && urgentPattern.test(message.content),
+      )
+    ) {
       return FeedbackPriority.HIGH;
     }
     return FeedbackPriority.MEDIUM;

@@ -33,4 +33,3 @@ SessionSchema.index({ userId: 1, revoked: 1 });
 SessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 SessionSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 SessionSchema.plugin(accessibleRecordsPlugin);
-

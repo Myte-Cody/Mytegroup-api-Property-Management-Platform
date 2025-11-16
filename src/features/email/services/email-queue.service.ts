@@ -1,8 +1,8 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Queue } from 'bullmq';
-import { EmailQueueOptions, SendEmailOptions } from '../interfaces/email.interface';
 import { EmailService } from '../email.service';
+import { EmailQueueOptions, SendEmailOptions } from '../interfaces/email.interface';
 
 export interface QueueEmailData {
   emailOptions: SendEmailOptions;

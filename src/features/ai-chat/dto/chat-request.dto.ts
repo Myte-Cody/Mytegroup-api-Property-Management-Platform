@@ -1,6 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsIn, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { MarketingChatMessageDto } from '../../marketing-chat/dto/marketing-chat-message.dto';
 
 export class ChatRequestDto {
@@ -42,4 +51,3 @@ export class ChatRequestDto {
   @IsOptional()
   maxOutputTokens?: number;
 }
-

@@ -1,9 +1,9 @@
-import { CaslAbilityFactory, Action } from './casl-ability.factory';
-import { UserRole } from '../enums/user-role.enum';
-import { UserType } from '../enums/user-type.enum';
 import { Transaction } from '../../features/leases/schemas/transaction.schema';
 import { Property } from '../../features/properties/schemas/property.schema';
 import { User } from '../../features/users/schemas/user.schema';
+import { UserRole } from '../enums/user-role.enum';
+import { UserType } from '../enums/user-type.enum';
+import { Action, CaslAbilityFactory } from './casl-ability.factory';
 
 describe('CaslAbilityFactory - landlord roles', () => {
   const factory = new CaslAbilityFactory();
@@ -52,4 +52,3 @@ describe('CaslAbilityFactory - landlord roles', () => {
     expect(ability.can(Action.Manage, User)).toBe(false);
   });
 });
-

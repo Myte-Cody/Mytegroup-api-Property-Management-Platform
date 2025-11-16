@@ -7,4 +7,3 @@ export class InviteStaffDto {
   @IsNotEmpty()
   email: string;
 }
-

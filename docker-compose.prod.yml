@@ -7,7 +7,7 @@ services:
     restart: always
     # Do not mount source or override command; use compiled app
     volumes: []
-    command: ["node", "dist/main.js"]
+    command: ['node', 'dist/main.js']
     environment:
       NODE_ENV: production
       APP_PORT: ${APP_PORT:-3000}
@@ -33,33 +33,33 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_S3_BASE_URL: ${AWS_S3_BASE_URL}
     ports:
-      - "${API_PORT:-3000}:3000"
+      - '${API_PORT:-3000}:3000'
     logging:
       driver: local
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   # Keep Redis local by default; if using managed Redis (e.g., ElastiCache),
   # set REDIS_HOST/REDIS_PORT and scale this service to 0 or remove it.
   redis:
-    profiles: ["local"]
+    profiles: ['local']
     logging:
       driver: local
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   # Prefer Atlas/managed MongoDB in production.
   # Mark local Mongo for the 'local' profile so it's not started unless requested.
   mongodb:
-    profiles: ["local"]
-    command: ["mongod", "--bind_ip_all"]
+    profiles: ['local']
+    command: ['mongod', '--bind_ip_all']
     logging:
       driver: local
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   # Frontend: using existing Dockerfile defaults; bake public env at build time via args.
   frontend:
@@ -78,5 +78,5 @@ services:
     logging:
       driver: local
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'

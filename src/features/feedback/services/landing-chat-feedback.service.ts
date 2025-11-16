@@ -1,12 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
-import { TemplateService } from '../../email/services/template.service';
 import { EmailQueueService } from '../../email/services/email-queue.service';
+import { TemplateService } from '../../email/services/template.service';
 import { SubscribersService } from '../../subscribers/subscribers.service';
 import { LandingChatFeedbackDto } from '../dto/landing-chat-feedback.dto';
-import { FeedbackService } from './feedback.service';
 import { FeedbackPriority } from '../schemas/feedback.schema';
+import { FeedbackService } from './feedback.service';
 
 interface LandingFeedbackClassification {
   summary: string;
@@ -66,35 +66,45 @@ export class LandingChatFeedbackService {
         name,
       );
     } catch (err) {
-      this.logger.error(`Proceeding without subscriber upsert due to error: ${err?.message || err}`);
+      this.logger.error(
+        `Proceeding without subscriber upsert due to error: ${err?.message || err}`,
+      );
     }
 
     // Persist into feedback collection when the email maps to an existing user
     try {
-      await this.feedbackService.createFromLandingEmail(
-        normalizedEmail,
-        conversation,
-        {
-          summary: classification.summary,
-          tags: classification.tags,
-          sentiment: classification.sentiment,
-          priority: this.mapPriorityToEnum(classification.priority),
-        },
-      );
+      await this.feedbackService.createFromLandingEmail(normalizedEmail, conversation, {
+        summary: classification.summary,
+        tags: classification.tags,
+        sentiment: classification.sentiment,
+        priority: this.mapPriorityToEnum(classification.priority),
+      });
     } catch (err) {
-      this.logger.error(`Failed to persist landing feedback to feedback collection: ${err?.message || err}`);
+      this.logger.error(
+        `Failed to persist landing feedback to feedback collection: ${err?.message || err}`,
+      );
     }
 
-    await this.sendInternalNotification(normalizedEmail, name, channel, plainConversation, classification);
+    await this.sendInternalNotification(
+      normalizedEmail,
+      name,
+      channel,
+      plainConversation,
+      classification,
+    );
     await this.sendUserConfirmation(normalizedEmail, name, classification);
   }
 
   private async classifyConversation(conversation: string): Promise<LandingFeedbackClassification> {
     if (!this.openAi) {
-      this.logger.warn('OPENAI_API_KEY not configured. Using heuristic landing feedback classification.');
+      this.logger.warn(
+        'OPENAI_API_KEY not configured. Using heuristic landing feedback classification.',
+      );
       return {
         summary:
-          conversation.length > 280 ? `${conversation.slice(0, 277)}...` : conversation || 'User shared product feedback.',
+          conversation.length > 280
+            ? `${conversation.slice(0, 277)}...`
+            : conversation || 'User shared product feedback.',
         tags: ['Landing Chat'],
         sentiment: 'neutral',
         primary_role: 'unknown',
@@ -170,7 +180,9 @@ Rules for user_email_body:
       this.logger.error(`Landing feedback classification failed: ${error.message}`, error.stack);
       return {
         summary:
-          conversation.length > 280 ? `${conversation.slice(0, 277)}...` : conversation || 'User shared product feedback.',
+          conversation.length > 280
+            ? `${conversation.slice(0, 277)}...`
+            : conversation || 'User shared product feedback.',
         tags: ['Landing Chat'],
         sentiment: 'neutral',
         primary_role: 'other',
@@ -189,7 +201,9 @@ Rules for user_email_body:
     classification: LandingFeedbackClassification,
   ): Promise<void> {
     if (!this.internalFeedbackRecipient) {
-      this.logger.warn('FEEDBACK_INBOX_EMAIL not configured; skipping internal feedback notification email.');
+      this.logger.warn(
+        'FEEDBACK_INBOX_EMAIL not configured; skipping internal feedback notification email.',
+      );
       return;
     }
 
@@ -205,7 +219,10 @@ Rules for user_email_body:
       conversation,
     };
 
-    const { html, subject, text } = await this.templateService.compileTemplate('landing-chat-feedback-internal', context);
+    const { html, subject, text } = await this.templateService.compileTemplate(
+      'landing-chat-feedback-internal',
+      context,
+    );
 
     await this.emailQueueService.queueEmail({
       to: this.internalFeedbackRecipient,
@@ -227,7 +244,10 @@ Rules for user_email_body:
       summary: classification.summary,
     };
 
-    const { html, subject, text } = await this.templateService.compileTemplate('landing-chat-feedback-confirmation', context);
+    const { html, subject, text } = await this.templateService.compileTemplate(
+      'landing-chat-feedback-confirmation',
+      context,
+    );
 
     await this.emailQueueService.queueEmail({
       to: email,
@@ -249,4 +269,3 @@ Rules for user_email_body:
     }
   }
 }
-

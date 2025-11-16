@@ -73,7 +73,10 @@ export class AuthEmailService {
         hours: 24,
       } as any;
 
-      const { html, subject, text } = await this.templateService.compileTemplate('verify-email', context);
+      const { html, subject, text } = await this.templateService.compileTemplate(
+        'verify-email',
+        context,
+      );
       const emailOptions = { to, subject, html, text };
       if (options?.queue) {
         await this.emailQueueService.queueEmail(emailOptions);

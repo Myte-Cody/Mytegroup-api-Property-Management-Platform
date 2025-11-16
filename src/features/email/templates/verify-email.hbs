@@ -1,17 +1,21 @@
-<div style="font-family: Arial, sans-serif; max-width: 600px;">
-  <div style="text-align:center;margin-bottom:16px;">
+<div style='font-family: Arial, sans-serif; max-width: 600px;'>
+  <div style='text-align:center;margin-bottom:16px;'>
     {{#if brandLogoUrl}}
-      <img src="{{brandLogoUrl}}" alt="{{brandName}}" style="max-height:48px;" />
+      <img src='{{brandLogoUrl}}' alt='{{brandName}}' style='max-height:48px;' />
     {{/if}}
   </div>
-  <h2 style="color: {{brandColor}};">Verify your email</h2>
+  <h2 style='color: {{brandColor}};'>Verify your email</h2>
   <p>Welcome to {{brandName}}! Please verify your email address to continue.</p>
-  <p style="margin:24px 0;">
-    <a href="{{verifyUrl}}" style="background: {{brandColor}}; color: #fff; padding: 10px 16px; text-decoration: none; border-radius: 6px;">Verify Email</a>
+  <p style='margin:24px 0;'>
+    <a
+      href='{{verifyUrl}}'
+      style='background: {{brandColor}}; color: #fff; padding: 10px 16px; text-decoration: none; border-radius: 6px;'
+    >Verify Email</a>
   </p>
   <p>Or enter this 6-digit code:</p>
-  <div style="font-size:24px;font-weight:bold;letter-spacing:4px;text-align:center;margin:12px 0;">{{code}}</div>
+  <div
+    style='font-size:24px;font-weight:bold;letter-spacing:4px;text-align:center;margin:12px 0;'
+  >{{code}}</div>
   <p>This code and link expire in {{hours}} hour(s).</p>
   <p>If you did not sign up, you can ignore this message.</p>
 </div>
-

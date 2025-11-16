@@ -16,4 +16,3 @@ export class OnboardingStateDto {
   @ApiProperty()
   hasTickets: boolean;
 }
-

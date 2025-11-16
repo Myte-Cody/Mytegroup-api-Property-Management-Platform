@@ -5,4 +5,3 @@ export enum UserRole {
   TENANT = 'Tenant',
   CONTRACTOR = 'Contractor',
 }
-

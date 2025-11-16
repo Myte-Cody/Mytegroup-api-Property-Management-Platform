@@ -3,11 +3,11 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { NestjsFormDataModule } from 'nestjs-form-data';
 import { CaslModule } from '../../common/casl/casl.module';
 import { CommonModule } from '../../common/common.module';
+import { MaintenanceModule } from '../maintenance/maintenance.module';
 import {
   MaintenanceTicket,
   MaintenanceTicketSchema,
 } from '../maintenance/schemas/maintenance-ticket.schema';
-import { MaintenanceModule } from '../maintenance/maintenance.module';
 import { MediaModule } from '../media/media.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PropertiesModule } from '../properties/properties.module';

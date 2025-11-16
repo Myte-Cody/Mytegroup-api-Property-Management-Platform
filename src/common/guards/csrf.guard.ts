@@ -56,4 +56,3 @@ export class CsrfGuard implements CanActivate {
     return undefined;
   }
 }
-

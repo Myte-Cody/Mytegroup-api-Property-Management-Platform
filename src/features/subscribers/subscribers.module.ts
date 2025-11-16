@@ -9,4 +9,3 @@ import { SubscribersService } from './subscribers.service';
   exports: [SubscribersService],
 })
 export class SubscribersModule {}
-

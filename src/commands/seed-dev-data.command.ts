@@ -92,7 +92,9 @@ export class SeedDevDataCommand extends CommandRunner {
       console.log('\n📝 Login credentials:');
       console.log('   Landlord: landlord@example.com / password123');
       console.log('   Tenants: tenant1@example.com, tenant2@example.com, etc. / password123');
-      console.log('   Contractors: contractor1@example.com, contractor2@example.com, etc. / password123');
+      console.log(
+        '   Contractors: contractor1@example.com, contractor2@example.com, etc. / password123',
+      );
     } catch (error) {
       console.error('❌ Dev data seeding failed:', error.message);
       if (error.stack) console.error(error.stack);
@@ -260,7 +262,8 @@ export class SeedDevDataCommand extends CommandRunner {
       }).save();
 
       contractors.push(contractor);
-      if (verbose) console.log(`  ✅ Created contractor: ${contractor.name} with user ${data.email}`);
+      if (verbose)
+        console.log(`  ✅ Created contractor: ${contractor.name} with user ${data.email}`);
     }
 
     return contractors;

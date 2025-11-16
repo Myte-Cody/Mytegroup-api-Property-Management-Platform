@@ -31,4 +31,3 @@ export class Subscriber extends Document {
 export type SubscriberDocument = Subscriber & Document;
 
 export const SubscriberSchema = SchemaFactory.createForClass(Subscriber);
-

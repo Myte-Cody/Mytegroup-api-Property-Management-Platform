@@ -8,9 +8,7 @@ export class OptionalJwtGuard extends AuthGuard('jwt') {
     const result = super.canActivate(context) as boolean | Promise<boolean>;
 
     if (result instanceof Promise) {
-      return result
-        .then(() => true)
-        .catch(() => true);
+      return result.then(() => true).catch(() => true);
     }
 
     return true;
@@ -24,4 +22,3 @@ export class OptionalJwtGuard extends AuthGuard('jwt') {
     return user || null;
   }
 }
-

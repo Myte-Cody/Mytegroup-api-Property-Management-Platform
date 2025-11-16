@@ -1,6 +1,10 @@
-import { ForbiddenException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import * as bcrypt from 'bcrypt';
 import * as argon2 from 'argon2';
 import { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
@@ -310,10 +314,7 @@ export class UsersService {
         throw new ForbiddenException('You are not allowed to change user roles');
       }
 
-      if (
-        updateUserDto.isPrimary !== undefined &&
-        currentUserRole === UserRole.LANDLORD_STAFF
-      ) {
+      if (updateUserDto.isPrimary !== undefined && currentUserRole === UserRole.LANDLORD_STAFF) {
         throw new ForbiddenException('Landlord staff cannot change primary user status');
       }
 
@@ -398,7 +399,9 @@ export class UsersService {
       }
 
       if (updateUserDto.password) {
-        updateUserDto.password = await argon2.hash(updateUserDto.password, { type: argon2.argon2id });
+        updateUserDto.password = await argon2.hash(updateUserDto.password, {
+          type: argon2.argon2id,
+        });
       }
 
       return await this.userModel

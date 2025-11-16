@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { EmailService } from './email.service';
 import { EmailQueueProcessor } from './processors/email-queue.processor';
+import { EmailTemplate, EmailTemplateSchema } from './schemas/email-template.schema';
 import { AuthEmailService } from './services/auth-email.service';
 import { EmailQueueService } from './services/email-queue.service';
 import { InquiryEmailService } from './services/inquiry-email.service';
@@ -13,7 +14,6 @@ import { MaintenanceEmailService } from './services/maintenance-email.service';
 import { PaymentEmailService } from './services/payment-email.service';
 import { TemplateService } from './services/template.service';
 import { WelcomeEmailService } from './services/welcome-email.service';
-import { EmailTemplate, EmailTemplateSchema } from './schemas/email-template.schema';
 
 const enableQueues = process.env.REDIS_DISABLE !== 'true';
 

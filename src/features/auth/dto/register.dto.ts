@@ -22,4 +22,3 @@ export class RegisterDto {
   @IsOptional()
   organizationName?: string;
 }
-

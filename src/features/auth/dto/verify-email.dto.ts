@@ -17,4 +17,3 @@ export class VerifyEmailConfirmDto {
   @Length(6, 6)
   code?: string;
 }
-
