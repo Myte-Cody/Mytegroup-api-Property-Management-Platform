@@ -15,11 +15,17 @@ export class Address {
   @Prop({ required: true, trim: true })
   state: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({ required: false, trim: true })
   postalCode: string;
 
   @Prop({ required: true, trim: true })
   country: string;
+
+  @Prop({ required: false, type: Number })
+  latitude?: number;
+
+  @Prop({ required: false, type: Number })
+  longitude?: number;
 }
 
 export type PropertyDocument = Property & Document & SoftDelete;

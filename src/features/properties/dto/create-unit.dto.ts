@@ -84,11 +84,24 @@ export class CreateUnitDto {
   media_files?: MemoryStoredFile[];
 
   @ApiProperty({
-    example: 'https://maps.google.com/?q=40.7128,-74.0060',
-    description: 'Google Maps link for the unit location',
+    example: false,
+    description: 'Whether to use the property address for this unit',
     required: false,
+    default: false,
   })
   @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  @Type(() => Boolean)
+  usePropertyAddress?: boolean;
+
+  @ApiProperty({
+    example: 'https://maps.google.com/?q=40.7128,-74.0060',
+    description: 'Google Maps link for the unit location (required if usePropertyAddress is false)',
+    required: false,
+  })
+  @ValidateIf((o) => !o.usePropertyAddress)
+  @IsNotEmpty({ message: 'googleMapsLink is required when not using property address' })
   @IsUrl()
   googleMapsLink?: string;
 

@@ -10,6 +10,7 @@ import { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
+import { GeocodingService } from '../../common/services/geocoding.service';
 import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { MediaService } from '../media/services/media.service';
@@ -32,6 +33,7 @@ export class PropertiesService {
     private caslAuthorizationService: CaslAuthorizationService,
     private readonly mediaService: MediaService,
     private readonly sessionService: SessionService,
+    private readonly geocodingService: GeocodingService,
   ) {}
 
   async countByLandlord(_landlordId: any) {
@@ -309,8 +311,36 @@ export class PropertiesService {
       }
     }
 
+    // If googleMapsLink is provided, extract address from it
+    let addressUpdate = {};
+    if (updatePropertyDto.googleMapsLink) {
+      const extractedLocation = await this.geocodingService.extractLocationFromMapsLink(
+        updatePropertyDto.googleMapsLink,
+      );
+
+      // Use extracted location data to populate address fields including coordinates
+      addressUpdate = {
+        street: extractedLocation.city || '',
+        city: extractedLocation.city || '',
+        state: extractedLocation.state || '',
+        postalCode: extractedLocation.postalCode || '',
+        country: extractedLocation.country || '',
+        latitude: extractedLocation.latitude,
+        longitude: extractedLocation.longitude,
+      };
+    } else if (updatePropertyDto.latitude && updatePropertyDto.longitude) {
+      // If coordinates are provided directly, update them
+      addressUpdate = {
+        latitude: updatePropertyDto.latitude,
+        longitude: updatePropertyDto.longitude,
+      };
+    }
+
     // Filter allowed fields based on user role
-    const filteredUpdateDto = this.filterUpdateFields(updatePropertyDto, currentUser);
+    const filteredUpdateDto = this.filterUpdateFields(
+      { ...updatePropertyDto, ...addressUpdate },
+      currentUser,
+    );
 
     const updatedProperty = await this.propertyModel
       .findByIdAndUpdate(id, filteredUpdateDto, { new: true })

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
 import { HasMimeType, IsFile, MaxFileSize, MemoryStoredFile } from 'nestjs-form-data';
 
 export class CreatePropertyDto {
@@ -28,15 +28,42 @@ export class CreatePropertyDto {
   @IsNotEmpty()
   state: string;
 
-  @ApiProperty({ example: '10001', description: 'Postal or ZIP code' })
+  @ApiProperty({ example: '10001', description: 'Postal or ZIP code', required: false })
   @IsString()
-  @IsNotEmpty()
-  postalCode: string;
+  @IsOptional()
+  postalCode?: string;
 
   @ApiProperty({ example: 'USA', description: 'Country name' })
   @IsString()
   @IsNotEmpty()
   country: string;
+
+  @ApiProperty({
+    example: 'https://maps.google.com/?q=40.7128,-74.0060',
+    description: 'Google Maps link for the property location',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  googleMapsLink?: string;
+
+  @ApiProperty({
+    example: 40.7128,
+    description: 'Latitude coordinate of the property',
+    required: false,
+  })
+  @IsNumber()
+  @IsOptional()
+  latitude?: number;
+
+  @ApiProperty({
+    example: -74.006,
+    description: 'Longitude coordinate of the property',
+    required: false,
+  })
+  @IsNumber()
+  @IsOptional()
+  longitude?: number;
 
   @ApiProperty({
     example: 'A beautiful property with mountain views',
@@ -71,6 +98,8 @@ export class CreatePropertyDto {
       state: this.state,
       postalCode: this.postalCode,
       country: this.country,
+      latitude: this.latitude,
+      longitude: this.longitude,
     };
   }
 }

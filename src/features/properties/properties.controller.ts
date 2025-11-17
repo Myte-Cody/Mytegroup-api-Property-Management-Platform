@@ -37,6 +37,7 @@ import { CreateUnitPolicyHandler } from '../../common/casl/policies/unit.policie
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 
+import { GeocodingService } from '../../common/services/geocoding.service';
 import { MediaType } from '../media/schemas/media.schema';
 import { MediaService } from '../media/services/media.service';
 import { User } from '../users/schemas/user.schema';
@@ -59,7 +60,54 @@ export class PropertiesController {
     private readonly propertiesService: PropertiesService,
     private readonly unitsService: UnitsService,
     private readonly mediaService: MediaService,
+    private readonly geocodingService: GeocodingService,
   ) {}
+
+  @Post('extract-address-from-maps')
+  @CheckPolicies(new CreatePropertyPolicyHandler())
+  @ApiOperation({ summary: 'Extract address from Google Maps link' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        googleMapsLink: {
+          type: 'string',
+          example: 'https://maps.google.com/?q=40.7128,-74.0060',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Address extracted successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        street: { type: 'string' },
+        city: { type: 'string' },
+        state: { type: 'string' },
+        postalCode: { type: 'string' },
+        country: { type: 'string' },
+        latitude: { type: 'number' },
+        longitude: { type: 'number' },
+      },
+    },
+  })
+  async extractAddressFromMaps(@Body('googleMapsLink') googleMapsLink: string) {
+    const extractedLocation = await this.geocodingService.extractLocationFromMapsLink(
+      googleMapsLink,
+    );
+
+    return {
+      street: extractedLocation.city || '',
+      city: extractedLocation.city || '',
+      state: extractedLocation.state || '',
+      postalCode: extractedLocation.postalCode || null,
+      country: extractedLocation.country || '',
+      latitude: extractedLocation.latitude,
+      longitude: extractedLocation.longitude,
+    };
+  }
 
   @Post()
   @CheckPolicies(new CreatePropertyPolicyHandler())
