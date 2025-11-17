@@ -52,12 +52,10 @@ export class AuthService {
     return this.configService.get<string>('auth.jwtExpiration') || '15m';
   }
 
-  private getRefreshExpiryDate(): Date {
-    const raw = this.configService.get<string>('auth.refreshTtl') || '30d';
-    // Simple parser for Nd or Nh or Nm
-    const now = new Date();
-    const match = raw.match(/^(\d+)([smhd])$/i);
-    let ms = 30 * 24 * 60 * 60 * 1000; // 30d default
+  private parseExpirationToMs(expiration: string): number {
+    // Parse expiration strings like '15m', '1h', '7d' to milliseconds
+    const match = expiration.match(/^(\d+)([smhd])$/i);
+    let ms = 15 * 60 * 1000; // 15m default
     if (match) {
       const val = parseInt(match[1], 10);
       const unit = match[2].toLowerCase();
@@ -69,7 +67,13 @@ export class AuthService {
       };
       ms = val * (map[unit] || map['d']);
     }
-    return new Date(now.getTime() + ms);
+    return ms;
+  }
+
+  private getRefreshExpiryDate(): Date {
+    const raw = this.configService.get<string>('auth.refreshTtl') || '30d';
+    const ms = this.parseExpirationToMs(raw);
+    return new Date(Date.now() + ms);
   }
 
   private async verifyPassword(plain: string, hashed: string): Promise<boolean> {
@@ -122,24 +126,31 @@ export class AuthService {
   private setAuthCookies(res: any, accessToken: string, refreshToken: string) {
     const isProd = (this.configService.get<string>('NODE_ENV') || 'development') === 'production';
     const domain = this.getCookieDomain();
-    // access_token: HttpOnly, Strict, short-lived
+
+    // Get the JWT expiration from config and convert to milliseconds
+    const accessTokenTtl = this.getAccessTokenTTL();
+    const accessTokenMaxAge = this.parseExpirationToMs(accessTokenTtl);
+
+    // access_token: HttpOnly, Strict, matches JWT expiration
     res.cookie('access_token', accessToken, {
       httpOnly: true,
       secure: isProd,
       sameSite: 'strict',
       domain,
       path: '/',
-      // let browser manage expiry by token exp; also set small maxAge (~ 15m)
-      maxAge: 15 * 60 * 1000,
+      maxAge: accessTokenMaxAge,
     });
+
     // refresh_token: HttpOnly, Lax, long-lived
+    const refreshTokenTtl = this.configService.get<string>('auth.refreshTtl') || '30d';
+    const refreshTokenMaxAge = this.parseExpirationToMs(refreshTokenTtl);
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
       secure: isProd,
       sameSite: 'lax',
       domain,
       path: '/',
-      maxAge: 30 * 24 * 60 * 60 * 1000,
+      maxAge: refreshTokenMaxAge,
     });
 
     this.setCsrfCookie(res);
