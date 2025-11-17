@@ -94,9 +94,8 @@ export class PropertiesController {
     },
   })
   async extractAddressFromMaps(@Body('googleMapsLink') googleMapsLink: string) {
-    const extractedLocation = await this.geocodingService.extractLocationFromMapsLink(
-      googleMapsLink,
-    );
+    const extractedLocation =
+      await this.geocodingService.extractLocationFromMapsLink(googleMapsLink);
 
     return {
       street: extractedLocation.city || '',

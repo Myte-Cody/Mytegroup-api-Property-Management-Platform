@@ -293,7 +293,12 @@ export class GeocodingService {
 
               if (result.error) {
                 this.logger.warn(`Reverse geocoding failed: ${result.error}`);
-                resolve({ city: undefined, state: undefined, country: undefined, postalCode: undefined });
+                resolve({
+                  city: undefined,
+                  state: undefined,
+                  country: undefined,
+                  postalCode: undefined,
+                });
                 return;
               }
 
@@ -312,7 +317,12 @@ export class GeocodingService {
               });
             } catch (error) {
               this.logger.error(`Error parsing reverse geocoding response: ${error.message}`);
-              resolve({ city: undefined, state: undefined, country: undefined, postalCode: undefined });
+              resolve({
+                city: undefined,
+                state: undefined,
+                country: undefined,
+                postalCode: undefined,
+              });
             }
           });
         })
