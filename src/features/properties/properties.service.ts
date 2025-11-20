@@ -12,6 +12,7 @@ import { CaslAuthorizationService } from '../../common/casl/services/casl-author
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { GeocodingService } from '../../common/services/geocoding.service';
 import { SessionService } from '../../common/services/session.service';
+import { TenancyContextService } from '../../common/services/tenancy-context.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { MediaService } from '../media/services/media.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
@@ -34,12 +35,13 @@ export class PropertiesService {
     private readonly mediaService: MediaService,
     private readonly sessionService: SessionService,
     private readonly geocodingService: GeocodingService,
+    private readonly tenancyContextService: TenancyContextService,
   ) {}
 
-  async countByLandlord(_landlordId: any) {
+  async countByLandlord(landlordId: any) {
     const [properties, units] = await Promise.all([
-      this.propertyModel.countDocuments().exec(),
-      this.unitModel.countDocuments().exec(),
+      this.propertyModel.countDocuments({ landlord: landlordId }).exec(),
+      this.unitModel.countDocuments({ landlord: landlordId }).exec(),
     ]);
 
     return {
@@ -65,6 +67,12 @@ export class PropertiesService {
 
     // Step 1: Build initial match conditions
     const matchConditions: any = { deleted: false };
+
+    // Add landlord scope for landlord users
+    if (this.tenancyContextService.isLandlord(currentUser)) {
+      const landlordId = this.tenancyContextService.getLandlordContext(currentUser);
+      matchConditions.landlord = landlordId;
+    }
 
     // Add CASL conditions
     const caslConditions = (this.propertyModel as any)
@@ -225,9 +233,12 @@ export class PropertiesService {
     }
 
     return await this.sessionService.withSession(async (session: ClientSession | null) => {
+      // Get landlord context
+      const landlordId = this.tenancyContextService.getLandlordContext(currentUser);
+
       // Check property name uniqueness within the same landlord
       const existingProperty = await this.propertyModel
-        .findOne({ name: createPropertyDto.name })
+        .findOne({ name: createPropertyDto.name, landlord: landlordId })
         .exec();
 
       if (existingProperty) {
@@ -236,9 +247,10 @@ export class PropertiesService {
         );
       }
 
-      // Ensure the property is created within the user's tenant context
+      // Ensure the property is created within the user's landlord context
       const propertyData = {
         ...createPropertyDto,
+        landlord: landlordId,
         address: createPropertyDto.address,
       };
 
@@ -295,11 +307,18 @@ export class PropertiesService {
       throw new ForbiddenException('You do not have permission to update this property');
     }
 
-    // Check for name uniqueness if name is being updated
+    // Prevent changing landlord field
+    const { landlord: _landlord, ...safeUpdate } = updatePropertyDto as any;
+    if (_landlord) {
+      throw new ForbiddenException('Cannot change property landlord');
+    }
+
+    // Check for name uniqueness if name is being updated (within the same landlord)
     if (updatePropertyDto.name && updatePropertyDto.name !== property.name) {
       const existingProperty = await this.propertyModel
         .findOne({
           name: updatePropertyDto.name,
+          landlord: property.landlord,
           _id: { $ne: id }, // Exclude current property from the check
         })
         .exec();

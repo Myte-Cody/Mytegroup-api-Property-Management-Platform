@@ -1,8 +1,10 @@
 import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import * as mongoose from 'mongoose';
+import { Document, Model, Query } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
+import { multiTenancyPlugin } from '../../../common/plugins/multi-tenancy.plugin';
 
 @Schema()
 export class Address {
@@ -28,10 +30,16 @@ export class Address {
   longitude?: number;
 }
 
-export type PropertyDocument = Property & Document & SoftDelete;
-
 @Schema({ timestamps: true })
 export class Property extends Document implements SoftDelete {
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Landlord',
+    required: true,
+    index: true,
+  })
+  landlord: mongoose.Types.ObjectId;
+
   @Prop({ required: true, trim: true, maxlength: 128 })
   name: string;
 
@@ -71,8 +79,20 @@ PropertySchema.virtual('documents', {
   match: { model_type: 'Property', collection_name: 'documents' },
 });
 
-// Add unique index
-PropertySchema.index({ name: 1 }, { unique: true, name: 'property_name_unique' });
+// Add indexes
+PropertySchema.index({ landlord: 1, name: 1 });
+PropertySchema.index({ landlord: 1, deleted: 1, createdAt: -1 });
+
+// TypeScript types
+export interface PropertyQueryHelpers {
+  byLandlord(
+    landlordId: mongoose.Types.ObjectId | string,
+  ): Query<any, PropertyDocument, PropertyQueryHelpers> & PropertyQueryHelpers;
+}
+
+export type PropertyDocument = Property & Document & SoftDelete;
+export type PropertyModel = Model<PropertyDocument, PropertyQueryHelpers>;
 
 PropertySchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 PropertySchema.plugin(accessibleRecordsPlugin);
+PropertySchema.plugin(multiTenancyPlugin);

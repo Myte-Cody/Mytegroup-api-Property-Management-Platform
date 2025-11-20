@@ -78,13 +78,13 @@ export class SeedDevDataCommand extends CommandRunner {
       const contractors = await this.createContractors(verbose);
 
       // Create properties with units
-      const { properties, units } = await this.createPropertiesWithUnits(verbose);
+      const { properties, units } = await this.createPropertiesWithUnits(landlord, verbose);
 
       // Create leases with different statuses, rental periods, and transactions
-      const leases = await this.createLeasesWithTransactions(tenants, units, verbose);
+      const leases = await this.createLeasesWithTransactions(landlord, tenants, units, verbose);
 
       // Create maintenance tickets and scopes of work
-      await this.createMaintenanceData(properties, units, landlordUser, verbose);
+      await this.createMaintenanceData(landlord, properties, units, landlordUser, verbose);
 
       await this.printSummary();
 
@@ -269,7 +269,10 @@ export class SeedDevDataCommand extends CommandRunner {
     return contractors;
   }
 
-  private async createPropertiesWithUnits(verbose: boolean): Promise<{
+  private async createPropertiesWithUnits(
+    landlord: any,
+    verbose: boolean,
+  ): Promise<{
     properties: any[];
     units: any[];
   }> {
@@ -334,6 +337,7 @@ export class SeedDevDataCommand extends CommandRunner {
         name: propData.name,
         address: propData.address,
         description: propData.description,
+        landlord: landlord._id,
       }).save();
 
       properties.push(property);
@@ -342,6 +346,7 @@ export class SeedDevDataCommand extends CommandRunner {
       for (const unitData of propData.units) {
         const unit = await new this.unitModel({
           property: property._id,
+          landlord: landlord._id,
           unitNumber: unitData.number,
           size: unitData.size,
           type: unitData.type,
@@ -371,6 +376,7 @@ export class SeedDevDataCommand extends CommandRunner {
   }
 
   private async createLeasesWithTransactions(
+    landlord: any,
     tenants: any[],
     units: any[],
     verbose: boolean,
@@ -384,6 +390,7 @@ export class SeedDevDataCommand extends CommandRunner {
     const draftLease = await new this.leaseModel({
       unit: units[0]._id,
       tenant: tenants[0]._id,
+      landlord: landlord._id,
       startDate: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
       endDate: new Date(now.getTime() + 395 * 24 * 60 * 60 * 1000),
       rentAmount: 2500,
@@ -401,6 +408,7 @@ export class SeedDevDataCommand extends CommandRunner {
     const activeLease1 = await new this.leaseModel({
       unit: units[1]._id,
       tenant: tenants[1]._id,
+      landlord: landlord._id,
       startDate: activeLease1StartDate,
       endDate: new Date(now.getTime() + 305 * 24 * 60 * 60 * 1000),
       rentAmount: 2700,
@@ -416,6 +424,7 @@ export class SeedDevDataCommand extends CommandRunner {
     // Create rental period for active lease 1
     const rentalPeriod1 = await new this.rentalPeriodModel({
       lease: activeLease1._id,
+      landlord: landlord._id,
       startDate: activeLease1.startDate,
       endDate: activeLease1.endDate,
       rentAmount: activeLease1.rentAmount,
@@ -425,6 +434,7 @@ export class SeedDevDataCommand extends CommandRunner {
     // Create security deposit transaction (paid)
     await new this.transactionModel({
       lease: activeLease1._id,
+      landlord: landlord._id,
       rentalPeriod: rentalPeriod1._id,
       property: units[1].property,
       unit: units[1]._id,
@@ -445,6 +455,7 @@ export class SeedDevDataCommand extends CommandRunner {
 
       await new this.transactionModel({
         lease: activeLease1._id,
+        landlord: landlord._id,
         rentalPeriod: rentalPeriod1._id,
         property: units[1].property,
         unit: units[1]._id,
@@ -474,6 +485,7 @@ export class SeedDevDataCommand extends CommandRunner {
     const activeLease2 = await new this.leaseModel({
       unit: units[4]._id,
       tenant: tenants[2]._id,
+      landlord: landlord._id,
       startDate: activeLease2StartDate,
       endDate: new Date(now.getTime() + 185 * 24 * 60 * 60 * 1000),
       rentAmount: 8000,
@@ -489,6 +501,7 @@ export class SeedDevDataCommand extends CommandRunner {
     // Create rental period for active lease 2
     const rentalPeriod2 = await new this.rentalPeriodModel({
       lease: activeLease2._id,
+      landlord: landlord._id,
       startDate: activeLease2.startDate,
       endDate: activeLease2.endDate,
       rentAmount: activeLease2.rentAmount,
@@ -498,6 +511,7 @@ export class SeedDevDataCommand extends CommandRunner {
     // Create security deposit transaction (paid)
     await new this.transactionModel({
       lease: activeLease2._id,
+      landlord: landlord._id,
       rentalPeriod: rentalPeriod2._id,
       property: units[4].property,
       unit: units[4]._id,
@@ -533,6 +547,7 @@ export class SeedDevDataCommand extends CommandRunner {
 
       await new this.transactionModel({
         lease: activeLease2._id,
+        landlord: landlord._id,
         rentalPeriod: rentalPeriod2._id,
         property: units[4].property,
         unit: units[4]._id,
@@ -560,6 +575,7 @@ export class SeedDevDataCommand extends CommandRunner {
     const terminatedLease1 = await new this.leaseModel({
       unit: units[6]._id,
       tenant: tenants[3]._id,
+      landlord: landlord._id,
       startDate: new Date(now.getTime() - 400 * 24 * 60 * 60 * 1000),
       endDate: new Date(now.getTime() - 35 * 24 * 60 * 60 * 1000),
       rentAmount: 4500,
@@ -579,6 +595,7 @@ export class SeedDevDataCommand extends CommandRunner {
     const terminatedLease2 = await new this.leaseModel({
       unit: units[7]._id,
       tenant: tenants[4]._id,
+      landlord: landlord._id,
       startDate: new Date(now.getTime() - 730 * 24 * 60 * 60 * 1000),
       endDate: new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000),
       rentAmount: 3800,
@@ -599,6 +616,7 @@ export class SeedDevDataCommand extends CommandRunner {
   }
 
   private async createMaintenanceData(
+    landlord: any,
     properties: any[],
     units: any[],
     landlordUser: any,
@@ -677,6 +695,7 @@ export class SeedDevDataCommand extends CommandRunner {
     for (const ticketData of ticketsData) {
       const ticket = await new this.maintenanceTicketModel({
         ...ticketData,
+        landlord: landlord._id,
         ticketNumber: `TKT-${ticketCounter++}`,
         requestedBy: landlordUser._id,
         requestDate: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),

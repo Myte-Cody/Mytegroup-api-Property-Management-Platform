@@ -14,6 +14,7 @@ import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { GeocodingService } from '../../common/services/geocoding.service';
 import { SessionService } from '../../common/services/session.service';
+import { TenancyContextService } from '../../common/services/tenancy-context.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { Lease } from '../leases/schemas/lease.schema';
 import { MediaService } from '../media/services/media.service';
@@ -45,6 +46,7 @@ export class UnitsService {
     private readonly mediaService: MediaService,
     private readonly sessionService: SessionService,
     private readonly geocodingService: GeocodingService,
+    private readonly tenancyContextService: TenancyContextService,
   ) {}
 
   async create(createUnitDto: CreateUnitDto, propertyId: string, currentUser: UserDocument) {
@@ -56,10 +58,25 @@ export class UnitsService {
     }
 
     return await this.sessionService.withSession(async (session: ClientSession | null) => {
-      const property = await this.propertyModel.findById(propertyId, null, { session }).exec();
+      // Get landlord context
+      const landlordId = this.tenancyContextService.getLandlordContext(currentUser);
+
+      // Verify property belongs to this landlord
+      const property = await this.propertyModel
+        .findOne(
+          {
+            _id: propertyId,
+            landlord: landlordId,
+          },
+          null,
+          { session },
+        )
+        .exec();
 
       if (!property) {
-        throw new UnprocessableEntityException(`Property with ID ${propertyId} not found`);
+        throw new UnprocessableEntityException(
+          `Property with ID ${propertyId} not found in your organization`,
+        );
       }
 
       await this.unitBusinessValidator.validateCreate({
@@ -102,11 +119,12 @@ export class UnitsService {
         }
       }
 
-      // Create unit data without googleMapsLink and usePropertyAddress but with address
+      // Create unit data without googleMapsLink and usePropertyAddress but with address and landlord
       const { googleMapsLink, usePropertyAddress, ...unitData } = createUnitDto;
       const newUnit = new this.unitModel({
         ...unitData,
         property: propertyId,
+        landlord: landlordId,
         ...(address && { address }),
       });
 
@@ -270,8 +288,13 @@ export class UnitsService {
     // Step 1: Build initial match conditions
     const matchConditions: any = { deleted: false };
 
+    // Add landlord scope for landlord users
+    if (this.tenancyContextService.isLandlord(currentUser)) {
+      const landlordId = this.tenancyContextService.getLandlordContext(currentUser);
+      matchConditions.landlord = landlordId;
+    }
+
     // Add CASL conditions
-    // todo verify below
     const caslConditions = (this.unitModel as any).accessibleBy(ability, Action.Read).getQuery();
     Object.assign(matchConditions, caslConditions);
 
@@ -689,6 +712,12 @@ export class UnitsService {
     // CASL: Check if user can update this specific unit
     if (!ability.can(Action.Update, existingUnit)) {
       throw new ForbiddenException('You do not have permission to update this unit');
+    }
+
+    // Prevent changing landlord field
+    const { landlord: _landlord, ...safeUpdate } = updateUnitDto as any;
+    if (_landlord) {
+      throw new ForbiddenException('Cannot change unit landlord');
     }
 
     // Business logic validation

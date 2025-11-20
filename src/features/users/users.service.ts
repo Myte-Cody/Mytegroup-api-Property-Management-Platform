@@ -233,7 +233,6 @@ export class UsersService {
   async findAllPaginated(queryDto: UserQueryDto, currentUser: User) {
     const { page, limit, sortBy, sortOrder, search, user_type, organization_id, isPrimary } =
       queryDto;
-
     const populatedUser = await this.userModel.findById(currentUser._id).exec();
 
     if (!populatedUser) {
@@ -262,6 +261,8 @@ export class UsersService {
     // Filter by organization_id if provided
     if (organization_id) {
       baseQuery = baseQuery.where({ organization_id });
+    } else {
+      baseQuery = baseQuery.where({ organization_id: populatedUser.organization_id });
     }
 
     if (queryDto.role) {
@@ -285,7 +286,6 @@ export class UsersService {
     const countQuery = baseQuery.clone().countDocuments();
 
     const [users, totalCount] = await Promise.all([dataQuery.exec(), countQuery.exec()]);
-
     return createPaginatedResponse<User>(users, totalCount, page, limit);
   }
 

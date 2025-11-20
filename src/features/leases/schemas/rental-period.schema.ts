@@ -1,9 +1,11 @@
 import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import * as mongoose from 'mongoose';
+import { Document, Model, Schema as MongooseSchema, Query, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { RentIncreaseType, RentalPeriodStatus } from '../../../common/enums/lease.enum';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
+import { multiTenancyPlugin } from '../../../common/plugins/multi-tenancy.plugin';
 
 @Schema()
 export class AppliedRentIncrease {
@@ -26,6 +28,14 @@ export class AppliedRentIncrease {
 
 @Schema({ timestamps: true })
 export class RentalPeriod extends Document implements SoftDelete {
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Landlord',
+    required: true,
+    index: true,
+  })
+  landlord: mongoose.Types.ObjectId;
+
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Lease',
@@ -82,14 +92,27 @@ RentalPeriodSchema.add({
   },
 });
 
+// Add indexes
 RentalPeriodSchema.index(
-  { lease: 1, status: 1 },
+  { landlord: 1, lease: 1, status: 1 },
   {
     unique: true,
     partialFilterExpression: { status: RentalPeriodStatus.ACTIVE },
-    name: 'lease_active_rentalperiod_tenant_unique',
+    name: 'landlord_lease_active_rentalperiod_unique',
   },
 );
+RentalPeriodSchema.index({ landlord: 1, status: 1 });
+
+// TypeScript types
+export interface RentalPeriodQueryHelpers {
+  byLandlord(
+    landlordId: mongoose.Types.ObjectId | string,
+  ): Query<any, RentalPeriodDocument, RentalPeriodQueryHelpers> & RentalPeriodQueryHelpers;
+}
+
+export type RentalPeriodDocument = RentalPeriod & Document & SoftDelete;
+export type RentalPeriodModel = Model<RentalPeriodDocument, RentalPeriodQueryHelpers>;
 
 RentalPeriodSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 RentalPeriodSchema.plugin(accessibleRecordsPlugin);
+RentalPeriodSchema.plugin(multiTenancyPlugin);

@@ -813,7 +813,6 @@ export class FinancialKPIService {
     }
 
     const total = breakdown.reduce((sum, item) => sum + item.amount, 0);
-    console.log(breakdown);
     return breakdown.map((item) => ({
       category: item._id,
       amount: item.amount,

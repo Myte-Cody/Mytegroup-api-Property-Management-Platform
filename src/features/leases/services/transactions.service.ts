@@ -1,9 +1,15 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession } from 'mongoose';
 import { PaymentStatus, PaymentType } from '../../../common/enums/lease.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { SessionService } from '../../../common/services/session.service';
+import { TenancyContextService } from '../../../common/services/tenancy-context.service';
 import { addDaysToDate, createDateRangeFilter } from '../../../common/utils/date.utils';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { PaymentEmailService } from '../../email/services/payment-email.service';
@@ -30,6 +36,7 @@ export class TransactionsService {
     private readonly mediaService: MediaService,
     private readonly paymentEmailService: PaymentEmailService,
     private readonly sessionService: SessionService,
+    private readonly tenancyContextService: TenancyContextService,
   ) {}
 
   async findAllPaginated(queryDto: any, currentUser: UserDocument): Promise<any> {
@@ -50,6 +57,12 @@ export class TransactionsService {
     } = queryDto;
 
     let baseQuery = this.transactionModel.find();
+
+    // Add landlord scope for landlord users
+    if (this.tenancyContextService.isLandlord(currentUser)) {
+      const landlordId = this.tenancyContextService.getLandlordContext(currentUser);
+      baseQuery = baseQuery.where({ landlord: landlordId });
+    }
 
     if (status) {
       baseQuery = baseQuery.where({ status });
@@ -147,8 +160,25 @@ export class TransactionsService {
   async create(createTransactionDto: any, currentUser: UserDocument) {
     await this.validateTransactionCreation(createTransactionDto);
 
+    // Get landlord context
+    const landlordId = this.tenancyContextService.getLandlordContext(currentUser);
+
+    // Verify lease belongs to this landlord (if provided)
+    if (createTransactionDto.lease) {
+      const lease = await this.leaseModel
+        .findOne({
+          _id: createTransactionDto.lease,
+          landlord: landlordId,
+        })
+        .exec();
+
+      if (!lease) {
+        throw new NotFoundException('Lease not found in your organization');
+      }
+    }
+
     // For manual transaction creation, create single transaction with provided or calculated due date
-    let transactionData = { ...createTransactionDto };
+    let transactionData = { ...createTransactionDto, landlord: landlordId };
 
     if (!createTransactionDto.dueDate && createTransactionDto.rentalPeriod) {
       const rentalPeriod = await this.rentalPeriodModel
@@ -183,8 +213,14 @@ export class TransactionsService {
       throw new NotFoundException(`Transaction with ID ${id} not found`);
     }
 
+    // Prevent changing landlord field
+    const { landlord: _landlord, ...safeUpdate } = updateTransactionDto as any;
+    if (_landlord) {
+      throw new ForbiddenException('Cannot change transaction landlord');
+    }
+
     // Update the transaction
-    Object.assign(existingTransaction, updateTransactionDto);
+    Object.assign(existingTransaction, safeUpdate);
     return await existingTransaction.save();
   }
 
@@ -484,9 +520,6 @@ export class TransactionsService {
         .exec();
 
       if (transactions.length === 0) {
-        console.log(
-          `No payment reminders to send for due date ${targetDueDate.toISOString().split('T')[0]}`,
-        );
         return;
       }
 
@@ -518,10 +551,6 @@ export class TransactionsService {
         });
 
         await Promise.all(promises);
-
-        console.log(
-          `Sent ${promises.length} payment reminder emails for due date ${targetDueDate.toISOString().split('T')[0]}`,
-        );
       }
     } catch (error) {
       console.error('Failed to send payment due reminders:', error);
@@ -572,9 +601,6 @@ export class TransactionsService {
         .exec();
 
       if (transactions.length === 0) {
-        console.log(
-          `No overdue notices to send for due date ${targetDueDate.toISOString().split('T')[0]}`,
-        );
         return;
       }
 
@@ -612,9 +638,6 @@ export class TransactionsService {
         // Send all overdue notices
         if (promises.length > 0) {
           await Promise.all(promises);
-          console.log(
-            `Sent ${promises.length} payment overdue notices for due date ${targetDueDate.toISOString().split('T')[0]}`,
-          );
         }
       }
     } catch (error) {
@@ -647,7 +670,6 @@ export class TransactionsService {
         .exec();
 
       if (!transaction || transaction.status !== PaymentStatus.PAID) {
-        console.log(`No payment confirmation to send for transaction ${transactionId}`);
         return;
       }
 
@@ -678,8 +700,6 @@ export class TransactionsService {
           { queue: true },
         );
       }
-
-      console.log(`Sent payment confirmation email for transaction ${transactionId}`);
     } catch (error) {
       console.error(`Failed to send payment confirmation for transaction ${transactionId}:`, error);
     }

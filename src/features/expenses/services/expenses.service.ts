@@ -1,6 +1,12 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { TenancyContextService } from '../../../common/services/tenancy-context.service';
 import { Invoice, InvoiceDocument } from '../../maintenance/schemas/invoice.schema';
 import {
   MaintenanceTicket,
@@ -38,6 +44,7 @@ export class ExpensesService {
     @InjectModel(Unit.name)
     private unitModel: Model<UnitDocument>,
     private mediaService: MediaService,
+    private readonly tenancyContextService: TenancyContextService,
   ) {}
 
   /**
@@ -64,19 +71,49 @@ export class ExpensesService {
   }
 
   async create(createExpenseDto: CreateExpenseDto, currentUser: User): Promise<ExpenseDocument> {
+    // Get landlord context
+    const landlordId = this.tenancyContextService.getLandlordContext(currentUser);
+
     // Validate property ID
     if (!Types.ObjectId.isValid(createExpenseDto.property)) {
       throw new BadRequestException('Invalid property ID');
     }
 
+    // Verify property belongs to this landlord
+    const property = await this.propertyModel
+      .findOne({
+        _id: createExpenseDto.property,
+        landlord: landlordId,
+      })
+      .exec();
+
+    if (!property) {
+      throw new NotFoundException('Property not found in your organization');
+    }
+
     // Validate unit ID if provided
-    if (createExpenseDto.unit && !Types.ObjectId.isValid(createExpenseDto.unit)) {
-      throw new BadRequestException('Invalid unit ID');
+    if (createExpenseDto.unit) {
+      if (!Types.ObjectId.isValid(createExpenseDto.unit)) {
+        throw new BadRequestException('Invalid unit ID');
+      }
+
+      // Verify unit belongs to this landlord
+      const unit = await this.unitModel
+        .findOne({
+          _id: createExpenseDto.unit,
+          landlord: landlordId,
+        })
+        .exec();
+
+      if (!unit) {
+        throw new NotFoundException('Unit not found in your organization');
+      }
     }
 
     const expense = new this.expenseModel({
       property: new Types.ObjectId(createExpenseDto.property),
       unit: createExpenseDto.unit ? new Types.ObjectId(createExpenseDto.unit) : undefined,
+      landlord: landlordId,
       category: createExpenseDto.category,
       amount: createExpenseDto.amount,
       description: createExpenseDto.description,
@@ -126,7 +163,10 @@ export class ExpensesService {
     return expenseWithMedia || savedExpense;
   }
 
-  async findAll(query: ExpenseQueryDto): Promise<{
+  async findAll(
+    query: ExpenseQueryDto,
+    currentUser?: User,
+  ): Promise<{
     data: ExpenseResponseDto[];
     total: number;
     page: number;
@@ -152,6 +192,13 @@ export class ExpensesService {
 
     // Build filter for manual expenses
     const expenseFilter: any = {};
+
+    // Add landlord scope if user is landlord
+    if (currentUser && this.tenancyContextService.isLandlord(currentUser)) {
+      const landlordId = this.tenancyContextService.getLandlordContext(currentUser);
+      expenseFilter.landlord = landlordId;
+    }
+
     if (property) expenseFilter.property = new Types.ObjectId(property);
     if (unit) expenseFilter.unit = new Types.ObjectId(unit);
     if (category) expenseFilter.category = category;
@@ -194,6 +241,13 @@ export class ExpensesService {
 
     // Build filter for invoice expenses
     const invoiceFilter: any = {};
+
+    // Add landlord scope if user is landlord
+    if (currentUser && this.tenancyContextService.isLandlord(currentUser)) {
+      const landlordId = this.tenancyContextService.getLandlordContext(currentUser);
+      invoiceFilter.landlord = landlordId;
+    }
+
     if (status) invoiceFilter.status = status;
 
     // Fetch maintenance invoices without populate - we'll manually resolve references
@@ -429,6 +483,12 @@ export class ExpensesService {
     const expense = await this.expenseModel.findById(id);
     if (!expense) {
       throw new NotFoundException('Expense not found');
+    }
+
+    // Prevent changing landlord field
+    const { landlord: _landlord, ...safeUpdate } = updateExpenseDto as any;
+    if (_landlord) {
+      throw new ForbiddenException('Cannot change expense landlord');
     }
 
     // Validate IDs if they are being updated

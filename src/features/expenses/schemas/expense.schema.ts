@@ -1,5 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import * as mongoose from 'mongoose';
+import { Document, Model, Schema as MongooseSchema, Query, Types } from 'mongoose';
+import { multiTenancyPlugin } from '../../../common/plugins/multi-tenancy.plugin';
 
 export enum ExpenseCategory {
   MAINTENANCE_REPAIRS = 'Maintenance & Repairs',
@@ -20,10 +22,16 @@ export enum ExpenseStatus {
   CONFIRMED = 'Confirmed',
 }
 
-export type ExpenseDocument = Expense & Document;
-
 @Schema({ timestamps: true })
 export class Expense {
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Landlord',
+    required: true,
+    index: true,
+  })
+  landlord: mongoose.Types.ObjectId;
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Property', required: true })
   property: Types.ObjectId;
 
@@ -67,6 +75,21 @@ ExpenseSchema.virtual('media', {
   foreignField: 'model_id',
   match: { model_type: 'Expense' },
 });
+
+// Add indexes
+ExpenseSchema.index({ landlord: 1, category: 1, date: -1 });
+
+// TypeScript types
+export interface ExpenseQueryHelpers {
+  byLandlord(
+    landlordId: mongoose.Types.ObjectId | string,
+  ): Query<any, ExpenseDocument, ExpenseQueryHelpers> & ExpenseQueryHelpers;
+}
+
+export type ExpenseDocument = Expense & Document;
+export type ExpenseModel = Model<ExpenseDocument, ExpenseQueryHelpers>;
+
+ExpenseSchema.plugin(multiTenancyPlugin);
 
 // Ensure virtuals are included in JSON
 ExpenseSchema.set('toJSON', { virtuals: true });

@@ -1,16 +1,24 @@
 import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { ApiProperty } from '@nestjs/swagger';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import * as mongoose from 'mongoose';
+import { Document, Model, Schema as MongooseSchema, Query, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enum';
 import { Address } from '../../../common/interfaces/address.interface';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
-
-export type UnitDocument = Unit & Document & SoftDelete;
+import { multiTenancyPlugin } from '../../../common/plugins/multi-tenancy.plugin';
 
 @Schema({ timestamps: true })
 export class Unit extends Document implements SoftDelete {
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Landlord',
+    required: true,
+    index: true,
+  })
+  landlord: mongoose.Types.ObjectId;
+
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Property',
@@ -102,10 +110,23 @@ UnitSchema.virtual('documents', {
   match: { model_type: 'Unit', collection_name: 'documents' },
 });
 
+// Add indexes
 UnitSchema.index(
-  { unitNumber: 1, property: 1 },
-  { unique: true, name: 'unit_number_property_unique' },
+  { landlord: 1, property: 1, unitNumber: 1 },
+  { unique: true, name: 'unit_landlord_property_unique' },
 );
+UnitSchema.index({ landlord: 1, availabilityStatus: 1 });
+
+// TypeScript types
+export interface UnitQueryHelpers {
+  byLandlord(
+    landlordId: mongoose.Types.ObjectId | string,
+  ): Query<any, UnitDocument, UnitQueryHelpers> & UnitQueryHelpers;
+}
+
+export type UnitDocument = Unit & Document & SoftDelete;
+export type UnitModel = Model<UnitDocument, UnitQueryHelpers>;
 
 UnitSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 UnitSchema.plugin(accessibleRecordsPlugin);
+UnitSchema.plugin(multiTenancyPlugin);

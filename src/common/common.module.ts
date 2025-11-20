@@ -9,6 +9,7 @@ import { AuditLog, AuditLogSchema } from './schemas/audit-log.schema';
 import { AuditLogService } from './services/audit-log.service';
 import { GeocodingService } from './services/geocoding.service';
 import { SessionService } from './services/session.service';
+import { TenancyContextService } from './services/tenancy-context.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Global()
@@ -26,11 +27,18 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     SessionService,
     AuditLogService,
     GeocodingService,
+    TenancyContextService,
     {
       provide: APP_INTERCEPTOR,
       useClass: AuditLogInterceptor,
     },
   ],
-  exports: [PassportModule, SessionService, AuditLogService, GeocodingService],
+  exports: [
+    PassportModule,
+    SessionService,
+    AuditLogService,
+    GeocodingService,
+    TenancyContextService,
+  ],
 })
 export class CommonModule {}

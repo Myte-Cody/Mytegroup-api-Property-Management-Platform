@@ -222,7 +222,6 @@ export class AutoRenewalService {
       // TODO: Send renewal notification to landlord and tenant
       // TODO: Log renewal in audit system
     } catch (error) {
-      console.log(error);
       if (error.message?.includes('An active rental period already exists')) {
         this.logger.warn(`Lease ${lease._id} appears to already be renewed, skipping`);
         result.details.push({

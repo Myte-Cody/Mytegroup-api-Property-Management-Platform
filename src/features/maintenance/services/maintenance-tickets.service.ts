@@ -11,6 +11,7 @@ import { ClientSession, Types } from 'mongoose';
 import { LeaseStatus } from '../../../common/enums/lease.enum';
 import { InvoiceLinkedEntityType, TicketStatus } from '../../../common/enums/maintenance.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
+import { TenancyContextService } from '../../../common/services/tenancy-context.service';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { Contractor } from '../../contractors/schema/contractor.schema';
 import { MaintenanceEmailService } from '../../email/services/maintenance-email.service';
@@ -67,6 +68,7 @@ export class MaintenanceTicketsService {
     private readonly invoicesService: InvoicesService,
     @Inject(forwardRef(() => ThreadsService))
     private readonly threadsService: ThreadsService,
+    private readonly tenancyContextService: TenancyContextService,
   ) {}
 
   async findAllPaginated(ticketQueryDto: TicketQueryDto, currentUser: UserDocument) {
@@ -87,6 +89,12 @@ export class MaintenanceTicketsService {
     } = ticketQueryDto;
 
     let baseQuery = this.ticketModel.find();
+
+    // Apply landlord scope for landlord users
+    if (this.tenancyContextService.isLandlord(currentUser)) {
+      const landlordId = this.tenancyContextService.getLandlordContext(currentUser);
+      baseQuery = baseQuery.where({ landlord: landlordId });
+    }
 
     if (currentUser.user_type === 'Contractor') {
       baseQuery = baseQuery.where({ assignedContractor: currentUser.organization_id });
@@ -281,11 +289,21 @@ export class MaintenanceTicketsService {
     return this.sessionService.withSession(async (session: ClientSession | null) => {
       await this.validateTicketCreation(createTicketDto, currentUser, session);
 
+      // Derive landlord from property
+      const property = await this.propertyModel
+        .findById(createTicketDto.property, null, { session })
+        .exec();
+      if (!property) {
+        throw new NotFoundException('Property not found');
+      }
+      const landlordId = property.landlord;
+
       const ticketNumber = await TicketReferenceUtils.generateUniqueTicketNumber(this.ticketModel);
 
       const newTicket = new this.ticketModel({
         ...createTicketDto,
         requestedBy: currentUser._id,
+        landlord: landlordId,
         ticketNumber,
         requestDate: new Date(),
       });
@@ -347,6 +365,12 @@ export class MaintenanceTicketsService {
 
       if (!existingTicket) {
         throw new NotFoundException(`Ticket with ID ${id} not found`);
+      }
+
+      // Prevent changing landlord field
+      const { landlord: _landlord, ...safeUpdate } = updateTicketDto as any;
+      if (_landlord) {
+        throw new ForbiddenException('Cannot change ticket landlord');
       }
 
       this.validateUpdatePermissions(existingTicket, currentUser, updateTicketDto);

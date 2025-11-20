@@ -1,12 +1,22 @@
 import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import * as mongoose from 'mongoose';
+import { Document, Model, Schema as MongooseSchema, Query, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { PaymentMethod, PaymentStatus, PaymentType } from '../../../common/enums/lease.enum';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
+import { multiTenancyPlugin } from '../../../common/plugins/multi-tenancy.plugin';
 
 @Schema({ timestamps: true })
 export class Transaction extends Document implements SoftDelete {
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Landlord',
+    required: true,
+    index: true,
+  })
+  landlord: mongoose.Types.ObjectId;
+
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Lease',
@@ -108,5 +118,19 @@ TransactionSchema.virtual('transactionProofs', {
   match: { model_type: 'Transaction', collection_name: 'transaction-proofs' },
 });
 
+// Add indexes
+TransactionSchema.index({ landlord: 1, status: 1, dueDate: 1 });
+
+// TypeScript types
+export interface TransactionQueryHelpers {
+  byLandlord(
+    landlordId: mongoose.Types.ObjectId | string,
+  ): Query<any, TransactionDocument, TransactionQueryHelpers> & TransactionQueryHelpers;
+}
+
+export type TransactionDocument = Transaction & Document & SoftDelete;
+export type TransactionModel = Model<TransactionDocument, TransactionQueryHelpers>;
+
 TransactionSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 TransactionSchema.plugin(accessibleRecordsPlugin);
+TransactionSchema.plugin(multiTenancyPlugin);

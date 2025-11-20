@@ -111,7 +111,6 @@ export class ScopeOfWorkController {
     @Body() assignDto: AssignContractorSowDto,
     @CurrentUser() user: User,
   ) {
-    console.log(assignDto);
     return this.scopeOfWorkService.assignContractor(id, assignDto, user);
   }
 

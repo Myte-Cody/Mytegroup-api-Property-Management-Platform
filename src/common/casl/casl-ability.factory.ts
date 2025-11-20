@@ -137,21 +137,35 @@ export class CaslAbilityFactory {
   }
 
   private defineLandlordAdminPermissions(can: any, cannot: any, user: UserDocument) {
-    // Landlords can manage all resources
-    can(Action.Manage, Property);
-    can(Action.Manage, Unit);
-    can(Action.Manage, Tenant);
-    can(Action.Manage, Contractor);
+    const landlordId = user.user_type === UserType.LANDLORD ? user.organization_id : null;
+
+    // SuperAdmins can manage all without restrictions
+    if (user.role === UserRole.SUPER_ADMIN) {
+      can(Action.Manage, 'all');
+      return;
+    }
+
+    // Landlord-scoped resources (isolated per landlord)
+    can(Action.Manage, Property, { landlord: landlordId });
+    can(Action.Manage, Unit, { landlord: landlordId });
+    can(Action.Manage, Lease, { landlord: landlordId });
+    can(Action.Manage, RentalPeriod, { landlord: landlordId });
+    can(Action.Manage, Transaction, { landlord: landlordId });
+    can(Action.Manage, MaintenanceTicket, { landlord: landlordId });
+    can(Action.Manage, ScopeOfWork, { landlord: landlordId });
+    can(Action.Manage, Invoice, { landlord: landlordId });
+    can(Action.Manage, Expense, { landlord: landlordId });
+
+    // Shared resources - can read and create all, but manage only own data
+    can(Action.Read, Tenant);
+    can(Action.Create, Tenant);
+    can(Action.Read, Contractor);
+    can(Action.Create, Contractor);
+
+    // Other resources
     can(Action.Manage, Invitation);
     can(Action.Manage, Media);
-    can(Action.Manage, Lease);
-    can(Action.Manage, RentalPeriod);
-    can(Action.Manage, Transaction);
     can(Action.Manage, User);
-    can(Action.Manage, MaintenanceTicket);
-    can(Action.Manage, ScopeOfWork);
-    can(Action.Manage, Invoice);
-    can(Action.Manage, Expense);
     can(Action.Manage, Thread);
     can(Action.Manage, ThreadMessage);
     can(Action.Manage, ThreadParticipant);
@@ -178,40 +192,34 @@ export class CaslAbilityFactory {
   }
 
   private defineLandlordStaffPermissions(can: any, cannot: any, user: UserDocument) {
-    // Staff can read everything by default
-    can(Action.Read, 'all');
+    const landlordId = user.user_type === UserType.LANDLORD ? user.organization_id : null;
 
-    // Allow day-to-day management actions
-    can(Action.Manage, Property);
-    can(Action.Manage, Unit);
-    can(Action.Manage, Tenant);
-    can(Action.Manage, Contractor);
+    // Landlord-scoped resources (isolated per landlord)
+    can(Action.Manage, Property, { landlord: landlordId });
+    can(Action.Manage, Unit, { landlord: landlordId });
+    can(Action.Manage, MaintenanceTicket, { landlord: landlordId });
+    can(Action.Manage, ScopeOfWork, { landlord: landlordId });
+    can(Action.Manage, Lease, { landlord: landlordId });
+    can(Action.Manage, RentalPeriod, { landlord: landlordId });
+
+    // Staff can read financial data but limited update permissions
+    can(Action.Read, Transaction, { landlord: landlordId });
+    can(Action.Read, Expense, { landlord: landlordId });
+    can(Action.Read, Invoice, { landlord: landlordId });
+
+    // Shared resources - can read and create all
+    can(Action.Read, Tenant);
+    can(Action.Create, Tenant);
+    can(Action.Read, Contractor);
+    can(Action.Create, Contractor);
+
+    // Other resources
     can(Action.Manage, Invitation);
     can(Action.Manage, Media);
-    can(Action.Manage, MaintenanceTicket);
-    can(Action.Manage, ScopeOfWork);
     can(Action.Manage, Thread);
     can(Action.Manage, ThreadMessage);
     can(Action.Manage, ThreadParticipant);
     can(Action.Manage, FeedPost);
-    can(Action.Manage, Lease);
-    can(Action.Manage, RentalPeriod);
-
-    // Read-only access for billing/financial records
-    can(Action.Read, Transaction);
-    can(Action.Read, Expense);
-    can(Action.Read, Invoice);
-
-    // Restrict billing modifications
-    cannot(Action.Create, Transaction);
-    cannot(Action.Update, Transaction);
-    cannot(Action.Delete, Transaction);
-    cannot(Action.Create, Expense);
-    cannot(Action.Update, Expense);
-    cannot(Action.Delete, Expense);
-    cannot(Action.Create, Invoice);
-    cannot(Action.Update, Invoice);
-    cannot(Action.Delete, Invoice);
 
     // Staff cannot manage other user accounts or elevate permissions
     cannot(Action.Manage, User);

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Types } from 'mongoose';
 import {
@@ -8,6 +8,7 @@ import {
 } from '../../../common/enums/maintenance.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { SessionService } from '../../../common/services/session.service';
+import { TenancyContextService } from '../../../common/services/tenancy-context.service';
 import { Contractor } from '../../contractors/schema/contractor.schema';
 import { MaintenanceEmailService } from '../../email/services/maintenance-email.service';
 import { NotificationsService } from '../../notifications/notifications.service';
@@ -35,6 +36,7 @@ export class InvoicesService {
     private readonly sessionService: SessionService,
     private readonly notificationsService: NotificationsService,
     private readonly maintenanceEmailService: MaintenanceEmailService,
+    private readonly tenancyContextService: TenancyContextService,
   ) {}
 
   async createInvoiceForTicket(
@@ -48,6 +50,9 @@ export class InvoicesService {
       if (!ticket) {
         throw new NotFoundException('Ticket not found');
       }
+
+      // Derive landlord from ticket
+      const landlordId = ticket.landlord;
 
       const invoice = new this.invoiceModel({
         amount: createInvoiceDto.amount,
@@ -63,6 +68,7 @@ export class InvoicesService {
         linkedEntityModel: 'MaintenanceTicket',
         status: InvoiceStatus.DRAFT,
         createdBy: currentUser._id,
+        landlord: landlordId,
       });
 
       await invoice.save({ session });
@@ -101,6 +107,13 @@ export class InvoicesService {
         throw new NotFoundException('Scope of Work not found');
       }
 
+      // Derive landlord from the ticket that owns this SOW
+      const ticket = await this.ticketModel.findOne({ scopeOfWork: sowId }).session(session).exec();
+      if (!ticket) {
+        throw new NotFoundException('Associated ticket not found for this Scope of Work');
+      }
+      const landlordId = ticket.landlord;
+
       const invoice = new this.invoiceModel({
         amount: createInvoiceDto.amount,
         currency: createInvoiceDto.currency,
@@ -115,6 +128,7 @@ export class InvoicesService {
         linkedEntityModel: 'ScopeOfWork',
         status: InvoiceStatus.DRAFT,
         createdBy: currentUser._id,
+        landlord: landlordId,
       });
 
       await invoice.save({ session });
@@ -221,6 +235,12 @@ export class InvoicesService {
 
       if (!invoice) {
         throw new NotFoundException('Invoice not found');
+      }
+
+      // Prevent changing landlord field
+      const { landlord: _landlord } = updateInvoiceDto as any;
+      if (_landlord) {
+        throw new ForbiddenException('Cannot change invoice landlord');
       }
 
       // Update invoice fields

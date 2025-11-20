@@ -1,6 +1,7 @@
 import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import * as mongoose from 'mongoose';
+import { Document, Model, Schema as MongooseSchema, Query, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import {
   TicketCategory,
@@ -8,11 +9,18 @@ import {
   TicketStatus,
 } from '../../../common/enums/maintenance.enum';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
-
-export type MaintenanceTicketDocument = MaintenanceTicket & Document & SoftDelete;
+import { multiTenancyPlugin } from '../../../common/plugins/multi-tenancy.plugin';
 
 @Schema({ timestamps: true })
 export class MaintenanceTicket extends Document implements SoftDelete {
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Landlord',
+    required: true,
+    index: true,
+  })
+  landlord: mongoose.Types.ObjectId;
+
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Property',
@@ -129,9 +137,25 @@ MaintenanceTicketSchema.virtual('images', {
   match: { model_type: 'MaintenanceTicket', collection_name: 'ticket_images' },
 });
 
+// Add indexes
+MaintenanceTicketSchema.index({ landlord: 1, status: 1, priority: 1 });
+MaintenanceTicketSchema.index({ landlord: 1, assignedContractor: 1 });
 MaintenanceTicketSchema.index({ property: 1, unit: 1 });
-MaintenanceTicketSchema.index({ status: 1, priority: 1 });
-MaintenanceTicketSchema.index({ assignedContractor: 1, status: 1 });
+
+// TypeScript types
+export interface MaintenanceTicketQueryHelpers {
+  byLandlord(
+    landlordId: mongoose.Types.ObjectId | string,
+  ): Query<any, MaintenanceTicketDocument, MaintenanceTicketQueryHelpers> &
+    MaintenanceTicketQueryHelpers;
+}
+
+export type MaintenanceTicketDocument = MaintenanceTicket & Document & SoftDelete;
+export type MaintenanceTicketModel = Model<
+  MaintenanceTicketDocument,
+  MaintenanceTicketQueryHelpers
+>;
 
 MaintenanceTicketSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 MaintenanceTicketSchema.plugin(accessibleRecordsPlugin);
+MaintenanceTicketSchema.plugin(multiTenancyPlugin);

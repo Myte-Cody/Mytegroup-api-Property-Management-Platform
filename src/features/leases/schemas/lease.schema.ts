@@ -1,9 +1,11 @@
 import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import * as mongoose from 'mongoose';
+import { Document, Model, Schema as MongooseSchema, Query, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { LeaseStatus, PaymentCycle, RentIncreaseType } from '../../../common/enums/lease.enum';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
+import { multiTenancyPlugin } from '../../../common/plugins/multi-tenancy.plugin';
 
 @Schema()
 export class RentIncrease {
@@ -66,6 +68,14 @@ const DepositAssessmentSchema = SchemaFactory.createForClass(DepositAssessment);
 
 @Schema({ timestamps: true })
 export class Lease extends Document implements SoftDelete {
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Landlord',
+    required: true,
+    index: true,
+  })
+  landlord: mongoose.Types.ObjectId;
+
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Unit',
@@ -167,14 +177,29 @@ LeaseSchema.virtual('contracts', {
   match: { model_type: 'Lease', collection_name: 'contracts' },
 });
 
+// Add indexes
 LeaseSchema.index(
-  { unit: 1, status: 1 },
+  { landlord: 1, unit: 1, status: 1 },
   {
     unique: true,
     partialFilterExpression: { status: LeaseStatus.ACTIVE },
-    name: 'unit_active_lease_unique',
+    name: 'landlord_unit_active_lease_unique',
   },
 );
+LeaseSchema.index({ landlord: 1, status: 1 });
+LeaseSchema.index({ landlord: 1, tenant: 1 });
+
+// Add query scope for multi-tenancy
+// TypeScript types
+export interface LeaseQueryHelpers {
+  byLandlord(
+    landlordId: mongoose.Types.ObjectId | string,
+  ): Query<any, LeaseDocument, LeaseQueryHelpers> & LeaseQueryHelpers;
+}
+
+export type LeaseDocument = Lease & Document & SoftDelete;
+export type LeaseModel = Model<LeaseDocument, LeaseQueryHelpers>;
 
 LeaseSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 LeaseSchema.plugin(accessibleRecordsPlugin);
+LeaseSchema.plugin(multiTenancyPlugin);

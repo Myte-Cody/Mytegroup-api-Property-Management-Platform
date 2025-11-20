@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { RentalPeriodStatus } from '../../../common/enums/lease.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
+import { TenancyContextService } from '../../../common/services/tenancy-context.service';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { UserDocument } from '../../users/schemas/user.schema';
 import { RentalPeriodQueryDto } from '../dto/rental-period-query.dto';
@@ -18,6 +19,7 @@ export class RentalPeriodsService {
     private readonly leaseModel: AppModel<Lease>,
     @InjectModel(Transaction.name)
     private readonly transactionModel: AppModel<Transaction>,
+    private readonly tenancyContextService: TenancyContextService,
   ) {}
 
   async findAllPaginated(queryDto: RentalPeriodQueryDto, currentUser: UserDocument): Promise<any> {
@@ -31,6 +33,12 @@ export class RentalPeriodsService {
     } = queryDto;
 
     let baseQuery = this.rentalPeriodModel.find();
+
+    // Apply landlord scope
+    if (this.tenancyContextService.isLandlord(currentUser)) {
+      const landlordId = this.tenancyContextService.getLandlordContext(currentUser);
+      baseQuery = baseQuery.where({ landlord: landlordId });
+    }
 
     // Add filters
     if (status) {

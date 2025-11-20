@@ -42,6 +42,6 @@ export class EmailQueueProcessor extends WorkerHost {
 
   @OnWorkerEvent('active')
   onActive(job: Job<QueueEmailData>) {
-    console.log(`Processing job ${job.id} of type ${job.name}...`);
+    // Job is being processed
   }
 }

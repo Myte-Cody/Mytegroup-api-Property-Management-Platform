@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -19,6 +20,7 @@ import {
 import { UnitAvailabilityStatus } from '../../../common/enums/unit.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { SessionService } from '../../../common/services/session.service';
+import { TenancyContextService } from '../../../common/services/tenancy-context.service';
 import { addDaysToDate, getToday } from '../../../common/utils/date.utils';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { LeaseEmailService } from '../../email/services/lease-email.service';
@@ -74,6 +76,7 @@ export class LeasesService {
     private readonly mediaService: MediaService,
     private readonly sessionService: SessionService,
     private readonly notificationsService: NotificationsService,
+    private readonly tenancyContextService: TenancyContextService,
   ) {}
 
   async findAllPaginated(leaseQueryDto: LeaseQueryDto, currentUser: UserDocument) {
@@ -92,6 +95,12 @@ export class LeasesService {
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
     let baseQuery = (this.leaseModel.find() as any).accessibleBy(ability, Action.Read);
+
+    // Add landlord scope for landlord users
+    if (this.tenancyContextService.isLandlord(currentUser)) {
+      const landlordId = this.tenancyContextService.getLandlordContext(currentUser);
+      baseQuery = baseQuery.where({ landlord: landlordId });
+    }
 
     if (search) {
       baseQuery = baseQuery.where({
@@ -176,6 +185,25 @@ export class LeasesService {
 
   async create(createLeaseDto: CreateLeaseDto, currentUser: UserDocument): Promise<Lease> {
     return await this.sessionService.withSession(async (session: ClientSession | null) => {
+      // Get landlord context
+      const landlordId = this.tenancyContextService.getLandlordContext(currentUser);
+
+      // Verify unit belongs to this landlord
+      const unit = await this.unitModel
+        .findOne(
+          {
+            _id: createLeaseDto.unit,
+            landlord: landlordId,
+          },
+          null,
+          { session },
+        )
+        .exec();
+
+      if (!unit) {
+        throw new NotFoundException('Unit not found in your organization');
+      }
+
       await this.validateLeaseCreation(createLeaseDto);
 
       // Apply full cycle completion to ensure duration is a multiple of payment cycles
@@ -187,6 +215,7 @@ export class LeasesService {
 
       const newLease = new this.leaseModel({
         ...createLeaseDto,
+        landlord: landlordId,
         endDate: completedEndDate,
       });
 
@@ -233,6 +262,12 @@ export class LeasesService {
 
       if (!existingLease) {
         throw new NotFoundException(`Lease with ID ${id} not found`);
+      }
+
+      // Prevent changing landlord field
+      const { landlord: _landlord, ...safeUpdate } = updateLeaseDto as any;
+      if (_landlord) {
+        throw new ForbiddenException('Cannot change lease landlord');
       }
 
       await this.validateLeaseUpdate(existingLease, updateLeaseDto);
@@ -1905,10 +1940,6 @@ export class LeasesService {
 
         await Promise.all([...tenantNotificationPromises, ...landlordNotificationPromises]);
       }
-      const referenceDateStr = referenceDate.toISOString().split('T')[0];
-      console.log(
-        `Sent ${expiringLeases.length} lease expiration warning emails for ${daysRemaining}-day notices (reference date: ${referenceDateStr})`,
-      );
     } catch (error) {
       const referenceDateStr = referenceDate
         ? referenceDate.toISOString().split('T')[0]
