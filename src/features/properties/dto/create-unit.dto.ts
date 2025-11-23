@@ -112,7 +112,7 @@ export class CreateUnitDto {
     default: false,
   })
   @IsOptional()
-  @Transform(({ value }) => value == 'true')
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   @Type(() => Boolean)
   availableForRent?: boolean;
@@ -135,7 +135,7 @@ export class CreateUnitDto {
     default: false,
   })
   @IsOptional()
-  @Transform(({ value }) => value == 'true')
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   @Type(() => Boolean)
   publishToMarketplace?: boolean;
