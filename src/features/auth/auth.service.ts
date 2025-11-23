@@ -14,9 +14,11 @@ import { Types } from 'mongoose';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
+import { CreateContractorDto } from '../contractors/dto/create-contractor.dto';
 import { Contractor } from '../contractors/schema/contractor.schema';
 import { AuthEmailService } from '../email/services/auth-email.service';
 import { Landlord } from '../landlords/schema/landlord.schema';
+import { CreateTenantDto } from '../tenants/dto/create-tenant.dto';
 import { Tenant } from '../tenants/schema/tenant.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -26,8 +28,6 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { PasswordReset } from './schemas/password-reset.schema';
 import { Session } from './schemas/session.schema';
 import { VerificationToken } from './schemas/verification-token.schema';
-import { CreateTenantDto } from '../tenants/dto/create-tenant.dto';
-import { CreateContractorDto } from '../contractors/dto/create-contractor.dto';
 
 @Injectable()
 export class AuthService {

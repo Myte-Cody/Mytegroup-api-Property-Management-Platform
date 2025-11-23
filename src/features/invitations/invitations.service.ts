@@ -48,6 +48,15 @@ export class InvitationsService {
       ...(createInvitationDto.entityData || {}),
     };
 
+    // Automatically add landlord ID for tenant and contractor invitations
+    if (
+      (createInvitationDto.entityType === EntityType.TENANT ||
+        createInvitationDto.entityType === EntityType.CONTRACTOR) &&
+      currentUser.organization_id
+    ) {
+      entityData.landlordId = entityData.landlordId || currentUser.organization_id.toString();
+    }
+
     if (
       createInvitationDto.entityType === EntityType.LANDLORD_STAFF &&
       currentUser.organization_id
@@ -181,7 +190,9 @@ export class InvitationsService {
     return createPaginatedResponse<Invitation>(invitations, total, page, limit);
   }
 
-  async findByToken(token: string): Promise<Invitation> {
+  async findByToken(
+    token: string,
+  ): Promise<{ invitation: Invitation; existingUser: boolean; requiresForm: boolean }> {
     const anyInvitation = await this.invitationModel.findOne({ invitationToken: token }).exec();
 
     if (!anyInvitation) {
@@ -198,11 +209,24 @@ export class InvitationsService {
       throw new BadRequestException('Invitation has expired');
     }
 
-    return anyInvitation;
+    // Check if user already exists based on entity type
+    const strategy = this.invitationStrategyFactory.getStrategy(anyInvitation.entityType);
+    let existingUser = false;
+
+    if ('checkExistingUser' in strategy && typeof strategy.checkExistingUser === 'function') {
+      const existingCheck = await strategy.checkExistingUser(anyInvitation.email);
+      existingUser = existingCheck.exists;
+    }
+
+    return {
+      invitation: anyInvitation,
+      existingUser,
+      requiresForm: !existingUser, // If user doesn't exist, they need to fill out the form
+    };
   }
 
   async acceptInvitation(token: string, acceptInvitationDto: AcceptInvitationDto): Promise<any> {
-    const invitation = await this.findByToken(token);
+    const { invitation, existingUser } = await this.findByToken(token);
 
     if (!invitation) {
       throw new NotFoundException('Invitation not found');
@@ -211,12 +235,10 @@ export class InvitationsService {
     return await this.sessionService.withSession(async (session: ClientSession | null) => {
       const strategy = this.invitationStrategyFactory.getStrategy(invitation.entityType);
 
-      const createdEntity = await strategy.createEntity(
-        invitation,
-        acceptInvitationDto,
-        null,
-        session,
-      );
+      // createEntity handles both cases:
+      // - For existing users: adds landlord to their landlords array
+      // - For new users: creates entity and user account with landlord
+      const result = await strategy.createEntity(invitation, acceptInvitationDto, null, session);
 
       // Mark invitation as accepted
       invitation.status = InvitationStatus.ACCEPTED;
@@ -226,8 +248,11 @@ export class InvitationsService {
       return {
         success: true,
         entityType: invitation.entityType,
-        entity: createdEntity,
-        message: `${invitation.entityType} account created successfully`,
+        entity: result,
+        existingUser: result?.existingUser || existingUser,
+        message: existingUser
+          ? `Landlord added to your existing ${invitation.entityType} account`
+          : `${invitation.entityType} account created successfully`,
       };
     });
   }

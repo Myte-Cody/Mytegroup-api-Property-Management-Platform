@@ -112,6 +112,25 @@ export class TenantsController {
     return this.tenantsService.remove(id, user);
   }
 
+  @Delete(':id/remove-from-organization')
+  @CheckPolicies(new DeleteTenantPolicyHandler())
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Remove tenant from landlord organization (removes landlord ID from tenant landlords array)',
+  })
+  @ApiParam({ name: 'id', description: 'Tenant ID', type: String })
+  removeFromOrganization(
+    @Param('id', MongoIdValidationPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    const landlordId = user.organization_id?.toString();
+    if (!landlordId) {
+      throw new Error('User does not have an organization');
+    }
+    return this.tenantsService.removeLandlordFromTenant(id, landlordId, user);
+  }
+
   // Tenant Users Management Endpoints
   @Get(':id/users')
   @CheckPolicies(new ReadTenantPolicyHandler())

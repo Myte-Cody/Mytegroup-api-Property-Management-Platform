@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
-import { ClientSession } from 'mongoose';
+import mongoose, { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { TicketStatus } from '../../common/enums/maintenance.enum';
@@ -118,6 +118,11 @@ export class ContractorsService {
       query.name = { $regex: search, $options: 'i' };
     }
 
+    // Apply landlord filter if user is a landlord
+    if (currentUser.user_type === 'Landlord' && currentUser.organization_id) {
+      query.landlords = currentUser.organization_id;
+    }
+
     // Apply sorting
     const sortOptions: any = {};
     sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1;
@@ -162,6 +167,15 @@ export class ContractorsService {
 
     if (!contractor) {
       throw new NotFoundException(`Contractor with ID ${id} not found`);
+    }
+
+    // For landlords, verify they have access to this specific contractor
+    if (currentUser.user_type === 'Landlord' && currentUser.organization_id) {
+      const landlordId = currentUser.organization_id.toString();
+      const hasAccess = contractor.landlords?.some((id) => id.toString() === landlordId);
+      if (!hasAccess) {
+        throw new ForbiddenException('You do not have permission to view this contractor');
+      }
     }
 
     // CASL: Final permission check on the specific record
@@ -255,7 +269,11 @@ export class ContractorsService {
     });
   }
 
-  async createFromInvitation(createContractorDto: CreateContractorDto, session?: ClientSession) {
+  async createFromInvitation(
+    createContractorDto: CreateContractorDto,
+    landlordId?: string,
+    session?: ClientSession,
+  ) {
     // Extract user data from DTO
     const { email, password, name, category, username, firstName, lastName, phone } =
       createContractorDto;
@@ -269,10 +287,11 @@ export class ContractorsService {
       );
     }
 
-    // Create tenant
-    const contractorData = {
+    // Create contractor
+    const contractorData: any = {
       name,
       category,
+      landlords: landlordId ? [new mongoose.Types.ObjectId(landlordId)] : [],
     };
 
     const newContractor = new this.contractorModel(contractorData);
@@ -293,6 +312,76 @@ export class ContractorsService {
     await this.usersService.createFromInvitation(userData, session);
 
     return savedContractor;
+  }
+
+  async addLandlordToContractor(contractorId: string, landlordId: string, session?: ClientSession) {
+    const contractor = await this.contractorModel.findById(contractorId).exec();
+
+    if (!contractor) {
+      throw new NotFoundException(`Contractor with ID ${contractorId} not found`);
+    }
+
+    // Add landlord ID if not already present
+    const landlordObjectId = new mongoose.Types.ObjectId(landlordId);
+    const landlordExists = contractor.landlords?.some((id) => id.equals(landlordObjectId));
+
+    if (!landlordExists) {
+      await this.contractorModel
+        .findByIdAndUpdate(
+          contractorId,
+          { $addToSet: { landlords: landlordObjectId } },
+          { session: session ?? null },
+        )
+        .exec();
+    }
+
+    return contractor;
+  }
+
+  async removeLandlordFromContractor(
+    contractorId: string,
+    landlordId: string,
+    currentUser: UserDocument,
+  ) {
+    const contractor = await this.contractorModel.findById(contractorId).exec();
+
+    if (!contractor) {
+      throw new NotFoundException(`Contractor with ID ${contractorId} not found`);
+    }
+
+    // Only landlords can remove themselves from contractor
+    if (currentUser.user_type !== 'Landlord') {
+      throw new ForbiddenException('Only landlords can remove contractors from their organization');
+    }
+
+    // Verify the landlord is removing their own ID
+    const currentLandlordId = currentUser.organization_id?.toString();
+    if (currentLandlordId !== landlordId) {
+      throw new ForbiddenException('You can only remove yourself from contractor associations');
+    }
+
+    // Remove landlord ID from contractor's landlords array
+    const landlordObjectId = new mongoose.Types.ObjectId(landlordId);
+    await this.contractorModel
+      .findByIdAndUpdate(contractorId, { $pull: { landlords: landlordObjectId } })
+      .exec();
+
+    return { message: 'Contractor removed from your organization successfully' };
+  }
+
+  async findContractorByUserEmail(email: string): Promise<Contractor | null> {
+    const user = await this.userModel
+      .findOne({
+        email: email.toLowerCase(),
+        user_type: UserType.CONTRACTOR,
+      })
+      .exec();
+
+    if (!user || !user.organization_id) {
+      return null;
+    }
+
+    return this.contractorModel.findById(user.organization_id).exec();
   }
 
   async update(id: string, updateContractorDto: UpdateContractorDto, currentUser: UserDocument) {

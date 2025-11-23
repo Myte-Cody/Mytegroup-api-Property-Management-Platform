@@ -156,11 +156,14 @@ export class CaslAbilityFactory {
     can(Action.Manage, Invoice, { landlord: landlordId });
     can(Action.Manage, Expense, { landlord: landlordId });
 
-    // Shared resources - can read and create all, but manage only own data
-    can(Action.Read, Tenant);
-    can(Action.Create, Tenant);
-    can(Action.Read, Contractor);
-    can(Action.Create, Contractor);
+    // Shared resources - landlords can only see tenants/contractors that have their ID in landlords array
+    // They can also invite (create invitations for) new tenants/contractors
+    can(Action.Read, Tenant, { landlords: landlordId });
+    can(Action.Update, Tenant, { landlords: landlordId });
+    can(Action.Delete, Tenant, { landlords: landlordId });
+    can(Action.Read, Contractor, { landlords: landlordId });
+    can(Action.Update, Contractor, { landlords: landlordId });
+    can(Action.Delete, Contractor, { landlords: landlordId });
 
     // Other resources
     can(Action.Manage, Invitation);
@@ -207,11 +210,9 @@ export class CaslAbilityFactory {
     can(Action.Read, Expense, { landlord: landlordId });
     can(Action.Read, Invoice, { landlord: landlordId });
 
-    // Shared resources - can read and create all
-    can(Action.Read, Tenant);
-    can(Action.Create, Tenant);
-    can(Action.Read, Contractor);
-    can(Action.Create, Contractor);
+    // Shared resources - staff can only see tenants/contractors that have their landlord ID in landlords array
+    can(Action.Read, Tenant, { landlords: landlordId });
+    can(Action.Read, Contractor, { landlords: landlordId });
 
     // Other resources
     can(Action.Manage, Invitation);

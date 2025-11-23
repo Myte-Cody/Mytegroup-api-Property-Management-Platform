@@ -489,6 +489,7 @@ export class LeasesService {
       try {
         const newRentalPeriod = new this.rentalPeriodModel({
           lease: id,
+          landlord: lease.landlord,
           startDate: normalizeToUTCStartOfDay(renewalData.startDate),
           endDate: normalizeToUTCStartOfDay(renewalData.endDate),
           rentAmount: newRentAmount,
@@ -520,6 +521,7 @@ export class LeasesService {
           savedNewRentalPeriod._id.toString(),
           newRentAmount,
           transactionSchedule,
+          lease.landlord.toString(),
           session,
           propertyId,
           unitId,
@@ -1190,6 +1192,7 @@ export class LeasesService {
       }
       const initialRentalPeriod = new this.rentalPeriodModel({
         lease: lease._id,
+        landlord: lease.landlord,
         startDate: normalizeToUTCStartOfDay(lease.startDate),
         endDate: normalizeToUTCStartOfDay(lease.endDate),
         rentAmount: lease.rentAmount,
@@ -1217,6 +1220,7 @@ export class LeasesService {
         initialRentalPeriod._id.toString(),
         lease.rentAmount,
         transactionSchedule,
+        lease.landlord.toString(),
         session,
         propertyId,
         unitId,
@@ -1227,6 +1231,7 @@ export class LeasesService {
           lease._id.toString(),
           lease.securityDepositAmount,
           lease.startDate,
+          lease.landlord.toString(),
           session,
           propertyId,
           unitId,
@@ -1322,6 +1327,7 @@ export class LeasesService {
         lease.securityDepositAmount,
         totalDeductions,
         assessmentDto,
+        lease.landlord.toString(),
         session,
         propertyId,
         unitId,
@@ -1434,6 +1440,7 @@ export class LeasesService {
       currentRentalPeriod._id.toString(),
       currentRentalPeriod.rentAmount,
       transactionSchedule,
+      lease.landlord.toString(),
       session,
       propertyId,
       unitId,
@@ -1457,6 +1464,7 @@ export class LeasesService {
     rentalPeriodId: string,
     amount: number,
     dueDates: Date[],
+    landlordId: string,
     session?: ClientSession,
     propertyId?: string,
     unitId?: string,
@@ -1465,6 +1473,7 @@ export class LeasesService {
       const transaction = new this.transactionModel({
         lease: leaseId,
         rentalPeriod: rentalPeriodId,
+        landlord: landlordId,
         amount: amount,
         type: PaymentType.RENT,
         status: PaymentStatus.PENDING,
@@ -1482,12 +1491,14 @@ export class LeasesService {
     leaseId: string,
     amount: number,
     dueDate: Date,
+    landlordId: string,
     session?: ClientSession,
     propertyId?: string,
     unitId?: string,
   ): Promise<void> {
     const securityDepositTransaction = new this.transactionModel({
       lease: leaseId,
+      landlord: landlordId,
       amount: amount,
       type: PaymentType.DEPOSIT,
       status: PaymentStatus.PENDING,
@@ -1956,6 +1967,7 @@ export class LeasesService {
     fullDepositAmount: number,
     totalDeductions: number,
     assessmentDto: any,
+    landlordId: string,
     session: ClientSession | null,
     propertyId?: string,
     unitId?: string,
@@ -1963,6 +1975,7 @@ export class LeasesService {
     // Always create refund transaction (negative amount - money going TO tenant)
     const refundTransaction = new this.transactionModel({
       lease: leaseId,
+      landlord: landlordId,
       amount: -fullDepositAmount, // Negative amount - money flowing to tenant
       type: PaymentType.DEPOSIT_REFUND,
       status: PaymentStatus.PAID,
@@ -1979,6 +1992,7 @@ export class LeasesService {
     if (totalDeductions > 0) {
       const deductionTransaction = new this.transactionModel({
         lease: leaseId,
+        landlord: landlordId,
         amount: totalDeductions, // Positive amount - money kept by landlord
         type: PaymentType.DEPOSIT_DEDUCTION,
         status: PaymentStatus.PAID,

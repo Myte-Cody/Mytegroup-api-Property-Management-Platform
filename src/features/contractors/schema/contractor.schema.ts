@@ -1,6 +1,6 @@
 import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { SoftDelete } from 'src/common/interfaces/soft-delete.interface';
 
@@ -11,6 +11,9 @@ export class Contractor extends Document implements SoftDelete {
 
   @Prop({ required: true })
   category: string;
+
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Landlord' }], default: [] })
+  landlords: Types.ObjectId[];
 
   deleted: boolean;
   deletedAt?: Date;

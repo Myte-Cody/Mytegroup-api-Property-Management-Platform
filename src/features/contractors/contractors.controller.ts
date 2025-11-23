@@ -114,6 +114,25 @@ export class ContractorsController {
     return this.contractorsService.remove(id, user);
   }
 
+  @Delete(':id/remove-from-organization')
+  @CheckPolicies(new DeleteContractorPolicyHandler())
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Remove contractor from landlord organization (removes landlord ID from contractor landlords array)',
+  })
+  @ApiParam({ name: 'id', description: 'Contractor ID', type: String })
+  removeFromOrganization(
+    @Param('id', MongoIdValidationPipe) id: string,
+    @CurrentUser() user: User,
+  ) {
+    const landlordId = user.organization_id?.toString();
+    if (!landlordId) {
+      throw new Error('User does not have an organization');
+    }
+    return this.contractorsService.removeLandlordFromContractor(id, landlordId, user);
+  }
+
   // Contractor Users Management Endpoints
   @Get(':id/users')
   @CheckPolicies(new ReadContractorPolicyHandler())

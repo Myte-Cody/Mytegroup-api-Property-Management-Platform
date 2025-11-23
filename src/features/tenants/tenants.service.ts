@@ -125,13 +125,19 @@ export class TenantsService {
     const pipeline: any[] = [];
 
     // Stage 1: Match accessible tenants (CASL filter) and ensure not deleted
-    pipeline.push({
-      $match: {
-        deleted: false,
-      },
-    });
+    // For landlords, filter by landlords array containing their organization ID
+    const matchStage: any = {
+      deleted: false,
+    };
 
-    const accessibleConditions = (ability as any).rulesFor(Action.Read, Tenant);
+    // Apply landlord filter if user is a landlord
+    if (currentUser.user_type === 'Landlord' && currentUser.organization_id) {
+      matchStage.landlords = currentUser.organization_id;
+    }
+
+    pipeline.push({
+      $match: matchStage,
+    });
 
     // Stage 2: Lookup primary user to get email and phone
     pipeline.push({
@@ -308,6 +314,15 @@ export class TenantsService {
 
     if (!tenant) {
       throw new NotFoundException(`Tenant with ID ${id} not found`);
+    }
+
+    // For landlords, verify they have access to this specific tenant
+    if (currentUser.user_type === 'Landlord' && currentUser.organization_id) {
+      const landlordId = currentUser.organization_id.toString();
+      const hasAccess = tenant.landlords?.some((id) => id.toString() === landlordId);
+      if (!hasAccess) {
+        throw new ForbiddenException('You do not have permission to view this tenant');
+      }
     }
 
     // CASL: Final permission check on the specific record
@@ -543,7 +558,11 @@ export class TenantsService {
     });
   }
 
-  async createFromInvitation(createTenantDto: CreateTenantDto, session?: ClientSession) {
+  async createFromInvitation(
+    createTenantDto: CreateTenantDto,
+    landlordId?: string,
+    session?: ClientSession,
+  ) {
     // Extract user data from DTO
     const { email, password, name, username, firstName, lastName, phone, invitationContext } =
       createTenantDto;
@@ -554,6 +573,7 @@ export class TenantsService {
     // Create tenant
     const tenantData: any = {
       name,
+      landlords: landlordId ? [new mongoose.Types.ObjectId(landlordId)] : [],
     };
 
     if (invitationContext) {
@@ -578,6 +598,75 @@ export class TenantsService {
     await this.usersService.createFromInvitation(userData, session);
 
     return savedTenant;
+  }
+
+  async addLandlordToTenant(tenantId: string, landlordId: string, session?: ClientSession) {
+    const tenant = await this.tenantModel.findById(tenantId).exec();
+
+    if (!tenant) {
+      throw new NotFoundException(`Tenant with ID ${tenantId} not found`);
+    }
+
+    // Add landlord ID if not already present
+    const landlordObjectId = new mongoose.Types.ObjectId(landlordId);
+    const landlordExists = tenant.landlords?.some((id) => id.equals(landlordObjectId));
+
+    if (!landlordExists) {
+      await this.tenantModel
+        .findByIdAndUpdate(
+          tenantId,
+          { $addToSet: { landlords: landlordObjectId } },
+          { session: session ?? null },
+        )
+        .exec();
+    }
+
+    return tenant;
+  }
+
+  async removeLandlordFromTenant(tenantId: string, landlordId: string, currentUser: UserDocument) {
+    // CASL: Check permission
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+
+    const tenant = await this.tenantModel.findById(tenantId).exec();
+
+    if (!tenant) {
+      throw new NotFoundException(`Tenant with ID ${tenantId} not found`);
+    }
+
+    // Only landlords can remove themselves from tenant
+    if (currentUser.user_type !== 'Landlord') {
+      throw new ForbiddenException('Only landlords can remove tenants from their organization');
+    }
+
+    // Verify the landlord is removing their own ID
+    const currentLandlordId = currentUser.organization_id?.toString();
+    if (currentLandlordId !== landlordId) {
+      throw new ForbiddenException('You can only remove yourself from tenant associations');
+    }
+
+    // Remove landlord ID from tenant's landlords array
+    const landlordObjectId = new mongoose.Types.ObjectId(landlordId);
+    await this.tenantModel
+      .findByIdAndUpdate(tenantId, { $pull: { landlords: landlordObjectId } })
+      .exec();
+
+    return { message: 'Tenant removed from your organization successfully' };
+  }
+
+  async findTenantByUserEmail(email: string): Promise<Tenant | null> {
+    const user = await this.userModel
+      .findOne({
+        email: email.toLowerCase(),
+        user_type: UserType.TENANT,
+      })
+      .exec();
+
+    if (!user || !user.organization_id) {
+      return null;
+    }
+
+    return this.tenantModel.findById(user.organization_id).exec();
   }
 
   async update(id: string, updateTenantDto: UpdateTenantDto, currentUser: UserDocument) {

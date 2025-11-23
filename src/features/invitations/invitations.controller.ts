@@ -48,15 +48,17 @@ export class InvitationsController {
     type: 'string',
   })
   async validateToken(@Param('token') token: string) {
-    const invitation = await this.invitationsService.findByToken(token);
+    const { invitation, existingUser, requiresForm } =
+      await this.invitationsService.findByToken(token);
     return {
-      valid: true,
       invitation: {
         entityType: invitation.entityType,
         email: invitation.email,
         entityData: invitation.entityData,
         expiresAt: invitation.expiresAt,
       },
+      existingUser,
+      requiresForm,
     };
   }
 
