@@ -14,8 +14,10 @@ import { Types } from 'mongoose';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
+import { Contractor } from '../contractors/schema/contractor.schema';
 import { AuthEmailService } from '../email/services/auth-email.service';
 import { Landlord } from '../landlords/schema/landlord.schema';
+import { Tenant } from '../tenants/schema/tenant.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
@@ -24,12 +26,16 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { PasswordReset } from './schemas/password-reset.schema';
 import { Session } from './schemas/session.schema';
 import { VerificationToken } from './schemas/verification-token.schema';
+import { CreateTenantDto } from '../tenants/dto/create-tenant.dto';
+import { CreateContractorDto } from '../contractors/dto/create-contractor.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectModel(User.name) private readonly userModel: AppModel<UserDocument>,
     @InjectModel(Landlord.name) private readonly landlordModel: AppModel<Landlord>,
+    @InjectModel(Tenant.name) private readonly tenantModel: AppModel<Tenant>,
+    @InjectModel(Contractor.name) private readonly contractorModel: AppModel<Contractor>,
     @InjectModel(Session.name) private readonly sessionModel: AppModel<Session>,
     @InjectModel(PasswordReset.name)
     private readonly passwordResetModel: AppModel<PasswordReset>,
@@ -393,6 +399,119 @@ export class AuthService {
       organization: {
         _id: savedLandlord._id,
         name: landlordName,
+      },
+    };
+  }
+
+  async registerTenant(dto: CreateTenantDto, res?: any) {
+    const existing = await this.userModel.findOne({ email: dto.email.toLowerCase() }).exec();
+    if (existing) {
+      throw new BadRequestException('Email is already registered');
+    }
+
+    const existingUsername = await this.userModel
+      .findOne({ username: dto.username.toLowerCase() })
+      .exec();
+    if (existingUsername) {
+      throw new BadRequestException('Username is already taken');
+    }
+
+    const existingTenant = await this.tenantModel
+      .findOne({ name: { $regex: new RegExp(`^${dto.name}$`, 'i') } })
+      .exec();
+    if (existingTenant) {
+      throw new BadRequestException('A tenant with this name already exists');
+    }
+
+    const tenant = new this.tenantModel({ name: dto.name });
+    const savedTenant = await tenant.save();
+
+    const hashed = await this.hashPassword(dto.password);
+    const user = new this.userModel({
+      username: dto.username.toLowerCase(),
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      email: dto.email.toLowerCase(),
+      phone: dto.phone,
+      password: hashed,
+      user_type: UserType.TENANT,
+      organization_id: savedTenant._id,
+      isPrimary: true,
+      role: UserRole.TENANT,
+    });
+    const savedUser = await user.save();
+
+    if (res) {
+      this.clearAuthCookies(res);
+    }
+
+    try {
+      await this.requestEmailVerification(savedUser as any);
+    } catch {}
+
+    return {
+      success: true,
+      message: 'Registration successful. Please verify your email before signing in.',
+      organization: {
+        _id: savedTenant._id,
+        name: dto.name,
+      },
+    };
+  }
+
+  async registerContractor(dto: CreateContractorDto, res?: any) {
+    const existing = await this.userModel.findOne({ email: dto.email.toLowerCase() }).exec();
+    if (existing) {
+      throw new BadRequestException('Email is already registered');
+    }
+
+    const existingUsername = await this.userModel
+      .findOne({ username: dto.username.toLowerCase() })
+      .exec();
+    if (existingUsername) {
+      throw new BadRequestException('Username is already taken');
+    }
+
+    const existingContractor = await this.contractorModel.findOne({ name: dto.name }).exec();
+    if (existingContractor) {
+      throw new BadRequestException('A contractor with this name already exists');
+    }
+
+    const contractor = new this.contractorModel({
+      name: dto.name,
+      category: dto.category,
+    });
+    const savedContractor = await contractor.save();
+
+    const hashed = await this.hashPassword(dto.password);
+    const user = new this.userModel({
+      username: dto.username.toLowerCase(),
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      email: dto.email.toLowerCase(),
+      phone: dto.phone,
+      password: hashed,
+      user_type: UserType.CONTRACTOR,
+      organization_id: savedContractor._id,
+      isPrimary: true,
+      role: UserRole.CONTRACTOR,
+    });
+    const savedUser = await user.save();
+
+    if (res) {
+      this.clearAuthCookies(res);
+    }
+
+    try {
+      await this.requestEmailVerification(savedUser as any);
+    } catch {}
+
+    return {
+      success: true,
+      message: 'Registration successful. Please verify your email before signing in.',
+      organization: {
+        _id: savedContractor._id,
+        name: dto.name,
       },
     };
   }

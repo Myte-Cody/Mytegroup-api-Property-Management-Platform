@@ -5,6 +5,8 @@ import { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtGuard } from '../../common/guards/optional-jwt.guard';
+import { CreateContractorDto } from '../contractors/dto/create-contractor.dto';
+import { CreateTenantDto } from '../tenants/dto/create-tenant.dto';
 import type { UserDocument } from '../users/schemas/user.schema';
 import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -31,10 +33,29 @@ export class AuthController {
 
   @Public()
   @ApiBody({ type: RegisterDto })
-  @Post('register')
+  @Post('register/landlord')
+  @ApiOperation({ summary: 'Register a new landlord account' })
   @Throttle({ register: { limit: 3, ttl: 60 } })
-  register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
+  registerLandlord(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
     return this.authService.registerLandlord(dto, res);
+  }
+
+  @Public()
+  @ApiBody({ type: CreateTenantDto })
+  @Post('register/tenant')
+  @ApiOperation({ summary: 'Register a new tenant account' })
+  @Throttle({ register: { limit: 3, ttl: 60 } })
+  registerTenant(@Body() dto: CreateTenantDto, @Res({ passthrough: true }) res: Response) {
+    return this.authService.registerTenant(dto, res);
+  }
+
+  @Public()
+  @ApiBody({ type: CreateContractorDto })
+  @Post('register/contractor')
+  @ApiOperation({ summary: 'Register a new contractor account' })
+  @Throttle({ register: { limit: 3, ttl: 60 } })
+  registerContractor(@Body() dto: CreateContractorDto, @Res({ passthrough: true }) res: Response) {
+    return this.authService.registerContractor(dto, res);
   }
 
   @Public()
