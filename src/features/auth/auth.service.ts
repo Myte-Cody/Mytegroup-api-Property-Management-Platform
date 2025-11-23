@@ -294,18 +294,16 @@ export class AuthService {
       const domain = this.getCookieDomain();
       res.cookie(
         'user-data',
-        encodeURIComponent(
-          JSON.stringify({
-            _id: user._id,
-            username: user.username,
-            email: user.email,
-            user_type: user.user_type,
-            organization_id: user.organization_id,
-            isPrimary: user.isPrimary,
-            emailVerifiedAt: user.emailVerifiedAt || null,
-            role: resolvedRole,
-          }),
-        ),
+        JSON.stringify({
+          _id: user._id,
+          username: user.username,
+          email: user.email,
+          user_type: user.user_type,
+          organization_id: user.organization_id,
+          isPrimary: user.isPrimary,
+          emailVerifiedAt: user.emailVerifiedAt || null,
+          role: resolvedRole,
+        }),
         {
           httpOnly: false,
           secure: isProd,
@@ -605,18 +603,16 @@ export class AuthService {
 
       res.cookie(
         'user-data',
-        encodeURIComponent(
-          JSON.stringify({
-            _id: user._id,
-            username: user.username,
-            email: user.email,
-            user_type: user.user_type,
-            organization_id: user.organization_id,
-            isPrimary: user.isPrimary,
-            emailVerifiedAt: user.emailVerifiedAt || null,
-            role: resolvedRole,
-          }),
-        ),
+        JSON.stringify({
+          _id: user._id,
+          username: user.username,
+          email: user.email,
+          user_type: user.user_type,
+          organization_id: user.organization_id,
+          isPrimary: user.isPrimary,
+          emailVerifiedAt: user.emailVerifiedAt || null,
+          role: resolvedRole,
+        }),
         {
           httpOnly: false,
           secure: isProd,
