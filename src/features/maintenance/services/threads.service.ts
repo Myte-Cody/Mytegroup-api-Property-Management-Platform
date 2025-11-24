@@ -719,7 +719,7 @@ export class ThreadsService {
 
   /**
    * Auto-create thread for a lease activation
-   * Creates a LANDLORD_TENANT thread connecting landlord and tenant organizations
+   * Creates a LANDLORD_TENANT thread connecting all landlord and tenant users
    */
   async createThreadForLease(
     leaseId: string,
@@ -734,6 +734,8 @@ export class ThreadsService {
     });
 
     if (existingThread) {
+      // Thread exists, ensure all tenant users are added as participants
+      await this.addTenantUsersToThread(existingThread, tenantId);
       return existingThread;
     }
 
@@ -761,32 +763,96 @@ export class ThreadsService {
 
     const savedThread = await thread.save();
 
-    // Create participants: landlord and tenant (both mandatory and ACTIVE)
-    const participants = [
-      {
-        thread: savedThread._id,
-        participantType: ParticipantType.LANDLORD,
-        participantId: new Types.ObjectId(landlordId),
-        participantModel: 'Landlord',
-        status: ParticipantStatus.ACTIVE,
-        isMandatory: true,
-      },
-      {
-        thread: savedThread._id,
-        participantType: ParticipantType.TENANT,
-        participantId: new Types.ObjectId(tenantId),
-        participantModel: 'Tenant',
-        status: ParticipantStatus.ACTIVE,
-        isMandatory: true,
-      },
-    ];
+    // Get all landlord users
+    const landlordUsers = await this.userModel
+      .find({
+        organization_id: new Types.ObjectId(landlordId),
+        user_type: 'Landlord',
+        deleted: { $ne: true },
+      })
+      .select('_id');
 
-    await this.threadParticipantModel.insertMany(participants);
+    // Get all tenant users
+    const tenantUsers = await this.userModel
+      .find({
+        organization_id: new Types.ObjectId(tenantId),
+        user_type: 'Tenant',
+        deleted: { $ne: true },
+      })
+      .select('_id');
+
+    // Create participants for all landlord users
+    const landlordParticipants = landlordUsers.map((user) => ({
+      thread: savedThread._id,
+      participantType: ParticipantType.LANDLORD,
+      participantId: user._id,
+      participantModel: 'User',
+      status: ParticipantStatus.ACTIVE,
+      isMandatory: true,
+    }));
+
+    // Create participants for all tenant users
+    const tenantParticipants = tenantUsers.map((user) => ({
+      thread: savedThread._id,
+      participantType: ParticipantType.TENANT,
+      participantId: user._id,
+      participantModel: 'User',
+      status: ParticipantStatus.ACTIVE,
+      isMandatory: true,
+    }));
+
+    const allParticipants = [...landlordParticipants, ...tenantParticipants];
+
+    if (allParticipants.length > 0) {
+      await this.threadParticipantModel.insertMany(allParticipants);
+    }
 
     // Send notifications to all users of both landlord and tenant
     await this.sendLeaseThreadNotifications(savedThread, landlordId, tenantId);
 
     return savedThread;
+  }
+
+  /**
+   * Add tenant users to an existing thread if they are not already participants
+   */
+  private async addTenantUsersToThread(
+    thread: ThreadDocument,
+    tenantId: string,
+  ): Promise<void> {
+    // Get all tenant users
+    const tenantUsers = await this.userModel
+      .find({
+        organization_id: new Types.ObjectId(tenantId),
+        user_type: 'Tenant',
+        deleted: { $ne: true },
+      })
+      .select('_id');
+
+    // Get existing participants for this thread
+    const existingParticipants = await this.threadParticipantModel
+      .find({ thread: thread._id })
+      .select('participantId');
+
+    const existingParticipantIds = new Set(
+      existingParticipants.map((p) => p.participantId.toString()),
+    );
+
+    // Create participants for tenant users who are not already in the thread
+    const newParticipants = tenantUsers
+      .filter((user) => !existingParticipantIds.has(user._id.toString()))
+      .map((user) => ({
+        thread: thread._id,
+        participantType: ParticipantType.TENANT,
+        participantId: user._id,
+        participantModel: 'User',
+        status: ParticipantStatus.ACTIVE,
+        isMandatory: true,
+      }));
+
+    if (newParticipants.length > 0) {
+      await this.threadParticipantModel.insertMany(newParticipants);
+    }
   }
 
   /**

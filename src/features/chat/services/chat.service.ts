@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { MemoryStoredFile } from 'nestjs-form-data';
+import { Lease } from '../../leases/schemas/lease.schema';
 import {
   MessageSenderType,
   ThreadMessage,
@@ -38,6 +39,8 @@ export class ChatService {
     private userModel: Model<UserDocument>,
     @InjectModel(Tenant.name)
     private tenantModel: Model<Tenant>,
+    @InjectModel(Lease.name)
+    private leaseModel: Model<Lease>,
     private notificationsService: NotificationsService,
     private chatGateway: ChatGateway,
     private mediaService: MediaService,
@@ -134,22 +137,23 @@ export class ChatService {
   }
 
   /**
-   * Get all chat sessions for a user
+   * Get all chat sessions for a user (includes both tenant-to-tenant chats and lease chats)
    */
   async getChatSessions(userId: string): Promise<any[]> {
-    // Find all participants records for this user
+    // Find all participants records for this user (regardless of participant type)
     const participantRecords = await this.threadParticipantModel
       .find({
-        participantType: ParticipantType.TENANT,
         participantId: new Types.ObjectId(userId),
       })
       .populate('thread');
 
-    // Filter for TENANT_CHAT threads
+    // Filter for TENANT_CHAT and LEASE threads
     const chatThreadIds = participantRecords
       .filter(
         (p) =>
-          p.thread && (p.thread as any).linkedEntityType === ThreadLinkedEntityType.TENANT_CHAT,
+          p.thread &&
+          ((p.thread as any).linkedEntityType === ThreadLinkedEntityType.TENANT_CHAT ||
+            (p.thread as any).linkedEntityType === ThreadLinkedEntityType.LEASE),
       )
       .map((p) => (p.thread as any)._id);
 
@@ -161,6 +165,27 @@ export class ChatService {
     const threads = await this.threadModel
       .find({ _id: { $in: chatThreadIds } })
       .sort({ updatedAt: -1 });
+
+    // Get lease IDs from LEASE type threads to fetch property names
+    const leaseThreads = threads.filter((t) => t.linkedEntityType === ThreadLinkedEntityType.LEASE);
+    const leaseIds = leaseThreads.map((t) => t.linkedEntityId);
+
+    // Fetch leases with property information
+    const leases = await this.leaseModel
+      .find({ _id: { $in: leaseIds } })
+      .populate({
+        path: 'unit',
+        select: 'unitNumber',
+        populate: { path: 'property', select: 'name' },
+      })
+      .lean();
+
+    // Create a map of leaseId to property name
+    const leasePropertyMap = new Map<string, string>();
+    leases.forEach((lease: any) => {
+      const title = lease.unit?.property?.name || 'Property';
+      leasePropertyMap.set(lease._id.toString(), title);
+    });
 
     // Get all participants for all threads in one query (without populate)
     const allParticipants = await this.threadParticipantModel
@@ -225,10 +250,20 @@ export class ChatService {
       const otherUserId = otherParticipant?.participantId?.toString();
       const otherUserInfo = otherUserId ? usersMap.get(otherUserId) : null;
 
+      // For LEASE threads, use property name as title
+      let title = null;
+      if (thread.linkedEntityType === ThreadLinkedEntityType.LEASE) {
+        const leaseId = thread.linkedEntityId?.toString();
+        title = leasePropertyMap.get(leaseId) || thread.title;
+      }
+
       return {
         _id: thread._id,
         threadId: thread._id,
-        title: thread.title,
+        title,
+        linkedEntityType: thread.linkedEntityType,
+        linkedEntityId: thread.linkedEntityId,
+        threadType: thread.threadType,
         otherUser: otherUserInfo
           ? {
               _id: otherUserInfo._id,

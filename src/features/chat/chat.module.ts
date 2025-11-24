@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { Lease, LeaseSchema } from '../leases/schemas/lease.schema';
 import { ThreadMessage, ThreadMessageSchema } from '../maintenance/schemas/thread-message.schema';
 import {
   ThreadParticipant,
@@ -24,6 +25,7 @@ import { ChatService } from './services/chat.service';
       { name: User.name, schema: UserSchema },
       { name: Tenant.name, schema: TenantSchema },
       { name: Media.name, schema: MediaSchema },
+      { name: Lease.name, schema: LeaseSchema },
     ]),
     MediaModule,
     NotificationsModule,
