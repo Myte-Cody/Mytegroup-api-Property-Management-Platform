@@ -12,9 +12,10 @@ import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { SessionService } from '../../common/services/session.service';
+import { AuthService } from '../auth/auth.service';
 import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
 import { InvitationEmailService } from '../email/services/invitation-email.service';
-import type { UserDocument } from '../users/schemas/user.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { InvitationQueryDto } from './dto/invitation-query.dto';
@@ -26,10 +27,13 @@ export class InvitationsService {
   constructor(
     @InjectModel(Invitation.name)
     private readonly invitationModel: AppModel<Invitation>,
+    @InjectModel(User.name)
+    private readonly userModel: AppModel<UserDocument>,
     private readonly caslAuthorizationService: CaslAuthorizationService,
     private readonly invitationStrategyFactory: InvitationStrategyFactory,
     private readonly invitationEmailService: InvitationEmailService,
     private readonly sessionService: SessionService,
+    private readonly authService: AuthService,
   ) {}
 
   async create(
@@ -225,7 +229,11 @@ export class InvitationsService {
     };
   }
 
-  async acceptInvitation(token: string, acceptInvitationDto: AcceptInvitationDto): Promise<any> {
+  async acceptInvitation(
+    token: string,
+    acceptInvitationDto: AcceptInvitationDto,
+    res?: any,
+  ): Promise<any> {
     const { invitation, existingUser } = await this.findByToken(token);
 
     if (!invitation) {
@@ -245,6 +253,19 @@ export class InvitationsService {
       invitation.acceptedAt = new Date();
       await invitation.save({ session });
 
+      let authPayload: any = null;
+      // Auto-authenticate the user that just accepted, if we can resolve them.
+      const user = await this.userModel.findOne({ email: invitation.email.toLowerCase() }).exec();
+      if (user) {
+        if (!user.emailVerifiedAt) {
+          user.emailVerifiedAt = new Date();
+          await user.save({ session: session ?? undefined });
+        }
+        if (res) {
+          authPayload = await this.authService.issueAuthCookiesForUser(user, res);
+        }
+      }
+
       return {
         success: true,
         entityType: invitation.entityType,
@@ -253,6 +274,7 @@ export class InvitationsService {
         message: existingUser
           ? `Landlord added to your existing ${invitation.entityType} account`
           : `${invitation.entityType} account created successfully`,
+        auth: authPayload,
       };
     });
   }

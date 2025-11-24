@@ -219,6 +219,7 @@ jobs:
                   { "name": "APP_BASE_URL", "value": "https://${{ steps.get_repo_name.outputs.repo_name }}.mytecody.com" },
                   { "name": "CLIENT_BASE_URL", "value": "${{ secrets.CLIENT_BASE_URL }}" },
                   { "name": "CORS_ORIGINS_PROD", "value": "${{ secrets.CORS_ORIGINS_PROD }}" },
+                  { "name": "AUTH_COOKIE_DOMAIN", "value": "${{ secrets.AUTH_COOKIE_DOMAIN }}" },
 
                   { "name": "DB_URL", "value": "${{ secrets.DB_URL }}" },
                   { "name": "MONGO_DB_NAME", "value": "${{ secrets.MONGO_DB_NAME }}" },

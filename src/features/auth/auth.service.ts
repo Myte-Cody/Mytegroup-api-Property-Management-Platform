@@ -49,6 +49,30 @@ export class AuthService {
   private readonly maxFailedLoginAttempts = 5;
   private readonly lockoutBaseMinutes = 5;
 
+  private async purgeUnverifiedUser(existing: UserDocument) {
+    try {
+      await this.sessionModel.deleteMany({ userId: existing._id });
+      await this.passwordResetModel.deleteMany({ userId: existing._id });
+      await this.verificationModel.deleteMany({ userId: existing._id });
+    } catch {}
+
+    try {
+      if (existing.user_type === UserType.LANDLORD && existing.organization_id) {
+        await this.landlordModel.deleteOne({ _id: existing.organization_id });
+      }
+      if (existing.user_type === UserType.TENANT && existing.organization_id) {
+        await this.tenantModel.deleteOne({ _id: existing.organization_id });
+      }
+      if (existing.user_type === UserType.CONTRACTOR && existing.organization_id) {
+        await this.contractorModel.deleteOne({ _id: existing.organization_id });
+      }
+    } catch {}
+
+    try {
+      await this.userModel.deleteOne({ _id: existing._id });
+    } catch {}
+  }
+
   private getCookieDomain() {
     return this.configService.get<string>('auth.cookieDomain') || undefined;
   }
@@ -231,6 +255,53 @@ export class AuthService {
     });
   }
 
+  async issueAuthCookiesForUser(user: UserDocument, res: any, ip?: string, userAgent?: string) {
+    const accessToken = this.signAccessToken(user as any);
+    const refreshToken = this.newRefreshToken();
+    await this.createSession(user._id as any, refreshToken, ip, userAgent);
+    this.setAuthCookies(res, accessToken, refreshToken);
+
+    const resolvedRole = this.resolveUserRole(user as any);
+    const isProd = (this.configService.get<string>('NODE_ENV') || 'development') === 'production';
+    const domain = this.getCookieDomain();
+
+    res.cookie(
+      'user-data',
+      JSON.stringify({
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        user_type: user.user_type,
+        organization_id: user.organization_id,
+        isPrimary: user.isPrimary,
+        emailVerifiedAt: user.emailVerifiedAt || new Date(),
+        role: resolvedRole,
+      }),
+      {
+        httpOnly: false,
+        secure: isProd,
+        sameSite: 'lax',
+        domain,
+        path: '/',
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      },
+    );
+
+    return {
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        user_type: user.user_type,
+        organization_id: user.organization_id,
+        isPrimary: user.isPrimary,
+        emailVerifiedAt: user.emailVerifiedAt || null,
+        role: resolvedRole,
+      },
+      accessToken,
+    };
+  }
+
   private calculateLockoutDuration(attempts: number): number {
     if (attempts < this.maxFailedLoginAttempts) {
       return 0;
@@ -355,9 +426,13 @@ export class AuthService {
   }
 
   async registerLandlord(dto: RegisterDto, res?: any) {
-    const existing = await this.userModel.findOne({ email: dto.email }).exec();
+    const normalizedEmail = dto.email.toLowerCase();
+    const existing = await this.userModel.findOne({ email: normalizedEmail }).exec();
     if (existing) {
-      throw new BadRequestException('Email is already registered');
+      if (existing.emailVerifiedAt) {
+        throw new BadRequestException('Email is already registered');
+      }
+      await this.purgeUnverifiedUser(existing);
     }
 
     const requestedOrgName =
@@ -372,7 +447,7 @@ export class AuthService {
       username,
       firstName: dto.firstName,
       lastName: dto.lastName,
-      email: dto.email.toLowerCase(),
+      email: normalizedEmail,
       password: hashed,
       user_type: 'Landlord',
       organization_id: savedLandlord._id,
@@ -402,9 +477,13 @@ export class AuthService {
   }
 
   async registerTenant(dto: CreateTenantDto, res?: any) {
-    const existing = await this.userModel.findOne({ email: dto.email.toLowerCase() }).exec();
+    const normalizedEmail = dto.email.toLowerCase();
+    const existing = await this.userModel.findOne({ email: normalizedEmail }).exec();
     if (existing) {
-      throw new BadRequestException('Email is already registered');
+      if (existing.emailVerifiedAt) {
+        throw new BadRequestException('Email is already registered');
+      }
+      await this.purgeUnverifiedUser(existing);
     }
 
     const existingUsername = await this.userModel
@@ -429,7 +508,7 @@ export class AuthService {
       username: dto.username.toLowerCase(),
       firstName: dto.firstName,
       lastName: dto.lastName,
-      email: dto.email.toLowerCase(),
+      email: normalizedEmail,
       phone: dto.phone,
       password: hashed,
       user_type: UserType.TENANT,
@@ -458,9 +537,13 @@ export class AuthService {
   }
 
   async registerContractor(dto: CreateContractorDto, res?: any) {
-    const existing = await this.userModel.findOne({ email: dto.email.toLowerCase() }).exec();
+    const normalizedEmail = dto.email.toLowerCase();
+    const existing = await this.userModel.findOne({ email: normalizedEmail }).exec();
     if (existing) {
-      throw new BadRequestException('Email is already registered');
+      if (existing.emailVerifiedAt) {
+        throw new BadRequestException('Email is already registered');
+      }
+      await this.purgeUnverifiedUser(existing);
     }
 
     const existingUsername = await this.userModel
@@ -486,7 +569,7 @@ export class AuthService {
       username: dto.username.toLowerCase(),
       firstName: dto.firstName,
       lastName: dto.lastName,
-      email: dto.email.toLowerCase(),
+      email: normalizedEmail,
       phone: dto.phone,
       password: hashed,
       user_type: UserType.CONTRACTOR,

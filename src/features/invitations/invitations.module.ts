@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CaslModule } from '../../common/casl/casl.module';
+import { AuthModule } from '../auth/auth.module';
 import { ContractorModule } from '../contractors/contractor.module';
 import {
   MaintenanceTicket,
@@ -27,8 +28,9 @@ import { TenantInvitationStrategy } from './strategies/tenant-invitation.strateg
       { name: Property.name, schema: PropertySchema },
       { name: Unit.name, schema: UnitSchema },
       { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
-    ]),
+    ]), 
     CaslModule,
+    AuthModule,
     UsersModule,
     TenantsModule,
     ContractorModule,
