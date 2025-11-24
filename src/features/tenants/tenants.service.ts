@@ -511,6 +511,86 @@ export class TenantsService {
     return neighborLeases;
   }
 
+  async findMyProperties(currentUser: UserDocument) {
+    // Only tenant users can access their properties
+    if (currentUser.user_type !== 'Tenant') {
+      throw new ForbiddenException('Only tenant users can access this endpoint');
+    }
+
+    const tenantId = currentUser.organization_id;
+    if (!tenantId) {
+      throw new ForbiddenException('No tenant profile associated with this user');
+    }
+
+    // Find all active leases for the current tenant with unit and property populated
+    const myLeases = await this.leaseModel
+      .find({
+        tenant: tenantId,
+        status: LeaseStatus.ACTIVE,
+        deleted: false,
+      })
+      .populate({
+        path: 'unit',
+        populate: {
+          path: 'property',
+        },
+      })
+      .exec();
+
+    if (!myLeases || myLeases.length === 0) {
+      return [];
+    }
+
+    // Group units by property
+    const propertiesMap = new Map<
+      string,
+      {
+        _id: string;
+        name: string;
+        address: any;
+        description?: string;
+        units: Array<{
+          _id: string;
+          unitNumber: string;
+          size: number;
+          type: string;
+        }>;
+      }
+    >();
+
+    for (const lease of myLeases) {
+      const unit = lease.unit as any;
+      if (!unit || !unit.property) continue;
+
+      const property = unit.property;
+      const propertyId = property._id.toString();
+
+      if (!propertiesMap.has(propertyId)) {
+        propertiesMap.set(propertyId, {
+          _id: propertyId,
+          name: property.name,
+          address: property.address,
+          description: property.description,
+          units: [],
+        });
+      }
+
+      const propertyData = propertiesMap.get(propertyId)!;
+      // Add unit if not already added
+      const unitExists = propertyData.units.some((u) => u._id === unit._id.toString());
+      if (!unitExists) {
+        propertyData.units.push({
+          _id: unit._id.toString(),
+          unitNumber: unit.unitNumber,
+          size: unit.size,
+          type: unit.type,
+        });
+      }
+    }
+
+    return Array.from(propertiesMap.values());
+  }
+
   async create(createTenantDto: CreateTenantDto, currentUser: UserDocument) {
     // CASL: Check create permission
 

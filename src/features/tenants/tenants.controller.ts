@@ -68,6 +68,17 @@ export class TenantsController {
     return this.tenantsService.findMyNeighbors(user);
   }
 
+  @Get('me/properties')
+  @CheckPolicies(new ReadTenantPolicyHandler())
+  @ApiOperation({
+    summary: 'Get properties with leased units for the current tenant',
+    description:
+      'Returns only properties where the tenant has active leases, with only the units they are leasing',
+  })
+  findMyProperties(@CurrentUser() user: User) {
+    return this.tenantsService.findMyProperties(user);
+  }
+
   @Get(':id')
   @CheckPolicies(new ReadTenantPolicyHandler())
   @ApiOperation({ summary: 'Get tenant by ID' })
