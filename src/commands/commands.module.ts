@@ -28,6 +28,7 @@ import { Property, PropertySchema } from '../features/properties/schemas/propert
 import { Unit, UnitSchema } from '../features/properties/schemas/unit.schema';
 import { Tenant, TenantSchema } from '../features/tenants/schema/tenant.schema';
 import { User, UserSchema } from '../features/users/schemas/user.schema';
+import { EmailTemplateSeeder } from '../features/email/services/email-template-seeder.service';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { User, UserSchema } from '../features/users/schemas/user.schema';
     SeedersService,
     BackfillUserRolesCommand,
     BackfillEmailTemplatesCommand,
+    EmailTemplateSeeder,
   ],
 })
 export class CommandsModule {}

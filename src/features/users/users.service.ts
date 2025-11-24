@@ -209,6 +209,8 @@ export class UsersService {
       organization_id,
       isPrimary: shouldBePrimary,
       role: resolvedRole,
+      // Invitation flows already proved ownership of the email, so mark verified to avoid extra steps.
+      emailVerifiedAt: new Date(),
     });
 
     // Save the user first to ensure it exists in the database

@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { Response } from 'express';
 import type { UserDocument } from '../users/schemas/user.schema';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
@@ -76,8 +77,9 @@ export class InvitationsController {
   async acceptInvitation(
     @Param('token') token: string,
     @Body() acceptInvitationDto: AcceptInvitationDto,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return this.invitationsService.acceptInvitation(token, acceptInvitationDto);
+    return this.invitationsService.acceptInvitation(token, acceptInvitationDto, res);
   }
 
   @Patch(':id/revoke')
