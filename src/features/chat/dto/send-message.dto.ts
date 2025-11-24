@@ -1,4 +1,5 @@
-import { IsArray, IsMongoId, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { HasMimeType, IsFiles, MaxFileSize, MemoryStoredFile } from 'nestjs-form-data';
 
 export class SendMessageDto {
   @IsNotEmpty()
@@ -7,7 +8,8 @@ export class SendMessageDto {
   message: string;
 
   @IsOptional()
-  @IsArray()
-  @IsMongoId({ each: true })
-  attachments?: string[];
+  @IsFiles()
+  @MaxFileSize(10 * 1024 * 1024, { each: true }) // 10MB per file
+  @HasMimeType(['image/*', 'application/pdf'], { each: true })
+  media?: MemoryStoredFile[];
 }

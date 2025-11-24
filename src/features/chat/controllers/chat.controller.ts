@@ -1,4 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { ApiConsumes } from '@nestjs/swagger';
+import { FormDataRequest } from 'nestjs-form-data';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { User } from '../../users/schemas/user.schema';
@@ -51,9 +53,11 @@ export class ChatController {
   }
 
   /**
-   * Send a message in a chat thread
+   * Send a message in a chat thread (with optional media)
    */
   @Post('sessions/:threadId/messages')
+  @FormDataRequest()
+  @ApiConsumes('multipart/form-data')
   async sendMessage(
     @CurrentUser() user: User,
     @Param('threadId') threadId: string,
@@ -65,7 +69,8 @@ export class ChatController {
       threadId,
       userId,
       sendMessageDto.message,
-      sendMessageDto.attachments,
+      sendMessageDto.media,
+      user,
     );
   }
 

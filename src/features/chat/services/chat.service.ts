@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { MemoryStoredFile } from 'nestjs-form-data';
 import {
   MessageSenderType,
   ThreadMessage,
@@ -18,6 +19,7 @@ import {
   ThreadLinkedEntityType,
   ThreadType,
 } from '../../maintenance/schemas/thread.schema';
+import { MediaService } from '../../media/services/media.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { Tenant } from '../../tenants/schema/tenant.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';
@@ -38,6 +40,7 @@ export class ChatService {
     private tenantModel: Model<Tenant>,
     private notificationsService: NotificationsService,
     private chatGateway: ChatGateway,
+    private mediaService: MediaService,
   ) {}
 
   /**
@@ -291,7 +294,8 @@ export class ChatService {
         .find({ thread: new Types.ObjectId(threadId) })
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit),
+        .limit(limit)
+        .populate('media'),
       this.threadMessageModel.countDocuments({
         thread: new Types.ObjectId(threadId),
       }),
@@ -309,22 +313,38 @@ export class ChatService {
     // Create a map of sender ID to sender info
     const senderMap = new Map(senders.map((sender) => [sender._id.toString(), sender]));
 
-    return {
-      messages: messages.reverse().map((msg) => {
-        const senderId = msg.senderId?.toString();
-        const sender = senderId ? senderMap.get(senderId) : null;
+    // Process messages with media URLs
+    const reversedMessages = messages.reverse();
 
-        return {
-          _id: msg._id,
-          message: msg.content,
-          content: msg.content,
-          sender: sender || null, // User object with firstName, lastName, profilePicture
-          senderId: msg.senderId, // User ID
-          senderType: msg.senderType,
-          createdAt: msg.createdAt,
-          updatedAt: msg.updatedAt,
-        };
-      }),
+    // Enrich media with URLs for all messages
+    for (const message of reversedMessages) {
+      if ((message as any).media && (message as any).media.length > 0) {
+        const enrichedMedia = await Promise.all(
+          (message as any).media.map((media: any) => this.mediaService.enrichMediaWithUrl(media)),
+        );
+        (message as any).media = enrichedMedia;
+      }
+    }
+
+    const messagesWithMedia = reversedMessages.map((msg) => {
+      const senderId = msg.senderId?.toString();
+      const sender = senderId ? senderMap.get(senderId) : null;
+
+      return {
+        _id: msg._id,
+        message: msg.content,
+        content: msg.content,
+        sender: sender || null, // User object with firstName, lastName, profilePicture
+        senderId: msg.senderId, // User ID
+        senderType: msg.senderType,
+        media: (msg as any).media || [],
+        createdAt: msg.createdAt,
+        updatedAt: msg.updatedAt,
+      };
+    });
+
+    return {
+      messages: messagesWithMedia,
       pagination: {
         total,
         page,
@@ -341,7 +361,8 @@ export class ChatService {
     threadId: string,
     userId: string,
     message: string,
-    attachments?: string[],
+    media?: MemoryStoredFile[],
+    currentUser?: User,
   ): Promise<ThreadMessageDocument> {
     // Verify the user is a participant
     const participant = await this.threadParticipantModel.findOne({
@@ -363,13 +384,71 @@ export class ChatService {
 
     const savedMessage = await threadMessage.save();
 
+    // Upload media files if provided
+    if (media && media.length > 0 && currentUser) {
+      for (const file of media) {
+        // Validate media type (only image or PDF allowed)
+        const allowedMimeTypes = [
+          'image/jpeg',
+          'image/png',
+          'image/gif',
+          'image/webp',
+          'image/jpg',
+          'application/pdf',
+        ];
+
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+          // Delete the message and throw error
+          await this.threadMessageModel.findByIdAndDelete(savedMessage._id);
+          throw new BadRequestException(
+            `Invalid media type. Only images and PDFs are allowed. Found: ${file.mimetype}`,
+          );
+        }
+
+        try {
+          // Upload media and link to the message
+          await this.mediaService.upload(
+            file,
+            savedMessage,
+            currentUser,
+            'chat-messages',
+            undefined,
+            'ThreadMessage',
+          );
+        } catch (error) {
+          // If upload fails, delete the message and re-throw
+          await this.threadMessageModel.findByIdAndDelete(savedMessage._id);
+          throw error;
+        }
+      }
+    }
+
     // Update thread's updatedAt
     await this.threadModel.findByIdAndUpdate(threadId, {
       updatedAt: new Date(),
     });
 
-    // Populate sender info
-    await savedMessage.populate('senderId', 'firstName lastName profilePicture');
+    // Populate sender info and media
+    const messageWithMedia = await this.threadMessageModel
+      .findById(savedMessage._id)
+      .populate('senderId', 'firstName lastName profilePicture')
+      .populate('media')
+      .exec();
+
+    // Enrich media with URLs
+    const hasAttachments =
+      messageWithMedia &&
+      (messageWithMedia as any).media &&
+      (messageWithMedia as any).media.length > 0;
+
+    if (hasAttachments) {
+      const enrichedMedia = await Promise.all(
+        (messageWithMedia as any).media.map((media: any) =>
+          this.mediaService.enrichMediaWithUrl(media),
+        ),
+      );
+      (messageWithMedia as any).media = enrichedMedia;
+    }
 
     // Get all participants to send WebSocket notification
     const allParticipants = await this.threadParticipantModel
@@ -385,7 +464,11 @@ export class ChatService {
 
     // Emit WebSocket event to all participants
     if (participantUserIds.length > 0) {
-      this.chatGateway.emitMessageToThread(participantUserIds, threadId, savedMessage.toObject());
+      this.chatGateway.emitMessageToThread(
+        participantUserIds,
+        threadId,
+        (messageWithMedia || savedMessage).toObject(),
+      );
     }
 
     // Send notification to other participant
@@ -401,7 +484,7 @@ export class ChatService {
       );
     }
 
-    return savedMessage;
+    return messageWithMedia || savedMessage;
   }
 
   /**
