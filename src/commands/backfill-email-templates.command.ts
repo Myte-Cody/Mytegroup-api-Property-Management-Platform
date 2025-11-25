@@ -11,9 +11,7 @@ import { EmailTemplateSeeder } from '../features/email/services/email-template-s
 export class BackfillEmailTemplatesCommand extends CommandRunner {
   private readonly logger = new Logger(BackfillEmailTemplatesCommand.name);
 
-  constructor(
-    private readonly seeder: EmailTemplateSeeder,
-  ) {
+  constructor(private readonly seeder: EmailTemplateSeeder) {
     super();
   }
 

@@ -20,6 +20,7 @@ export enum ThreadType {
 
   // For Tenant-to-Tenant Chat
   TENANT_TENANT = 'TENANT_TENANT', // Tenant ↔ Tenant direct chat
+  TENANT_TENANT_GROUP = 'TENANT_TENANT_GROUP', // Tenant group chat (multiple tenants)
 }
 
 export type ThreadDocument = Thread & Document;

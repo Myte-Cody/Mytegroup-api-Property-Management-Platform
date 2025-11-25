@@ -816,10 +816,7 @@ export class ThreadsService {
   /**
    * Add tenant users to an existing thread if they are not already participants
    */
-  private async addTenantUsersToThread(
-    thread: ThreadDocument,
-    tenantId: string,
-  ): Promise<void> {
+  private async addTenantUsersToThread(thread: ThreadDocument, tenantId: string): Promise<void> {
     // Get all tenant users
     const tenantUsers = await this.userModel
       .find({

@@ -2,6 +2,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { EmailTemplateInitializer } from './email-template.initializer';
 import { EmailService } from './email.service';
 import { EmailQueueProcessor } from './processors/email-queue.processor';
 import { EmailTemplate, EmailTemplateSchema } from './schemas/email-template.schema';
@@ -15,7 +16,6 @@ import { MaintenanceEmailService } from './services/maintenance-email.service';
 import { PaymentEmailService } from './services/payment-email.service';
 import { TemplateService } from './services/template.service';
 import { WelcomeEmailService } from './services/welcome-email.service';
-import { EmailTemplateInitializer } from './email-template.initializer';
 
 const enableQueues = process.env.REDIS_DISABLE !== 'true';
 

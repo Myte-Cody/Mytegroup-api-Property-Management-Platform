@@ -28,7 +28,7 @@ import { TenantInvitationStrategy } from './strategies/tenant-invitation.strateg
       { name: Property.name, schema: PropertySchema },
       { name: Unit.name, schema: UnitSchema },
       { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
-    ]), 
+    ]),
     CaslModule,
     AuthModule,
     UsersModule,

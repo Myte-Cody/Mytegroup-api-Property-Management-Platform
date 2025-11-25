@@ -12,6 +12,7 @@ import {
   EmailTemplate,
   EmailTemplateSchema,
 } from '../features/email/schemas/email-template.schema';
+import { EmailTemplateSeeder } from '../features/email/services/email-template-seeder.service';
 import { Landlord, LandlordSchema } from '../features/landlords/schema/landlord.schema';
 import { Lease, LeaseSchema } from '../features/leases/schemas/lease.schema';
 import { RentalPeriod, RentalPeriodSchema } from '../features/leases/schemas/rental-period.schema';
@@ -28,7 +29,6 @@ import { Property, PropertySchema } from '../features/properties/schemas/propert
 import { Unit, UnitSchema } from '../features/properties/schemas/unit.schema';
 import { Tenant, TenantSchema } from '../features/tenants/schema/tenant.schema';
 import { User, UserSchema } from '../features/users/schemas/user.schema';
-import { EmailTemplateSeeder } from '../features/email/services/email-template-seeder.service';
 
 @Module({
   imports: [

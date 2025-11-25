@@ -539,4 +539,178 @@ export class ChatService {
     // Mark all messages as read - in this simplified version, we don't track read status
     // You can add a readBy field to ThreadMessage schema if needed
   }
+
+  /**
+   * Create a group chat with multiple participants
+   */
+  async createGroupChat(
+    currentUserId: string,
+    title: string,
+    participantIds: string[],
+  ): Promise<ThreadDocument> {
+    // Validate all participant users exist
+    const participants = await this.userModel.find({
+      _id: { $in: participantIds },
+    });
+
+    if (participants.length !== participantIds.length) {
+      throw new BadRequestException('One or more participants not found');
+    }
+
+    // Check that current user is not trying to create a group with themselves only
+    if (participantIds.length === 1 && participantIds[0] === currentUserId) {
+      throw new BadRequestException('Cannot create group chat with only yourself');
+    }
+
+    // Add current user to participants if not already included
+    const allParticipantIds = new Set([...participantIds, currentUserId]);
+
+    // Create group chat thread
+    const thread = new this.threadModel({
+      title,
+      linkedEntityType: ThreadLinkedEntityType.TENANT_CHAT,
+      linkedEntityId: new Types.ObjectId(currentUserId), // Use creator's ID as linked entity
+      linkedEntityModel: 'User',
+      threadType: ThreadType.TENANT_TENANT_GROUP,
+    });
+
+    const savedThread = await thread.save();
+
+    // Create participants for all users
+    const participantRecords = Array.from(allParticipantIds).map((userId) => ({
+      thread: savedThread._id,
+      participantType: ParticipantType.TENANT,
+      participantId: new Types.ObjectId(userId),
+      participantModel: 'User',
+      status: ParticipantStatus.ACCEPTED,
+    }));
+
+    await this.threadParticipantModel.insertMany(participantRecords);
+
+    return savedThread;
+  }
+
+  /**
+   * Add members to a group chat
+   */
+  async addGroupMembers(threadId: string, currentUserId: string, userIds: string[]): Promise<void> {
+    // Verify the thread exists and is a group chat
+    const thread = await this.threadModel.findById(threadId);
+
+    if (!thread) {
+      throw new NotFoundException('Group chat not found');
+    }
+
+    if (thread.threadType !== ThreadType.TENANT_TENANT_GROUP) {
+      throw new BadRequestException('This operation is only allowed for group chats');
+    }
+
+    // Verify current user is a participant
+    const currentUserParticipant = await this.threadParticipantModel.findOne({
+      thread: new Types.ObjectId(threadId),
+      participantId: new Types.ObjectId(currentUserId),
+    });
+
+    if (!currentUserParticipant) {
+      throw new NotFoundException('Access denied');
+    }
+
+    // Validate all new users exist
+    const newUsers = await this.userModel.find({
+      _id: { $in: userIds },
+    });
+
+    if (newUsers.length !== userIds.length) {
+      throw new BadRequestException('One or more users not found');
+    }
+
+    // Get existing participants
+    const existingParticipants = await this.threadParticipantModel.find({
+      thread: new Types.ObjectId(threadId),
+    });
+
+    const existingUserIds = new Set(existingParticipants.map((p) => p.participantId.toString()));
+
+    // Filter out users who are already participants
+    const newUserIds = userIds.filter((userId) => !existingUserIds.has(userId));
+
+    if (newUserIds.length === 0) {
+      return; // No new users to add
+    }
+
+    // Create participant records for new users
+    const newParticipantRecords = newUserIds.map((userId) => ({
+      thread: new Types.ObjectId(threadId),
+      participantType: ParticipantType.TENANT,
+      participantId: new Types.ObjectId(userId),
+      participantModel: 'User',
+      status: ParticipantStatus.ACCEPTED,
+    }));
+
+    await this.threadParticipantModel.insertMany(newParticipantRecords);
+
+    // Update thread timestamp
+    await this.threadModel.findByIdAndUpdate(threadId, {
+      updatedAt: new Date(),
+    });
+  }
+
+  /**
+   * Remove a member from a group chat
+   */
+  async removeGroupMember(
+    threadId: string,
+    currentUserId: string,
+    userIdToRemove: string,
+  ): Promise<void> {
+    // Verify the thread exists and is a group chat
+    const thread = await this.threadModel.findById(threadId);
+
+    if (!thread) {
+      throw new NotFoundException('Group chat not found');
+    }
+
+    if (thread.threadType !== ThreadType.TENANT_TENANT_GROUP) {
+      throw new BadRequestException('This operation is only allowed for group chats');
+    }
+
+    // Verify current user is a participant
+    const currentUserParticipant = await this.threadParticipantModel.findOne({
+      thread: new Types.ObjectId(threadId),
+      participantId: new Types.ObjectId(currentUserId),
+    });
+
+    if (!currentUserParticipant) {
+      throw new NotFoundException('Access denied');
+    }
+
+    // Allow users to remove themselves or any member (you can add more restrictions here)
+    const participantToRemove = await this.threadParticipantModel.findOne({
+      thread: new Types.ObjectId(threadId),
+      participantId: new Types.ObjectId(userIdToRemove),
+    });
+
+    if (!participantToRemove) {
+      throw new NotFoundException('User is not a participant in this group chat');
+    }
+
+    // Remove the participant
+    await this.threadParticipantModel.findByIdAndDelete(participantToRemove._id);
+
+    // Update thread timestamp
+    await this.threadModel.findByIdAndUpdate(threadId, {
+      updatedAt: new Date(),
+    });
+
+    // Check if group has at least 2 members left, otherwise you might want to delete the thread
+    const remainingParticipants = await this.threadParticipantModel.countDocuments({
+      thread: new Types.ObjectId(threadId),
+    });
+
+    if (remainingParticipants < 2) {
+      // Optional: Delete the thread if less than 2 members
+      // await this.threadModel.findByIdAndDelete(threadId);
+      // await this.threadParticipantModel.deleteMany({ thread: new Types.ObjectId(threadId) });
+    }
+  }
 }
