@@ -38,21 +38,6 @@ export class StartDateBeforeEndDateValidator implements ValidatorConstraintInter
   }
 }
 
-@ValidatorConstraint({ name: 'autoRenewalRequiresRentIncrease', async: false })
-export class AutoRenewalRequiresRentIncreaseValidator implements ValidatorConstraintInterface {
-  validate(value: any, args: ValidationArguments) {
-    const dto = args.object as CreateLeaseDto;
-    if (dto.autoRenewal) {
-      return !!dto.rentIncrease;
-    }
-    return true;
-  }
-
-  defaultMessage(args: ValidationArguments) {
-    return 'Rent increase configuration is required when auto renewal is enabled';
-  }
-}
-
 @ValidatorConstraint({ name: 'percentageLimit', async: false })
 export class PercentageLimitValidator implements ValidatorConstraintInterface {
   validate(value: any, args: ValidationArguments) {
@@ -248,7 +233,6 @@ export class CreateLeaseDto {
     return value;
   })
   @IsBoolean()
-  @Validate(AutoRenewalRequiresRentIncreaseValidator)
   autoRenewal?: boolean;
 
   @ApiPropertyOptional({

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../email.service';
 import { EmailQueueService } from './email-queue.service';
 import { TemplateService } from './template.service';
@@ -46,6 +47,7 @@ export class MaintenanceEmailService {
   private readonly logger = new Logger(MaintenanceEmailService.name);
 
   constructor(
+    private readonly configService: ConfigService,
     private readonly emailService: EmailService,
     private readonly templateService: TemplateService,
     private readonly emailQueueService: EmailQueueService,
@@ -59,9 +61,16 @@ export class MaintenanceEmailService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandLogoUrl = this.configService.get<string>('BRAND_LOGO_URL') || '';
+      const brandColor = this.configService.get<string>('BRAND_PRIMARY_COLOR') || '#2563eb';
+
       // Prepare template context
       const context = {
         ...data,
+        brandName,
+        brandLogoUrl,
+        brandColor,
       };
 
       // Compile the template
@@ -103,9 +112,16 @@ export class MaintenanceEmailService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandLogoUrl = this.configService.get<string>('BRAND_LOGO_URL') || '';
+      const brandColor = this.configService.get<string>('BRAND_PRIMARY_COLOR') || '#2563eb';
+
       // Prepare template context
       const context = {
         ...data,
+        brandName,
+        brandLogoUrl,
+        brandColor,
       };
 
       // Compile the template
@@ -147,9 +163,16 @@ export class MaintenanceEmailService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandLogoUrl = this.configService.get<string>('BRAND_LOGO_URL') || '';
+      const brandColor = this.configService.get<string>('BRAND_PRIMARY_COLOR') || '#2563eb';
+
       // Prepare template context
       const context = {
         ...data,
+        brandName,
+        brandLogoUrl,
+        brandColor,
       };
 
       // Compile the template

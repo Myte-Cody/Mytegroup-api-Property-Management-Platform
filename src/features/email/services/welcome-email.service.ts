@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EmailService } from '../email.service';
 import { EmailQueueService } from './email-queue.service';
 import { TemplateService } from './template.service';
@@ -8,6 +9,7 @@ export class WelcomeEmailService {
   private readonly logger = new Logger(WelcomeEmailService.name);
 
   constructor(
+    private readonly configService: ConfigService,
     private readonly emailService: EmailService,
     private readonly templateService: TemplateService,
     private readonly emailQueueService: EmailQueueService,
@@ -20,8 +22,12 @@ export class WelcomeEmailService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandLogoUrl = this.configService.get<string>('BRAND_LOGO_URL') || '';
+      const brandColor = this.configService.get<string>('BRAND_PRIMARY_COLOR') || '#2563eb';
+
       // Always compile template first
-      const context = { userName, dashboardUrl };
+      const context = { userName, dashboardUrl, brandName, brandLogoUrl, brandColor };
       const { html, subject, text } = await this.templateService.compileTemplate(
         'welcome',
         context,

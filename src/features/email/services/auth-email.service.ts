@@ -24,9 +24,12 @@ export class AuthEmailService {
     try {
       const clientBaseUrl = this.configService.get<string>('app.clientBaseUrl');
       const resetUrl = `${clientBaseUrl}/reset-password?token=${resetToken}`;
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandLogoUrl = this.configService.get<string>('BRAND_LOGO_URL') || '';
+      const brandColor = this.configService.get<string>('BRAND_PRIMARY_COLOR') || '#2563eb';
 
       // Always compile template first
-      const context = { resetUrl, expirationTime };
+      const context = { resetUrl, expirationTime, brandName, brandLogoUrl, brandColor };
       const { html, subject, text } = await this.templateService.compileTemplate(
         'password-reset',
         context,

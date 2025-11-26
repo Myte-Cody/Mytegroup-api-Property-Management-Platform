@@ -1,3 +1,9 @@
+{{#if brandLogoUrl}}
+<div style='text-align:center;margin-bottom:16px;'>
+  <img src='{{brandLogoUrl}}' alt='{{brandName}}' style='max-height:150px;' />
+</div>
+{{/if}}
+
 <p>New landing chat feedback captured from
   {{#if name}}{{name}} ({{/if}}{{email}}{{#if name}}){{/if}}.</p>
 

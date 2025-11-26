@@ -207,6 +207,10 @@ Rules for user_email_body:
       return;
     }
 
+    const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+    const brandLogoUrl = this.configService.get<string>('BRAND_LOGO_URL') || '';
+    const brandColor = this.configService.get<string>('BRAND_PRIMARY_COLOR') || '#2563eb';
+
     const context = {
       email,
       name: name ?? '',
@@ -217,6 +221,9 @@ Rules for user_email_body:
       primary_role: classification.primary_role,
       priority: classification.priority,
       conversation,
+      brandName,
+      brandLogoUrl,
+      brandColor,
     };
 
     const { html, subject, text } = await this.templateService.compileTemplate(
@@ -237,11 +244,18 @@ Rules for user_email_body:
     name: string | undefined,
     classification: LandingFeedbackClassification,
   ): Promise<void> {
+    const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+    const brandLogoUrl = this.configService.get<string>('BRAND_LOGO_URL') || '';
+    const brandColor = this.configService.get<string>('BRAND_PRIMARY_COLOR') || '#2563eb';
+
     const context = {
       email,
       name: name ?? '',
       body: classification.user_email_body,
       summary: classification.summary,
+      brandName,
+      brandLogoUrl,
+      brandColor,
     };
 
     const { html, subject, text } = await this.templateService.compileTemplate(

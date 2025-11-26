@@ -65,10 +65,17 @@ export class PaymentEmailService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandLogoUrl = this.configService.get<string>('BRAND_LOGO_URL') || '';
+      const brandColor = this.configService.get<string>('BRAND_PRIMARY_COLOR') || '#2563eb';
+
       // Add current year for copyright in footer
       const context = {
         ...data,
         currentYear: new Date().getFullYear(),
+        brandName,
+        brandLogoUrl,
+        brandColor,
       };
 
       // Compile the template
@@ -112,10 +119,17 @@ export class PaymentEmailService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandLogoUrl = this.configService.get<string>('BRAND_LOGO_URL') || '';
+      const brandColor = this.configService.get<string>('BRAND_PRIMARY_COLOR') || '#2563eb';
+
       // Add current year for copyright in footer
       const context = {
         ...data,
         currentYear: new Date().getFullYear(),
+        brandName,
+        brandLogoUrl,
+        brandColor,
       };
 
       // Compile the template
@@ -159,10 +173,17 @@ export class PaymentEmailService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandLogoUrl = this.configService.get<string>('BRAND_LOGO_URL') || '';
+      const brandColor = this.configService.get<string>('BRAND_PRIMARY_COLOR') || '#2563eb';
+
       // Add current year for copyright in footer
       const context = {
         ...data,
         currentYear: new Date().getFullYear(),
+        brandName,
+        brandLogoUrl,
+        brandColor,
       };
 
       // Compile the template
