@@ -1,3 +1,4 @@
+import { ClientSession } from 'mongoose';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
 import { ScopeOfWork } from '../schemas/scope-of-work.schema';
@@ -46,7 +47,10 @@ export class TicketReferenceUtils {
     return `MT${currentYear}-${timestamp}`;
   }
 
-  static async generateSowNumber(sowModel: AppModel<ScopeOfWork>): Promise<string> {
+  static async generateSowNumber(
+    sowModel: AppModel<ScopeOfWork>,
+    session?: ClientSession,
+  ): Promise<string> {
     const currentYear = new Date().getFullYear();
     const prefix = `SOW${currentYear}`;
 
@@ -55,12 +59,15 @@ export class TicketReferenceUtils {
     const endOfYear = new Date(currentYear, 11, 31, 23, 59, 59);
 
     const count = await sowModel
-      .countDocuments({
-        createdAt: {
-          $gte: startOfYear,
-          $lte: endOfYear,
+      .countDocuments(
+        {
+          createdAt: {
+            $gte: startOfYear,
+            $lte: endOfYear,
+          },
         },
-      })
+        { session },
+      )
       .exec();
 
     // Generate SOW number with zero-padded sequential number
@@ -72,11 +79,12 @@ export class TicketReferenceUtils {
     sowModel: AppModel<ScopeOfWork>,
     isSubSow: boolean = false,
     maxRetries: number = 5,
+    session?: ClientSession,
   ): Promise<string> {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const sowNumber = await this.generateSowNumber(sowModel);
+      const sowNumber = await this.generateSowNumber(sowModel, session);
 
-      const existingSow = await sowModel.findOne({ sowNumber }).exec();
+      const existingSow = await sowModel.findOne({ sowNumber }, null, { session }).exec();
 
       if (!existingSow) {
         return sowNumber;

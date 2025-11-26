@@ -13,6 +13,8 @@ import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { createPaginatedResponse, PaginatedResponse } from '../../../common/utils/pagination.utils';
 import { Contractor } from '../../../features/contractors/schema/contractor.schema';
 import { Lease } from '../../../features/leases/schemas/lease.schema';
+import { Property } from '../../../features/properties/schemas/property.schema';
+import { Unit } from '../../../features/properties/schemas/unit.schema';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { User, UserDocument } from '../../users/schemas/user.schema';
 import { AcceptSowDto } from '../dto/accept-sow.dto';
@@ -22,8 +24,8 @@ import { CreateScopeOfWorkDto } from '../dto/create-scope-of-work.dto';
 import { RefuseSowDto } from '../dto/refuse-sow.dto';
 import { RemoveTicketSowDto } from '../dto/remove-ticket-sow.dto';
 import { ScopeOfWorkQueryDto } from '../dto/scope-of-work-query.dto';
-import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
-import { ScopeOfWork } from '../schemas/scope-of-work.schema';
+import { MaintenanceTicket, MaintenanceTicketDocument } from '../schemas/maintenance-ticket.schema';
+import { ScopeOfWork, ScopeOfWorkDocument } from '../schemas/scope-of-work.schema';
 import { TicketReferenceUtils } from '../utils/ticket-reference.utils';
 import { SessionService } from './../../../common/services/session.service';
 import { InvoicesService } from './invoices.service';
@@ -42,6 +44,10 @@ export class ScopeOfWorkService {
     private readonly contractorModel: AppModel<Contractor>,
     @InjectModel(Lease.name)
     private readonly leaseModel: AppModel<Lease>,
+    @InjectModel(Property.name)
+    private readonly propertyModel: AppModel<Property>,
+    @InjectModel(Unit.name)
+    private readonly unitModel: AppModel<Unit>,
     private readonly sessionService: SessionService,
     private readonly notificationsService: NotificationsService,
     @Inject(forwardRef(() => InvoicesService))
@@ -197,9 +203,7 @@ export class ScopeOfWorkService {
       }
 
       // Validate that all tickets are not already assigned to different scopes of work
-      const assignedTickets = tickets.filter(
-        (ticket) => !!ticket.scopeOfWork && ticket.scopeOfWork.toString() != createDto.parentSow,
-      );
+      const assignedTickets = tickets.filter((ticket) => !!ticket.scopeOfWork);
 
       if (assignedTickets.length > 0) {
         const assignedTicketNumbers = assignedTickets
@@ -210,84 +214,123 @@ export class ScopeOfWorkService {
         );
       }
 
-      // Validate that all tickets are from the same unit or same property (for property-level tickets)
-      const ticketsWithUnit = tickets.filter((ticket) => ticket.unit);
-      const ticketsWithoutUnit = tickets.filter((ticket) => !ticket.unit);
+      // Group tickets by property
+      const ticketsByProperty = new Map<string, MaintenanceTicketDocument[]>();
+      for (const ticket of tickets) {
+        const propertyId = ticket.property.toString();
+        if (!ticketsByProperty.has(propertyId)) {
+          ticketsByProperty.set(propertyId, []);
+        }
+        ticketsByProperty.get(propertyId)!.push(ticket);
+      }
 
-      // Case 1: All tickets are property-level (no unit)
-      if (ticketsWithoutUnit.length === tickets.length) {
-        // Check that all tickets belong to the same property
-        const propertyIds = new Set(ticketsWithoutUnit.map((ticket) => ticket.property.toString()));
-        if (propertyIds.size > 1) {
-          throw new BadRequestException(
-            'All property-level tickets must be associated with the same property',
-          );
-        }
-      }
-      // Case 2: All tickets are unit-level
-      else if (ticketsWithUnit.length === tickets.length) {
-        // Check that all tickets belong to the same unit
-        const unitIds = new Set(ticketsWithUnit.map((ticket) => ticket.unit.toString()));
-        if (unitIds.size > 1) {
-          throw new BadRequestException(
-            'All unit-level tickets must be associated with the same unit',
-          );
-        }
-      }
-      // Case 3: Mixed property-level and unit-level tickets
-      else {
-        throw new BadRequestException(
-          'Cannot mix property-level tickets and unit-level tickets in the same scope of work',
+      // Determine if we need to create sub-scopes
+      const hasMultipleProperties = ticketsByProperty.size > 1;
+
+      // If tickets are from a single property, check if they're from different units
+      let hasMultipleUnits = false;
+      if (!hasMultipleProperties) {
+        const singlePropertyTickets = Array.from(ticketsByProperty.values())[0];
+        const unitIds = new Set(
+          singlePropertyTickets.filter((t) => t.unit).map((t) => t.unit!.toString()),
         );
+        hasMultipleUnits = unitIds.size > 1;
       }
 
-      // Validate parent SOW if provided
-      if (createDto.parentSow) {
-        const parentSow = await this.scopeOfWorkModel
-          .findById(createDto.parentSow, null, { session })
-          .exec();
-        if (!parentSow) {
-          throw new BadRequestException('Parent scope of work not found');
-        }
-      }
-
-      // Generate SOW number
+      // Create the parent SOW
       const sowNumber = await TicketReferenceUtils.generateUniqueSowNumber(
         this.scopeOfWorkModel,
-        !!createDto.parentSow,
+        false,
+        5,
+        session,
       );
 
-      // Determine property and unit from tickets
-      // All tickets are guaranteed to have the same property and unit at this point due to validation above
+      // Determine property and unit for parent SOW
+      // If tickets are from multiple properties/units, parent SOW won't have a specific property/unit
       const firstTicket = tickets[0];
-      const property = firstTicket.property;
-      const unit = firstTicket.unit || null;
+      const parentProperty = hasMultipleProperties ? null : firstTicket.property;
+      const parentUnit =
+        hasMultipleProperties || hasMultipleUnits ? null : firstTicket.unit || null;
 
-      // Create the scope of work
       const [scopeOfWork] = await this.scopeOfWorkModel.create(
         [
           {
             sowNumber,
             title: createDto.title,
             description: createDto.description,
-            parentSow: createDto.parentSow || null,
-            property,
-            unit,
+            parentSow: null,
+            property: parentProperty,
+            unit: parentUnit,
           },
         ],
         { session },
       );
 
-      // Update all tickets to reference this SOW
-      await this.ticketModel.updateMany(
-        { _id: { $in: createDto.tickets } },
-        { $set: { scopeOfWork: scopeOfWork._id } },
-        { session },
-      );
+      // If tickets are from multiple properties or multiple units, create sub-scopes
+      if (hasMultipleProperties) {
+        // Create sub-scopes for each property
+        for (const [propertyId, propertyTickets] of ticketsByProperty.entries()) {
+          await this.createPropertySubScope(
+            scopeOfWork,
+            propertyId,
+            propertyTickets,
+            currentUser,
+            session,
+          );
+        }
+      } else if (hasMultipleUnits) {
+        // Tickets are from same property but different units
+        const propertyTickets = Array.from(ticketsByProperty.values())[0];
+        const ticketsByUnit = new Map<string, MaintenanceTicketDocument[]>();
+        const propertyLevelTickets: MaintenanceTicketDocument[] = [];
 
-      // Notify tenants that their tickets have been grouped into SOW
-      for (const ticket of tickets) {
-        await this.notifyTenantOfTicketGroupedToSow(ticket, scopeOfWork, session);
+        for (const ticket of propertyTickets) {
+          if (ticket.unit) {
+            const unitId = ticket.unit.toString();
+            if (!ticketsByUnit.has(unitId)) {
+              ticketsByUnit.set(unitId, []);
+            }
+            ticketsByUnit.get(unitId)!.push(ticket);
+          } else {
+            propertyLevelTickets.push(ticket);
+          }
+        }
+
+        // Create sub-scopes for each unit
+        for (const [unitId, unitTickets] of ticketsByUnit.entries()) {
+          await this.createUnitSubScope(
+            scopeOfWork,
+            firstTicket.property,
+            unitId,
+            unitTickets,
+            currentUser,
+            session,
+          );
+        }
+
+        // If there are property-level tickets, assign them to the parent SOW
+        if (propertyLevelTickets.length > 0) {
+          await this.ticketModel.updateMany(
+            { _id: { $in: propertyLevelTickets.map((t) => t._id) } },
+            { $set: { scopeOfWork: scopeOfWork._id } },
+            { session },
+          );
+
+          for (const ticket of propertyLevelTickets) {
+            await this.notifyTenantOfTicketGroupedToSow(ticket, scopeOfWork, session);
+          }
+        }
+      } else {
+        // All tickets are from the same property and unit, no sub-scopes needed
+        await this.ticketModel.updateMany(
+          { _id: { $in: createDto.tickets } },
+          { $set: { scopeOfWork: scopeOfWork._id } },
+          { session },
+        );
+
+        for (const ticket of tickets) {
+          await this.notifyTenantOfTicketGroupedToSow(ticket, scopeOfWork, session);
+        }
       }
 
       // Create threads for the SOW
@@ -296,6 +339,153 @@ export class ScopeOfWorkService {
       // Return the created SOW with populated data
       return this.findOne(scopeOfWork._id.toString(), currentUser, session);
     });
+  }
+
+  /**
+   * Creates a sub-scope of work for a specific property
+   * If the property has tickets from multiple units, creates unit sub-scopes
+   */
+  private async createPropertySubScope(
+    parentSow: ScopeOfWorkDocument,
+    propertyId: string,
+    tickets: MaintenanceTicketDocument[],
+    currentUser: UserDocument,
+    session: ClientSession,
+  ): Promise<ScopeOfWorkDocument> {
+    // Group tickets by unit within this property
+    const ticketsByUnit = new Map<string, MaintenanceTicketDocument[]>();
+    const propertyLevelTickets: MaintenanceTicketDocument[] = [];
+
+    for (const ticket of tickets) {
+      if (ticket.unit) {
+        const unitId = ticket.unit.toString();
+        if (!ticketsByUnit.has(unitId)) {
+          ticketsByUnit.set(unitId, []);
+        }
+        ticketsByUnit.get(unitId)!.push(ticket);
+      } else {
+        propertyLevelTickets.push(ticket);
+      }
+    }
+
+    // Generate sub-SOW number for property
+    const propertySowNumber = await TicketReferenceUtils.generateUniqueSowNumber(
+      this.scopeOfWorkModel,
+      true,
+      5,
+      session,
+    );
+
+    // Get property name for title
+    const property = await this.propertyModel.findById(propertyId, null, { session }).exec();
+    const propertyName = property?.name || 'Property';
+
+    // Create property sub-scope
+    const [propertySubScope] = await this.scopeOfWorkModel.create(
+      [
+        {
+          sowNumber: propertySowNumber,
+          title: `${parentSow.title} - ${propertyName}`,
+          description: parentSow.description,
+          parentSow: parentSow._id,
+          property: propertyId,
+          unit: null,
+        },
+      ],
+      { session },
+    );
+
+    // If tickets are from multiple units, create unit sub-scopes
+    if (ticketsByUnit.size > 1) {
+      for (const [unitId, unitTickets] of ticketsByUnit.entries()) {
+        await this.createUnitSubScope(
+          propertySubScope,
+          propertyId,
+          unitId,
+          unitTickets,
+          currentUser,
+          session,
+        );
+      }
+
+      // If there are property-level tickets, assign them to the property sub-scope
+      if (propertyLevelTickets.length > 0) {
+        await this.ticketModel.updateMany(
+          { _id: { $in: propertyLevelTickets.map((t) => t._id) } },
+          { $set: { scopeOfWork: propertySubScope._id } },
+          { session },
+        );
+
+        for (const ticket of propertyLevelTickets) {
+          await this.notifyTenantOfTicketGroupedToSow(ticket, propertySubScope, session);
+        }
+      }
+    } else {
+      // All tickets are from the same unit or are property-level, assign to property sub-scope
+      await this.ticketModel.updateMany(
+        { _id: { $in: tickets.map((t) => t._id) } },
+        { $set: { scopeOfWork: propertySubScope._id } },
+        { session },
+      );
+
+      for (const ticket of tickets) {
+        await this.notifyTenantOfTicketGroupedToSow(ticket, propertySubScope, session);
+      }
+    }
+
+    return propertySubScope;
+  }
+
+  /**
+   * Creates a sub-scope of work for a specific unit
+   */
+  private async createUnitSubScope(
+    parentSow: ScopeOfWorkDocument,
+    propertyId: string | Types.ObjectId,
+    unitId: string,
+    tickets: MaintenanceTicketDocument[],
+    _currentUser: UserDocument,
+    session: ClientSession,
+  ): Promise<ScopeOfWorkDocument> {
+    // Generate sub-SOW number for unit
+    const unitSowNumber = await TicketReferenceUtils.generateUniqueSowNumber(
+      this.scopeOfWorkModel,
+      true,
+      5,
+      session,
+    );
+
+    // Get unit name for title
+    const unit = await this.unitModel.findById(unitId, null, { session }).exec();
+    const unitName = unit?.unitNumber || 'Unit';
+
+    // Create unit sub-scope
+    const [unitSubScope] = await this.scopeOfWorkModel.create(
+      [
+        {
+          sowNumber: unitSowNumber,
+          title: `${parentSow.title} - ${unitName}`,
+          description: parentSow.description,
+          parentSow: parentSow._id,
+          property: propertyId,
+          unit: unitId,
+        },
+      ],
+      { session },
+    );
+
+    // Assign all tickets to this unit sub-scope
+    await this.ticketModel.updateMany(
+      { _id: { $in: tickets.map((t) => t._id) } },
+      { $set: { scopeOfWork: unitSubScope._id } },
+      { session },
+    );
+
+    for (const ticket of tickets) {
+      await this.notifyTenantOfTicketGroupedToSow(ticket, unitSubScope, session);
+    }
+
+    return unitSubScope;
   }
 
   async remove(id: string, _currentUser: UserDocument) {
@@ -345,10 +535,29 @@ export class ScopeOfWorkService {
         .find({ parentSow: scopeOfWork._id }, null, { session })
         .exec();
 
+      // If this is a parent SOW, check if it has tickets directly assigned to it
       if (childSows.length > 0) {
-        throw new BadRequestException(
-          'Cannot mark parent SOW as in review. Please update the sub SOWs instead.',
+        const ticketsCount = await this.ticketModel
+          .countDocuments({ scopeOfWork: scopeOfWork._id }, { session })
+          .exec();
+
+        const allChildSowsInReview = childSows.every(
+          (sow) => sow.status === TicketStatus.IN_REVIEW,
         );
+
+        // If parent SOW has no tickets, user should update sub-SOWs instead
+        if (ticketsCount === 0) {
+          throw new BadRequestException(
+            'Cannot mark parent SOW as in review. Please update the sub SOWs instead.',
+          );
+        }
+
+        // If parent SOW has tickets, all child SOWs must be in review first
+        if (ticketsCount > 0 && !allChildSowsInReview) {
+          throw new BadRequestException(
+            'Cannot mark parent SOW as in review. All sub SOWs must be in review first.',
+          );
+        }
       }
 
       // Update SOW status to IN_REVIEW

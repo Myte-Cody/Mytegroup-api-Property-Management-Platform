@@ -32,12 +32,4 @@ export class CreateScopeOfWorkDto {
   @IsMongoId({ each: true })
   @IsNotEmpty()
   tickets: string[];
-
-  @ApiPropertyOptional({
-    description: 'Parent scope of work ID (if this SOW is a child of another)',
-    example: '673d8b8f123456789abcdef2',
-  })
-  @IsOptional()
-  @IsMongoId()
-  parentSow?: string;
 }
