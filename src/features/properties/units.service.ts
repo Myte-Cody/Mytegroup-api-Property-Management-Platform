@@ -166,7 +166,7 @@ export class UnitsService {
 
   /**
    * Get all units published to marketplace (public endpoint)
-   * No authentication required, returns units with publishToMarketplace = true
+   * No authentication required, returns units with publishToMarketplace = true and no active lease
    */
   async findMarketplaceUnits(queryDto?: MarketplaceQueryDto) {
     const pipeline: any[] = [];
@@ -213,7 +213,35 @@ export class UnitsService {
       },
     });
 
-    // Step 3: Add search filter (after property lookup to search property name)
+    // Step 3: Lookup active lease to filter out units with active leases
+    pipeline.push({
+      $lookup: {
+        from: 'leases',
+        let: { unitId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ['$unit', '$$unitId'] },
+                  { $eq: ['$status', 'ACTIVE'] },
+                ],
+              },
+            },
+          },
+        ],
+        as: 'activeLease',
+      },
+    });
+
+    // Step 4: Filter out units with active leases
+    pipeline.push({
+      $match: {
+        activeLease: { $eq: [] },
+      },
+    });
+
+    // Step 5: Add search filter (after property lookup to search property name)
     if (queryDto?.search) {
       pipeline.push({
         $match: {
@@ -225,7 +253,7 @@ export class UnitsService {
       });
     }
 
-    // Step 4: Sort by createdAt descending
+    // Step 6: Sort by createdAt descending
     pipeline.push({ $sort: { createdAt: -1 } });
 
     // Execute query

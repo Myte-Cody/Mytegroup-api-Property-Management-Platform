@@ -368,7 +368,7 @@ export class MaintenanceTicketsService {
       }
 
       // Prevent changing landlord field
-      const { landlord: _landlord, ...safeUpdate } = updateTicketDto as any;
+      const { landlord: _landlord } = updateTicketDto as any;
       if (_landlord) {
         throw new ForbiddenException('Cannot change ticket landlord');
       }
@@ -1177,12 +1177,11 @@ export class MaintenanceTicketsService {
         return;
       }
 
-      const userDashboard = requestedByUser.user_type === 'Contractor' ? 'contractor' : requestedByUser.user_type === 'Landlord' ? 'landlord' : 'tenant';
       await this.notificationsService.createNotification(
         requestedByUser._id.toString(),
         'Ticket Under Review',
         `👀 Your maintenance request "${ticket.title}" is now under review.`,
-        `/dashboard/${userDashboard}/maintenance/tickets/${ticket._id}`,
+        `/dashboard/tenant/maintenance/tickets/${ticket._id}`,
       );
     } catch (error) {
       console.error('Failed to notify tenant of ticket review:', error);
@@ -1211,12 +1210,11 @@ export class MaintenanceTicketsService {
 
       const contractorName = contractor?.name || 'a contractor';
 
-      const userDashboard = requestedByUser.user_type === 'Contractor' ? 'contractor' : requestedByUser.user_type === 'Landlord' ? 'landlord' : 'tenant';
       await this.notificationsService.createNotification(
         requestedByUser._id.toString(),
         'Contractor Assigned',
         `👷 Your maintenance request "${ticket.title}" has been assigned to ${contractorName}.`,
-        `/dashboard/${userDashboard}/maintenance/tickets/${ticket._id}`,
+        `/dashboard/tenant/maintenance/tickets/${ticket._id}`,
       );
     } catch (error) {
       console.error('Failed to notify tenant of contractor assignment:', error);
@@ -1239,12 +1237,11 @@ export class MaintenanceTicketsService {
         return;
       }
 
-      const userDashboard = requestedByUser.user_type === 'Contractor' ? 'contractor' : requestedByUser.user_type === 'Landlord' ? 'landlord' : 'tenant';
       await this.notificationsService.createNotification(
         requestedByUser._id.toString(),
         'Work Started',
         `🔧 Work on "${ticket.title}" has started.`,
-        `/dashboard/${userDashboard}/maintenance/tickets/${ticket._id}`,
+        `/dashboard/tenant/maintenance/tickets/${ticket._id}`,
       );
     } catch (error) {
       console.error('Failed to notify tenant of work started:', error);
@@ -1267,12 +1264,11 @@ export class MaintenanceTicketsService {
         return;
       }
 
-      const userDashboard = requestedByUser.user_type === 'Contractor' ? 'contractor' : requestedByUser.user_type === 'Landlord' ? 'landlord' : 'tenant';
       await this.notificationsService.createNotification(
         requestedByUser._id.toString(),
         'Work Complete',
         `✅ Work on "${ticket.title}" is complete and pending landlord approval.`,
-        `/dashboard/${userDashboard}/maintenance/tickets/${ticket._id}`,
+        `/dashboard/tenant/maintenance/tickets/${ticket._id}`,
       );
     } catch (error) {
       console.error('Failed to notify tenant of work done:', error);
@@ -1295,12 +1291,11 @@ export class MaintenanceTicketsService {
         return;
       }
 
-      const userDashboard = requestedByUser.user_type === 'Contractor' ? 'contractor' : requestedByUser.user_type === 'Landlord' ? 'landlord' : 'tenant';
       await this.notificationsService.createNotification(
         requestedByUser._id.toString(),
         'Ticket Completed',
         `🎉 Your maintenance request "${ticket.title}" has been completed.`,
-        `/dashboard/${userDashboard}/maintenance/tickets/${ticket._id}`,
+        `/dashboard/tenant/maintenance/tickets/${ticket._id}`,
       );
     } catch (error) {
       console.error('Failed to notify tenant of ticket closed:', error);
@@ -1323,12 +1318,11 @@ export class MaintenanceTicketsService {
         return;
       }
 
-      const userDashboard = requestedByUser.user_type === 'Contractor' ? 'contractor' : requestedByUser.user_type === 'Landlord' ? 'landlord' : 'tenant';
       await this.notificationsService.createNotification(
         requestedByUser._id.toString(),
         'Ticket Reopened',
         `🔁 Your maintenance request "${ticket.title}" has been reopened for additional work.`,
-        `/dashboard/${userDashboard}/maintenance/tickets/${ticket._id}`,
+        `/dashboard/tenant/maintenance/tickets/${ticket._id}`,
       );
     } catch (error) {
       console.error('Failed to notify tenant of ticket reopened:', error);
