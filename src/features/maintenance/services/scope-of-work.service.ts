@@ -1161,10 +1161,12 @@ export class ScopeOfWorkService {
         return;
       }
 
+      const userDashboard = requestedByUser.user_type === 'Contractor' ? 'contractor' : requestedByUser.user_type === 'Landlord' ? 'landlord' : 'tenant';
       await this.notificationsService.createNotification(
         requestedByUser._id.toString(),
         'Ticket Grouped',
         `📦 Your maintenance request "${ticket.title}" has been grouped into a maintenance job (${scopeOfWork.sowNumber}). The work will still be processed as part of that job.`,
+        `/dashboard/${userDashboard}/maintenance/tickets/${ticket._id}`,
       );
     } catch (error) {
       console.error('Failed to notify tenant of ticket grouped to SOW:', error);

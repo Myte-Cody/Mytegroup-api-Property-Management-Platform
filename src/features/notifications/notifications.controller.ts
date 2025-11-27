@@ -77,8 +77,16 @@ export class NotificationsController {
 
   @Post('test')
   @ApiOperation({ summary: 'Create a test notification (for development)' })
-  async createTestNotification(@Request() req, @Body() body: { title: string; content: string }) {
+  async createTestNotification(
+    @Request() req,
+    @Body() body: { title: string; content: string; actionUrl?: string },
+  ) {
     const userId = req.user._id;
-    return this.notificationsService.createNotification(userId, body.title, body.content);
+    return this.notificationsService.createNotification(
+      userId,
+      body.title,
+      body.content,
+      body.actionUrl,
+    );
   }
 }

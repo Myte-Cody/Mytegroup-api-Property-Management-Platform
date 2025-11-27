@@ -22,6 +22,9 @@ export class Notification extends Document implements SoftDelete {
   @Prop({ required: true, trim: true })
   content: string;
 
+  @Prop({ type: String, required: false, trim: true })
+  actionUrl?: string;
+
   @Prop({ type: Date, default: null })
   readAt: Date | null;
 

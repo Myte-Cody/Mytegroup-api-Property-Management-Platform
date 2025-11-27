@@ -439,13 +439,15 @@ export class FeedPostsService {
     try {
       const tenantUsers = await this.getTenantUsersForProperty(feedPost.property as Types.ObjectId);
 
-      const notificationPromises = tenantUsers.map((user) =>
-        this.notificationsService.createNotification(
+      const notificationPromises = tenantUsers.map((user) => {
+        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
+        return this.notificationsService.createNotification(
           user._id.toString(),
           'New Announcement',
           `📢 New announcement posted for ${property.name}: "${feedPost.title}"`,
-        ),
-      );
+          `/dashboard/${userDashboard}/neighbors`,
+        );
+      });
 
       await Promise.all(notificationPromises);
     } catch (error) {
@@ -463,13 +465,15 @@ export class FeedPostsService {
     try {
       const tenantUsers = await this.getTenantUsersForProperty(feedPost.property as Types.ObjectId);
 
-      const notificationPromises = tenantUsers.map((user) =>
-        this.notificationsService.createNotification(
+      const notificationPromises = tenantUsers.map((user) => {
+        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
+        return this.notificationsService.createNotification(
           user._id.toString(),
           'Announcement Updated',
           `📝 An announcement for ${property.name} has been updated: "${feedPost.title}"`,
-        ),
-      );
+          `/dashboard/${userDashboard}/neighbors`,
+        );
+      });
 
       await Promise.all(notificationPromises);
     } catch (error) {

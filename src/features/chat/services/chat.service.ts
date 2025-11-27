@@ -512,10 +512,13 @@ export class ChatService {
     if (otherParticipant?.participantId) {
       const otherUserId = otherParticipant.participantId as any;
       const sender = await this.userModel.findById(userId);
+      const recipient = await this.userModel.findById(otherUserId._id);
+      const dashboardPath = recipient?.user_type === 'Landlord' ? 'landlord' : recipient?.user_type === 'Contractor' ? 'contractor' : 'tenant';
       await this.notificationsService.createNotification(
         otherUserId._id,
         'New message',
         `${sender.firstName} ${sender.lastName} sent you a message`,
+        `/dashboard/${dashboardPath}/chat`,
       );
     }
 

@@ -881,10 +881,12 @@ export class ThreadsService {
       const allUsers = [...landlordUsers, ...tenantUsers];
 
       for (const user of allUsers) {
+        const dashboardPath = user.user_type === 'Landlord' ? 'landlord' : 'tenant';
         await this.notificationsService.createNotification(
           user._id.toString(),
           'New Communication Channel',
           `A new communication thread has been created for your lease: ${thread.title}`,
+          `/dashboard/${dashboardPath}/chat`,
         );
       }
     } catch (error) {
@@ -1316,17 +1318,20 @@ export class ThreadsService {
       }
 
       // Send appropriate notification based on whether there are attachments
+      const landlordDashboard = landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
       if (hasAttachments) {
         await this.notificationsService.createNotification(
           landlordUser._id.toString(),
           'New Attachment',
           `📎 ${senderName} attached a file in ${entityTitle}.`,
+          `/dashboard/${landlordDashboard}/chat`,
         );
       } else {
         await this.notificationsService.createNotification(
           landlordUser._id.toString(),
           'New Message',
           `💬 ${senderName} sent a new message in ${entityTitle}.`,
+          `/dashboard/${landlordDashboard}/chat`,
         );
       }
     } catch (error) {
@@ -1405,17 +1410,20 @@ export class ThreadsService {
 
       // Send appropriate notification based on whether there are attachments
       const notificationPromises = tenantUsers.map((user) => {
+        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
         if (hasAttachments) {
           return this.notificationsService.createNotification(
             user._id.toString(),
             'New Attachment',
             `📎 A new file was shared in ${entityTitle}.`,
+            `/dashboard/${userDashboard}/chat`,
           );
         } else {
           return this.notificationsService.createNotification(
             user._id.toString(),
             'New Message',
             `💬 ${senderName} sent you a message in ${entityTitle}.`,
+            `/dashboard/${userDashboard}/chat`,
           );
         }
       });
@@ -1452,13 +1460,15 @@ export class ThreadsService {
         .exec();
 
       // Send notifications
-      const notificationPromises = tenantUsers.map((user) =>
-        this.notificationsService.createNotification(
+      const notificationPromises = tenantUsers.map((user) => {
+        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
+        return this.notificationsService.createNotification(
           user._id.toString(),
           'Thread Invitation',
           `📨 You've been invited to join the discussion in ${sowTitle}.`,
-        ),
-      );
+          `/dashboard/${userDashboard}/chat`,
+        );
+      });
 
       await Promise.all(notificationPromises);
 
@@ -1521,13 +1531,15 @@ export class ThreadsService {
       const sowTitle = sow.title || `SOW #${(sow as any).sowNumber || sow._id}`;
 
       // Send notifications
-      const notificationPromises = tenantUsers.map((user) =>
-        this.notificationsService.createNotification(
+      const notificationPromises = tenantUsers.map((user) => {
+        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
+        return this.notificationsService.createNotification(
           user._id.toString(),
           'Discussion Closed',
           `✅ The discussion for ${sowTitle} has been closed.`,
-        ),
-      );
+          `/dashboard/${userDashboard}/chat`,
+        );
+      });
 
       await Promise.all(notificationPromises);
     } catch (error) {
@@ -1587,13 +1599,15 @@ export class ThreadsService {
       const sowTitle = sow.title || `SOW #${(sow as any).sowNumber || sow._id}`;
 
       // Send notifications
-      const notificationPromises = tenantUsers.map((user) =>
-        this.notificationsService.createNotification(
+      const notificationPromises = tenantUsers.map((user) => {
+        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
+        return this.notificationsService.createNotification(
           user._id.toString(),
           'Discussion Reopened',
           `🔁 The discussion for ${sowTitle} has been reopened.`,
-        ),
-      );
+          `/dashboard/${userDashboard}/chat`,
+        );
+      });
 
       await Promise.all(notificationPromises);
     } catch (error) {

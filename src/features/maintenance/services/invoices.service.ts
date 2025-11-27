@@ -391,10 +391,12 @@ export class InvoicesService {
       }
 
       // Send in-app notification
+      const landlordDashboard = landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
       await this.notificationsService.createNotification(
         landlordUser._id.toString(),
         'Invoice Uploaded',
         `Contractor ${contractorName} uploaded invoice for ${entityReference}.`,
+        `/dashboard/${landlordDashboard}/maintenance/invoices`,
       );
 
       const landlordName =

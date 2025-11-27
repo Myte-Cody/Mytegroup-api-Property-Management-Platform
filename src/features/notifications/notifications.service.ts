@@ -17,11 +17,13 @@ export class NotificationsService {
     userId: string | Types.ObjectId,
     title: string,
     content: string,
+    actionUrl?: string,
   ): Promise<NotificationDocument> {
     const notification = await this.notificationModel.create({
       userId: new Types.ObjectId(userId),
       title,
       content,
+      actionUrl,
       readAt: null,
     });
 
@@ -30,6 +32,7 @@ export class NotificationsService {
       id: notification._id,
       title: notification.title,
       content: notification.content,
+      actionUrl: notification.actionUrl,
       readAt: notification.readAt,
       createdAt: (notification as any).createdAt,
     });
@@ -80,7 +83,7 @@ export class NotificationsService {
       await notification.save();
 
       // Emit update to the user
-      this.notificationsGateway.emitToUser(userId, 'notification:read', {
+      this.notificationsGateway.emitToUser(userId.toString(), 'notification:read', {
         id: notification._id,
         readAt: notification.readAt,
       });
@@ -102,7 +105,7 @@ export class NotificationsService {
     );
 
     // Emit update to the user
-    this.notificationsGateway.emitToUser(userId, 'notification:allRead', {
+    this.notificationsGateway.emitToUser(userId.toString(), 'notification:allRead', {
       modifiedCount: result.modifiedCount,
     });
 
@@ -129,14 +132,14 @@ export class NotificationsService {
     }
 
     // Emit delete event to the user
-    this.notificationsGateway.emitToUser(userId, 'notification:deleted', {
+    this.notificationsGateway.emitToUser(userId.toString(), 'notification:deleted', {
       id: notificationId,
     });
   }
 
   // Helper method to emit custom events
   async emitEvent(userId: string, event: string, data: any): Promise<void> {
-    this.notificationsGateway.emitToUser(userId, event, data);
+    this.notificationsGateway.emitToUser(userId.toString(), event, data);
   }
 
   // Helper method to emit to multiple users
