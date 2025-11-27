@@ -830,21 +830,40 @@ export class ScopeOfWorkService {
         throw new NotFoundException(`Scope of Work with ID ${id} not found`);
       }
 
-      // Get all child SOWs (sub-SOWs)
-      const childSows = await this.scopeOfWorkModel
-        .find({ parentSow: scopeOfWork._id }, null, { session })
-        .exec();
+      // Only allow closing top-level SOWs (those without a parent)
+      if (scopeOfWork.parentSow) {
+        throw new BadRequestException(
+          'Cannot close a sub-SOW directly. Please close the parent SOW instead.',
+        );
+      }
 
-      // Check if all child SOWs are CLOSED
-      if (childSows.length > 0) {
-        const allChildSowsDone = childSows.every((sow) => sow.status === TicketStatus.DONE);
+      // Get all child SOWs recursively (sub-SOWs at all depths)
+      const subSows = await this.getSubSowsRecursively(scopeOfWork._id as Types.ObjectId, session);
+
+      // Flatten all sub-SOWs to get their IDs
+      const flattenSubSows = (sowList: any[]): any[] => {
+        const result: any[] = [];
+        for (const sow of sowList) {
+          result.push(sow);
+          if (sow.subSows && sow.subSows.length > 0) {
+            result.push(...flattenSubSows(sow.subSows));
+          }
+        }
+        return result;
+      };
+
+      const allSubSows = flattenSubSows(subSows);
+
+      // Check if all child SOWs are DONE
+      if (allSubSows.length > 0) {
+        const allChildSowsDone = allSubSows.every((sow) => sow.status === TicketStatus.DONE);
 
         if (!allChildSowsDone) {
           throw new BadRequestException('Cannot close SOW: not all child SOWs are done');
         }
       }
 
-      // Get all tickets for this SOW
+      // Get all tickets for this SOW recursively
       const tickets = await this.getAllTicketsRecursively(
         scopeOfWork._id as Types.ObjectId,
         session,
@@ -864,11 +883,14 @@ export class ScopeOfWorkService {
       // Notify tenants that thread is closed
       await this.threadsService.notifyTenantsOfThreadClosed(scopeOfWork._id as Types.ObjectId);
 
-      await this.scopeOfWorkModel.updateMany(
-        { _id: { $in: childSows.map((sow) => sow._id) } },
-        { $set: { status: TicketStatus.CLOSED } },
-        { session },
-      );
+      // Close all sub-SOWs recursively at all depths
+      if (allSubSows.length > 0) {
+        await this.scopeOfWorkModel.updateMany(
+          { _id: { $in: allSubSows.map((sow) => sow._id) } },
+          { $set: { status: TicketStatus.CLOSED } },
+          { session },
+        );
+      }
 
       await this.ticketModel.updateMany(
         { _id: { $in: tickets.map((ticket) => ticket._id) } },
