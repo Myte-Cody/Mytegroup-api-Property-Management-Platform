@@ -13,7 +13,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
-import { VerifyEmailConfirmDto } from './dto/verify-email.dto';
+import { VerifyEmailConfirmDto, VerifyEmailRequestDto } from './dto/verify-email.dto';
 
 @ApiTags('auth')
 @ApiBearerAuth('JWT-auth')
@@ -86,10 +86,15 @@ export class AuthController {
     return this.authService.resetPassword(dto);
   }
 
+  @Public()
   @Post('verify-email/request')
+  @UseGuards(OptionalJwtGuard)
   @Throttle({ requestVerify: { limit: 3, ttl: 60 } })
-  requestVerify(@CurrentUser() user: UserDocument) {
-    return this.authService.requestEmailVerification(user);
+  requestVerify(
+    @Body() dto: VerifyEmailRequestDto,
+    @CurrentUser() user: UserDocument,
+  ) {
+    return this.authService.requestEmailVerificationPublic(dto, user ?? null);
   }
 
   @Public()

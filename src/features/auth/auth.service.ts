@@ -25,6 +25,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyEmailRequestDto } from './dto/verify-email.dto';
 import { PasswordReset } from './schemas/password-reset.schema';
 import { Session } from './schemas/session.schema';
 import { VerificationToken } from './schemas/verification-token.schema';
@@ -621,6 +622,50 @@ export class AuthService {
       await this.authEmailService.sendEmailVerification(user.email, token, code, { queue: false });
     } catch {}
     // For dev, optionally log code
+    return { success: true };
+  }
+
+  async requestEmailVerificationPublic(
+    dto: VerifyEmailRequestDto,
+    currentUser: UserDocument | null,
+  ) {
+    // If authenticated, always prefer the current user
+    if (currentUser) {
+      return this.requestEmailVerification(currentUser);
+    }
+
+    // Fallback: use verification token from email link
+    if (dto.token) {
+      const recs = await this.verificationModel
+        .find({ used: false, expiresAt: { $gt: new Date() } })
+        .exec();
+      for (const r of recs) {
+        try {
+          if (await argon2.verify(r.tokenHash, dto.token)) {
+            const user = await this.userModel.findById(r.userId).exec();
+            if (!user || user.emailVerifiedAt) {
+              return { success: true };
+            }
+            return this.requestEmailVerification(user as any);
+          }
+        } catch {}
+      }
+      // Do not leak whether the token was valid
+      return { success: true };
+    }
+
+    // Fallback: use email address (e.g., immediately after registration)
+    if (dto.email) {
+      const email = dto.email.toLowerCase();
+      const user = await this.userModel.findOne({ email }).exec();
+      if (!user || user.emailVerifiedAt) {
+        return { success: true };
+      }
+      return this.requestEmailVerification(user as any);
+    }
+
+    // If we have neither an authenticated user, token, nor email,
+    // behave as a no-op to avoid leaking any information.
     return { success: true };
   }
 

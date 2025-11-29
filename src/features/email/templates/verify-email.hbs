@@ -1,21 +1,48 @@
-<div style='font-family: Arial, sans-serif; max-width: 600px;'>
-  <div style='text-align:center;margin-bottom:16px;'>
-    {{#if brandLogoUrl}}
-      <img src='{{brandLogoUrl}}' alt='{{brandName}}' style='max-height:150px;' />
-    {{/if}}
-  </div>
-  <h2 style='color: {{brandColor}};'>Verify your email</h2>
-  <p>Welcome to {{brandName}}! Please verify your email address to continue.</p>
-  <p style='margin:24px 0;'>
-    <a
-      href='{{verifyUrl}}'
-      style='background: {{brandColor}}; color: #fff; padding: 10px 16px; text-decoration: none; border-radius: 6px;'
-    >Verify Email</a>
+{{#> base-email}}
+  <p style='margin:0 0 12px 0;font-size:14px;line-height:1.6;'>
+    Hi there,
   </p>
-  <p>Or enter this 6-digit code:</p>
+  <p style='margin:0 0 16px 0;font-size:14px;line-height:1.6;'>
+    Thanks for creating an account with
+    <strong>{{brandName}}</strong>. Before we unlock your dashboard,
+    we just need to confirm that this email address is really you.
+  </p>
+
+  <table
+    role='presentation'
+    cellspacing='0'
+    cellpadding='0'
+    border='0'
+    style='margin:24px 0;'
+  >
+    <tr>
+      <td align='center'>
+        <a
+          href='{{verifyUrl}}'
+          style='display:inline-block;padding:12px 22px;border-radius:999px;background-color:{{fallback brandColor "#38bdf8"}};color:#0b1120;font-weight:600;font-size:14px;text-decoration:none;'
+        >Verify email & open dashboard</a>
+      </td>
+    </tr>
+  </table>
+
+  <p style='margin:0 0 8px 0;font-size:13px;color:#9ca3af;'>
+    Or, enter this 6‑digit code in the browser:
+  </p>
   <div
-    style='font-size:24px;font-weight:bold;letter-spacing:4px;text-align:center;margin:12px 0;'
-  >{{code}}</div>
-  <p>This code and link expire in {{hours}} hour(s).</p>
-  <p>If you did not sign up, you can ignore this message.</p>
-</div>
+    style='margin:8px 0 18px 0;padding:12px 16px;border-radius:12px;border:1px dashed rgba(148,163,184,0.5);background-color:#020617;color:#f9fafb;font-size:22px;font-weight:600;letter-spacing:0.4em;text-align:center;'
+  >
+    {{code}}
+  </div>
+
+  <p style='margin:0 0 8px 0;font-size:12px;color:#9ca3af;'>
+    The button and the code both expire in
+    {{hours}}
+    hour{{#if (gt hours 1)}}s{{/if}}. After that, you can always request a fresh verification
+    email from the login or settings page.
+  </p>
+
+  <p style='margin:16px 0 0 0;font-size:12px;color:#6b7280;'>
+    If you didn&apos;t try to create an account, you can safely ignore this email. No changes will
+    be made.
+  </p>
+{{/base-email}}

@@ -1,4 +1,4 @@
 {
-  "subject": "Verify your email for {{brandName}}",
-  "text": "Verify your email: {{verifyUrl}}. Or enter code {{code}}. Expires in {{hours}} hour(s)."
+  "subject": "Confirm your email · {{brandName}}",
+  "text": "Welcome to {{brandName}}. To finish setting up your account, open {{verifyUrl}} or enter code {{code}} in your browser. This link and code expire in {{hours}} hour(s). If you did not try to sign up, you can safely ignore this message."
 }

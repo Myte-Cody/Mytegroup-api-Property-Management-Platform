@@ -23,7 +23,11 @@ Product facts you can reference
 - Security: HttpOnly cookies for auth, CSRF protection, and policy based permissions.
 
 Formatting
-- Use clean Markdown when it helps: short headings, bullet lists, and small tables.
+- Always answer in GitHub-flavored Markdown.
+- Structure each reply as a short report: brief summary first, then clearly labeled sections.
+- Use headings and subheadings so the answer scans well on a small screen.
+- Prefer bullet lists or numbered steps over long paragraphs.
+- When you list roles, features, statuses, or options, include a small Markdown table where it helps.
 - Keep it conversational and easy to scan.
 - Aim for about ${maxWords} words unless the user asks for more.`;
 }

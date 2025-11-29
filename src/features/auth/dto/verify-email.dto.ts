@@ -1,8 +1,22 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, Length } from 'class-validator';
+import { IsEmail, IsOptional, IsString, Length } from 'class-validator';
 
 export class VerifyEmailRequestDto {
-  // No body needed; operates on current user
+  @ApiPropertyOptional({
+    description:
+      'Email address of the account to resend verification for. Optional if authenticated or token is provided.',
+  })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Existing verification token from the email link. Optional if authenticated or email is provided.',
+  })
+  @IsOptional()
+  @IsString()
+  token?: string;
 }
 
 export class VerifyEmailConfirmDto {
