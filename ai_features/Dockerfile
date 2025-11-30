@@ -5,19 +5,13 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Copy the requirements file into the container at /app
-COPY requirements.txt .
+COPY requirements.txt /app/requirements.txt
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application's code into the container at /app
-COPY . .
+# Copy the application's code into the container at /app
+COPY . /app
 
-# Set default port as environment variable
-ENV PORT=8000
-
-# Make port available to the world outside this container
-EXPOSE $PORT
-
-# Run app.py when the container launches
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port $PORT"]
+# Make port 8000 available to the world outside this container
+EXPOSE 8000
