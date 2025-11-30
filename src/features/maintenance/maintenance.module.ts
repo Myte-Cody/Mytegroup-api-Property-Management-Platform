@@ -1,3 +1,4 @@
+import { HttpModule } from '@nestjs/axios';
 import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { NestjsFormDataModule } from 'nestjs-form-data';
@@ -30,9 +31,11 @@ import { MaintenanceTicketsService } from './services/maintenance-tickets.servic
 import { ScopeOfWorkService } from './services/scope-of-work.service';
 import { ThreadsService } from './services/threads.service';
 import { TicketCommentsService } from './services/ticket-comments.service';
+import { VoiceTicketService } from './services/voice-ticket.service';
 
 @Module({
   imports: [
+    HttpModule,
     MongooseModule.forFeature([
       { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
       { name: TicketComment.name, schema: TicketCommentSchema },
@@ -66,6 +69,7 @@ import { TicketCommentsService } from './services/ticket-comments.service';
     ScopeOfWorkService,
     InvoicesService,
     ThreadsService,
+    VoiceTicketService,
   ],
   exports: [
     MaintenanceTicketsService,

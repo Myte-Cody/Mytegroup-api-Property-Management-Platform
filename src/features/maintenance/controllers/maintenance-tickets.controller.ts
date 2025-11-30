@@ -45,6 +45,7 @@ import {
   CreateInvoiceDto,
   CreateThreadMessageDto,
   CreateTicketDto,
+  CreateVoiceTicketDto,
   DeclineThreadDto,
   RefuseTicketDto,
   ThreadQueryDto,
@@ -59,6 +60,7 @@ import { Thread } from '../schemas/thread.schema';
 import { InvoicesService } from '../services/invoices.service';
 import { MaintenanceTicketsService } from '../services/maintenance-tickets.service';
 import { ThreadsService } from '../services/threads.service';
+import { VoiceTicketService } from '../services/voice-ticket.service';
 
 @ApiTags('Maintenance Tickets')
 @ApiBearerAuth()
@@ -70,6 +72,7 @@ export class MaintenanceTicketsController {
     private readonly invoicesService: InvoicesService,
     private readonly mediaService: MediaService,
     private readonly threadsService: ThreadsService,
+    private readonly voiceTicketService: VoiceTicketService,
   ) {}
 
   @Post()
@@ -82,6 +85,46 @@ export class MaintenanceTicketsController {
   @ApiResponse({ status: 403, description: 'Forbidden' })
   async create(@Body() createTicketDto: CreateTicketDto, @CurrentUser() user: User) {
     return this.ticketsService.create(createTicketDto, user);
+  }
+
+  @Post('voice')
+  @CheckPolicies(new CreateMaintenanceTicketPolicyHandler())
+  @FormDataRequest()
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Create maintenance ticket from voice recording',
+    description:
+      'Upload a voice recording describing the maintenance issue. The audio will be transcribed and analyzed by AI to extract ticket details.',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Voice processed successfully. Returns transcript, AI analysis, and ticket suggestions.',
+  })
+  @ApiResponse({ status: 400, description: 'Bad request or invalid audio file' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async createFromVoice(
+    @Body() createVoiceTicketDto: CreateVoiceTicketDto,
+    @CurrentUser() user: User,
+  ) {
+    const result = await this.voiceTicketService.processVoiceTicket(
+      createVoiceTicketDto.audio_file,
+      createVoiceTicketDto.property_name,
+      createVoiceTicketDto.unit_number,
+    );
+
+    return {
+      success: true,
+      data: {
+        transcript: result.transcript,
+        status: result.analysis.status,
+        response_text: result.analysis.response_text,
+        tickets: result.analysis.tickets,
+        cost: result.totalCost,
+        property_id: createVoiceTicketDto.property,
+        unit_id: createVoiceTicketDto.unit,
+      },
+    };
   }
 
   @Get()

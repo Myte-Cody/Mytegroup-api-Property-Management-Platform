@@ -7,6 +7,7 @@ export * from './create-invoice.dto';
 export * from './create-thread-message.dto';
 export * from './create-thread.dto';
 export * from './create-ticket.dto';
+export * from './create-voice-ticket.dto';
 export * from './decline-thread.dto';
 export * from './refuse-sow.dto';
 export * from './refuse-ticket.dto';

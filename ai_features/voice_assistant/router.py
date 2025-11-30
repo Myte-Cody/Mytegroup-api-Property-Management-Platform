@@ -34,7 +34,9 @@ async def transcribe_audio(file: UploadFile = File(...)):
 
         with open(temp_filename, "rb") as audio_file:
             transcript = client.audio.transcriptions.create(
-                model="whisper-1", file=audio_file
+                model="whisper-1",
+                file=audio_file,
+                language="en"  # Force English transcription
             )
             transcript_text = transcript.text
             
@@ -61,13 +63,14 @@ async def analyze_ticket_state(request: ChatRequest):
     """
 
     system_prompt = f"""
-    You are a friendly building manager AI.
+    You are a friendly building manager AI assistant.
+
     CONTEXT: {json.dumps(request.user_context)}
     GOAL: Identify one OR MORE maintenance issues and prepare tickets.
 
     PROCESS:
     1. Analyze the user's input to identify distinct problems.
-    2. **Sufficiency Check**: For EACH problem, determine if the description is detailed enough. 
+    2. **Sufficiency Check**: For EACH problem, determine if the description is detailed enough.
     3. **Multiple Issues**: If the user mentions multiple things, create separate objects.
     4. **Completion Check**: ONLY set status to "completed" when the user explicitly confirms they have NO more issues.
 
@@ -79,7 +82,7 @@ async def analyze_ticket_state(request: ChatRequest):
             {{ "property_name": "...", "unit_number": "...", "title": "...", "description": "...", "category": "...", "priority": "..." }}
         ]
     }}
-    
+
     RULES:
     - Images attached count: {request.image_count}.
     - Priority Rules: {priority_rules}
