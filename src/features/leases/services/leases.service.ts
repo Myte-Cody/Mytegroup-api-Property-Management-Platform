@@ -180,7 +180,23 @@ export class LeasesService {
       throw new NotFoundException(`Lease with ID ${id} not found`);
     }
 
-    return lease;
+    // Get current active rental period to show current rent amount, dates, and duration
+    const currentRentalPeriod = await this.rentalPeriodModel
+      .findOne({
+        lease: id,
+        status: RentalPeriodStatus.ACTIVE,
+      })
+      .exec();
+
+    // Override fields with current period's values if active period exists
+    const leaseObj = lease.toObject ? lease.toObject() : lease;
+    if (currentRentalPeriod) {
+      leaseObj.rentAmount = currentRentalPeriod.rentAmount;
+      leaseObj.startDate = currentRentalPeriod.startDate;
+      leaseObj.endDate = currentRentalPeriod.endDate;
+    }
+
+    return leaseObj;
   }
 
   async create(createLeaseDto: CreateLeaseDto, currentUser: UserDocument): Promise<Lease> {
@@ -651,10 +667,41 @@ export class LeasesService {
               { $match: { 'unitData.property': new Types.ObjectId(queryDto.propertyId) } },
             ]
           : []),
+        // Join with rental periods to get current active period's rent
+        {
+          $lookup: {
+            from: 'rentalperiods',
+            let: { leaseId: '$_id' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$lease', '$$leaseId'] },
+                      { $eq: ['$status', RentalPeriodStatus.ACTIVE] },
+                    ],
+                  },
+                },
+              },
+              { $limit: 1 },
+            ],
+            as: 'currentRentalPeriod',
+          },
+        },
+        {
+          $addFields: {
+            currentRent: {
+              $ifNull: [
+                { $arrayElemAt: ['$currentRentalPeriod.rentAmount', 0] },
+                '$rentAmount',
+              ],
+            },
+          },
+        },
         {
           $group: {
             _id: null,
-            totalMonthlyRent: { $sum: '$rentAmount' },
+            totalMonthlyRent: { $sum: '$currentRent' },
             activeLeaseIds: { $push: '$_id' },
           },
         },
@@ -842,6 +889,27 @@ export class LeasesService {
           as: 'tenantUser',
         },
       },
+      // Join with rental periods to get current active period's rent
+      {
+        $lookup: {
+          from: 'rentalperiods',
+          let: { leaseId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$lease', '$$leaseId'] },
+                    { $eq: ['$status', RentalPeriodStatus.ACTIVE] },
+                  ],
+                },
+              },
+            },
+            { $limit: 1 },
+          ],
+          as: 'currentRentalPeriod',
+        },
+      },
       // Join with transactions (type: RENT only)
       {
         $lookup: {
@@ -960,7 +1028,9 @@ export class LeasesService {
         unitId: { $toString: '$unitData._id' },
         tenantName: '$tenantData.name',
         tenantId: { $toString: '$tenantData._id' },
-        monthlyRent: '$rentAmount',
+        monthlyRent: {
+          $ifNull: [{ $arrayElemAt: ['$currentRentalPeriod.rentAmount', 0] }, '$rentAmount'],
+        },
         dueDate: { $ifNull: ['$dueDate', null] },
         amountCollected: 1,
         outstandingBalance: 1,
