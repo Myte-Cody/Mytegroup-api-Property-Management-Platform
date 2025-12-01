@@ -78,13 +78,16 @@ services:
     env_file:
       - .env
     volumes:
-      - ./ai_features:/app  
+      - ./ai_features:/app
     networks:
       - mytegroup-network
 
   frontend:
     build:
       context: ${FRONTEND_REPO_URL}
+      args:
+        - NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+        - NEXT_PUBLIC_API_URL=http://localhost:${API_PORT:-3001}
     container_name: mytegroup-frontend
     restart: always
     ports:
