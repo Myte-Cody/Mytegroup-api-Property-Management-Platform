@@ -44,7 +44,7 @@ export class VoiceTicketService {
       const formData = new FormData();
       formData.append('file', audioFile.buffer, {
         filename: audioFile.originalName,
-        contentType: audioFile.busBoyMimeType,
+        contentType: audioFile.mimeType,
       });
 
       this.logger.log(`Transcribing audio file: ${audioFile.originalName}`);
