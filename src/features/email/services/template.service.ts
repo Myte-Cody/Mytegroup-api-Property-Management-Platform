@@ -42,6 +42,27 @@ export class TemplateService {
     handlebars.registerHelper('formatAddress', (address: any) => {
       return formatAddress(address);
     });
+
+    // Comparison helpers
+    handlebars.registerHelper('gt', (a: any, b: any) => {
+      return a > b;
+    });
+
+    handlebars.registerHelper('lt', (a: any, b: any) => {
+      return a < b;
+    });
+
+    handlebars.registerHelper('eq', (a: any, b: any) => {
+      return a === b;
+    });
+
+    handlebars.registerHelper('gte', (a: any, b: any) => {
+      return a >= b;
+    });
+
+    handlebars.registerHelper('lte', (a: any, b: any) => {
+      return a <= b;
+    });
   }
 
   async compileTemplate(

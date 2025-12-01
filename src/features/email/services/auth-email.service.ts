@@ -23,7 +23,7 @@ export class AuthEmailService {
   ): Promise<void> {
     try {
       const clientBaseUrl = this.configService.get<string>('app.clientBaseUrl');
-      const resetUrl = `${clientBaseUrl}/reset-password?token=${resetToken}`;
+      const resetUrl = `${clientBaseUrl}/reset-password/${resetToken}`;
       const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
       const brandLogoUrl = this.configService.get<string>('BRAND_LOGO_URL') || '';
       const brandColor = this.configService.get<string>('BRAND_PRIMARY_COLOR') || '#2563eb';
