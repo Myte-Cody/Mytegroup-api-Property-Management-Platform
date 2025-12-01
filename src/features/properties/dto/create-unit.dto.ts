@@ -90,7 +90,12 @@ export class CreateUnitDto {
     default: false,
   })
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return false;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.toLowerCase() === 'true';
+    return false;
+  })
   @IsBoolean()
   @Type(() => Boolean)
   usePropertyAddress?: boolean;
@@ -112,7 +117,12 @@ export class CreateUnitDto {
     default: false,
   })
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return false;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.toLowerCase() === 'true';
+    return false;
+  })
   @IsBoolean()
   @Type(() => Boolean)
   availableForRent?: boolean;
@@ -135,7 +145,12 @@ export class CreateUnitDto {
     default: false,
   })
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return false;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.toLowerCase() === 'true';
+    return false;
+  })
   @IsBoolean()
   @Type(() => Boolean)
   publishToMarketplace?: boolean;
