@@ -84,6 +84,7 @@ export class MaintenanceTicketsService {
       propertyId,
       unitId,
       contractorId,
+      tenantId,
       startDate,
       endDate,
     } = ticketQueryDto;
@@ -190,6 +191,21 @@ export class MaintenanceTicketsService {
 
     if (contractorId) {
       baseQuery = baseQuery.where({ assignedContractor: contractorId });
+    }
+
+    // Filter by tenant - find tickets created by users of this tenant organization
+    if (tenantId) {
+      const tenantUsers = await this.userModel
+        .find({ organization_id: tenantId, user_type: 'Tenant' })
+        .select('_id')
+        .exec();
+      const tenantUserIds = tenantUsers.map((user) => user._id);
+      if (tenantUserIds.length > 0) {
+        baseQuery = baseQuery.where({ requestedBy: { $in: tenantUserIds } });
+      } else {
+        // No users found for this tenant - return empty result set
+        baseQuery = baseQuery.where({ _id: null });
+      }
     }
 
     if (startDate || endDate) {
