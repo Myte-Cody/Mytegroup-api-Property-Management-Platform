@@ -255,15 +255,13 @@ export class AuthService {
     });
   }
 
-  async issueAuthCookiesForUser(user: UserDocument, res: any, ip?: string, userAgent?: string) {
-    const accessToken = this.signAccessToken(user as any);
-    const refreshToken = this.newRefreshToken();
-    await this.createSession(user._id as any, refreshToken, ip, userAgent);
-    this.setAuthCookies(res, accessToken, refreshToken);
-
-    const resolvedRole = this.resolveUserRole(user as any);
+  private setUserDataCookie(res: any, user: UserDocument) {
+    if (!res?.cookie) {
+      return;
+    }
     const isProd = (this.configService.get<string>('NODE_ENV') || 'development') === 'production';
     const domain = this.getCookieDomain();
+    const resolvedRole = this.resolveUserRole(user);
 
     res.cookie(
       'user-data',
@@ -274,7 +272,7 @@ export class AuthService {
         user_type: user.user_type,
         organization_id: user.organization_id,
         isPrimary: user.isPrimary,
-        emailVerifiedAt: user.emailVerifiedAt || new Date(),
+        emailVerifiedAt: user.emailVerifiedAt || null,
         role: resolvedRole,
       }),
       {
@@ -286,6 +284,16 @@ export class AuthService {
         maxAge: 30 * 24 * 60 * 60 * 1000,
       },
     );
+  }
+
+  async issueAuthCookiesForUser(user: UserDocument, res: any, ip?: string, userAgent?: string) {
+    const accessToken = this.signAccessToken(user as any);
+    const refreshToken = this.newRefreshToken();
+    await this.createSession(user._id as any, refreshToken, ip, userAgent);
+    this.setAuthCookies(res, accessToken, refreshToken);
+    this.setUserDataCookie(res, user);
+
+    const resolvedRole = this.resolveUserRole(user as any);
 
     return {
       user: {
@@ -360,30 +368,7 @@ export class AuthService {
     await this.createSession(user._id as any, refreshToken, ip, userAgent);
     if (res) {
       this.setAuthCookies(res, accessToken, refreshToken);
-      // Optional convenience cookie for UI middleware routing (non-sensitive)
-      const isProd = (this.configService.get<string>('NODE_ENV') || 'development') === 'production';
-      const domain = this.getCookieDomain();
-      res.cookie(
-        'user-data',
-        JSON.stringify({
-          _id: user._id,
-          username: user.username,
-          email: user.email,
-          user_type: user.user_type,
-          organization_id: user.organization_id,
-          isPrimary: user.isPrimary,
-          emailVerifiedAt: user.emailVerifiedAt || null,
-          role: resolvedRole,
-        }),
-        {
-          httpOnly: false,
-          secure: isProd,
-          sameSite: 'lax',
-          domain,
-          path: '/',
-          maxAge: 30 * 24 * 60 * 60 * 1000,
-        },
-      );
+      this.setUserDataCookie(res, user);
     }
 
     return {
@@ -679,32 +664,9 @@ export class AuthService {
       const refreshToken = this.newRefreshToken();
       await this.createSession(user._id as any, refreshToken, ip, userAgent);
       this.setAuthCookies(res, accessToken, refreshToken);
+      this.setUserDataCookie(res, user as any);
 
       const resolvedRole = this.resolveUserRole(user as any);
-      const isProd = (this.configService.get<string>('NODE_ENV') || 'development') === 'production';
-      const domain = this.getCookieDomain();
-
-      res.cookie(
-        'user-data',
-        JSON.stringify({
-          _id: user._id,
-          username: user.username,
-          email: user.email,
-          user_type: user.user_type,
-          organization_id: user.organization_id,
-          isPrimary: user.isPrimary,
-          emailVerifiedAt: user.emailVerifiedAt || null,
-          role: resolvedRole,
-        }),
-        {
-          httpOnly: false,
-          secure: isProd,
-          sameSite: 'lax',
-          domain,
-          path: '/',
-          maxAge: 30 * 24 * 60 * 60 * 1000,
-        },
-      );
 
       return {
         success: true,
