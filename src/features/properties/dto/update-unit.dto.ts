@@ -49,11 +49,28 @@ export class UpdateUnitDto {
   type?: UnitType;
 
   @ApiProperty({
-    example: 'https://maps.google.com/?q=40.7128,-74.0060',
-    description: 'Google Maps link for the unit location',
+    example: false,
+    description: 'Whether to use the property address for this unit',
     required: false,
   })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') return value.toLowerCase() === 'true';
+    return false;
+  })
+  @IsBoolean()
+  @Type(() => Boolean)
+  usePropertyAddress?: boolean;
+
+  @ApiProperty({
+    example: 'https://maps.google.com/?q=40.7128,-74.0060',
+    description: 'Google Maps link for the unit location (required if usePropertyAddress is false)',
+    required: false,
+  })
+  @ValidateIf((o) => o.usePropertyAddress === false)
+  @IsNotEmpty({ message: 'googleMapsLink is required when not using property address' })
   @IsUrl()
   googleMapsLink?: string;
 
