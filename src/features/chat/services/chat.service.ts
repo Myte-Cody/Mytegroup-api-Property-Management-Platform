@@ -22,6 +22,7 @@ import {
 } from '../../maintenance/schemas/thread.schema';
 import { MediaService } from '../../media/services/media.service';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { Property } from '../../properties/schemas/property.schema';
 import { Tenant } from '../../tenants/schema/tenant.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';
 import { ChatGateway } from '../chat.gateway';
@@ -41,6 +42,8 @@ export class ChatService {
     private tenantModel: Model<Tenant>,
     @InjectModel(Lease.name)
     private leaseModel: Model<Lease>,
+    @InjectModel(Property.name)
+    private propertyModel: Model<Property>,
     private notificationsService: NotificationsService,
     private chatGateway: ChatGateway,
     private mediaService: MediaService,
@@ -153,7 +156,8 @@ export class ChatService {
         (p) =>
           p.thread &&
           ((p.thread as any).linkedEntityType === ThreadLinkedEntityType.TENANT_CHAT ||
-            (p.thread as any).linkedEntityType === ThreadLinkedEntityType.LEASE),
+            (p.thread as any).linkedEntityType === ThreadLinkedEntityType.LEASE ||
+            (p.thread as any).linkedEntityType === ThreadLinkedEntityType.PROPERTY),
       )
       .map((p) => (p.thread as any)._id);
 
@@ -180,11 +184,22 @@ export class ChatService {
       })
       .lean();
 
-    // Create a map of leaseId to property name
-    const leasePropertyMap = new Map<string, string>();
-    leases.forEach((lease: any) => {
-      const title = lease.unit?.property?.name || 'Property';
-      leasePropertyMap.set(lease._id.toString(), title);
+    // Get property IDs from PROPERTY type threads to fetch property names
+    const propertyThreads = threads.filter(
+      (t) => t.linkedEntityType === ThreadLinkedEntityType.PROPERTY,
+    );
+    const propertyIds = propertyThreads.map((t) => t.linkedEntityId);
+
+    // Fetch properties
+    const properties = await this.propertyModel
+      .find({ _id: { $in: propertyIds } })
+      .select('name')
+      .lean();
+
+    // Create a map of propertyId to property name
+    const propertyMap = new Map<string, string>();
+    properties.forEach((property: any) => {
+      propertyMap.set(property._id.toString(), property.name);
     });
 
     // Get all participants for all threads in one query (without populate)
@@ -250,11 +265,11 @@ export class ChatService {
       const otherUserId = otherParticipant?.participantId?.toString();
       const otherUserInfo = otherUserId ? usersMap.get(otherUserId) : null;
 
-      // For LEASE threads, use property name as title
+      // For PROPERTY threads, use property name as title
       let title = null;
-      if (thread.linkedEntityType === ThreadLinkedEntityType.LEASE) {
-        const leaseId = thread.linkedEntityId?.toString();
-        title = leasePropertyMap.get(leaseId) || thread.title;
+      if (thread.linkedEntityType === ThreadLinkedEntityType.PROPERTY) {
+        const propertyId = thread.linkedEntityId?.toString();
+        title = propertyMap.get(propertyId) || thread.title;
       }
 
       return {
@@ -513,7 +528,12 @@ export class ChatService {
       const otherUserId = otherParticipant.participantId as any;
       const sender = await this.userModel.findById(userId);
       const recipient = await this.userModel.findById(otherUserId._id);
-      const dashboardPath = recipient?.user_type === 'Landlord' ? 'landlord' : recipient?.user_type === 'Contractor' ? 'contractor' : 'tenant';
+      const dashboardPath =
+        recipient?.user_type === 'Landlord'
+          ? 'landlord'
+          : recipient?.user_type === 'Contractor'
+            ? 'contractor'
+            : 'tenant';
       await this.notificationsService.createNotification(
         otherUserId._id,
         'New message',

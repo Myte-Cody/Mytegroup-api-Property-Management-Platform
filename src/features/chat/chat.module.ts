@@ -10,6 +10,7 @@ import { Thread, ThreadSchema } from '../maintenance/schemas/thread.schema';
 import { MediaModule } from '../media/media.module';
 import { Media, MediaSchema } from '../media/schemas/media.schema';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { Property, PropertySchema } from '../properties/schemas/property.schema';
 import { Tenant, TenantSchema } from '../tenants/schema/tenant.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { ChatGateway } from './chat.gateway';
@@ -26,6 +27,7 @@ import { ChatService } from './services/chat.service';
       { name: Tenant.name, schema: TenantSchema },
       { name: Media.name, schema: MediaSchema },
       { name: Lease.name, schema: LeaseSchema },
+      { name: Property.name, schema: PropertySchema },
     ]),
     MediaModule,
     NotificationsModule,

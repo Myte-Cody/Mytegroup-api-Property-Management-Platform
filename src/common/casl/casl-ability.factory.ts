@@ -295,6 +295,9 @@ export class CaslAbilityFactory {
     can(Action.Read, FeedPost);
     can(Action.Update, FeedPost); // For voting actions
 
+    // Tenants can create media (for chat messages and other uploads)
+    can(Action.Create, Media);
+
     // Cannot create, update, or delete properties, units, and other entities
     cannot(Action.Create, Property);
     cannot(Action.Update, Property);
@@ -305,7 +308,6 @@ export class CaslAbilityFactory {
     cannot(Action.Create, Tenant);
     cannot(Action.Update, Tenant);
     cannot(Action.Delete, Tenant);
-    cannot(Action.Create, Media);
     cannot(Action.Update, Media);
     cannot(Action.Delete, Media);
     cannot(Action.Create, Lease);

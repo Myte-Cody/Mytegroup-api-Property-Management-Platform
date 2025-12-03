@@ -642,6 +642,12 @@ export class ThreadsService {
         return 'MaintenanceTicket';
       case ThreadLinkedEntityType.SCOPE_OF_WORK:
         return 'ScopeOfWork';
+      case ThreadLinkedEntityType.PROPERTY:
+        return 'Property';
+      case ThreadLinkedEntityType.LEASE:
+        return 'Lease';
+      case ThreadLinkedEntityType.TENANT_CHAT:
+        return 'Tenant';
       default:
         throw new BadRequestException('Invalid linked entity type');
     }
@@ -719,45 +725,57 @@ export class ThreadsService {
 
   /**
    * Auto-create thread for a lease activation
-   * Creates a LANDLORD_TENANT thread connecting all landlord and tenant users
+   * Creates a LANDLORD_TENANT thread linked to the property
+   * If a thread already exists for the property, adds the tenant as a participant
    */
   async createThreadForLease(
     leaseId: string,
     landlordId: string,
     tenantId: string,
   ): Promise<ThreadDocument> {
-    // Check if thread already exists
-    const existingThread = await this.threadModel.findOne({
-      linkedEntityType: ThreadLinkedEntityType.LEASE,
-      linkedEntityId: new Types.ObjectId(leaseId),
-      threadType: ThreadType.LANDLORD_TENANT,
-    });
-
-    if (existingThread) {
-      // Thread exists, ensure all tenant users are added as participants
-      await this.addTenantUsersToThread(existingThread, tenantId);
-      return existingThread;
-    }
-
-    // Get lease details for thread title
+    // Get lease details to find the property
     const lease = await this.leaseModel
       .findById(leaseId)
-      .populate('unit', 'unitNumber')
+      .populate({
+        path: 'unit',
+        select: 'unitNumber property',
+        populate: { path: 'property', select: 'name' },
+      })
       .populate('tenant', 'name');
 
     if (!lease) {
       throw new NotFoundException('Lease not found');
     }
 
-    const unitNumber = (lease.unit as any)?.unitNumber || 'Unit';
-    const tenantName = (lease.tenant as any)?.name || 'Tenant';
+    const unit = lease.unit as any;
+    const property = unit?.property as any;
+    const propertyId = property?._id;
 
-    // Create thread
+    if (!propertyId) {
+      throw new NotFoundException('Property not found for lease');
+    }
+
+    const propertyName = property?.name || 'Property';
+
+    // Check if thread already exists for this property
+    const existingThread = await this.threadModel.findOne({
+      linkedEntityType: ThreadLinkedEntityType.PROPERTY,
+      linkedEntityId: propertyId,
+      threadType: ThreadType.TENANT_TENANT_GROUP,
+    });
+
+    if (existingThread) {
+      // Thread exists, add tenant users as participants if not already added
+      await this.addTenantUsersToThread(existingThread, tenantId);
+      return existingThread;
+    }
+
+    // Create new thread linked to property
     const thread = new this.threadModel({
-      title: `Lease Communication - ${unitNumber} - ${tenantName}`,
-      linkedEntityType: ThreadLinkedEntityType.LEASE,
-      linkedEntityId: new Types.ObjectId(leaseId),
-      linkedEntityModel: 'Lease',
+      title: propertyName,
+      linkedEntityType: ThreadLinkedEntityType.PROPERTY,
+      linkedEntityId: propertyId,
+      linkedEntityModel: 'Property',
       threadType: ThreadType.LANDLORD_TENANT,
     });
 
@@ -1410,7 +1428,12 @@ export class ThreadsService {
 
       // Send appropriate notification based on whether there are attachments
       const notificationPromises = tenantUsers.map((user) => {
-        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
+        const userDashboard =
+          user.user_type === 'Contractor'
+            ? 'contractor'
+            : user.user_type === 'Landlord'
+              ? 'landlord'
+              : 'tenant';
         if (hasAttachments) {
           return this.notificationsService.createNotification(
             user._id.toString(),
@@ -1461,7 +1484,12 @@ export class ThreadsService {
 
       // Send notifications
       const notificationPromises = tenantUsers.map((user) => {
-        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
+        const userDashboard =
+          user.user_type === 'Contractor'
+            ? 'contractor'
+            : user.user_type === 'Landlord'
+              ? 'landlord'
+              : 'tenant';
         return this.notificationsService.createNotification(
           user._id.toString(),
           'Thread Invitation',
@@ -1532,7 +1560,12 @@ export class ThreadsService {
 
       // Send notifications
       const notificationPromises = tenantUsers.map((user) => {
-        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
+        const userDashboard =
+          user.user_type === 'Contractor'
+            ? 'contractor'
+            : user.user_type === 'Landlord'
+              ? 'landlord'
+              : 'tenant';
         return this.notificationsService.createNotification(
           user._id.toString(),
           'Discussion Closed',
@@ -1600,7 +1633,12 @@ export class ThreadsService {
 
       // Send notifications
       const notificationPromises = tenantUsers.map((user) => {
-        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
+        const userDashboard =
+          user.user_type === 'Contractor'
+            ? 'contractor'
+            : user.user_type === 'Landlord'
+              ? 'landlord'
+              : 'tenant';
         return this.notificationsService.createNotification(
           user._id.toString(),
           'Discussion Reopened',

@@ -373,6 +373,50 @@ export class TransactionsService {
         throw new BadRequestException('Transaction date cannot be in the future');
       }
 
+      // Check for unpaid deposits if trying to pay rent
+      if (transaction.lease && transaction.type === PaymentType.RENT) {
+        const unpaidDeposit = await this.transactionModel
+          .findOne(
+            {
+              lease: transaction.lease,
+              type: PaymentType.DEPOSIT,
+              status: PaymentStatus.PENDING,
+            },
+            null,
+            { session },
+          )
+          .sort({ dueDate: 1 })
+          .exec();
+
+        if (unpaidDeposit) {
+          throw new BadRequestException(
+            'Cannot submit rent payment. There is an unpaid deposit that must be paid first.',
+          );
+        }
+      }
+
+      // Check for earlier unpaid transactions for the same lease
+      if (transaction.lease && transaction.dueDate) {
+        const earlierUnpaidTransactions = await this.transactionModel
+          .findOne(
+            {
+              lease: transaction.lease,
+              dueDate: { $lt: transaction.dueDate },
+              status: PaymentStatus.PENDING,
+            },
+            null,
+            { session },
+          )
+          .sort({ dueDate: 1 })
+          .exec();
+
+        if (earlierUnpaidTransactions) {
+          throw new BadRequestException(
+            `Cannot submit payment for this period. There is an earlier unpaid payment due on ${earlierUnpaidTransactions.dueDate.toLocaleDateString()}. Please pay earlier payments first.`,
+          );
+        }
+      }
+
       const updatedTransaction = await this.transactionModel
         .findByIdAndUpdate(
           transaction._id,
@@ -433,6 +477,42 @@ export class TransactionsService {
 
     if (!transaction) {
       throw new NotFoundException(`Transaction with ID ${id} not found`);
+    }
+
+    // Check for unpaid deposits if trying to pay rent
+    if (transaction.lease && transaction.type === PaymentType.RENT) {
+      const unpaidDeposit = await this.transactionModel
+        .findOne({
+          lease: transaction.lease,
+          type: PaymentType.DEPOSIT,
+          status: PaymentStatus.PENDING,
+        })
+        .sort({ dueDate: 1 })
+        .exec();
+
+      if (unpaidDeposit) {
+        throw new BadRequestException(
+          'Cannot mark rent as paid. There is an unpaid deposit that must be paid first.',
+        );
+      }
+    }
+
+    // Check for earlier unpaid transactions for the same lease
+    if (transaction.lease && transaction.dueDate) {
+      const earlierUnpaidTransactions = await this.transactionModel
+        .findOne({
+          lease: transaction.lease,
+          dueDate: { $lt: transaction.dueDate },
+          status: PaymentStatus.PENDING,
+        })
+        .sort({ dueDate: 1 })
+        .exec();
+
+      if (earlierUnpaidTransactions) {
+        throw new BadRequestException(
+          `Cannot mark this payment as paid. There is an earlier unpaid payment due on ${earlierUnpaidTransactions.dueDate.toLocaleDateString()}. Please pay earlier payments first.`,
+        );
+      }
     }
 
     // Update transaction status to PAID
