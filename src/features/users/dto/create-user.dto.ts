@@ -108,4 +108,13 @@ export class CreateUserDto {
   @IsOptional()
   @IsEnum(UserRole)
   role?: UserRole;
+
+  @ApiProperty({
+    example: 'https://example.com/profile.jpg',
+    description: 'URL or path to the profile picture',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  profilePicture?: string;
 }

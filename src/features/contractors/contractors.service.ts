@@ -227,7 +227,7 @@ export class ContractorsService {
     }
 
     // Extract user data from DTO
-    const { email, password, name, username, firstName, lastName, phone } = createContractorDto;
+    const { email, password, name, username, firstName, lastName, phone, profilePicture } = createContractorDto;
 
     // Check if contractor name already exists within this tenant
     const existingContractor = await this.contractorModel.findOne({ name }).exec();
@@ -251,7 +251,7 @@ export class ContractorsService {
       const savedContractor = await newContractor.save({ session });
 
       // Create the user account for the contractor
-      const userData = {
+      const userData: any = {
         username,
         firstName,
         lastName,
@@ -261,6 +261,10 @@ export class ContractorsService {
         user_type: UserType.CONTRACTOR,
         organization_id: savedContractor._id, // Link to the contractor
       };
+
+      if (profilePicture) {
+        userData.profilePicture = profilePicture;
+      }
 
       const newUser = new this.userModel(userData);
       await newUser.save({ session });

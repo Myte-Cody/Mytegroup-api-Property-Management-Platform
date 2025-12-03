@@ -15,6 +15,7 @@ import { AppModel } from '../../common/interfaces/app-model.interface';
 import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { WelcomeEmailService } from '../email/services/welcome-email.service';
+import { MediaService } from '../media/services/media.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
@@ -26,6 +27,7 @@ export class UsersService {
     private caslAuthorizationService: CaslAuthorizationService,
     private welcomeEmailService: WelcomeEmailService,
     private readonly sessionService: SessionService,
+    private readonly mediaService: MediaService,
   ) {}
 
   async create(createUserDto: CreateUserDto, session?: ClientSession | null, currentUser?: User) {
@@ -453,6 +455,41 @@ export class UsersService {
         `A primary user already exists for this ${user_type.toLowerCase()}. Only one primary user is allowed per organization.`,
       );
     }
+  }
+
+  async uploadProfilePicture(userId: string, file: any, currentUser: User): Promise<User> {
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+    if (!ability.can(Action.Update, user)) {
+      throw new ForbiddenException('You do not have permission to update this user');
+    }
+
+    const media = await this.mediaService.upload(
+      file,
+      user,
+      currentUser,
+      'profile-pictures',
+      undefined,
+      'User',
+    );
+
+    const mediaUrl = await this.mediaService.getMediaUrl(media);
+    user.profilePicture = mediaUrl;
+    await user.save();
+
+    return user;
+  }
+
+  async getProfilePicture(userId: string): Promise<string | null> {
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+    return user.profilePicture || null;
   }
 
   private resolveRole(

@@ -94,4 +94,12 @@ export class CreateContractorDto {
       'Password must contain at least one uppercase letter, one lowercase letter, and one number or special character',
   })
   password: string;
+
+  @ApiPropertyOptional({
+    description: 'URL or path to the profile picture',
+    example: 'https://example.com/profile.jpg',
+  })
+  @IsString()
+  @IsOptional()
+  profilePicture?: string;
 }

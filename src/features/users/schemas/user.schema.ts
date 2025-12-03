@@ -71,6 +71,9 @@ export class User extends Document implements SoftDelete {
   @Prop({ type: Date, required: false })
   disabledAt?: Date;
 
+  @Prop({ type: String, required: false })
+  profilePicture?: string;
+
   deleted: boolean;
   deletedAt?: Date;
 }

@@ -93,4 +93,12 @@ export class CreateTenantDto {
   })
   @IsOptional()
   invitationContext?: Record<string, any>;
+
+  @ApiPropertyOptional({
+    description: 'URL or path to the profile picture',
+    example: 'https://example.com/profile.jpg',
+  })
+  @IsString()
+  @IsOptional()
+  profilePicture?: string;
 }

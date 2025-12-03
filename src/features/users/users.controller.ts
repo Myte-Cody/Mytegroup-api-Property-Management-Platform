@@ -9,9 +9,13 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { Multer } from 'multer';
 import { CheckPolicies } from '../../common/casl/decorators/check-policies.decorator';
 import { CaslGuard } from '../../common/casl/guards/casl.guard';
 import {
@@ -80,5 +84,35 @@ export class UsersController {
   @ApiParam({ name: 'id', description: 'User ID', type: String })
   remove(@Param('id', MongoIdValidationPipe) id: string) {
     return this.userService.remove(id);
+  }
+
+  @Post(':id/profile-picture')
+  @CheckPolicies(new UpdateUserPolicyHandler())
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload profile picture for a user' })
+  @ApiParam({ name: 'id', description: 'User ID', type: String })
+  async uploadProfilePicture(
+    @CurrentUser() currentUser: User,
+    @Param('id', MongoIdValidationPipe) id: string,
+    @UploadedFile() file: Multer.File,
+  ) {
+    const updatedUser = await this.userService.uploadProfilePicture(id, file, currentUser);
+    return {
+      success: true,
+      data: updatedUser,
+    };
+  }
+
+  @Get(':id/profile-picture')
+  @CheckPolicies(new ReadUserPolicyHandler())
+  @ApiOperation({ summary: 'Get profile picture URL for a user' })
+  @ApiParam({ name: 'id', description: 'User ID', type: String })
+  async getProfilePicture(@Param('id', MongoIdValidationPipe) id: string) {
+    const profilePicture = await this.userService.getProfilePicture(id);
+    return {
+      success: true,
+      data: { profilePicture },
+    };
   }
 }

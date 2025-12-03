@@ -160,6 +160,7 @@ export class TenantsService {
             $project: {
               email: 1,
               phone: 1,
+              profilePicture: 1,
             },
           },
           {
@@ -235,6 +236,7 @@ export class TenantsService {
       $addFields: {
         email: { $arrayElemAt: ['$primaryUser.email', 0] },
         phone: { $arrayElemAt: ['$primaryUser.phone', 0] },
+        profilePicture: { $arrayElemAt: ['$primaryUser.profilePicture', 0] },
         activeLeasesCount: { $size: '$activeLeases' },
         hasActiveLeases: { $gt: [{ $size: '$activeLeases' }, 0] },
         outstandingBalance: {
@@ -601,7 +603,7 @@ export class TenantsService {
     }
 
     // Extract user data from DTO
-    const { email, password, name, username, firstName, lastName, phone, invitationContext } =
+    const { email, password, name, username, firstName, lastName, phone, invitationContext, profilePicture } =
       createTenantDto;
 
     // Validate tenant creation data
@@ -621,7 +623,7 @@ export class TenantsService {
       const savedTenant = await newTenant.save({ session });
 
       // Create user account
-      const userData = {
+      const userData: any = {
         username,
         firstName,
         lastName,
@@ -631,6 +633,10 @@ export class TenantsService {
         user_type: UserType.TENANT,
         organization_id: savedTenant._id.toString(),
       };
+
+      if (profilePicture) {
+        userData.profilePicture = profilePicture;
+      }
 
       await this.usersService.create(userData, session);
 
@@ -644,7 +650,7 @@ export class TenantsService {
     session?: ClientSession,
   ) {
     // Extract user data from DTO
-    const { email, password, name, username, firstName, lastName, phone, invitationContext } =
+    const { email, password, name, username, firstName, lastName, phone, invitationContext, profilePicture } =
       createTenantDto;
 
     // Validate tenant creation data (no CASL authorization needed for invitations)
@@ -664,7 +670,7 @@ export class TenantsService {
     const savedTenant = await newTenant.save({ session: session ?? null });
 
     // Create user account (without current user context for invitations)
-    const userData = {
+    const userData: any = {
       username,
       email,
       phone,
@@ -674,6 +680,10 @@ export class TenantsService {
       user_type: UserType.TENANT,
       organization_id: savedTenant._id.toString(),
     };
+
+    if (profilePicture) {
+      userData.profilePicture = profilePicture;
+    }
 
     await this.usersService.createFromInvitation(userData, session);
 
