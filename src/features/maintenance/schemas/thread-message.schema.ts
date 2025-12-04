@@ -34,6 +34,9 @@ export class ThreadMessage {
   @Prop({ required: true })
   senderModel: string;
 
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId }], default: [] })
+  readBy: MongooseSchema.Types.ObjectId[];
+
   createdAt?: Date;
   updatedAt?: Date;
 }

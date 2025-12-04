@@ -213,7 +213,7 @@ export class ChatService {
     // Manually load all users in one query
     const users = await this.userModel
       .find({ _id: { $in: allUserIds } })
-      .select('_id firstName lastName email user_type organization_id')
+      .select('_id firstName lastName email user_type organization_id profilePicture')
       .lean();
 
     // Create a map of userId to user data
@@ -249,6 +249,23 @@ export class ChatService {
       }
     });
 
+    // Get unread counts for all threads in one query
+    const unreadCounts = await Promise.all(
+      threads.map((thread) =>
+        this.threadMessageModel.countDocuments({
+          thread: thread._id,
+          senderId: { $ne: new Types.ObjectId(userId) }, // Not sent by current user
+          readBy: { $ne: new Types.ObjectId(userId) }, // Not read by current user
+        }),
+      ),
+    );
+
+    // Create a map of threadId to unread count
+    const unreadCountMap = new Map<string, number>();
+    threads.forEach((thread, index) => {
+      unreadCountMap.set(thread._id.toString(), unreadCounts[index]);
+    });
+
     const chatSessions = threads.map((thread) => {
       const threadId = thread._id.toString();
       const participants = participantsMap.get(threadId) || [];
@@ -258,8 +275,8 @@ export class ChatService {
 
       const lastMessage = lastMessagesMap.get(threadId);
 
-      // For simplicity, we're not tracking read status yet
-      const unreadCount = 0;
+      // Get unread count from map
+      const unreadCount = unreadCountMap.get(threadId) || 0;
 
       // Manually load the other user data
       const otherUserId = otherParticipant?.participantId?.toString();
@@ -287,6 +304,7 @@ export class ChatService {
               email: otherUserInfo.email,
               user_type: otherUserInfo.user_type,
               organization_id: otherUserInfo.organization_id,
+              profilePicture: otherUserInfo.profilePicture,
             }
           : null,
         participants: participants
@@ -299,6 +317,7 @@ export class ChatService {
                   firstName: userData.firstName,
                   lastName: userData.lastName,
                   email: userData.email,
+                  profilePicture: userData.profilePicture,
                 }
               : null;
           })
@@ -430,6 +449,7 @@ export class ChatService {
       senderId: new Types.ObjectId(userId),
       senderType: MessageSenderType.TENANT,
       senderModel: 'User',
+      readBy: [new Types.ObjectId(userId)], // Sender has read their own message
     });
 
     const savedMessage = await threadMessage.save();
@@ -478,12 +498,17 @@ export class ChatService {
       updatedAt: new Date(),
     });
 
-    // Populate sender info and media
+    // Populate media
     const messageWithMedia = await this.threadMessageModel
       .findById(savedMessage._id)
-      .populate('senderId', 'firstName lastName profilePicture')
       .populate('media')
       .exec();
+
+    // Manually fetch sender info (since senderId is polymorphic)
+    const senderInfo = await this.userModel
+      .findById(userId)
+      .select('_id firstName lastName profilePicture')
+      .lean();
 
     // Enrich media with URLs
     const hasAttachments =
@@ -514,11 +539,20 @@ export class ChatService {
 
     // Emit WebSocket event to all participants
     if (participantUserIds.length > 0) {
-      this.chatGateway.emitMessageToThread(
-        participantUserIds,
-        threadId,
-        (messageWithMedia || savedMessage).toObject(),
-      );
+      // Format message to match the REST API response structure
+      const messageToEmit = {
+        _id: messageWithMedia._id,
+        message: messageWithMedia.content,
+        content: messageWithMedia.content,
+        sender: senderInfo,
+        senderId: savedMessage.senderId, // Original ObjectId
+        senderType: messageWithMedia.senderType,
+        media: (messageWithMedia as any).media || [],
+        createdAt: messageWithMedia.createdAt,
+        updatedAt: messageWithMedia.updatedAt,
+      };
+
+      this.chatGateway.emitMessageToThread(participantUserIds, threadId, messageToEmit);
     }
 
     // Send notification to other participant
@@ -559,8 +593,33 @@ export class ChatService {
       throw new NotFoundException('Chat session not found or access denied');
     }
 
-    // Mark all messages as read - in this simplified version, we don't track read status
-    // You can add a readBy field to ThreadMessage schema if needed
+    // Mark all unread messages in this thread as read by this user
+    await this.threadMessageModel.updateMany(
+      {
+        thread: new Types.ObjectId(threadId),
+        senderId: { $ne: new Types.ObjectId(userId) }, // Don't mark own messages
+        readBy: { $ne: new Types.ObjectId(userId) }, // Not already read
+      },
+      {
+        $addToSet: { readBy: new Types.ObjectId(userId) },
+      },
+    );
+
+    // Get all participants to emit read event
+    const allParticipants = await this.threadParticipantModel
+      .find({
+        thread: new Types.ObjectId(threadId),
+      })
+      .populate('participantId');
+
+    const participantUserIds = allParticipants
+      .map((p) => p.participantId?.toString())
+      .filter(Boolean);
+
+    // Emit read event to all participants
+    if (participantUserIds.length > 0) {
+      this.chatGateway.emitMessageRead(participantUserIds, threadId, userId);
+    }
   }
 
   /**
