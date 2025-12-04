@@ -8,6 +8,9 @@ import { AddGroupMembersDto } from '../dto/add-group-members.dto';
 import { CreateChatSessionDto } from '../dto/create-chat-session.dto';
 import { CreateGroupChatDto } from '../dto/create-group-chat.dto';
 import { SendMessageDto } from '../dto/send-message.dto';
+import { TransferOwnershipDto } from '../dto/transfer-ownership.dto';
+import { UpdateGroupAvatarDto } from '../dto/update-group-avatar.dto';
+import { UpdateGroupNameDto } from '../dto/update-group-name.dto';
 import { ChatService } from '../services/chat.service';
 
 @Controller('chat')
@@ -98,6 +101,7 @@ export class ChatController {
       currentUserId,
       createGroupChatDto.title,
       createGroupChatDto.participantIds,
+      createGroupChatDto.avatarUrl,
     );
 
     return {
@@ -142,6 +146,82 @@ export class ChatController {
     return {
       success: true,
       message: 'Member removed successfully',
+    };
+  }
+
+  /**
+   * Leave a group chat
+   */
+  @Post('groups/:threadId/leave')
+  async leaveGroup(@CurrentUser() user: User, @Param('threadId') threadId: string) {
+    const userId = user._id.toString();
+
+    await this.chatService.leaveGroup(threadId, userId);
+
+    return {
+      success: true,
+      message: 'Left group successfully',
+    };
+  }
+
+  /**
+   * Update group name
+   */
+  @Put('groups/:threadId/name')
+  async updateGroupName(
+    @CurrentUser() user: User,
+    @Param('threadId') threadId: string,
+    @Body() updateGroupNameDto: UpdateGroupNameDto,
+  ) {
+    const currentUserId = user._id.toString();
+
+    await this.chatService.updateGroupName(threadId, currentUserId, updateGroupNameDto.name);
+
+    return {
+      success: true,
+      message: 'Group name updated successfully',
+    };
+  }
+
+  /**
+   * Update group avatar
+   */
+  @Put('groups/:threadId/avatar')
+  async updateGroupAvatar(
+    @CurrentUser() user: User,
+    @Param('threadId') threadId: string,
+    @Body() updateGroupAvatarDto: UpdateGroupAvatarDto,
+  ) {
+    const currentUserId = user._id.toString();
+
+    await this.chatService.updateGroupAvatar(threadId, currentUserId, updateGroupAvatarDto.avatarUrl);
+
+    return {
+      success: true,
+      message: 'Group avatar updated successfully',
+    };
+  }
+
+  /**
+   * Transfer group ownership
+   */
+  @Put('groups/:threadId/ownership')
+  async transferOwnership(
+    @CurrentUser() user: User,
+    @Param('threadId') threadId: string,
+    @Body() transferOwnershipDto: TransferOwnershipDto,
+  ) {
+    const currentUserId = user._id.toString();
+
+    await this.chatService.transferOwnership(
+      threadId,
+      currentUserId,
+      transferOwnershipDto.newOwnerId,
+    );
+
+    return {
+      success: true,
+      message: 'Ownership transferred successfully',
     };
   }
 }

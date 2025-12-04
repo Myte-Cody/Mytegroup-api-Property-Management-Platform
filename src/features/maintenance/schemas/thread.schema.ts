@@ -54,6 +54,16 @@ export class Thread {
   })
   threadType: ThreadType;
 
+  // Group chat admin features
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: false })
+  createdBy?: MongooseSchema.Types.ObjectId; // Group creator/owner
+
+  @Prop({ type: [MongooseSchema.Types.ObjectId], ref: 'User', default: [] })
+  admins: MongooseSchema.Types.ObjectId[]; // Group admins (includes creator)
+
+  @Prop({ type: String, required: false })
+  avatarUrl?: string; // Group avatar/picture
+
   createdAt?: Date;
   updatedAt?: Date;
 }

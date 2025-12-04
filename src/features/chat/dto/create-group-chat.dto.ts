@@ -1,4 +1,13 @@
-import { ArrayMinSize, IsArray, IsMongoId, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsMongoId,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateGroupChatDto {
   @IsNotEmpty()
@@ -10,4 +19,8 @@ export class CreateGroupChatDto {
   @ArrayMinSize(1)
   @IsMongoId({ each: true })
   participantIds: string[];
+
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string;
 }

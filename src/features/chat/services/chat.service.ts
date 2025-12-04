@@ -5,6 +5,7 @@ import { MemoryStoredFile } from 'nestjs-form-data';
 import { Lease } from '../../leases/schemas/lease.schema';
 import {
   MessageSenderType,
+  SystemMessageType,
   ThreadMessage,
   ThreadMessageDocument,
 } from '../../maintenance/schemas/thread-message.schema';
@@ -288,10 +289,14 @@ export class ChatService {
       const otherUserInfo = otherUserId ? usersMap.get(otherUserId) : null;
 
       // For PROPERTY threads, use property name as title
+      // For TENANT_TENANT_GROUP threads, use thread title
+      // For other threads (1-on-1 chats), leave title as null
       let title = null;
       if (thread.linkedEntityType === ThreadLinkedEntityType.PROPERTY) {
         const propertyId = thread.linkedEntityId?.toString();
         title = propertyMap.get(propertyId) || thread.title;
+      } else if (thread.threadType === ThreadType.TENANT_TENANT_GROUP) {
+        title = thread.title;
       }
 
       return {
@@ -301,6 +306,9 @@ export class ChatService {
         linkedEntityType: thread.linkedEntityType,
         linkedEntityId: thread.linkedEntityId,
         threadType: thread.threadType,
+        createdBy: thread.createdBy,
+        admins: thread.admins,
+        avatarUrl: thread.avatarUrl,
         otherUser: otherUserInfo
           ? {
               _id: otherUserInfo._id,
@@ -415,6 +423,9 @@ export class ChatService {
         sender: sender || null, // User object with firstName, lastName, profilePicture
         senderId: msg.senderId, // User ID
         senderType: msg.senderType,
+        isSystemMessage: msg.isSystemMessage || false,
+        systemMessageType: msg.systemMessageType,
+        metadata: msg.metadata,
         media: (msg as any).media || [],
         createdAt: msg.createdAt,
         updatedAt: msg.updatedAt,
@@ -556,6 +567,9 @@ export class ChatService {
         sender: senderInfo,
         senderId: savedMessage.senderId, // Original ObjectId
         senderType: messageWithMedia.senderType,
+        isSystemMessage: messageWithMedia.isSystemMessage || false,
+        systemMessageType: messageWithMedia.systemMessageType,
+        metadata: messageWithMedia.metadata,
         media: (messageWithMedia as any).media || [],
         createdAt: messageWithMedia.createdAt,
         updatedAt: messageWithMedia.updatedAt,
@@ -638,7 +652,18 @@ export class ChatService {
     currentUserId: string,
     title: string,
     participantIds: string[],
+    avatarUrl?: string,
   ): Promise<ThreadDocument> {
+    // Validate current user exists and privacy settings allow group creation
+    const currentUser = await this.userModel.findById(currentUserId);
+    if (!currentUser) {
+      throw new NotFoundException('Current user not found');
+    }
+
+    if (!currentUser.allowGroupChatInvites) {
+      throw new ForbiddenException('Your privacy settings do not allow creating group chats');
+    }
+
     // Validate all participant users exist
     const participants = await this.userModel.find({
       _id: { $in: participantIds },
@@ -670,13 +695,16 @@ export class ChatService {
     // Add current user to participants if not already included
     const allParticipantIds = new Set([...participantIds, currentUserId]);
 
-    // Create group chat thread
+    // Create group chat thread with admin settings
     const thread = new this.threadModel({
       title,
       linkedEntityType: ThreadLinkedEntityType.TENANT_CHAT,
       linkedEntityId: new Types.ObjectId(currentUserId), // Use creator's ID as linked entity
       linkedEntityModel: 'User',
       threadType: ThreadType.TENANT_TENANT_GROUP,
+      createdBy: new Types.ObjectId(currentUserId),
+      admins: [new Types.ObjectId(currentUserId)], // Creator is the first admin
+      avatarUrl,
     });
 
     const savedThread = await thread.save();
@@ -691,6 +719,14 @@ export class ChatService {
     }));
 
     await this.threadParticipantModel.insertMany(participantRecords);
+
+    // Create system message for group creation
+    await this.createSystemMessage(
+      savedThread._id.toString(),
+      SystemMessageType.USER_JOINED,
+      `${currentUser.firstName} ${currentUser.lastName} created the group`,
+      { userId: currentUserId },
+    );
 
     return savedThread;
   }
@@ -710,14 +746,25 @@ export class ChatService {
       throw new BadRequestException('This operation is only allowed for group chats');
     }
 
-    // Verify current user is a participant
-    const currentUserParticipant = await this.threadParticipantModel.findOne({
-      thread: new Types.ObjectId(threadId),
-      participantId: new Types.ObjectId(currentUserId),
-    });
+    // Property groups bypass admin check, otherwise require admin
+    const isPropertyWideGroup = thread.linkedEntityType === ThreadLinkedEntityType.PROPERTY;
 
-    if (!currentUserParticipant) {
-      throw new NotFoundException('Access denied');
+    if (!isPropertyWideGroup) {
+      // For private groups, check if user is admin
+      const isAdmin = await this.isGroupAdmin(threadId, currentUserId);
+      if (!isAdmin) {
+        throw new ForbiddenException('Only group admins can add members to private groups');
+      }
+    } else {
+      // For property groups, verify current user is a participant
+      const currentUserParticipant = await this.threadParticipantModel.findOne({
+        thread: new Types.ObjectId(threadId),
+        participantId: new Types.ObjectId(currentUserId),
+      });
+
+      if (!currentUserParticipant) {
+        throw new NotFoundException('Access denied');
+      }
     }
 
     // Validate all new users exist
@@ -731,8 +778,6 @@ export class ChatService {
 
     // Check privacy settings for private groups (not property-wide or building/admin groups)
     // Property-wide groups (linkedEntityType === PROPERTY) bypass this check
-    const isPropertyWideGroup = thread.linkedEntityType === ThreadLinkedEntityType.PROPERTY;
-
     if (!isPropertyWideGroup) {
       // Check each user's privacy settings
       const usersWithDisabledInvites = newUsers.filter((user) => !user.allowGroupChatInvites);
@@ -772,10 +817,20 @@ export class ChatService {
 
     await this.threadParticipantModel.insertMany(newParticipantRecords);
 
-    // Update thread timestamp
-    await this.threadModel.findByIdAndUpdate(threadId, {
-      updatedAt: new Date(),
-    });
+    // Create system messages for each added user
+    const currentUser = await this.userModel.findById(currentUserId);
+
+    for (const userId of newUserIds) {
+      const addedUser = newUsers.find((u) => u._id.toString() === userId);
+      if (addedUser) {
+        await this.createSystemMessage(
+          threadId,
+          SystemMessageType.USER_JOINED,
+          `${currentUser.firstName} ${currentUser.lastName} added ${addedUser.firstName} ${addedUser.lastName}`,
+          { addedBy: currentUserId, userId },
+        );
+      }
+    }
   }
 
   /**
@@ -797,6 +852,22 @@ export class ChatService {
       throw new BadRequestException('This operation is only allowed for group chats');
     }
 
+    // Check if user is trying to remove themselves
+    const isSelfRemoval = currentUserId === userIdToRemove;
+
+    if (!isSelfRemoval) {
+      // For removing others, must be admin
+      const isAdmin = await this.isGroupAdmin(threadId, currentUserId);
+      if (!isAdmin) {
+        throw new ForbiddenException('Only group admins can remove members');
+      }
+
+      // Cannot remove the group creator/owner
+      if (thread.createdBy?.toString() === userIdToRemove) {
+        throw new ForbiddenException('Cannot remove the group creator. Transfer ownership first.');
+      }
+    }
+
     // Verify current user is a participant
     const currentUserParticipant = await this.threadParticipantModel.findOne({
       thread: new Types.ObjectId(threadId),
@@ -807,7 +878,7 @@ export class ChatService {
       throw new NotFoundException('Access denied');
     }
 
-    // Allow users to remove themselves or any member (you can add more restrictions here)
+    // Find participant to remove
     const participantToRemove = await this.threadParticipantModel.findOne({
       thread: new Types.ObjectId(threadId),
       participantId: new Types.ObjectId(userIdToRemove),
@@ -817,13 +888,31 @@ export class ChatService {
       throw new NotFoundException('User is not a participant in this group chat');
     }
 
+    // Get user info for system message
+    const [currentUser, removedUser] = await Promise.all([
+      this.userModel.findById(currentUserId),
+      this.userModel.findById(userIdToRemove),
+    ]);
+
     // Remove the participant
     await this.threadParticipantModel.findByIdAndDelete(participantToRemove._id);
 
-    // Update thread timestamp
-    await this.threadModel.findByIdAndUpdate(threadId, {
-      updatedAt: new Date(),
-    });
+    // Remove from admins if they were an admin
+    if (thread.admins?.some((adminId) => adminId.toString() === userIdToRemove)) {
+      await this.threadModel.findByIdAndUpdate(threadId, {
+        $pull: { admins: new Types.ObjectId(userIdToRemove) },
+      });
+    }
+
+    // Create system message
+    await this.createSystemMessage(
+      threadId,
+      SystemMessageType.USER_REMOVED,
+      isSelfRemoval
+        ? `${currentUser.firstName} ${currentUser.lastName} left the group`
+        : `${currentUser.firstName} ${currentUser.lastName} removed ${removedUser.firstName} ${removedUser.lastName}`,
+      { removedBy: currentUserId, userId: userIdToRemove, isSelfRemoval },
+    );
 
     // Check if group has at least 2 members left, otherwise you might want to delete the thread
     const remainingParticipants = await this.threadParticipantModel.countDocuments({
@@ -835,5 +924,304 @@ export class ChatService {
       // await this.threadModel.findByIdAndDelete(threadId);
       // await this.threadParticipantModel.deleteMany({ thread: new Types.ObjectId(threadId) });
     }
+  }
+
+  /**
+   * Helper method to create system messages
+   */
+  private async createSystemMessage(
+    threadId: string,
+    systemMessageType: SystemMessageType,
+    content: string,
+    metadata?: Record<string, any>,
+  ): Promise<ThreadMessageDocument> {
+    const systemMessage = new this.threadMessageModel({
+      thread: new Types.ObjectId(threadId),
+      content,
+      senderType: MessageSenderType.SYSTEM,
+      isSystemMessage: true,
+      systemMessageType,
+      metadata,
+      readBy: [], // System messages start as unread
+    });
+
+    const savedMessage = await systemMessage.save();
+
+    // Update thread's updatedAt
+    await this.threadModel.findByIdAndUpdate(threadId, {
+      updatedAt: new Date(),
+    });
+
+    // Get all participants to emit WebSocket event
+    const allParticipants = await this.threadParticipantModel
+      .find({
+        thread: new Types.ObjectId(threadId),
+      })
+      .populate('participantId');
+
+    const participantUserIds = allParticipants
+      .map((p) => p.participantId?.toString())
+      .filter(Boolean);
+
+    // Emit WebSocket event to all participants
+    if (participantUserIds.length > 0) {
+      const messageToEmit = {
+        _id: savedMessage._id,
+        message: savedMessage.content,
+        content: savedMessage.content,
+        sender: null,
+        senderId: null,
+        senderType: MessageSenderType.SYSTEM,
+        isSystemMessage: true,
+        systemMessageType,
+        metadata,
+        media: [],
+        createdAt: savedMessage.createdAt,
+        updatedAt: savedMessage.updatedAt,
+      };
+
+      this.chatGateway.emitMessageToThread(participantUserIds, threadId, messageToEmit);
+    }
+
+    return savedMessage;
+  }
+
+  /**
+   * Check if user is admin of a group
+   */
+  private async isGroupAdmin(threadId: string, userId: string): Promise<boolean> {
+    const thread = await this.threadModel.findById(threadId);
+    if (!thread) {
+      return false;
+    }
+
+    return thread.admins?.some((adminId) => adminId.toString() === userId) || false;
+  }
+
+  /**
+   * Leave a group chat
+   */
+  async leaveGroup(threadId: string, userId: string): Promise<void> {
+    // Verify the thread exists and is a group chat
+    const thread = await this.threadModel.findById(threadId);
+
+    if (!thread) {
+      throw new NotFoundException('Group chat not found');
+    }
+
+    if (thread.threadType !== ThreadType.TENANT_TENANT_GROUP) {
+      throw new BadRequestException('This operation is only allowed for group chats');
+    }
+
+    // Check if this is a property group
+    if (thread.linkedEntityType === ThreadLinkedEntityType.PROPERTY) {
+      // For property groups, check if user has active leases in the property
+      const propertyId = thread.linkedEntityId;
+      const user = await this.userModel.findById(userId);
+
+      if (!user || !user.organization_id) {
+        throw new NotFoundException('User not found');
+      }
+
+      // Find active leases for this tenant in this property
+      const activeLeases = await this.leaseModel
+        .find({
+          tenant: user.organization_id,
+          property: propertyId,
+          status: { $in: ['Active', 'Pending'] },
+        })
+        .populate('unit');
+
+      if (activeLeases.length > 0) {
+        throw new ForbiddenException(
+          'Cannot leave property group while you have active leases in this property',
+        );
+      }
+    }
+
+    // Verify user is a participant
+    const participant = await this.threadParticipantModel.findOne({
+      thread: new Types.ObjectId(threadId),
+      participantId: new Types.ObjectId(userId),
+    });
+
+    if (!participant) {
+      throw new NotFoundException('You are not a participant in this group chat');
+    }
+
+    // Get user info for system message
+    const user = await this.userModel.findById(userId);
+
+    // Remove the participant
+    await this.threadParticipantModel.findByIdAndDelete(participant._id);
+
+    // Remove from admins if they were an admin
+    if (thread.admins?.some((adminId) => adminId.toString() === userId)) {
+      await this.threadModel.findByIdAndUpdate(threadId, {
+        $pull: { admins: new Types.ObjectId(userId) },
+      });
+    }
+
+    // Create system message
+    await this.createSystemMessage(
+      threadId,
+      SystemMessageType.USER_LEFT,
+      `${user.firstName} ${user.lastName} left the group`,
+      { userId },
+    );
+
+    // Check if group is empty or has only 1 member left
+    const remainingParticipants = await this.threadParticipantModel.countDocuments({
+      thread: new Types.ObjectId(threadId),
+    });
+
+    if (remainingParticipants < 2) {
+      // Optional: Delete the thread if less than 2 members
+      // await this.threadModel.findByIdAndDelete(threadId);
+      // await this.threadParticipantModel.deleteMany({ thread: new Types.ObjectId(threadId) });
+    }
+  }
+
+  /**
+   * Update group name
+   */
+  async updateGroupName(threadId: string, currentUserId: string, newName: string): Promise<void> {
+    // Verify the thread exists and is a group chat
+    const thread = await this.threadModel.findById(threadId);
+
+    if (!thread) {
+      throw new NotFoundException('Group chat not found');
+    }
+
+    if (thread.threadType !== ThreadType.TENANT_TENANT_GROUP) {
+      throw new BadRequestException('This operation is only allowed for group chats');
+    }
+
+    // Check if user is admin
+    const isAdmin = await this.isGroupAdmin(threadId, currentUserId);
+    if (!isAdmin) {
+      throw new ForbiddenException('Only group admins can change the group name');
+    }
+
+    const oldName = thread.title;
+
+    // Update the group name
+    await this.threadModel.findByIdAndUpdate(threadId, {
+      title: newName,
+      updatedAt: new Date(),
+    });
+
+    // Get user info for system message
+    const user = await this.userModel.findById(currentUserId);
+
+    // Create system message
+    await this.createSystemMessage(
+      threadId,
+      SystemMessageType.GROUP_RENAMED,
+      `${user.firstName} ${user.lastName} changed the group name to "${newName}"`,
+      { userId: currentUserId, oldName, newName },
+    );
+  }
+
+  /**
+   * Update group avatar
+   */
+  async updateGroupAvatar(
+    threadId: string,
+    currentUserId: string,
+    avatarUrl: string,
+  ): Promise<void> {
+    // Verify the thread exists and is a group chat
+    const thread = await this.threadModel.findById(threadId);
+
+    if (!thread) {
+      throw new NotFoundException('Group chat not found');
+    }
+
+    if (thread.threadType !== ThreadType.TENANT_TENANT_GROUP) {
+      throw new BadRequestException('This operation is only allowed for group chats');
+    }
+
+    // Check if user is admin
+    const isAdmin = await this.isGroupAdmin(threadId, currentUserId);
+    if (!isAdmin) {
+      throw new ForbiddenException('Only group admins can change the group avatar');
+    }
+
+    // Update the group avatar
+    await this.threadModel.findByIdAndUpdate(threadId, {
+      avatarUrl,
+      updatedAt: new Date(),
+    });
+
+    // Get user info for system message
+    const user = await this.userModel.findById(currentUserId);
+
+    // Create system message
+    await this.createSystemMessage(
+      threadId,
+      SystemMessageType.AVATAR_CHANGED,
+      `${user.firstName} ${user.lastName} changed the group avatar`,
+      { userId: currentUserId },
+    );
+  }
+
+  /**
+   * Transfer group ownership
+   */
+  async transferOwnership(
+    threadId: string,
+    currentUserId: string,
+    newOwnerId: string,
+  ): Promise<void> {
+    // Verify the thread exists and is a group chat
+    const thread = await this.threadModel.findById(threadId);
+
+    if (!thread) {
+      throw new NotFoundException('Group chat not found');
+    }
+
+    if (thread.threadType !== ThreadType.TENANT_TENANT_GROUP) {
+      throw new BadRequestException('This operation is only allowed for group chats');
+    }
+
+    // Only the creator can transfer ownership
+    if (thread.createdBy?.toString() !== currentUserId) {
+      throw new ForbiddenException('Only the group creator can transfer ownership');
+    }
+
+    // Verify new owner is a participant
+    const newOwnerParticipant = await this.threadParticipantModel.findOne({
+      thread: new Types.ObjectId(threadId),
+      participantId: new Types.ObjectId(newOwnerId),
+    });
+
+    if (!newOwnerParticipant) {
+      throw new BadRequestException('New owner must be a participant in the group');
+    }
+
+    // Verify new owner exists
+    const newOwner = await this.userModel.findById(newOwnerId);
+    if (!newOwner) {
+      throw new NotFoundException('New owner not found');
+    }
+
+    // Update ownership
+    await this.threadModel.findByIdAndUpdate(threadId, {
+      createdBy: new Types.ObjectId(newOwnerId),
+      $addToSet: { admins: new Types.ObjectId(newOwnerId) }, // Ensure new owner is admin
+      updatedAt: new Date(),
+    });
+
+    // Get current user info for system message
+    const currentUser = await this.userModel.findById(currentUserId);
+
+    // Create system message
+    await this.createSystemMessage(
+      threadId,
+      SystemMessageType.OWNERSHIP_TRANSFERRED,
+      `${currentUser.firstName} ${currentUser.lastName} transferred ownership to ${newOwner.firstName} ${newOwner.lastName}`,
+      { fromUserId: currentUserId, toUserId: newOwnerId },
+    );
   }
 }
