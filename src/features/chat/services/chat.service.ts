@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { MemoryStoredFile } from 'nestjs-form-data';
@@ -65,6 +65,11 @@ export class ChatService {
 
     if (currentUserId === otherUserId) {
       throw new BadRequestException('Cannot create chat with yourself');
+    }
+
+    // Check privacy settings - if the other user doesn't allow neighbors to message them
+    if (!otherUser.allowNeighborsToMessage) {
+      throw new ForbiddenException('This user has disabled direct messages from neighbors');
     }
 
     // Check if chat already exists between these two users
@@ -213,7 +218,7 @@ export class ChatService {
     // Manually load all users in one query
     const users = await this.userModel
       .find({ _id: { $in: allUserIds } })
-      .select('_id firstName lastName email user_type organization_id profilePicture')
+      .select('_id firstName lastName email user_type organization_id profilePicture allowNeighborsToMessage allowGroupChatInvites')
       .lean();
 
     // Create a map of userId to user data
@@ -305,6 +310,8 @@ export class ChatService {
               user_type: otherUserInfo.user_type,
               organization_id: otherUserInfo.organization_id,
               profilePicture: otherUserInfo.profilePicture,
+              allowNeighborsToMessage: otherUserInfo.allowNeighborsToMessage,
+              allowGroupChatInvites: otherUserInfo.allowGroupChatInvites,
             }
           : null,
         participants: participants
@@ -318,6 +325,8 @@ export class ChatService {
                   lastName: userData.lastName,
                   email: userData.email,
                   profilePicture: userData.profilePicture,
+                  allowNeighborsToMessage: userData.allowNeighborsToMessage,
+                  allowGroupChatInvites: userData.allowGroupChatInvites,
                 }
               : null;
           })
@@ -644,6 +653,20 @@ export class ChatService {
       throw new BadRequestException('Cannot create group chat with only yourself');
     }
 
+    // Check privacy settings for each participant (excluding current user)
+    const usersWithDisabledInvites = participants.filter(
+      (user) => user._id.toString() !== currentUserId && !user.allowGroupChatInvites,
+    );
+
+    if (usersWithDisabledInvites.length > 0) {
+      const userNames = usersWithDisabledInvites
+        .map((user) => `${user.firstName} ${user.lastName}`)
+        .join(', ');
+      throw new ForbiddenException(
+        `The following users have disabled group chat invites: ${userNames}`,
+      );
+    }
+
     // Add current user to participants if not already included
     const allParticipantIds = new Set([...participantIds, currentUserId]);
 
@@ -704,6 +727,24 @@ export class ChatService {
 
     if (newUsers.length !== userIds.length) {
       throw new BadRequestException('One or more users not found');
+    }
+
+    // Check privacy settings for private groups (not property-wide or building/admin groups)
+    // Property-wide groups (linkedEntityType === PROPERTY) bypass this check
+    const isPropertyWideGroup = thread.linkedEntityType === ThreadLinkedEntityType.PROPERTY;
+
+    if (!isPropertyWideGroup) {
+      // Check each user's privacy settings
+      const usersWithDisabledInvites = newUsers.filter((user) => !user.allowGroupChatInvites);
+
+      if (usersWithDisabledInvites.length > 0) {
+        const userNames = usersWithDisabledInvites
+          .map((user) => `${user.firstName} ${user.lastName}`)
+          .join(', ');
+        throw new ForbiddenException(
+          `The following users have disabled group chat invites: ${userNames}`,
+        );
+      }
     }
 
     // Get existing participants

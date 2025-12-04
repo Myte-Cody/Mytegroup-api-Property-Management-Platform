@@ -74,6 +74,13 @@ export class User extends Document implements SoftDelete {
   @Prop({ type: String, required: false })
   profilePicture?: string;
 
+  // Chat Privacy Settings
+  @Prop({ type: Boolean, default: true })
+  allowNeighborsToMessage: boolean;
+
+  @Prop({ type: Boolean, default: true })
+  allowGroupChatInvites: boolean;
+
   deleted: boolean;
   deletedAt?: Date;
 }

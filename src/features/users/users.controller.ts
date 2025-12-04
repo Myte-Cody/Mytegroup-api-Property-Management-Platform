@@ -27,6 +27,7 @@ import {
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdatePrivacySettingsDto } from './dto/update-privacy-settings.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
 import { User } from './schemas/user.schema';
@@ -113,6 +114,42 @@ export class UsersController {
     return {
       success: true,
       data: { profilePicture },
+    };
+  }
+
+  @Patch(':id/privacy-settings')
+  @CheckPolicies(new UpdateUserPolicyHandler())
+  @ApiOperation({ summary: 'Update user privacy settings' })
+  @ApiParam({ name: 'id', description: 'User ID', type: String })
+  @ApiBody({
+    type: UpdatePrivacySettingsDto,
+    description: 'Privacy settings to update. All fields are optional.',
+  })
+  async updatePrivacySettings(
+    @CurrentUser() currentUser: User,
+    @Param('id', MongoIdValidationPipe) id: string,
+    @Body() updatePrivacySettingsDto: UpdatePrivacySettingsDto,
+  ) {
+    const updatedUser = await this.userService.updatePrivacySettings(
+      id,
+      updatePrivacySettingsDto,
+      currentUser,
+    );
+    return {
+      success: true,
+      data: updatedUser,
+    };
+  }
+
+  @Get(':id/privacy-settings')
+  @CheckPolicies(new ReadUserPolicyHandler())
+  @ApiOperation({ summary: 'Get user privacy settings' })
+  @ApiParam({ name: 'id', description: 'User ID', type: String })
+  async getPrivacySettings(@Param('id', MongoIdValidationPipe) id: string) {
+    const privacySettings = await this.userService.getPrivacySettings(id);
+    return {
+      success: true,
+      data: privacySettings,
     };
   }
 }

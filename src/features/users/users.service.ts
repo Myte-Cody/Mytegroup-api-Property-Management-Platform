@@ -17,6 +17,7 @@ import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { WelcomeEmailService } from '../email/services/welcome-email.service';
 import { MediaService } from '../media/services/media.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdatePrivacySettingsDto } from './dto/update-privacy-settings.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
 import { User, UserDocument } from './schemas/user.schema';
@@ -490,6 +491,49 @@ export class UsersService {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
     return user.profilePicture || null;
+  }
+
+  async updatePrivacySettings(
+    userId: string,
+    updatePrivacySettingsDto: UpdatePrivacySettingsDto,
+    currentUser: User,
+  ): Promise<User> {
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    // Check if user has permission to update privacy settings
+    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+    if (!ability.can(Action.Update, user)) {
+      throw new ForbiddenException('You do not have permission to update this user');
+    }
+
+    // Update only the privacy settings fields
+    if (updatePrivacySettingsDto.allowNeighborsToMessage !== undefined) {
+      user.allowNeighborsToMessage = updatePrivacySettingsDto.allowNeighborsToMessage;
+    }
+    if (updatePrivacySettingsDto.allowGroupChatInvites !== undefined) {
+      user.allowGroupChatInvites = updatePrivacySettingsDto.allowGroupChatInvites;
+    }
+
+    await user.save();
+    return user;
+  }
+
+  async getPrivacySettings(userId: string): Promise<{
+    allowNeighborsToMessage: boolean;
+    allowGroupChatInvites: boolean;
+  }> {
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    return {
+      allowNeighborsToMessage: user.allowNeighborsToMessage,
+      allowGroupChatInvites: user.allowGroupChatInvites,
+    };
   }
 
   private resolveRole(
