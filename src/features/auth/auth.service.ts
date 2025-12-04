@@ -739,7 +739,9 @@ export class AuthService {
 
   async forgotPassword(dto: ForgotPasswordDto) {
     const user = await this.userModel.findOne({ email: dto.email.toLowerCase() }).exec();
-    if (!user) return { success: true }; // do not leak
+    if (!user) {
+      throw new UnauthorizedException('Invalid email');
+    } // do not leak
     const raw = this.newRefreshToken();
     const hash = await argon2.hash(raw, { type: argon2.argon2id });
     const pr = new this.passwordResetModel({
