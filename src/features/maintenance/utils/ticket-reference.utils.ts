@@ -95,6 +95,6 @@ export class TicketReferenceUtils {
 
     const timestamp = Date.now().toString().slice(-6);
     const currentYear = new Date().getFullYear();
-    return `${isSubSow ? 'SUB-SOW' : 'SOW'}${currentYear}-${timestamp}`;
+    return `${isSubSow ? '' : 'SOW'}${currentYear}-${timestamp}`;
   }
 }

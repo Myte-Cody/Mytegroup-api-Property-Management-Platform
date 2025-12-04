@@ -384,7 +384,7 @@ export class ScopeOfWorkService {
     const [propertySubScope] = await this.scopeOfWorkModel.create(
       [
         {
-          sowNumber: propertySowNumber,
+          sowNumber: `${propertyName} Scope: ${propertySowNumber}`,
           title: `${parentSow.title} - ${propertyName}`,
           description: parentSow.description,
           parentSow: parentSow._id,
@@ -463,7 +463,7 @@ export class ScopeOfWorkService {
     const [unitSubScope] = await this.scopeOfWorkModel.create(
       [
         {
-          sowNumber: unitSowNumber,
+          sowNumber: `${unitName} Scope: ${unitSowNumber}`,
           title: `${parentSow.title} - ${unitName}`,
           description: parentSow.description,
           parentSow: parentSow._id,
