@@ -3,6 +3,7 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
   OnGatewayInit,
+  SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
@@ -63,6 +64,50 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     this.logger.log(`Client ${client.id} disconnected from chat`);
   }
 
+  /**
+   * Handle typing indicator from client
+   * Payload: { threadId: string, isTyping: boolean, userName?: string }
+   */
+  @SubscribeMessage('typing')
+  handleTyping(
+    client: Socket,
+    payload: { threadId: string; isTyping: boolean; userId?: string; userName?: string },
+  ): void {
+    const userId = payload.userId || client.handshake.auth?.userId || client.handshake.query?.userId;
+
+    if (!userId || !payload.threadId) {
+      this.logger.warn('Invalid typing event received');
+      return;
+    }
+
+    this.logger.debug(
+      `User ${userId} is ${payload.isTyping ? 'typing' : 'stopped typing'} in thread ${payload.threadId}`,
+    );
+
+    // Broadcast typing indicator to other participants
+    // Note: The actual participant list should be fetched from the database
+    // For now, we emit to all connected users except the sender
+    client.broadcast.emit('chat:typing', {
+      threadId: payload.threadId,
+      userId,
+      userName: payload.userName,
+      isTyping: payload.isTyping,
+    });
+  }
+
+  /**
+   * Handle typing indicator with participant list
+   * This method is called by the service layer when it has the participant list
+   */
+  handleTypingWithParticipants(
+    threadId: string,
+    userId: string,
+    isTyping: boolean,
+    participantIds: string[],
+  ): void {
+    this.emitTypingIndicator(participantIds, threadId, userId, isTyping);
+  }
+
   // Emit message to specific thread participants
   emitMessageToThread(userIds: string[], threadId: string, message: any) {
     userIds.forEach((userId) => {
@@ -88,13 +133,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   }
 
   // Emit message read status
-  emitMessageRead(userIds: string[], threadId: string, userId: string) {
+  emitMessageRead(userIds: string[], threadId: string, userId: string, timestamp?: Date) {
     userIds.forEach((recipientId) => {
       this.server.to(`user:${recipientId}`).emit('chat:read', {
         threadId,
         userId,
+        timestamp: timestamp || new Date(),
       });
     });
+    this.logger.debug(`Emitted read receipt for thread ${threadId} by user ${userId}`);
   }
 
   // Check if user is connected

@@ -187,6 +187,8 @@ export class ChatController {
    * Update group avatar
    */
   @Put('groups/:threadId/avatar')
+  @FormDataRequest()
+  @ApiConsumes('multipart/form-data')
   async updateGroupAvatar(
     @CurrentUser() user: User,
     @Param('threadId') threadId: string,
@@ -194,7 +196,7 @@ export class ChatController {
   ) {
     const currentUserId = user._id.toString();
 
-    await this.chatService.updateGroupAvatar(threadId, currentUserId, updateGroupAvatarDto.avatarUrl);
+    await this.chatService.updateGroupAvatar(threadId, currentUserId, updateGroupAvatarDto.avatar, user);
 
     return {
       success: true,

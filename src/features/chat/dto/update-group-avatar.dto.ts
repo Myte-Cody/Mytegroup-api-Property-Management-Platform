@@ -1,7 +1,9 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsOptional } from 'class-validator';
+import { HasMimeType, IsFile, MemoryStoredFile } from 'nestjs-form-data';
 
 export class UpdateGroupAvatarDto {
-  @IsNotEmpty()
-  @IsString()
-  avatarUrl: string;
+  @IsOptional()
+  @IsFile()
+  @HasMimeType(['image/jpeg', 'image/png', 'image/jpg', 'image/gif', 'image/webp'])
+  avatar?: MemoryStoredFile;
 }

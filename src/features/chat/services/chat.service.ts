@@ -1129,7 +1129,8 @@ export class ChatService {
   async updateGroupAvatar(
     threadId: string,
     currentUserId: string,
-    avatarUrl: string,
+    avatarFile?: MemoryStoredFile,
+    currentUser?: User,
   ): Promise<void> {
     // Verify the thread exists and is a group chat
     const thread = await this.threadModel.findById(threadId);
@@ -1146,6 +1147,33 @@ export class ChatService {
     const isAdmin = await this.isGroupAdmin(threadId, currentUserId);
     if (!isAdmin) {
       throw new ForbiddenException('Only group admins can change the group avatar');
+    }
+
+    // If no file provided, throw error
+    if (!avatarFile) {
+      throw new BadRequestException('Avatar file is required');
+    }
+
+    // Upload the avatar file
+    let avatarUrl: string | undefined;
+    if (avatarFile && currentUser) {
+      try {
+        // Upload the file to storage
+        const uploadedMedia = await this.mediaService.upload(
+          avatarFile,
+          thread,
+          currentUser,
+          'group-avatars',
+          undefined,
+          'Thread',
+        );
+
+        // Get the URL of the uploaded file
+        const enrichedMedia = await this.mediaService.enrichMediaWithUrl(uploadedMedia);
+        avatarUrl = enrichedMedia.url;
+      } catch (error) {
+        throw new BadRequestException('Failed to upload avatar file');
+      }
     }
 
     // Update the group avatar
