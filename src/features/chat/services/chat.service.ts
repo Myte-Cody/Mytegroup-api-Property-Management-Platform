@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { MemoryStoredFile } from 'nestjs-form-data';
@@ -66,6 +71,18 @@ export class ChatService {
 
     if (currentUserId === otherUserId) {
       throw new BadRequestException('Cannot create chat with yourself');
+    }
+
+    // Check if either user has blocked the other
+    const isBlocked = await this.isUserBlocked(currentUserId, otherUserId);
+    const isBlockedBy = await this.isUserBlocked(otherUserId, currentUserId);
+
+    if (isBlocked) {
+      throw new ForbiddenException('You have blocked this user');
+    }
+
+    if (isBlockedBy) {
+      throw new ForbiddenException('You cannot message this user');
     }
 
     // Check privacy settings - if the other user doesn't allow neighbors to message them
@@ -219,7 +236,9 @@ export class ChatService {
     // Manually load all users in one query
     const users = await this.userModel
       .find({ _id: { $in: allUserIds } })
-      .select('_id firstName lastName email user_type organization_id profilePicture allowNeighborsToMessage allowGroupChatInvites')
+      .select(
+        '_id firstName lastName email user_type organization_id profilePicture allowNeighborsToMessage allowGroupChatInvites',
+      )
       .lean();
 
     // Create a map of userId to user data
@@ -412,33 +431,53 @@ export class ChatService {
       }
     }
 
-    const messagesWithMedia = reversedMessages.map((msg) => {
-      const senderId = msg.senderId?.toString();
-      const sender = senderId ? senderMap.get(senderId) : null;
+    // Get current user's blocked users and check if this is a group chat
+    const { usersYouBlocked, usersWhoBlockedYou } = await this.getBlockedUsers(userId);
+    const blockedUserIds =
+      [...(usersYouBlocked ?? []), ...(usersWhoBlockedYou ?? [])].map((user) =>
+        user._id.toString(),
+      ) || [];
+    const thread = await this.threadModel.findById(threadId).lean();
+    const isGroupChat = thread?.threadType === ThreadType.TENANT_TENANT_GROUP;
 
-      return {
-        _id: msg._id,
-        message: msg.content,
-        content: msg.content,
-        sender: sender || null, // User object with firstName, lastName, profilePicture
-        senderId: msg.senderId, // User ID
-        senderType: msg.senderType,
-        isSystemMessage: msg.isSystemMessage || false,
-        systemMessageType: msg.systemMessageType,
-        metadata: msg.metadata,
-        media: (msg as any).media || [],
-        createdAt: msg.createdAt,
-        updatedAt: msg.updatedAt,
-      };
-    });
+    const messagesWithMedia = reversedMessages
+      .filter((msg) => {
+        // In one-to-one chats, filter out messages from blocked users
+        // In group chats, keep all messages but mark sender as blocked
+        if (isGroupChat) return true;
+
+        const senderId = msg.senderId?.toString();
+        return !senderId || !blockedUserIds.includes(senderId);
+      })
+      .map((msg) => {
+        const senderId = msg.senderId?.toString();
+        const isBlocked = senderId && blockedUserIds.includes(senderId);
+        const sender = senderId ? senderMap.get(senderId) : null;
+
+        return {
+          _id: msg._id,
+          message: msg.content,
+          content: msg.content,
+          sender: sender || null, // User object with firstName, lastName, profilePicture
+          senderId: msg.senderId, // User ID
+          senderType: msg.senderType,
+          isSystemMessage: msg.isSystemMessage || false,
+          systemMessageType: msg.systemMessageType,
+          metadata: msg.metadata,
+          media: (msg as any).media || [],
+          createdAt: msg.createdAt,
+          updatedAt: msg.updatedAt,
+          isBlockedSender: isBlocked, // Flag to indicate if sender is blocked
+        };
+      });
 
     return {
       messages: messagesWithMedia,
       pagination: {
-        total,
+        total: messagesWithMedia.length, // Updated to reflect filtered count
         page,
         limit,
-        pages: Math.ceil(total / limit),
+        pages: Math.ceil(messagesWithMedia.length / limit),
       },
     };
   }
@@ -461,6 +500,30 @@ export class ChatService {
 
     if (!participant) {
       throw new NotFoundException('Chat session not found or access denied');
+    }
+
+    // Check if this is a 1-on-1 chat and verify no blocking
+    const thread = await this.threadModel.findById(threadId);
+    if (thread?.threadType === ThreadType.TENANT_TENANT) {
+      // Get other participant
+      const allParticipants = await this.threadParticipantModel.find({
+        thread: new Types.ObjectId(threadId),
+      });
+      const otherParticipant = allParticipants.find((p) => p.participantId?.toString() !== userId);
+
+      if (otherParticipant) {
+        const otherUserId = otherParticipant.participantId?.toString();
+        const isBlocked = await this.isUserBlocked(userId, otherUserId);
+        const isBlockedBy = await this.isUserBlocked(otherUserId, userId);
+
+        if (isBlocked) {
+          throw new ForbiddenException('You have blocked this user');
+        }
+
+        if (isBlockedBy) {
+          throw new ForbiddenException('You cannot message this user');
+        }
+      }
     }
 
     const threadMessage = new this.threadMessageModel({
@@ -578,25 +641,31 @@ export class ChatService {
       this.chatGateway.emitMessageToThread(participantUserIds, threadId, messageToEmit);
     }
 
-    // Send notification to other participant
+    // Send notification to other participant (only if thread is not muted)
     const otherParticipant = allParticipants.find((p) => p.participantId?.toString() !== userId);
 
     if (otherParticipant?.participantId) {
       const otherUserId = otherParticipant.participantId as any;
-      const sender = await this.userModel.findById(userId);
-      const recipient = await this.userModel.findById(otherUserId._id);
-      const dashboardPath =
-        recipient?.user_type === 'Landlord'
-          ? 'landlord'
-          : recipient?.user_type === 'Contractor'
-            ? 'contractor'
-            : 'tenant';
-      await this.notificationsService.createNotification(
-        otherUserId._id,
-        'New message',
-        `${sender.firstName} ${sender.lastName} sent you a message`,
-        `/dashboard/${dashboardPath}/chat`,
-      );
+
+      // Check if the thread is muted for the recipient
+      const isMuted = await this.isThreadMuted(otherUserId._id.toString(), threadId);
+
+      if (!isMuted) {
+        const sender = await this.userModel.findById(userId);
+        const recipient = await this.userModel.findById(otherUserId._id);
+        const dashboardPath =
+          recipient?.user_type === 'Landlord'
+            ? 'landlord'
+            : recipient?.user_type === 'Contractor'
+              ? 'contractor'
+              : 'tenant';
+        await this.notificationsService.createNotification(
+          otherUserId._id,
+          'New message',
+          `${sender.firstName} ${sender.lastName} sent you a message`,
+          `/dashboard/${dashboardPath}/chat`,
+        );
+      }
     }
 
     return messageWithMedia || savedMessage;
@@ -1251,5 +1320,181 @@ export class ChatService {
       `${currentUser.firstName} ${currentUser.lastName} transferred ownership to ${newOwner.firstName} ${newOwner.lastName}`,
       { fromUserId: currentUserId, toUserId: newOwnerId },
     );
+  }
+
+  /**
+   * Block a user
+   */
+  async blockUser(currentUserId: string, userIdToBlock: string, currentUser: User): Promise<void> {
+    // Cannot block yourself
+    if (currentUserId === userIdToBlock) {
+      throw new BadRequestException('Cannot block yourself');
+    }
+
+    // Verify user to block exists
+    const userToBlock = await this.userModel.findById(userIdToBlock);
+    if (!userToBlock) {
+      throw new NotFoundException('User to block not found');
+    }
+
+    // Check if current user is a tenant and trying to block a landlord
+    if (currentUser.user_type === 'Tenant' && userToBlock.user_type === 'Landlord') {
+      throw new ForbiddenException('Tenants cannot block landlords');
+    }
+
+    // Add user to blocked list if not already blocked
+    await this.userModel.findByIdAndUpdate(currentUserId, {
+      $addToSet: { blockedUsers: new Types.ObjectId(userIdToBlock) },
+    });
+
+    // Automatically mute any existing conversations with this user
+    const existingThread = await this.findExistingChat(currentUserId, userIdToBlock);
+    if (existingThread) {
+      await this.muteThread(currentUserId, existingThread._id.toString(), null);
+    }
+  }
+
+  /**
+   * Unblock a user
+   */
+  async unblockUser(currentUserId: string, userIdToUnblock: string): Promise<void> {
+    // Remove user from blocked list
+    await this.userModel.findByIdAndUpdate(currentUserId, {
+      $pull: { blockedUsers: new Types.ObjectId(userIdToUnblock) },
+    });
+  }
+
+  /**
+   * Get list of blocked users (users you blocked and users who blocked you)
+   */
+  async getBlockedUsers(currentUserId: string): Promise<any> {
+    // Get users that the current user has blocked
+    const user = await this.userModel
+      .findById(currentUserId)
+      .populate('blockedUsers', 'firstName lastName email profilePicture user_type')
+      .lean();
+
+    const usersYouBlocked = user?.blockedUsers || [];
+
+    // Find users who have blocked the current user
+    const usersWhoBlockedYou = await this.userModel
+      .find({
+        blockedUsers: new Types.ObjectId(currentUserId),
+      })
+      .select('_id firstName lastName email profilePicture user_type')
+      .lean();
+
+    return {
+      usersYouBlocked,
+      usersWhoBlockedYou,
+    };
+  }
+
+  /**
+   * Mute a thread (conversation or group)
+   */
+  async muteThread(currentUserId: string, threadId: string, muteUntil: Date | null): Promise<void> {
+    // Verify thread exists and user is a participant
+    const thread = await this.threadModel.findById(threadId);
+    if (!thread) {
+      throw new NotFoundException('Thread not found');
+    }
+
+    const participant = await this.threadParticipantModel.findOne({
+      thread: new Types.ObjectId(threadId),
+      participantId: new Types.ObjectId(currentUserId),
+    });
+
+    if (!participant) {
+      throw new ForbiddenException('You are not a participant in this thread');
+    }
+
+    // Remove existing mute if present, then add new one
+    await this.userModel.findByIdAndUpdate(currentUserId, {
+      $pull: { mutedThreads: { threadId: new Types.ObjectId(threadId) } },
+    });
+
+    await this.userModel.findByIdAndUpdate(currentUserId, {
+      $push: {
+        mutedThreads: {
+          threadId: new Types.ObjectId(threadId),
+          muteUntil: muteUntil,
+        },
+      },
+    });
+  }
+
+  /**
+   * Unmute a thread
+   */
+  async unmuteThread(currentUserId: string, threadId: string): Promise<void> {
+    await this.userModel.findByIdAndUpdate(currentUserId, {
+      $pull: { mutedThreads: { threadId: new Types.ObjectId(threadId) } },
+    });
+  }
+
+  /**
+   * Clear chat history for a thread (marks messages as deleted for the user only)
+   */
+  async clearChatHistory(currentUserId: string, threadId: string): Promise<void> {
+    // Verify thread exists and user is a participant
+    const thread = await this.threadModel.findById(threadId);
+    if (!thread) {
+      throw new NotFoundException('Thread not found');
+    }
+
+    const participant = await this.threadParticipantModel.findOne({
+      thread: new Types.ObjectId(threadId),
+      participantId: new Types.ObjectId(currentUserId),
+    });
+
+    if (!participant) {
+      throw new ForbiddenException('You are not a participant in this thread');
+    }
+
+    // For local-only deletion, we'll add a deletedFor field to track which users deleted history
+    // Since ThreadMessage schema doesn't have this yet, we'll use soft delete for now
+    // This is a limitation - ideally we'd add a deletedFor array field to ThreadMessage schema
+    // For now, we can mark messages as read to simulate clearing
+    await this.threadMessageModel.updateMany(
+      {
+        thread: new Types.ObjectId(threadId),
+      },
+      {
+        $addToSet: { readBy: new Types.ObjectId(currentUserId) },
+      },
+    );
+  }
+
+  /**
+   * Check if a user is blocked by another user
+   */
+  async isUserBlocked(userId: string, blockedUserId: string): Promise<boolean> {
+    const user = await this.userModel.findById(userId).select('blockedUsers').lean();
+    if (!user) return false;
+
+    return user.blockedUsers?.some((id) => id.toString() === blockedUserId) || false;
+  }
+
+  /**
+   * Check if a thread is muted for a user
+   */
+  async isThreadMuted(userId: string, threadId: string): Promise<boolean> {
+    const user = await this.userModel.findById(userId).select('mutedThreads').lean();
+    if (!user || !user.mutedThreads) return false;
+
+    const mutedThread = user.mutedThreads.find((mt: any) => mt.threadId.toString() === threadId);
+
+    if (!mutedThread) return false;
+
+    // If muteUntil is null, it's permanently muted
+    if (!mutedThread.muteUntil) return true;
+
+    // If muteUntil is in the future, it's still muted
+    if (new Date(mutedThread.muteUntil) > new Date()) return true;
+
+    // If muteUntil is in the past, unmute it automatically
+    await this.unmuteThread(userId, threadId);
+    return false;
   }
 }

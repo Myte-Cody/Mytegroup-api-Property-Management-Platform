@@ -81,6 +81,25 @@ export class User extends Document implements SoftDelete {
   @Prop({ type: Boolean, default: true })
   allowGroupChatInvites: boolean;
 
+  // Blocked Users
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], default: [] })
+  blockedUsers: Types.ObjectId[];
+
+  // Muted Threads
+  @Prop({
+    type: [
+      {
+        threadId: { type: MongooseSchema.Types.ObjectId, ref: 'Thread' },
+        muteUntil: { type: Date, default: null },
+      },
+    ],
+    default: [],
+  })
+  mutedThreads: Array<{
+    threadId: Types.ObjectId;
+    muteUntil: Date | null;
+  }>;
+
   deleted: boolean;
   deletedAt?: Date;
 }

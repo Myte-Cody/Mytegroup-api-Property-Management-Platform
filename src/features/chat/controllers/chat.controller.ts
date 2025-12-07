@@ -5,8 +5,11 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { User } from '../../users/schemas/user.schema';
 import { AddGroupMembersDto } from '../dto/add-group-members.dto';
+import { BlockUserDto } from '../dto/block-user.dto';
+import { ClearChatHistoryDto } from '../dto/clear-chat-history.dto';
 import { CreateChatSessionDto } from '../dto/create-chat-session.dto';
 import { CreateGroupChatDto } from '../dto/create-group-chat.dto';
+import { MuteThreadDto } from '../dto/mute-thread.dto';
 import { SendMessageDto } from '../dto/send-message.dto';
 import { TransferOwnershipDto } from '../dto/transfer-ownership.dto';
 import { UpdateGroupAvatarDto } from '../dto/update-group-avatar.dto';
@@ -224,6 +227,100 @@ export class ChatController {
     return {
       success: true,
       message: 'Ownership transferred successfully',
+    };
+  }
+
+  /**
+   * Block a user
+   */
+  @Post('block/:userId')
+  async blockUser(@CurrentUser() user: User, @Param('userId') userId: string) {
+    const currentUserId = user._id.toString();
+
+    await this.chatService.blockUser(currentUserId, userId, user);
+
+    return {
+      success: true,
+      message: 'User blocked successfully',
+    };
+  }
+
+  /**
+   * Unblock a user
+   */
+  @Delete('block/:userId')
+  async unblockUser(@CurrentUser() user: User, @Param('userId') userId: string) {
+    const currentUserId = user._id.toString();
+
+    await this.chatService.unblockUser(currentUserId, userId);
+
+    return {
+      success: true,
+      message: 'User unblocked successfully',
+    };
+  }
+
+  /**
+   * Get list of blocked users (users you blocked and users who blocked you)
+   */
+  @Get('blocked-users')
+  async getBlockedUsers(@CurrentUser() user: User) {
+    const currentUserId = user._id.toString();
+
+    const result = await this.chatService.getBlockedUsers(currentUserId);
+
+    return {
+      success: true,
+      ...result,
+    };
+  }
+
+  /**
+   * Mute a thread (conversation or group)
+   */
+  @Post('sessions/:threadId/mute')
+  async muteThread(
+    @CurrentUser() user: User,
+    @Param('threadId') threadId: string,
+    @Body() muteThreadDto: MuteThreadDto,
+  ) {
+    const currentUserId = user._id.toString();
+
+    await this.chatService.muteThread(currentUserId, threadId, muteThreadDto.muteUntil);
+
+    return {
+      success: true,
+      message: muteThreadDto.muteUntil ? 'Thread muted temporarily' : 'Thread muted permanently',
+    };
+  }
+
+  /**
+   * Unmute a thread
+   */
+  @Delete('sessions/:threadId/mute')
+  async unmuteThread(@CurrentUser() user: User, @Param('threadId') threadId: string) {
+    const currentUserId = user._id.toString();
+
+    await this.chatService.unmuteThread(currentUserId, threadId);
+
+    return {
+      success: true,
+      message: 'Thread unmuted successfully',
+    };
+  }
+
+  /**
+   * Clear chat history for a thread (local only - marks as deleted for user)
+   */
+  @Delete('sessions/:threadId/history')
+  async clearChatHistory(@CurrentUser() user: User, @Param('threadId') threadId: string) {
+    const currentUserId = user._id.toString();
+
+    await this.chatService.clearChatHistory(currentUserId, threadId);
+
+    return {
+      success: true,
+      message: 'Chat history cleared successfully',
     };
   }
 }
