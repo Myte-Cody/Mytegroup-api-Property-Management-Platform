@@ -193,20 +193,6 @@ export class ChatService {
       .find({ _id: { $in: chatThreadIds } })
       .sort({ updatedAt: -1 });
 
-    // Get lease IDs from LEASE type threads to fetch property names
-    const leaseThreads = threads.filter((t) => t.linkedEntityType === ThreadLinkedEntityType.LEASE);
-    const leaseIds = leaseThreads.map((t) => t.linkedEntityId);
-
-    // Fetch leases with property information
-    const leases = await this.leaseModel
-      .find({ _id: { $in: leaseIds } })
-      .populate({
-        path: 'unit',
-        select: 'unitNumber',
-        populate: { path: 'property', select: 'name' },
-      })
-      .lean();
-
     // Get property IDs from PROPERTY type threads to fetch property names
     const propertyThreads = threads.filter(
       (t) => t.linkedEntityType === ThreadLinkedEntityType.PROPERTY,
@@ -291,6 +277,8 @@ export class ChatService {
       unreadCountMap.set(thread._id.toString(), unreadCounts[index]);
     });
 
+    const currentUser = await this.userModel.findById(userId).select('mutedThreads').lean();
+
     const chatSessions = threads.map((thread) => {
       const threadId = thread._id.toString();
       const participants = participantsMap.get(threadId) || [];
@@ -366,6 +354,9 @@ export class ChatService {
             }
           : null,
         unreadCount,
+        isMuted: currentUser?.mutedThreads.find((mt: any) => mt.threadId.toString() === threadId)
+          ? true
+          : false,
         updatedAt: thread.updatedAt,
       };
     });
