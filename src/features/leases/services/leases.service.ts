@@ -546,6 +546,15 @@ export class LeasesService {
         await currentRentalPeriod.save({ session });
         const savedLease = await lease.save({ session });
 
+        // Update unit's availableFrom date to the new lease end date
+        await this.unitModel.findByIdAndUpdate(
+          lease.unit,
+          {
+            availableFrom: renewalData.endDate,
+          },
+          { session: session ?? null },
+        );
+
         // Send lease renewal email notifications
         await this.sendLeaseRenewalEmails(savedLease, savedNewRentalPeriod, currentRentalPeriod);
 
@@ -1309,6 +1318,7 @@ export class LeasesService {
         lease.unit,
         {
           availabilityStatus: UnitAvailabilityStatus.OCCUPIED,
+          availableFrom: lease.endDate,
         },
         { session: session ?? null },
       );

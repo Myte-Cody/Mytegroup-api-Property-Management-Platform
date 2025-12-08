@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsMongoId, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { UnitType } from '../../../common/enums/unit.enum';
 
 export class MarketplaceQueryDto {
@@ -42,4 +42,12 @@ export class MarketplaceQueryDto {
   @IsNumber()
   @Min(0)
   maxRent?: number;
+
+  @ApiPropertyOptional({
+    description: 'Filter by landlord ID to show only units from a specific landlord',
+    example: '507f1f77bcf86cd799439011',
+  })
+  @IsOptional()
+  @IsMongoId()
+  landlord?: string;
 }

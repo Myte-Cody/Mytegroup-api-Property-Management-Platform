@@ -10,6 +10,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, PipelineStage } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
+import { LeaseStatus } from '../../common/enums/lease.enum';
 import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { GeocodingService } from '../../common/services/geocoding.service';
@@ -176,6 +177,11 @@ export class UnitsService {
       deleted: false,
       publishToMarketplace: true,
     };
+
+    // Add landlord filter
+    if (queryDto?.landlord) {
+      matchConditions.landlord = queryDto.landlord;
+    }
 
     // Add type filter
     if (queryDto?.type) {
@@ -752,6 +758,27 @@ export class UnitsService {
       userId: currentUser._id?.toString(),
       currentUser,
     });
+
+    // Validate availableFrom date if unit has an active lease
+    if (updateUnitDto.availableFrom) {
+      const activeLease = await this.leaseModel
+        .findOne({
+          unit: id,
+          status: LeaseStatus.ACTIVE,
+        })
+        .exec();
+
+      if (activeLease) {
+        const requestedDate = new Date(updateUnitDto.availableFrom);
+        const leaseEndDate = new Date(activeLease.endDate);
+
+        if (requestedDate < leaseEndDate) {
+          throw new BadRequestException(
+            `Cannot set availableFrom date to ${requestedDate.toISOString().split('T')[0]} because the unit has an active lease that ends on ${leaseEndDate.toISOString().split('T')[0]}. The availableFrom date must be on or after the lease end date.`,
+          );
+        }
+      }
+    }
 
     // Process googleMapsLink if provided
     let address = undefined;
