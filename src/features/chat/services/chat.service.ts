@@ -400,14 +400,24 @@ export class ChatService {
     // Get unique sender IDs
     const senderIds = [...new Set(messages.map((msg) => msg.senderId?.toString()).filter(Boolean))];
 
-    // Manually load sender information from users collection
-    const senders = await this.userModel
-      .find({ _id: { $in: senderIds } })
+    // Get unique user IDs from readBy arrays
+    const readByUserIds = [
+      ...new Set(
+        messages.flatMap((msg) => msg.readBy?.map((id) => id.toString()) || []).filter(Boolean),
+      ),
+    ];
+
+    // Combine all user IDs we need to fetch
+    const allUserIds = [...new Set([...senderIds, ...readByUserIds])];
+
+    // Manually load user information from users collection
+    const users = await this.userModel
+      .find({ _id: { $in: allUserIds } })
       .select('_id firstName lastName profilePicture')
       .lean();
 
-    // Create a map of sender ID to sender info
-    const senderMap = new Map(senders.map((sender) => [sender._id.toString(), sender]));
+    // Create a map of user ID to user info
+    const userMap = new Map(users.map((user) => [user._id.toString(), user]));
 
     // Process messages with media URLs
     const reversedMessages = messages.reverse();
@@ -443,7 +453,22 @@ export class ChatService {
       .map((msg) => {
         const senderId = msg.senderId?.toString();
         const isBlocked = senderId && blockedUserIds.includes(senderId);
-        const sender = senderId ? senderMap.get(senderId) : null;
+        const sender = senderId ? userMap.get(senderId) : null;
+
+        // Transform readBy array to include user info
+        const readByWithUserInfo = (msg.readBy || [])
+          .map((userId) => {
+            const userIdStr = userId.toString();
+            const user = userMap.get(userIdStr);
+            if (user) {
+              return {
+                userId: userIdStr,
+                userName: `${user.firstName} ${user.lastName}`.trim(),
+              };
+            }
+            return null;
+          })
+          .filter(Boolean);
 
         return {
           _id: msg._id,
@@ -456,6 +481,7 @@ export class ChatService {
           systemMessageType: msg.systemMessageType,
           metadata: msg.metadata,
           media: (msg as any).media || [],
+          readBy: readByWithUserInfo, // Array of { userId, userName } objects
           createdAt: msg.createdAt,
           updatedAt: msg.updatedAt,
           isBlockedSender: isBlocked, // Flag to indicate if sender is blocked
@@ -625,6 +651,7 @@ export class ChatService {
         systemMessageType: messageWithMedia.systemMessageType,
         metadata: messageWithMedia.metadata,
         media: (messageWithMedia as any).media || [],
+        readBy: messageWithMedia.readBy || [], // List of user IDs who have read this message
         createdAt: messageWithMedia.createdAt,
         updatedAt: messageWithMedia.updatedAt,
       };
@@ -698,10 +725,10 @@ export class ChatService {
     const participantUserIds = allParticipants
       .map((p) => p.participantId?.toString())
       .filter(Boolean);
-
+    const user = await this.userModel.findById(userId);
     // Emit read event to all participants
     if (participantUserIds.length > 0) {
-      this.chatGateway.emitMessageRead(participantUserIds, threadId, userId);
+      this.chatGateway.emitMessageRead(participantUserIds, threadId, user, new Date());
     }
   }
 
@@ -1036,6 +1063,7 @@ export class ChatService {
         systemMessageType,
         metadata,
         media: [],
+        readBy: savedMessage.readBy || [], // List of user IDs who have read this message
         createdAt: savedMessage.createdAt,
         updatedAt: savedMessage.updatedAt,
       };

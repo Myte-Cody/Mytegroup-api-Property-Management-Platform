@@ -8,6 +8,7 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { User } from '../users/schemas/user.schema';
 
 @WebSocketGateway({
   cors: {
@@ -73,7 +74,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     client: Socket,
     payload: { threadId: string; isTyping: boolean; userId?: string; userName?: string },
   ): void {
-    const userId = payload.userId || client.handshake.auth?.userId || client.handshake.query?.userId;
+    const userId =
+      payload.userId || client.handshake.auth?.userId || client.handshake.query?.userId;
 
     if (!userId || !payload.threadId) {
       this.logger.warn('Invalid typing event received');
@@ -133,15 +135,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   }
 
   // Emit message read status
-  emitMessageRead(userIds: string[], threadId: string, userId: string, timestamp?: Date) {
+  emitMessageRead(userIds: string[], threadId: string, user: User, timestamp?: Date) {
     userIds.forEach((recipientId) => {
       this.server.to(`user:${recipientId}`).emit('chat:read', {
         threadId,
-        userId,
+        userId: user._id.toString(),
+        userName: `${user.firstName} ${user.lastName}`,
         timestamp: timestamp || new Date(),
       });
     });
-    this.logger.debug(`Emitted read receipt for thread ${threadId} by user ${userId}`);
   }
 
   // Check if user is connected
