@@ -1,42 +1,56 @@
-<html>
+<html lang='en'>
   <head>
-    <meta charset='utf-8' />
+    <meta charset='UTF-8' />
     <meta name='viewport' content='width=device-width, initial-scale=1.0' />
-    <title>Welcome to Property Management Platform</title>
+    <title>Welcome to {{brandName}}</title>
     <style>
       body {
         font-family: Arial, sans-serif;
         line-height: 1.6;
         color: #333;
+        margin: 0;
+        padding: 0;
+        background-color: #f9f9f9;
       }
       .container {
         max-width: 600px;
         margin: 0 auto;
-        padding: 20px;
+        background-color: #ffffff;
+        border-radius: 5px;
+        overflow: hidden;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
       }
       .header {
-        background-color: #007bff;
+        background-color: {{brandColor}};
         color: white;
         padding: 20px;
         text-align: center;
       }
       .content {
         padding: 20px;
-        background-color: #f9f9f9;
+      }
+      .footer {
+        background-color: #f5f5f5;
+        padding: 15px;
+        text-align: center;
+        font-size: 12px;
+        color: #666;
       }
       .button {
         display: inline-block;
-        padding: 10px 20px;
-        background-color: #007bff;
+        background-color: {{brandColor}};
         color: white;
+        padding: 10px 20px;
         text-decoration: none;
-        border-radius: 5px;
+        border-radius: 4px;
+        margin: 15px 0;
       }
-      .footer {
-        text-align: center;
-        padding: 20px;
-        font-size: 12px;
-        color: #666;
+      .info-box {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 5px;
+        padding: 15px;
+        margin: 20px 0;
       }
     </style>
   </head>
@@ -48,31 +62,34 @@
             <img src='{{brandLogoUrl}}' alt='{{brandName}}' style='max-height:150px;' />
           </div>
         {{/if}}
-        <h1>Welcome to Property Management Platform</h1>
+        <h1>Welcome to {{brandName}}</h1>
       </div>
       <div class='content'>
         <h2>Hello {{capitalize userName}}!</h2>
-        <p>Thank you for joining our Property Management Platform. We're excited to have you on
-          board!</p>
+        <p>Thank you for joining {{brandName}}. We're excited to have you on board!</p>
 
-        <p>With your account, you can:</p>
-        <ul>
-          <li>Manage your properties efficiently</li>
-          <li>Track tenant information and lease agreements</li>
-          <li>Monitor maintenance requests</li>
-          <li>Generate reports and analytics</li>
-        </ul>
+        <div class='info-box'>
+          <p><strong>With your account, you can:</strong></p>
+          <ul style='margin: 10px 0; padding-left: 20px;'>
+            <li>Manage your properties efficiently</li>
+            <li>Track tenant information and lease agreements</li>
+            <li>Monitor maintenance requests</li>
+            <li>Generate reports and analytics</li>
+          </ul>
+        </div>
 
         {{#if dashboardUrl}}
           <p>Get started by visiting your dashboard:</p>
-          <p><a href='{{dashboardUrl}}' class='button'>Go to Dashboard</a></p>
+          <p style='text-align: center;'>
+            <a href='{{dashboardUrl}}' class='button'>Go to Dashboard</a>
+          </p>
         {{/if}}
 
         <p>If you have any questions or need assistance, our support team is here to help.</p>
       </div>
       <div class='footer'>
-        <p>Best regards,<br />The Property Management Team</p>
-        <p>© 2025 Property Management Platform. All rights reserved.</p>
+        <p>Best regards,<br />The {{brandName}} Team</p>
+        <p>© {{currentYear}} {{brandName}}. All rights reserved.</p>
       </div>
     </div>
   </body>

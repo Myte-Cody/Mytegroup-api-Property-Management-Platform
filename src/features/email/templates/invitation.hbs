@@ -1,50 +1,56 @@
-<html>
+<html lang='en'>
   <head>
-    <meta charset='utf-8' />
+    <meta charset='UTF-8' />
     <meta name='viewport' content='width=device-width, initial-scale=1.0' />
-    <title>You've Been Invited to Property Management Platform</title>
+    <title>You've Been Invited - {{brandName}}</title>
     <style>
       body {
         font-family: Arial, sans-serif;
         line-height: 1.6;
         color: #333;
+        margin: 0;
+        padding: 0;
+        background-color: #f9f9f9;
       }
       .container {
         max-width: 600px;
         margin: 0 auto;
-        padding: 20px;
+        background-color: #ffffff;
+        border-radius: 5px;
+        overflow: hidden;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
       }
       .header {
-        background-color: #28a745;
+        background-color: {{brandColor}};
         color: white;
         padding: 20px;
         text-align: center;
       }
       .content {
         padding: 20px;
-        background-color: #f9f9f9;
+      }
+      .footer {
+        background-color: #f5f5f5;
+        padding: 15px;
+        text-align: center;
+        font-size: 12px;
+        color: #666;
       }
       .button {
         display: inline-block;
-        padding: 10px 20px;
-        background-color: #28a745;
+        background-color: {{brandColor}};
         color: white;
+        padding: 10px 20px;
         text-decoration: none;
-        border-radius: 5px;
+        border-radius: 4px;
         margin: 15px 0;
       }
-      .info {
-        background-color: #e9f7ef;
+      .info-box {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 5px;
         padding: 15px;
-        border: 1px solid #d5f5e3;
-        border-radius: 5px;
-        margin: 15px 0;
-      }
-      .footer {
-        text-align: center;
-        padding: 20px;
-        font-size: 12px;
-        color: #666;
+        margin: 20px 0;
       }
     </style>
   </head>
@@ -60,11 +66,11 @@
       </div>
       <div class='content'>
         <h2>Hello!</h2>
-        <p>You have been invited to join the Property Management Platform as a {{entityType}}.</p>
+        <p>You have been invited to join {{brandName}} as a {{entityType}}.</p>
 
-        <div class='info'>
+        <div class='info-box'>
           <p><strong>Invitation Details:</strong></p>
-          <ul>
+          <ul style='margin: 10px 0; padding-left: 20px;'>
             <li>Role: {{capitalize entityType}}</li>
             {{#if additionalInfo}}
               <li>Additional Info: {{additionalInfo}}</li>
@@ -73,19 +79,23 @@
         </div>
 
         <p>Click the button below to accept this invitation and create your account:</p>
-        <p><a href='{{invitationUrl}}' class='button'>Accept Invitation</a></p>
+        <p style='text-align: center;'>
+          <a href='{{invitationUrl}}' class='button'>Accept Invitation</a>
+        </p>
 
-        <p>This invitation will expire on {{formatDate expiresAt}}.</p>
+        <p style='text-align: center; color: #666; font-size: 14px;'>
+          This invitation will expire on {{formatDate expiresAt}}.
+        </p>
 
         <p>If the button doesn't work, copy and paste this link into your browser:</p>
-        <p style='word-break: break-all; color: #28a745;'>{{invitationUrl}}</p>
+        <p style='word-break: break-all; background-color: #f8f9fa; padding: 10px; border-radius: 4px; font-size: 14px;'>{{invitationUrl}}</p>
 
         <p>If you have any questions or believe this invitation was sent in error, please contact
           our support team.</p>
       </div>
       <div class='footer'>
-        <p>Best regards,<br />The Property Management Team</p>
-        <p>© 2025 Property Management Platform. All rights reserved.</p>
+        <p>Best regards,<br />The {{brandName}} Team</p>
+        <p>© {{currentYear}} {{brandName}}. All rights reserved.</p>
       </div>
     </div>
   </body>
