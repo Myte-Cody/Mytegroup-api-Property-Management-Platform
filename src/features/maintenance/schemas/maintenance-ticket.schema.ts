@@ -117,6 +117,20 @@ export class MaintenanceTicket extends Document implements SoftDelete {
   })
   scopeOfWork?: Types.ObjectId;
 
+  @Prop({
+    type: String,
+    required: false,
+    enum: ['web', 'mobile', 'voice', 'api'],
+    default: 'web',
+  })
+  source?: string;
+
+  @Prop({
+    type: MongooseSchema.Types.Mixed,
+    required: false,
+  })
+  metadata?: Record<string, any>;
+
   deleted: boolean;
   deletedAt?: Date;
 }

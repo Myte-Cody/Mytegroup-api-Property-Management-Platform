@@ -82,4 +82,20 @@ export class CreateTicketDto {
   @IsString()
   @MaxLength(1000)
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Source of the ticket creation',
+    example: 'voice',
+    enum: ['web', 'mobile', 'voice', 'api'],
+  })
+  @IsOptional()
+  @IsString()
+  source?: string;
+
+  @ApiPropertyOptional({
+    description: 'Additional metadata for the ticket',
+    example: { voiceTranscript: 'The sink is leaking...' },
+  })
+  @IsOptional()
+  metadata?: Record<string, any>;
 }
