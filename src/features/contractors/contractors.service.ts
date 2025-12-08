@@ -227,7 +227,8 @@ export class ContractorsService {
     }
 
     // Extract user data from DTO
-    const { email, password, name, username, firstName, lastName, phone, profilePicture } = createContractorDto;
+    const { email, password, name, username, firstName, lastName, phone, profilePicture } =
+      createContractorDto;
 
     // Check if contractor name already exists within this tenant
     const existingContractor = await this.contractorModel.findOne({ name }).exec();

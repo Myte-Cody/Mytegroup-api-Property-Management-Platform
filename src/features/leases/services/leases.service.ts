@@ -691,10 +691,7 @@ export class LeasesService {
         {
           $addFields: {
             currentRent: {
-              $ifNull: [
-                { $arrayElemAt: ['$currentRentalPeriod.rentAmount', 0] },
-                '$rentAmount',
-              ],
+              $ifNull: [{ $arrayElemAt: ['$currentRentalPeriod.rentAmount', 0] }, '$rentAmount'],
             },
           },
         },
@@ -1649,7 +1646,12 @@ export class LeasesService {
 
       // Send in-app notifications to tenants
       const tenantNotificationPromises = users.map((user) => {
-        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
+        const userDashboard =
+          user.user_type === 'Contractor'
+            ? 'contractor'
+            : user.user_type === 'Landlord'
+              ? 'landlord'
+              : 'tenant';
         return this.notificationsService.createNotification(
           user._id.toString(),
           'Lease Activated',
@@ -1778,7 +1780,12 @@ export class LeasesService {
 
       // Send in-app notifications to tenants
       const tenantNotificationPromises = users.map((user) => {
-        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
+        const userDashboard =
+          user.user_type === 'Contractor'
+            ? 'contractor'
+            : user.user_type === 'Landlord'
+              ? 'landlord'
+              : 'tenant';
         return this.notificationsService.createNotification(
           user._id.toString(),
           'Lease Terminated',
@@ -1885,7 +1892,12 @@ export class LeasesService {
       const renewalType = isAutoRenewal ? 'auto-renewed' : 'renewed';
       const tenantEmoji = isAutoRenewal ? '🔄' : '📝';
       const tenantNotificationPromises = users.map((user) => {
-        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
+        const userDashboard =
+          user.user_type === 'Contractor'
+            ? 'contractor'
+            : user.user_type === 'Landlord'
+              ? 'landlord'
+              : 'tenant';
         return this.notificationsService.createNotification(
           user._id.toString(),
           'Lease Renewal',
@@ -2011,7 +2023,12 @@ export class LeasesService {
             ? `⏰ Your lease for ${property.name} - Unit ${unit.unitNumber} expires in ${daysRemaining} days. Please contact us to discuss renewal options.`
             : `⏰ Your lease for ${property.name} - Unit ${unit.unitNumber} has expired. Please contact us immediately.`;
         const tenantNotificationPromises = users.map((user) => {
-          const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
+          const userDashboard =
+            user.user_type === 'Contractor'
+              ? 'contractor'
+              : user.user_type === 'Landlord'
+                ? 'landlord'
+                : 'tenant';
           return this.notificationsService.createNotification(
             user._id.toString(),
             'Lease Expiring Soon',

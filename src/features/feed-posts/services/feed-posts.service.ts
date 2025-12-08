@@ -440,7 +440,12 @@ export class FeedPostsService {
       const tenantUsers = await this.getTenantUsersForProperty(feedPost.property as Types.ObjectId);
 
       const notificationPromises = tenantUsers.map((user) => {
-        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
+        const userDashboard =
+          user.user_type === 'Contractor'
+            ? 'contractor'
+            : user.user_type === 'Landlord'
+              ? 'landlord'
+              : 'tenant';
         return this.notificationsService.createNotification(
           user._id.toString(),
           'New Announcement',
@@ -466,7 +471,12 @@ export class FeedPostsService {
       const tenantUsers = await this.getTenantUsersForProperty(feedPost.property as Types.ObjectId);
 
       const notificationPromises = tenantUsers.map((user) => {
-        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : user.user_type === 'Landlord' ? 'landlord' : 'tenant';
+        const userDashboard =
+          user.user_type === 'Contractor'
+            ? 'contractor'
+            : user.user_type === 'Landlord'
+              ? 'landlord'
+              : 'tenant';
         return this.notificationsService.createNotification(
           user._id.toString(),
           'Announcement Updated',

@@ -5,8 +5,6 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { User } from '../../users/schemas/user.schema';
 import { AddGroupMembersDto } from '../dto/add-group-members.dto';
-import { BlockUserDto } from '../dto/block-user.dto';
-import { ClearChatHistoryDto } from '../dto/clear-chat-history.dto';
 import { CreateChatSessionDto } from '../dto/create-chat-session.dto';
 import { CreateGroupChatDto } from '../dto/create-group-chat.dto';
 import { MuteThreadDto } from '../dto/mute-thread.dto';
@@ -199,7 +197,12 @@ export class ChatController {
   ) {
     const currentUserId = user._id.toString();
 
-    await this.chatService.updateGroupAvatar(threadId, currentUserId, updateGroupAvatarDto.avatar, user);
+    await this.chatService.updateGroupAvatar(
+      threadId,
+      currentUserId,
+      updateGroupAvatarDto.avatar,
+      user,
+    );
 
     return {
       success: true,

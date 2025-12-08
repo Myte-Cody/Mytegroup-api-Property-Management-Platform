@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsMongoId, IsOptional, IsString, registerDecorator, ValidationOptions } from 'class-validator';
+import {
+  IsMongoId,
+  IsOptional,
+  IsString,
+  registerDecorator,
+  ValidationOptions,
+} from 'class-validator';
 import { IsFile, MaxFileSize, MemoryStoredFile } from 'nestjs-form-data';
 
 // Custom validator that handles MIME types with codec information

@@ -307,7 +307,8 @@ export class InquiriesService {
       // Send appropriate notification based on inquiry type
       if (inquiry.inquiryType === InquiryType.CONTACT) {
         // Send in-app notification
-        const landlordDashboard = landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
+        const landlordDashboard =
+          landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
         await this.notificationsService.createNotification(
           landlordUser._id.toString(),
           'New Contact Request',
@@ -345,7 +346,8 @@ export class InquiriesService {
         }
 
         // Send in-app notification
-        const landlordDashboard = landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
+        const landlordDashboard =
+          landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
         await this.notificationsService.createNotification(
           landlordUser._id.toString(),
           'New Visit Booking',

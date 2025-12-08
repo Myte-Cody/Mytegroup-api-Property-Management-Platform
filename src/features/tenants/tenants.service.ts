@@ -603,8 +603,17 @@ export class TenantsService {
     }
 
     // Extract user data from DTO
-    const { email, password, name, username, firstName, lastName, phone, invitationContext, profilePicture } =
-      createTenantDto;
+    const {
+      email,
+      password,
+      name,
+      username,
+      firstName,
+      lastName,
+      phone,
+      invitationContext,
+      profilePicture,
+    } = createTenantDto;
 
     // Validate tenant creation data
     await this.validateTenantCreationData(name, email, username);
@@ -650,8 +659,17 @@ export class TenantsService {
     session?: ClientSession,
   ) {
     // Extract user data from DTO
-    const { email, password, name, username, firstName, lastName, phone, invitationContext, profilePicture } =
-      createTenantDto;
+    const {
+      email,
+      password,
+      name,
+      username,
+      firstName,
+      lastName,
+      phone,
+      invitationContext,
+      profilePicture,
+    } = createTenantDto;
 
     // Validate tenant creation data (no CASL authorization needed for invitations)
     await this.validateTenantCreationData(name, email, username);

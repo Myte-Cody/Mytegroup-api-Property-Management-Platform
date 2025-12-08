@@ -222,10 +222,7 @@ export class UnitsService {
           {
             $match: {
               $expr: {
-                $and: [
-                  { $eq: ['$unit', '$$unitId'] },
-                  { $eq: ['$status', 'ACTIVE'] },
-                ],
+                $and: [{ $eq: ['$unit', '$$unitId'] }, { $eq: ['$status', 'ACTIVE'] }],
               },
             },
           },

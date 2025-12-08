@@ -3,7 +3,8 @@
     <meta charset='UTF-8' />
     <meta name='viewport' content='width=device-width, initial-scale=1.0' />
     <title>You've Been Invited - {{brandName}}</title>
-    <style>
+    <style
+    >
       body {
         font-family: Arial, sans-serif;
         line-height: 1.6;
@@ -84,11 +85,14 @@
         </p>
 
         <p style='text-align: center; color: #666; font-size: 14px;'>
-          This invitation will expire on {{formatDate expiresAt}}.
+          This invitation will expire on
+          {{formatDate expiresAt}}.
         </p>
 
         <p>If the button doesn't work, copy and paste this link into your browser:</p>
-        <p style='word-break: break-all; background-color: #f8f9fa; padding: 10px; border-radius: 4px; font-size: 14px;'>{{invitationUrl}}</p>
+        <p
+          style='word-break: break-all; background-color: #f8f9fa; padding: 10px; border-radius: 4px; font-size: 14px;'
+        >{{invitationUrl}}</p>
 
         <p>If you have any questions or believe this invitation was sent in error, please contact
           our support team.</p>

@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsDate, IsMongoId, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsDate, IsMongoId, IsOptional } from 'class-validator';
 import { Types } from 'mongoose';
 
 export class MuteThreadDto {
