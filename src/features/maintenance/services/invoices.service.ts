@@ -51,6 +51,13 @@ export class InvoicesService {
         throw new NotFoundException('Ticket not found');
       }
 
+      // Check if ticket is associated with a scope of work
+      if (ticket.scopeOfWork) {
+        throw new ForbiddenException(
+          'Cannot add invoice directly to a ticket that has a scope of work. Please add the invoice to the scope of work instead.',
+        );
+      }
+
       // Derive landlord from ticket
       const landlordId = ticket.landlord;
 
@@ -107,10 +114,24 @@ export class InvoicesService {
         throw new NotFoundException('Scope of Work not found');
       }
 
-      // Derive landlord from the ticket that owns this SOW
-      const ticket = await this.ticketModel.findOne({ scopeOfWork: sowId }).session(session).exec();
+      // Derive landlord from the first ticket across this SOW and all its sub-SOWs
+      // First, get all sub-SOWs (children of this SOW)
+      const subSows = await this.scopeOfWorkModel
+        .find({ parentSow: sowId })
+        .session(session)
+        .exec();
+
+      // Collect all SOW IDs (current + children)
+      const allSowIds = [new Types.ObjectId(sowId), ...subSows.map(s => s._id)];
+
+      // Find the first ticket associated with any of these SOWs
+      const ticket = await this.ticketModel
+        .findOne({ scopeOfWork: { $in: allSowIds } })
+        .session(session)
+        .exec();
+
       if (!ticket) {
-        throw new NotFoundException('Associated ticket not found for this Scope of Work');
+        throw new NotFoundException('No associated ticket found for this Scope of Work or its sub-scopes');
       }
       const landlordId = ticket.landlord;
 
