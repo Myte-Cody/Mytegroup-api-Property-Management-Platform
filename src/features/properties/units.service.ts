@@ -7,7 +7,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { ClientSession, PipelineStage } from 'mongoose';
+import { ClientSession, PipelineStage, Types } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { LeaseStatus } from '../../common/enums/lease.enum';
@@ -178,9 +178,9 @@ export class UnitsService {
       publishToMarketplace: true,
     };
 
-    // Add landlord filter
+    // Add landlord filter - convert string to ObjectId
     if (queryDto?.landlord) {
-      matchConditions.landlord = queryDto.landlord;
+      matchConditions.landlord = new Types.ObjectId(queryDto.landlord);
     }
 
     // Add type filter
@@ -332,8 +332,7 @@ export class UnitsService {
     // Filter by specific property if provided
     if (propertyId) {
       // Convert string property ID to ObjectId for proper matching
-      const mongoose = require('mongoose');
-      const propertyObjectId = new mongoose.Types.ObjectId(propertyId);
+      const propertyObjectId = new Types.ObjectId(propertyId);
       matchConditions.property = propertyObjectId;
     }
 
@@ -473,10 +472,8 @@ export class UnitsService {
     currentUser: UserDocument,
     queryDto: UnitQueryDto,
   ): Promise<PaginatedUnitsResponse<Unit>> {
-    const mongoose = require('mongoose');
-
     // Get tenant ID - handle both string and ObjectId formats
-    let tenantId;
+    let tenantId: string | Types.ObjectId;
     if (currentUser.organization_id) {
       if (
         typeof currentUser.organization_id === 'object' &&
@@ -494,7 +491,7 @@ export class UnitsService {
 
     // Convert to ObjectId if it's a string
     const tenantObjectId =
-      typeof tenantId === 'string' ? new mongoose.Types.ObjectId(tenantId) : tenantId;
+      typeof tenantId === 'string' ? new Types.ObjectId(tenantId) : tenantId;
 
     // Build lease match conditions
     const leaseMatchConditions: any = {
@@ -642,8 +639,7 @@ export class UnitsService {
       throw new ForbiddenException('You do not have permission to view units');
     }
 
-    const mongoose = require('mongoose');
-    const unitObjectId = new mongoose.Types.ObjectId(id);
+    const unitObjectId = new Types.ObjectId(id);
 
     // Use aggregation pipeline to include active lease with tenant
     const pipeline: any[] = [
@@ -984,8 +980,7 @@ export class UnitsService {
       throw new ForbiddenException('You do not have permission to view this property');
     }
 
-    const mongoose = require('mongoose');
-    const propertyObjectId = new mongoose.Types.ObjectId(propertyId);
+    const propertyObjectId = new Types.ObjectId(propertyId);
 
     // Use MongoDB aggregation pipeline for all calculations
     const pipeline = [
@@ -1108,8 +1103,7 @@ export class UnitsService {
       throw new ForbiddenException('You do not have permission to view units');
     }
 
-    const mongoose = require('mongoose');
-    const unitObjectId = new mongoose.Types.ObjectId(unitId);
+    const unitObjectId = new Types.ObjectId(unitId);
 
     // Build aggregation pipeline to calculate unit stats
     const pipeline: PipelineStage[] = [
