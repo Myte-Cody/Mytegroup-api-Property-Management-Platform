@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, Request, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { Response } from 'express';
+import { Request as ExpressRequest, Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { OptionalJwtGuard } from '../../common/guards/optional-jwt.guard';
@@ -25,7 +25,11 @@ export class AuthController {
   @ApiBody({ type: LoginDto })
   @Post('login')
   @Throttle({ login: { limit: 5, ttl: 60 } })
-  login(@Body() loginDto: LoginDto, @Request() req, @Res({ passthrough: true }) res: Response) {
+  login(
+    @Body() loginDto: LoginDto,
+    @Request() req: ExpressRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const ip = (req.headers['x-forwarded-for'] as string) || req.ip;
     const ua = req.headers['user-agent'] as string;
     return this.authService.login(loginDto, res, ip, ua);
@@ -36,8 +40,14 @@ export class AuthController {
   @Post('register/landlord')
   @ApiOperation({ summary: 'Register a new landlord account' })
   @Throttle({ register: { limit: 3, ttl: 60 } })
-  registerLandlord(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
-    return this.authService.registerLandlord(dto, res);
+  registerLandlord(
+    @Body() dto: RegisterDto,
+    @Request() req: ExpressRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const ip = (req.headers['x-forwarded-for'] as string) || req.ip;
+    const ua = req.headers['user-agent'] as string;
+    return this.authService.registerLandlord(dto, res, ip, ua);
   }
 
   @Public()
@@ -45,8 +55,14 @@ export class AuthController {
   @Post('register/tenant')
   @ApiOperation({ summary: 'Register a new tenant account' })
   @Throttle({ register: { limit: 3, ttl: 60 } })
-  registerTenant(@Body() dto: CreateTenantDto, @Res({ passthrough: true }) res: Response) {
-    return this.authService.registerTenant(dto, res);
+  registerTenant(
+    @Body() dto: CreateTenantDto,
+    @Request() req: ExpressRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const ip = (req.headers['x-forwarded-for'] as string) || req.ip;
+    const ua = req.headers['user-agent'] as string;
+    return this.authService.registerTenant(dto, res, ip, ua);
   }
 
   @Public()
@@ -54,13 +70,19 @@ export class AuthController {
   @Post('register/contractor')
   @ApiOperation({ summary: 'Register a new contractor account' })
   @Throttle({ register: { limit: 3, ttl: 60 } })
-  registerContractor(@Body() dto: CreateContractorDto, @Res({ passthrough: true }) res: Response) {
-    return this.authService.registerContractor(dto, res);
+  registerContractor(
+    @Body() dto: CreateContractorDto,
+    @Request() req: ExpressRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const ip = (req.headers['x-forwarded-for'] as string) || req.ip;
+    const ua = req.headers['user-agent'] as string;
+    return this.authService.registerContractor(dto, res, ip, ua);
   }
 
   @Public()
   @Post('refresh')
-  refresh(@Request() req, @Res({ passthrough: true }) res: Response) {
+  refresh(@Request() req: ExpressRequest, @Res({ passthrough: true }) res: Response) {
     const rt = req.cookies?.['refresh_token'];
     const ip = (req.headers['x-forwarded-for'] as string) || req.ip;
     const ua = req.headers['user-agent'] as string;
@@ -68,7 +90,7 @@ export class AuthController {
   }
 
   @Post('logout')
-  logout(@Request() req, @Res({ passthrough: true }) res: Response) {
+  logout(@Request() req: ExpressRequest, @Res({ passthrough: true }) res: Response) {
     const rt = req.cookies?.['refresh_token'];
     return this.authService.logout(res, rt);
   }
@@ -99,7 +121,7 @@ export class AuthController {
   confirmVerify(
     @Body() dto: VerifyEmailConfirmDto,
     @CurrentUser() user: UserDocument,
-    @Request() req,
+    @Request() req: ExpressRequest,
     @Res({ passthrough: true }) res: Response,
   ) {
     const ip = (req.headers['x-forwarded-for'] as string) || req.ip;
@@ -134,7 +156,7 @@ export class AuthController {
 
   @Get('me')
   @ApiOperation({ summary: 'Get current authenticated user' })
-  getCurrentUser(@Request() req) {
-    return this.authService.getCurrentUser(req.user.id);
+  getCurrentUser(@CurrentUser() user: UserDocument) {
+    return this.authService.getCurrentUser(user._id.toString());
   }
 }

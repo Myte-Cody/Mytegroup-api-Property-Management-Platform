@@ -410,7 +410,7 @@ export class AuthService {
     };
   }
 
-  async registerLandlord(dto: RegisterDto, res?: any) {
+  async registerLandlord(dto: RegisterDto, res?: any, ip?: string, userAgent?: string) {
     const normalizedEmail = dto.email.toLowerCase();
     const existing = await this.userModel.findOne({ email: normalizedEmail }).exec();
     if (existing) {
@@ -441,19 +441,29 @@ export class AuthService {
     });
     const savedUser = await user.save();
 
-    if (res) {
-      // Ensure no auth cookies leak before verification/login
-      this.clearAuthCookies(res);
-    }
-
     // Send verification email (non-blocking)
     try {
       await this.requestEmailVerification(savedUser as any);
     } catch {}
 
+    // Issue auth cookies so user is logged in and can resend verification email
+    if (res) {
+      const authResult = await this.issueAuthCookiesForUser(savedUser as any, res, ip, userAgent);
+      return {
+        success: true,
+        message: 'Registration successful. Please verify your email.',
+        organization: {
+          _id: savedLandlord._id,
+          name: landlordName,
+        },
+        user: authResult.user,
+        accessToken: authResult.accessToken,
+      };
+    }
+
     return {
       success: true,
-      message: 'Registration successful. Please verify your email before signing in.',
+      message: 'Registration successful. Please verify your email.',
       organization: {
         _id: savedLandlord._id,
         name: landlordName,
@@ -461,7 +471,7 @@ export class AuthService {
     };
   }
 
-  async registerTenant(dto: CreateTenantDto, res?: any) {
+  async registerTenant(dto: CreateTenantDto, res?: any, ip?: string, userAgent?: string) {
     const normalizedEmail = dto.email.toLowerCase();
     const existing = await this.userModel.findOne({ email: normalizedEmail }).exec();
     if (existing) {
@@ -503,17 +513,28 @@ export class AuthService {
     });
     const savedUser = await user.save();
 
-    if (res) {
-      this.clearAuthCookies(res);
-    }
-
     try {
       await this.requestEmailVerification(savedUser as any);
     } catch {}
 
+    // Issue auth cookies so user is logged in and can resend verification email
+    if (res) {
+      const authResult = await this.issueAuthCookiesForUser(savedUser as any, res, ip, userAgent);
+      return {
+        success: true,
+        message: 'Registration successful. Please verify your email.',
+        organization: {
+          _id: savedTenant._id,
+          name: dto.name,
+        },
+        user: authResult.user,
+        accessToken: authResult.accessToken,
+      };
+    }
+
     return {
       success: true,
-      message: 'Registration successful. Please verify your email before signing in.',
+      message: 'Registration successful. Please verify your email.',
       organization: {
         _id: savedTenant._id,
         name: dto.name,
@@ -521,7 +542,7 @@ export class AuthService {
     };
   }
 
-  async registerContractor(dto: CreateContractorDto, res?: any) {
+  async registerContractor(dto: CreateContractorDto, res?: any, ip?: string, userAgent?: string) {
     const normalizedEmail = dto.email.toLowerCase();
     const existing = await this.userModel.findOne({ email: normalizedEmail }).exec();
     if (existing) {
@@ -564,17 +585,28 @@ export class AuthService {
     });
     const savedUser = await user.save();
 
-    if (res) {
-      this.clearAuthCookies(res);
-    }
-
     try {
       await this.requestEmailVerification(savedUser as any);
     } catch {}
 
+    // Issue auth cookies so user is logged in and can resend verification email
+    if (res) {
+      const authResult = await this.issueAuthCookiesForUser(savedUser as any, res, ip, userAgent);
+      return {
+        success: true,
+        message: 'Registration successful. Please verify your email.',
+        organization: {
+          _id: savedContractor._id,
+          name: dto.name,
+        },
+        user: authResult.user,
+        accessToken: authResult.accessToken,
+      };
+    }
+
     return {
       success: true,
-      message: 'Registration successful. Please verify your email before signing in.',
+      message: 'Registration successful. Please verify your email.',
       organization: {
         _id: savedContractor._id,
         name: dto.name,
