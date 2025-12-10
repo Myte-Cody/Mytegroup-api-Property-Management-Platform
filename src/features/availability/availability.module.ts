@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CaslModule } from '../../common/casl/casl.module';
+import { Lease, LeaseSchema } from '../leases';
 import {
   MaintenanceTicket,
   MaintenanceTicketSchema,
@@ -8,9 +9,9 @@ import {
 import { Property, PropertySchema } from '../properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../properties/schemas/unit.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
-import { Availability, AvailabilitySchema } from './schemas/availability.schema';
 import { AvailabilityController } from './availability.controller';
 import { AvailabilityService } from './availability.service';
+import { Availability, AvailabilitySchema } from './schemas/availability.schema';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AvailabilityService } from './availability.service';
       { name: User.name, schema: UserSchema },
       { name: Property.name, schema: PropertySchema },
       { name: Unit.name, schema: UnitSchema },
+      { name: Lease.name, schema: LeaseSchema },
       { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
     ]),
     CaslModule,

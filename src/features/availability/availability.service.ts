@@ -9,9 +9,11 @@ import mongoose from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
 import { AvailabilityType } from '../../common/enums/availability.enum';
+import { LeaseStatus } from '../../common/enums/lease.enum';
 import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
+import { Lease } from '../leases';
 import { Unit } from '../properties/schemas/unit.schema';
 import { UserDocument } from '../users/schemas/user.schema';
 import { AvailabilityQueryDto, CreateAvailabilityDto, UpdateAvailabilityDto } from './dto';
@@ -28,6 +30,8 @@ export class AvailabilityService {
     private readonly availabilityModel: AppModel<Availability>,
     @InjectModel(Unit.name)
     private readonly unitModel: AppModel<Unit>,
+    @InjectModel(Lease.name)
+    private readonly leaseModel: AppModel<Lease>,
     private readonly caslAuthorizationService: CaslAuthorizationService,
   ) {}
 
@@ -114,6 +118,9 @@ export class AvailabilityService {
       createdBy = AvailabilityCreatedBy.LANDLORD;
     }
 
+    // Check for duplicate availability
+    await this.checkDuplicateAvailability(createDto, tenantId, landlordId, createdBy);
+
     const availability = new this.availabilityModel({
       ...createDto,
       property: new mongoose.Types.ObjectId(createDto.propertyId),
@@ -126,14 +133,55 @@ export class AvailabilityService {
     return availability.save();
   }
 
+  private async checkDuplicateAvailability(
+    createDto: CreateAvailabilityDto,
+    tenantId: mongoose.Types.ObjectId | undefined,
+    landlordId: mongoose.Types.ObjectId,
+    createdBy: AvailabilityCreatedBy,
+  ): Promise<void> {
+    const query: any = {
+      property: new mongoose.Types.ObjectId(createDto.propertyId),
+      startTime: createDto.startTime,
+      endTime: createDto.endTime,
+      availabilityType: createDto.availabilityType,
+      createdBy,
+      deleted: false,
+    };
+
+    // Add unit filter if specified
+    if (createDto.unitId) {
+      query.unit = new mongoose.Types.ObjectId(createDto.unitId);
+    } else {
+      query.unit = { $exists: false };
+    }
+
+    // Add creator filter
+    if (createdBy === AvailabilityCreatedBy.TENANT) {
+      query.tenant = tenantId;
+    } else {
+      query.landlord = landlordId;
+    }
+
+    // Add date/dayOfWeek filter based on availability type
+    if (createDto.availabilityType === AvailabilityType.ONE_TIME) {
+      query.date = createDto.date;
+    } else {
+      query.dayOfWeek = createDto.dayOfWeek;
+    }
+
+    const existingSlot = await this.availabilityModel.findOne(query).exec();
+
+    if (existingSlot) {
+      throw new BadRequestException(
+        'An availability slot with the same time and date/day already exists',
+      );
+    }
+  }
+
   async findAll(
     queryDto: AvailabilityQueryDto,
     currentUser: UserDocument,
   ): Promise<PaginatedResponse<Availability>> {
-    if (currentUser.user_type !== UserType.TENANT && currentUser.user_type !== UserType.LANDLORD) {
-      throw new ForbiddenException('Only tenants and landlords can access availability management');
-    }
-
     const {
       page = 1,
       limit = 10,
@@ -223,10 +271,6 @@ export class AvailabilityService {
   }
 
   async findOne(id: string, currentUser: UserDocument): Promise<AvailabilityDocument> {
-    if (currentUser.user_type !== UserType.TENANT && currentUser.user_type !== UserType.LANDLORD) {
-      throw new ForbiddenException('Only tenants and landlords can access availability management');
-    }
-
     const query: any = { _id: id, deleted: false };
 
     if (currentUser.user_type === UserType.TENANT) {
@@ -348,10 +392,6 @@ export class AvailabilityService {
     propertyId?: string,
     unitId?: string,
   ): Promise<{ slots: Availability[] }> {
-    if (currentUser.user_type !== UserType.TENANT && currentUser.user_type !== UserType.LANDLORD) {
-      throw new ForbiddenException('Only tenants and landlords can access availability management');
-    }
-
     const dayOfWeek = this.getDayOfWeek(date);
     const query: any = { isActive: true, deleted: false };
 
@@ -421,10 +461,6 @@ export class AvailabilityService {
     propertyId?: string,
     unitId?: string,
   ): Promise<{ slots: Availability[] }> {
-    if (currentUser.user_type !== UserType.TENANT && currentUser.user_type !== UserType.LANDLORD) {
-      throw new ForbiddenException('Only tenants and landlords can access availability management');
-    }
-
     const query: any = {
       availabilityType: AvailabilityType.RECURRING,
       isActive: true,
@@ -531,12 +567,14 @@ export class AvailabilityService {
   }
 
   private async validateTenantUnitAccess(tenantId: string, unitId: string): Promise<boolean> {
-    const Lease = this.availabilityModel.db.model('Lease');
-    const lease = await Lease.findOne({
-      tenant: new mongoose.Types.ObjectId(tenantId),
-      unit: new mongoose.Types.ObjectId(unitId),
-      status: 'active',
-    }).exec();
+    console.log(tenantId, unitId);
+    const lease = await this.leaseModel
+      .findOne({
+        tenant: new mongoose.Types.ObjectId(tenantId),
+        unit: new mongoose.Types.ObjectId(unitId),
+        status: LeaseStatus.ACTIVE,
+      })
+      .exec();
     return !!lease;
   }
 
@@ -569,7 +607,7 @@ export class AvailabilityService {
     const Lease = this.availabilityModel.db.model('Lease');
     const activeLease = await Lease.findOne({
       unit: new mongoose.Types.ObjectId(unitId),
-      status: 'active',
+      status: LeaseStatus.ACTIVE,
     }).exec();
 
     // Landlord can create availability for vacant units only

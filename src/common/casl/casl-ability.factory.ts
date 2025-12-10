@@ -20,6 +20,7 @@ import { ScopeOfWork } from '../../features/maintenance/schemas/scope-of-work.sc
 import { ThreadMessage } from '../../features/maintenance/schemas/thread-message.schema';
 import { ThreadParticipant } from '../../features/maintenance/schemas/thread-participant.schema';
 import { Thread } from '../../features/maintenance/schemas/thread.schema';
+import { VisitRequest } from '../../features/maintenance/schemas/visit-request.schema';
 import { Media } from '../../features/media/schemas/media.schema';
 import { Property } from '../../features/properties/schemas/property.schema';
 import { Unit } from '../../features/properties/schemas/unit.schema';
@@ -50,6 +51,7 @@ export const SUBJECTS = {
   THREAD_PARTICIPANT: ThreadParticipant,
   FEED_POST: FeedPost,
   AVAILABILITY: Availability,
+  VISIT_REQUEST: VisitRequest,
 } as const;
 
 // Subject model name mapping for detectSubjectType
@@ -73,6 +75,7 @@ const SUBJECT_MODEL_MAPPING = {
   ThreadParticipant: ThreadParticipant,
   FeedPost: FeedPost,
   Availability: Availability,
+  VisitRequest: VisitRequest,
 } as const;
 
 // Define actions that can be performed
@@ -171,6 +174,10 @@ export class CaslAbilityFactory {
     // Landlords can manage tenant availability (for scheduling maintenance)
     can(Action.Manage, Availability, { landlord: landlordId });
 
+    // Landlords can read and respond to visit requests
+    can(Action.Read, VisitRequest, { landlord: landlordId });
+    can(Action.Update, VisitRequest, { landlord: landlordId });
+
     // Other resources
     can(Action.Manage, Invitation);
     can(Action.Manage, Media);
@@ -219,6 +226,10 @@ export class CaslAbilityFactory {
     // Shared resources - staff can only see tenants/contractors that have their landlord ID in landlords array
     can(Action.Read, Tenant, { landlords: landlordId });
     can(Action.Read, Contractor, { landlords: landlordId });
+
+    // Staff can read and respond to visit requests
+    can(Action.Read, VisitRequest, { landlord: landlordId });
+    can(Action.Update, VisitRequest, { landlord: landlordId });
 
     // Other resources
     can(Action.Manage, Invitation);
@@ -307,6 +318,9 @@ export class CaslAbilityFactory {
     // Tenants can manage their own availability
     if (tenantOrganizationId) {
       can(Action.Manage, Availability, { tenant: tenantOrganizationId });
+      // Tenants can read and respond to visit requests addressed to them
+      can(Action.Read, VisitRequest, { tenant: tenantOrganizationId });
+      can(Action.Update, VisitRequest, { tenant: tenantOrganizationId });
     }
 
     // Cannot create, update, or delete properties, units, and other entities
@@ -395,6 +409,14 @@ export class CaslAbilityFactory {
       can(Action.Read, ThreadMessage);
       can(Action.Read, ThreadParticipant);
       can(Action.Update, ThreadParticipant); // For accepting/declining threads
+
+      // Contractors can create, read, and manage their own visit requests
+      can(Action.Create, VisitRequest);
+      can(Action.Read, VisitRequest, { contractor: contractorOrganizationId });
+      can(Action.Update, VisitRequest, { contractor: contractorOrganizationId });
+
+      // Contractors can read availability to see when to request visits
+      can(Action.Read, Availability);
     }
     can(Action.Create, Invoice);
     can(Action.Read, Invoice);
