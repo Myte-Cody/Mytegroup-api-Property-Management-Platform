@@ -23,6 +23,7 @@ import { Thread } from '../../features/maintenance/schemas/thread.schema';
 import { Media } from '../../features/media/schemas/media.schema';
 import { Property } from '../../features/properties/schemas/property.schema';
 import { Unit } from '../../features/properties/schemas/unit.schema';
+import { Availability } from '../../features/availability/schemas/availability.schema';
 import { Tenant } from '../../features/tenants/schema/tenant.schema';
 import { User, UserDocument } from '../../features/users/schemas/user.schema';
 import { UserRole } from '../enums/user-role.enum';
@@ -48,6 +49,7 @@ export const SUBJECTS = {
   THREAD_MESSAGE: ThreadMessage,
   THREAD_PARTICIPANT: ThreadParticipant,
   FEED_POST: FeedPost,
+  AVAILABILITY: Availability,
 } as const;
 
 // Subject model name mapping for detectSubjectType
@@ -70,6 +72,7 @@ const SUBJECT_MODEL_MAPPING = {
   ThreadMessage: ThreadMessage,
   ThreadParticipant: ThreadParticipant,
   FeedPost: FeedPost,
+  Availability: Availability,
 } as const;
 
 // Define actions that can be performed
@@ -164,6 +167,9 @@ export class CaslAbilityFactory {
     can(Action.Read, Contractor, { landlords: landlordId });
     can(Action.Update, Contractor, { landlords: landlordId });
     can(Action.Delete, Contractor, { landlords: landlordId });
+
+    // Landlords can manage tenant availability (for scheduling maintenance)
+    can(Action.Manage, Availability, { landlord: landlordId });
 
     // Other resources
     can(Action.Manage, Invitation);
@@ -297,6 +303,11 @@ export class CaslAbilityFactory {
 
     // Tenants can create media (for chat messages and other uploads)
     can(Action.Create, Media);
+
+    // Tenants can manage their own availability
+    if (tenantOrganizationId) {
+      can(Action.Manage, Availability, { tenant: tenantOrganizationId });
+    }
 
     // Cannot create, update, or delete properties, units, and other entities
     cannot(Action.Create, Property);
