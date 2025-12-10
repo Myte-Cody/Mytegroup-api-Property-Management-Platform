@@ -776,9 +776,27 @@ export class UnitsService {
       }
     }
 
-    // Process googleMapsLink if provided
+    // Process address based on usePropertyAddress flag
     let address = undefined;
-    if (updateUnitDto.googleMapsLink) {
+
+    if (updateUnitDto.usePropertyAddress) {
+      // Use property's address coordinates
+      const property = existingUnit.property as any;
+      if (property.address?.latitude && property.address?.longitude) {
+        address = {
+          latitude: property.address.latitude,
+          longitude: property.address.longitude,
+          city: property.address.city,
+          state: property.address.state,
+          country: property.address.country,
+          postalCode: property.address.postalCode,
+        };
+      } else {
+        // If property doesn't have coordinates, clear the unit's custom address
+        address = undefined;
+      }
+    } else if (updateUnitDto.googleMapsLink) {
+      // Extract address from Google Maps link
       try {
         address = await this.geocodingService.extractLocationFromMapsLink(
           updateUnitDto.googleMapsLink,
@@ -792,11 +810,11 @@ export class UnitsService {
       }
     }
 
-    // Create update data without googleMapsLink but with address
-    const { googleMapsLink, ...updateData } = updateUnitDto;
+    // Create update data without googleMapsLink and usePropertyAddress but with address
+    const { googleMapsLink, usePropertyAddress, ...updateData } = updateUnitDto;
     const finalUpdateData = {
       ...updateData,
-      ...(address && { address }),
+      ...(address !== undefined && { address }),
     };
 
     // Perform the update
