@@ -761,7 +761,7 @@ export class ThreadsService {
     const existingThread = await this.threadModel.findOne({
       linkedEntityType: ThreadLinkedEntityType.PROPERTY,
       linkedEntityId: propertyId,
-      threadType: ThreadType.TENANT_TENANT_GROUP,
+      threadType: ThreadType.LANDLORD_TENANT,
     });
 
     if (existingThread) {
