@@ -124,7 +124,9 @@ export class VisitRequestService {
       sowId = sow._id as mongoose.Types.ObjectId;
 
       if (!property && !unit) {
-        throw new BadRequestException('Scope of Work must have a property or unit to create a visit request');
+        throw new BadRequestException(
+          'Scope of Work must have a property or unit to create a visit request',
+        );
       }
 
       // If only unit is set, get the property from unit
@@ -149,10 +151,12 @@ export class VisitRequestService {
     if (unit) {
       targetType = VisitRequestTargetType.UNIT;
       // Find active tenant for this unit
-      const activeLease = await this.leaseModel.findOne({
-        unit: unit._id || unit,
-        status: LeaseStatus.ACTIVE,
-      }).exec();
+      const activeLease = await this.leaseModel
+        .findOne({
+          unit: unit._id || unit,
+          status: LeaseStatus.ACTIVE,
+        })
+        .exec();
 
       if (activeLease) {
         tenantId = activeLease.tenant as mongoose.Types.ObjectId;
@@ -162,19 +166,23 @@ export class VisitRequestService {
     }
 
     // Validate the availability slot
-    const availabilitySlot = await this.availabilityModel.findById(createDto.availabilitySlotId).exec();
+    const availabilitySlot = await this.availabilityModel
+      .findById(createDto.availabilitySlotId)
+      .exec();
     if (!availabilitySlot) {
       throw new NotFoundException('Availability slot not found');
     }
 
     // Check for duplicate pending request for same slot and date
-    const existingRequest = await this.visitRequestModel.findOne({
-      contractor: contractorId,
-      availabilitySlot: createDto.availabilitySlotId,
-      visitDate: createDto.visitDate,
-      status: VisitRequestStatus.PENDING,
-      deleted: false,
-    }).exec();
+    const existingRequest = await this.visitRequestModel
+      .findOne({
+        contractor: contractorId,
+        availabilitySlot: createDto.availabilitySlotId,
+        visitDate: createDto.visitDate,
+        status: VisitRequestStatus.PENDING,
+        deleted: false,
+      })
+      .exec();
 
     if (existingRequest) {
       throw new BadRequestException('You already have a pending visit request for this time slot');
@@ -269,8 +277,8 @@ export class VisitRequestService {
         .populate('unit', 'unitNumber')
         .populate('ticket', 'ticketNumber title')
         .populate('scopeOfWork', 'sowNumber title')
-        .populate('requestedBy', 'first_name last_name email')
-        .populate('respondedBy', 'first_name last_name email')
+        .populate('requestedBy', 'firstName lastName email')
+        .populate('respondedBy', 'firstName lastName email')
         .sort(sortObj)
         .skip(skip)
         .limit(limit)
@@ -290,8 +298,8 @@ export class VisitRequestService {
       .populate('unit', 'unitNumber')
       .populate('ticket', 'ticketNumber title')
       .populate('scopeOfWork', 'sowNumber title')
-      .populate('requestedBy', 'first_name last_name email')
-      .populate('respondedBy', 'first_name last_name email')
+      .populate('requestedBy', 'firstName lastName email')
+      .populate('respondedBy', 'firstName lastName email')
       .populate('availabilitySlot')
       .exec();
 
@@ -340,8 +348,8 @@ export class VisitRequestService {
     // Update status based on response
     visitRequest.status =
       respondDto.response === VisitRequestResponse.ACCEPT
-        ? VisitRequestStatus.ACCEPTED
-        : VisitRequestStatus.REFUSED;
+        ? VisitRequestStatus.APPROVED
+        : VisitRequestStatus.DECLINED;
     visitRequest.responseMessage = respondDto.responseMessage;
     visitRequest.respondedBy = currentUser._id as mongoose.Types.ObjectId;
     visitRequest.respondedAt = new Date();
@@ -405,8 +413,8 @@ export class VisitRequestService {
       .find(query)
       .populate('contractor', 'name')
       .populate('tenant', 'name')
-      .populate('requestedBy', 'first_name last_name')
-      .populate('respondedBy', 'first_name last_name')
+      .populate('requestedBy', 'firstName lastName')
+      .populate('respondedBy', 'firstName lastName')
       .sort({ createdAt: -1 })
       .exec();
   }
@@ -430,8 +438,8 @@ export class VisitRequestService {
       .find(query)
       .populate('contractor', 'name')
       .populate('tenant', 'name')
-      .populate('requestedBy', 'first_name last_name')
-      .populate('respondedBy', 'first_name last_name')
+      .populate('requestedBy', 'firstName lastName')
+      .populate('respondedBy', 'firstName lastName')
       .sort({ createdAt: -1 })
       .exec();
   }
@@ -458,7 +466,7 @@ export class VisitRequestService {
     visitRequest: VisitRequestDocument,
     requester: UserDocument,
   ): Promise<void> {
-    const requesterName = `${requester.first_name} ${requester.last_name}`;
+    const requesterName = `${requester.firstName} ${requester.lastName}`;
     const visitDateStr = visitRequest.visitDate.toLocaleDateString();
 
     // Determine recipient
@@ -498,8 +506,9 @@ export class VisitRequestService {
     visitRequest: VisitRequestDocument,
     responder: UserDocument,
   ): Promise<void> {
-    const responderName = `${responder.first_name} ${responder.last_name}`;
-    const statusText = visitRequest.status === VisitRequestStatus.ACCEPTED ? 'accepted' : 'refused';
+    const responderName = `${responder.firstName} ${responder.lastName}`;
+    const statusText =
+      visitRequest.status === VisitRequestStatus.APPROVED ? 'accepted' : 'declined';
     const visitDateStr = visitRequest.visitDate.toLocaleDateString();
 
     // Find contractor user
@@ -520,7 +529,7 @@ export class VisitRequestService {
     visitRequest: VisitRequestDocument,
     canceller: UserDocument,
   ): Promise<void> {
-    const cancellerName = `${canceller.first_name} ${canceller.last_name}`;
+    const cancellerName = `${canceller.firstName} ${canceller.lastName}`;
     const visitDateStr = visitRequest.visitDate.toLocaleDateString();
 
     // Determine recipient
