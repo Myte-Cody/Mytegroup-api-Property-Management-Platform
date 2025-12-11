@@ -279,6 +279,10 @@ export class FinancialKPIService {
     // Match by date and status
     const match: any = {
       dueDate: { $gte: period.startDate, $lte: period.endDate },
+      // Exclude deposit transactions from revenue calculations
+      type: {
+        $nin: [PaymentType.DEPOSIT, PaymentType.DEPOSIT_REFUND, PaymentType.DEPOSIT_DEDUCTION],
+      },
     };
 
     if (query.status && query.status.length > 0) {
@@ -429,11 +433,15 @@ export class FinancialKPIService {
   private buildTransactionMonthlyPipeline(baseFilters: any, period: PeriodDates): any[] {
     const pipeline: any[] = [];
 
-    // Match by date and status
+    // Match by date and status, excluding deposit transactions
     pipeline.push({
       $match: {
         dueDate: { $gte: period.startDate, $lte: period.endDate },
         status: PaymentStatus.PAID,
+        // Exclude deposit transactions from revenue calculations
+        type: {
+          $nin: [PaymentType.DEPOSIT, PaymentType.DEPOSIT_REFUND, PaymentType.DEPOSIT_DEDUCTION],
+        },
       },
     });
 
@@ -662,10 +670,14 @@ export class FinancialKPIService {
   ): Promise<RevenueBreakdownDto[]> {
     const pipeline: any[] = [];
 
-    // Match by date and status
+    // Match by date and status, excluding deposit transactions
     const match: any = {
       dueDate: { $gte: period.startDate, $lte: period.endDate },
       status: PaymentStatus.PAID,
+      // Exclude deposit transactions from revenue calculations
+      type: {
+        $nin: [PaymentType.DEPOSIT, PaymentType.DEPOSIT_REFUND, PaymentType.DEPOSIT_DEDUCTION],
+      },
     };
 
     if (revenueType) {
@@ -954,11 +966,15 @@ export class FinancialKPIService {
 
     const pipeline: any[] = [];
 
-    // Match by date and status
+    // Match by date and status, excluding deposit transactions
     pipeline.push({
       $match: {
         dueDate: { $gte: period.startDate, $lte: period.endDate },
         status: PaymentStatus.PAID,
+        // Exclude deposit transactions from revenue calculations
+        type: {
+          $nin: [PaymentType.DEPOSIT, PaymentType.DEPOSIT_REFUND, PaymentType.DEPOSIT_DEDUCTION],
+        },
       },
     });
 

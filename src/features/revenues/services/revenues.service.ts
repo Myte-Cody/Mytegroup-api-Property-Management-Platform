@@ -217,11 +217,21 @@ export class RevenuesService {
   async getRevenueSummary(currentUser: UserDocument) {
     const transactions = await this.transactionModel.find().exec();
 
-    const totalPaid = transactions
+    // Define deposit types to exclude from revenue calculations
+    const depositTypes = [
+      PaymentType.DEPOSIT,
+      PaymentType.DEPOSIT_REFUND,
+      PaymentType.DEPOSIT_DEDUCTION,
+    ];
+
+    // Filter out deposit transactions for revenue calculations
+    const revenueTransactions = transactions.filter((t) => !depositTypes.includes(t.type));
+
+    const totalPaid = revenueTransactions
       .filter((t) => t.status === PaymentStatus.PAID)
       .reduce((sum, t) => sum + t.amount, 0);
 
-    const totalOutstanding = transactions
+    const totalOutstanding = revenueTransactions
       .filter((t) => t.status === PaymentStatus.PENDING || t.status === PaymentStatus.OVERDUE)
       .reduce((sum, t) => sum + t.amount, 0);
 
@@ -229,36 +239,33 @@ export class RevenuesService {
     const collectionRate = totalExpected > 0 ? (totalPaid / totalExpected) * 100 : 0;
 
     const summary = {
-      totalTransactions: transactions.length,
+      totalTransactions: revenueTransactions.length,
       totals: {
         paid: totalPaid,
         outstanding: totalOutstanding,
       },
       collectionRate: Math.round(collectionRate * 100) / 100, // Round to 2 decimal places
       totalRevenue: totalPaid,
-      pendingRevenue: transactions
+      pendingRevenue: revenueTransactions
         .filter((t) => t.status === PaymentStatus.PENDING)
         .reduce((sum, t) => sum + t.amount, 0),
-      overdueRevenue: transactions
+      overdueRevenue: revenueTransactions
         .filter((t) => t.status === PaymentStatus.OVERDUE)
         .reduce((sum, t) => sum + t.amount, 0),
       byType: {
-        [PaymentType.RENT]: transactions
+        [PaymentType.RENT]: revenueTransactions
           .filter((t) => t.type === PaymentType.RENT && t.status === PaymentStatus.PAID)
           .reduce((sum, t) => sum + t.amount, 0),
-        [PaymentType.DEPOSIT]: transactions
-          .filter((t) => t.type === PaymentType.DEPOSIT && t.status === PaymentStatus.PAID)
-          .reduce((sum, t) => sum + t.amount, 0),
-        [PaymentType.FEES]: transactions
+        [PaymentType.FEES]: revenueTransactions
           .filter((t) => t.type === PaymentType.FEES && t.status === PaymentStatus.PAID)
           .reduce((sum, t) => sum + t.amount, 0),
-        [PaymentType.UTILITIES]: transactions
+        [PaymentType.UTILITIES]: revenueTransactions
           .filter((t) => t.type === PaymentType.UTILITIES && t.status === PaymentStatus.PAID)
           .reduce((sum, t) => sum + t.amount, 0),
-        [PaymentType.MAINTENANCE]: transactions
+        [PaymentType.MAINTENANCE]: revenueTransactions
           .filter((t) => t.type === PaymentType.MAINTENANCE && t.status === PaymentStatus.PAID)
           .reduce((sum, t) => sum + t.amount, 0),
-        [PaymentType.OTHER]: transactions
+        [PaymentType.OTHER]: revenueTransactions
           .filter((t) => t.type === PaymentType.OTHER && t.status === PaymentStatus.PAID)
           .reduce((sum, t) => sum + t.amount, 0),
       },

@@ -30,6 +30,7 @@ import { MediaModule } from './features/media/media.module';
 import { NotificationsModule } from './features/notifications/notifications.module';
 import { OnboardingModule } from './features/onboarding/onboarding.module';
 import { PropertiesModule } from './features/properties/properties.module';
+import { DepositsModule } from './features/deposits/deposits.module';
 import { RevenuesModule } from './features/revenues/revenues.module';
 import { SubscribersModule } from './features/subscribers/subscribers.module';
 import { AvailabilityModule } from './features/availability/availability.module';
@@ -95,6 +96,7 @@ const queueModules = enableQueues
     PropertiesModule,
     LeasesModule,
     RevenuesModule,
+    DepositsModule,
     MaintenanceModule,
     ExpensesModule,
     KPIModule,
