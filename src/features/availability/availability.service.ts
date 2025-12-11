@@ -549,6 +549,93 @@ export class AvailabilityService {
       .exec();
   }
 
+  /**
+   * Get availability slots for visit requests (for contractors)
+   * Logic:
+   * - If unit is occupied (has active lease) → load tenant's slots
+   * - If unit is vacant (no active lease) → load landlord's slots
+   * - If property-level (no unit) → load landlord's slots
+   */
+  async getAvailabilityForVisitRequest(
+    date: Date,
+    propertyId: string,
+    unitId?: string,
+  ): Promise<{ slots: Availability[]; slotOwner: 'tenant' | 'landlord' }> {
+    const dayOfWeek = this.getDayOfWeek(date);
+    const query: any = { isActive: true, deleted: false };
+
+    // Add property filter
+    query.property = new mongoose.Types.ObjectId(propertyId);
+
+    let slotOwner: 'tenant' | 'landlord' = 'landlord';
+
+    if (unitId) {
+      // Check if unit has an active lease (occupied)
+      const activeLease = await this.leaseModel
+        .findOne({
+          unit: new mongoose.Types.ObjectId(unitId),
+          status: LeaseStatus.ACTIVE,
+        })
+        .exec();
+
+      if (activeLease && activeLease.tenant) {
+        // Occupied unit - load tenant's slots
+        query.unit = new mongoose.Types.ObjectId(unitId);
+        query.tenant = activeLease.tenant;
+        query.createdBy = AvailabilityCreatedBy.TENANT;
+        slotOwner = 'tenant';
+      } else {
+        // Vacant unit - load landlord's slots for this unit
+        query.unit = new mongoose.Types.ObjectId(unitId);
+        query.createdBy = AvailabilityCreatedBy.LANDLORD;
+        slotOwner = 'landlord';
+      }
+    } else {
+      // Property-level - load landlord's slots (without unit filter)
+      query.unit = { $exists: false };
+      query.createdBy = AvailabilityCreatedBy.LANDLORD;
+      slotOwner = 'landlord';
+    }
+
+    // Get one-time slots for this date
+    const oneTimeSlots = await this.availabilityModel
+      .find({ ...query, availabilityType: AvailabilityType.ONE_TIME, date })
+      .populate('tenant', 'name')
+      .populate('property', 'name address')
+      .populate('unit', 'name unitNumber')
+      .exec();
+
+    // Get recurring slots for this day of week
+    const recurringSlots = await this.availabilityModel
+      .find({
+        ...query,
+        availabilityType: AvailabilityType.RECURRING,
+        dayOfWeek,
+        $and: [
+          {
+            $or: [
+              { effectiveFrom: { $exists: false } },
+              { effectiveFrom: null },
+              { effectiveFrom: { $lte: date } },
+            ],
+          },
+          {
+            $or: [
+              { effectiveUntil: { $exists: false } },
+              { effectiveUntil: null },
+              { effectiveUntil: { $gte: date } },
+            ],
+          },
+        ],
+      })
+      .populate('tenant', 'name')
+      .populate('property', 'name address')
+      .populate('unit', 'name unitNumber')
+      .exec();
+
+    return { slots: [...oneTimeSlots, ...recurringSlots], slotOwner };
+  }
+
   // Helper methods
   private validateTimeRange(startTime: string, endTime: string): void {
     const [startHours, startMinutes] = startTime.split(':').map(Number);

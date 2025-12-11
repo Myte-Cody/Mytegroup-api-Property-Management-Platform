@@ -80,6 +80,31 @@ export class AvailabilityController {
     return this.availabilityService.getAvailabilityForDate(date, user, propertyId, unitId);
   }
 
+  @Get('visit-request/:date')
+  @CheckPolicies(new ReadAvailabilityPolicyHandler())
+  @ApiOperation({
+    summary: 'Get availability slots for visit request (contractors)',
+    description:
+      'Returns availability slots based on unit occupancy: tenant slots for occupied units, landlord slots for vacant units or property-level',
+  })
+  @ApiParam({ name: 'date', description: 'Date in YYYY-MM-DD format', example: '2024-03-15' })
+  @ApiQuery({ name: 'propertyId', required: true, description: 'Property ID (required)' })
+  @ApiQuery({ name: 'unitId', required: false, description: 'Unit ID (optional)' })
+  getAvailabilityForVisitRequest(
+    @Param('date') dateStr: string,
+    @Query('propertyId') propertyId: string,
+    @Query('unitId') unitId: string,
+  ) {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      throw new Error('Invalid date format. Use YYYY-MM-DD.');
+    }
+    if (!propertyId) {
+      throw new Error('Property ID is required');
+    }
+    return this.availabilityService.getAvailabilityForVisitRequest(date, propertyId, unitId);
+  }
+
   @Get('unit/:unitId')
   @CheckPolicies(new ReadAvailabilityPolicyHandler())
   @ApiOperation({ summary: 'Get all availability for a specific unit (landlords only)' })
