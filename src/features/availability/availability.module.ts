@@ -6,6 +6,11 @@ import {
   MaintenanceTicket,
   MaintenanceTicketSchema,
 } from '../maintenance/schemas/maintenance-ticket.schema';
+import {
+  VisitRequest,
+  VisitRequestSchema,
+} from '../maintenance/schemas/visit-request.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { Property, PropertySchema } from '../properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../properties/schemas/unit.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
@@ -23,8 +28,10 @@ import { Availability, AvailabilitySchema } from './schemas/availability.schema'
       { name: Unit.name, schema: UnitSchema },
       { name: Lease.name, schema: LeaseSchema },
       { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
+      { name: VisitRequest.name, schema: VisitRequestSchema },
     ]),
     CaslModule,
+    NotificationsModule,
   ],
   controllers: [AvailabilityController],
   providers: [AvailabilityService],

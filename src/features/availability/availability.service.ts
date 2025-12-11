@@ -14,6 +14,11 @@ import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
 import { Lease } from '../leases';
+import {
+  VisitRequest,
+  VisitRequestStatus,
+} from '../maintenance/schemas/visit-request.schema';
+import { NotificationsService } from '../notifications/notifications.service';
 import { Unit } from '../properties/schemas/unit.schema';
 import { UserDocument } from '../users/schemas/user.schema';
 import { AvailabilityQueryDto, CreateAvailabilityDto, UpdateAvailabilityDto } from './dto';
@@ -32,7 +37,10 @@ export class AvailabilityService {
     private readonly unitModel: AppModel<Unit>,
     @InjectModel(Lease.name)
     private readonly leaseModel: AppModel<Lease>,
+    @InjectModel(VisitRequest.name)
+    private readonly visitRequestModel: AppModel<VisitRequest>,
     private readonly caslAuthorizationService: CaslAuthorizationService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async create(
@@ -382,7 +390,60 @@ export class AvailabilityService {
       );
     }
 
+    // Cancel any pending visit requests for this availability slot and notify contractors
+    await this.cancelPendingVisitRequestsForSlot(id, currentUser);
+
     await this.availabilityModel.deleteById(id);
+  }
+
+  /**
+   * Cancel pending visit requests when an availability slot is deleted
+   * and notify the contractors
+   */
+  private async cancelPendingVisitRequestsForSlot(
+    availabilitySlotId: string,
+    deletedBy: UserDocument,
+  ): Promise<void> {
+    // Find all pending or rescheduled visit requests for this slot
+    const pendingRequests = await this.visitRequestModel
+      .find({
+        availabilitySlot: new mongoose.Types.ObjectId(availabilitySlotId),
+        status: { $in: [VisitRequestStatus.PENDING, VisitRequestStatus.RESCHEDULED] },
+        deleted: false,
+      })
+      .populate('contractor', 'name')
+      .exec();
+
+    if (pendingRequests.length === 0) {
+      return;
+    }
+
+    const deletedByName = `${deletedBy.firstName} ${deletedBy.lastName}`;
+    const deletedByRole = deletedBy.user_type === UserType.TENANT ? 'tenant' : 'landlord';
+
+    // Cancel each request and notify the contractor
+    for (const request of pendingRequests) {
+      // Update status to cancelled
+      request.status = VisitRequestStatus.CANCELLED;
+      request.responseMessage = `The availability slot was deleted by the ${deletedByRole}`;
+      request.respondedBy = deletedBy._id as mongoose.Types.ObjectId;
+      request.respondedAt = new Date();
+      await request.save();
+
+      // Find contractor user and send notification
+      const User = this.visitRequestModel.db.model('User');
+      const contractorUser = await User.findOne({ organization_id: request.contractor }).exec();
+
+      if (contractorUser) {
+        const visitDateStr = request.visitDate.toLocaleDateString();
+        await this.notificationsService.createNotification(
+          contractorUser._id.toString(),
+          'Visit Request Cancelled',
+          `${deletedByName} has deleted the availability slot. Your visit request for ${visitDateStr} (${request.startTime} - ${request.endTime}) has been cancelled.`,
+          '/dashboard/contractor/visit-requests',
+        );
+      }
+    }
   }
 
   // Get availability for a specific date
