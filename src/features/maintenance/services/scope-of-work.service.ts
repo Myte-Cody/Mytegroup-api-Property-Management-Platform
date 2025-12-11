@@ -154,6 +154,8 @@ export class ScopeOfWorkService {
       .populate('assignedContractor')
       .populate('assignedUser')
       .populate('parentSow')
+      .populate('property')
+      .populate('unit')
       .exec();
 
     if (!scopeOfWork) {
