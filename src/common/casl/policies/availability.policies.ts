@@ -1,6 +1,6 @@
 import { Availability } from '../../../features/availability/schemas/availability.schema';
 import { Action, AppAbility } from '../casl-ability.factory';
-import { IPolicyHandler } from './policy-handler.interface';
+import { IPolicyHandler } from '../guards/casl.guard';
 
 export class CreateAvailabilityPolicyHandler implements IPolicyHandler {
   handle(ability: AppAbility) {
