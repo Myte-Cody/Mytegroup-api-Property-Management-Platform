@@ -48,6 +48,9 @@ export class ThreadParticipant {
   @Prop({ type: Boolean, default: false })
   isMandatory: boolean; // True for landlords and landlord-tenant threads
 
+  @Prop({ type: Date, required: false })
+  clearedAt?: Date; // Timestamp when user cleared chat history - messages before this are hidden
+
   createdAt?: Date;
   updatedAt?: Date;
 }

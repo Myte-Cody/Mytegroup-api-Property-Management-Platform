@@ -230,27 +230,38 @@ export class ChatService {
     // Create a map of userId to user data
     const usersMap = new Map(users.map((user) => [user._id.toString(), user]));
 
-    // Get all last messages for all threads in one query
-    // Use threads array to maintain correct order
-    const lastMessages = await Promise.all(
-      threads.map((thread) =>
-        this.threadMessageModel
-          .findOne({ thread: thread._id })
-          .sort({ createdAt: -1 })
-          .populate('senderId', 'firstName lastName')
-          .lean(),
-      ),
-    );
-
-    // Create a map of threadId to participants
+    // Create a map of threadId to participants and clearedAt for current user
     const participantsMap = new Map<string, any[]>();
+    const clearedAtMap = new Map<string, Date | null>();
     allParticipants.forEach((participant) => {
       const threadId = participant.thread.toString();
       if (!participantsMap.has(threadId)) {
         participantsMap.set(threadId, []);
       }
       participantsMap.get(threadId).push(participant);
+
+      // Track clearedAt for the current user
+      if (participant.participantId.toString() === userId && participant.clearedAt) {
+        clearedAtMap.set(threadId, participant.clearedAt);
+      }
     });
+
+    // Get all last messages for all threads in one query
+    // Filter by clearedAt if user has cleared history for that thread
+    const lastMessages = await Promise.all(
+      threads.map((thread) => {
+        const clearedAt = clearedAtMap.get(thread._id.toString());
+        const query: any = { thread: thread._id };
+        if (clearedAt) {
+          query.createdAt = { $gt: clearedAt };
+        }
+        return this.threadMessageModel
+          .findOne(query)
+          .sort({ createdAt: -1 })
+          .populate('senderId', 'firstName lastName')
+          .lean();
+      }),
+    );
 
     // Create a map of threadId to last message
     const lastMessagesMap = new Map<string, any>();
@@ -261,14 +272,20 @@ export class ChatService {
     });
 
     // Get unread counts for all threads in one query
+    // Filter by clearedAt if user has cleared history for that thread
     const unreadCounts = await Promise.all(
-      threads.map((thread) =>
-        this.threadMessageModel.countDocuments({
+      threads.map((thread) => {
+        const clearedAt = clearedAtMap.get(thread._id.toString());
+        const query: any = {
           thread: thread._id,
           senderId: { $ne: new Types.ObjectId(userId) }, // Not sent by current user
           readBy: { $ne: new Types.ObjectId(userId) }, // Not read by current user
-        }),
-      ),
+        };
+        if (clearedAt) {
+          query.createdAt = { $gt: clearedAt };
+        }
+        return this.threadMessageModel.countDocuments(query);
+      }),
     );
 
     // Create a map of threadId to unread count
@@ -385,16 +402,20 @@ export class ChatService {
 
     const skip = (page - 1) * limit;
 
+    // Build message query - filter by clearedAt if user has cleared history
+    const messageQuery: any = { thread: new Types.ObjectId(threadId) };
+    if (participant.clearedAt) {
+      messageQuery.createdAt = { $gt: participant.clearedAt };
+    }
+
     const [messages, total] = await Promise.all([
       this.threadMessageModel
-        .find({ thread: new Types.ObjectId(threadId) })
+        .find(messageQuery)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .populate('media'),
-      this.threadMessageModel.countDocuments({
-        thread: new Types.ObjectId(threadId),
-      }),
+      this.threadMessageModel.countDocuments(messageQuery),
     ]);
 
     // Get unique sender IDs
@@ -1453,7 +1474,7 @@ export class ChatService {
   }
 
   /**
-   * Clear chat history for a thread (marks messages as deleted for the user only)
+   * Clear chat history for a thread (hides messages before clearedAt timestamp for the user only)
    */
   async clearChatHistory(currentUserId: string, threadId: string): Promise<void> {
     // Verify thread exists and user is a participant
@@ -1471,18 +1492,10 @@ export class ChatService {
       throw new ForbiddenException('You are not a participant in this thread');
     }
 
-    // For local-only deletion, we'll add a deletedFor field to track which users deleted history
-    // Since ThreadMessage schema doesn't have this yet, we'll use soft delete for now
-    // This is a limitation - ideally we'd add a deletedFor array field to ThreadMessage schema
-    // For now, we can mark messages as read to simulate clearing
-    await this.threadMessageModel.updateMany(
-      {
-        thread: new Types.ObjectId(threadId),
-      },
-      {
-        $addToSet: { readBy: new Types.ObjectId(currentUserId) },
-      },
-    );
+    // Set clearedAt timestamp - messages before this will be hidden for this user
+    await this.threadParticipantModel.findByIdAndUpdate(participant._id, {
+      clearedAt: new Date(),
+    });
   }
 
   /**
