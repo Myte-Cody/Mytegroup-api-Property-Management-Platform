@@ -1,4 +1,3 @@
-
 import os
 import json
 from typing import List, Dict, Any
@@ -19,7 +18,6 @@ async def transcribe_audio(file: UploadFile = File(...)):
     if not API_KEY:
         raise HTTPException(status_code=500, detail="Server missing OpenAI API Key")
     
-    
     temp_filename = f"temp_{file.filename}"
     with open(temp_filename, "wb") as buffer:
         buffer.write(await file.read())
@@ -34,9 +32,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
 
         with open(temp_filename, "rb") as audio_file:
             transcript = client.audio.transcriptions.create(
-                model="whisper-1",
-                file=audio_file,
-                language="en"  # Force English transcription
+                model="whisper-1", file=audio_file
             )
             transcript_text = transcript.text
             
@@ -56,34 +52,38 @@ async def analyze_ticket_state(request: ChatRequest):
 
     priority_rules = """
     PRIORITY RULES:
-    - URGENT (Level 1): Safety/Health threat (Gas, Fire, Major Leak).
-    - HIGH (Level 2): Function loss (No AC/Heat/Water).
-    - MEDIUM (Level 3): Inconvenience (Appliance broken, minor leak).
-    - LOW (Level 4): Cosmetic (Paint, Trim).
+    - CRITICAL (Level 1): Safety/Health threat (Gas, Fire, Major Leak, Flooding).
+    - HIGH (Level 2): Function loss (No AC/Heat/Water/Electricity).
+    - MEDIUM (Level 3): Inconvenience (Appliance broken, minor leak, noisy neighbors).
+    - LOW (Level 4): Cosmetic (Paint, Trim, non-urgent request).
     """
 
     system_prompt = f"""
-    You are a friendly building manager AI assistant.
+    You are a friendly but efficient building manager AI.
+    
+    CONTEXT DATA: {json.dumps(request.user_context)}
+    
+    GOAL: Create maintenance tickets based on user input.
 
-    CONTEXT: {json.dumps(request.user_context)}
-    GOAL: Identify one OR MORE maintenance issues and prepare tickets.
-
-    PROCESS:
-    1. Analyze the user's input to identify distinct problems.
-    2. **Sufficiency Check**: For EACH problem, determine if the description is detailed enough.
-    3. **Multiple Issues**: If the user mentions multiple things, create separate objects.
-    4. **Completion Check**: ONLY set status to "completed" when the user explicitly confirms they have NO more issues.
+    IMPORTANT RULES:
+    1. **Property & Unit Known**: The user has already selected the property and unit in the app (provided in CONTEXT DATA). **NEVER** ask the user for property name or unit number. Fill these fields in the ticket automatically using the context.
+    2. **Low Clarification Threshold**: Do not be overly inquisitive. 
+       - If the user says "the sink leaks", **ACCEPT IT**. Do not ask "which sink?" or "how bad?". Create a ticket with the info you have.
+       - Only ask for clarification if the input is completely ambiguous (e.g., "it is broken" with no object mentioned).
+       - If severity is unclear, default to MEDIUM or LOW based on the object, do not ask.
+    3. **Multiple Issues**: If the user mentions multiple items, create separate ticket objects in the list.
+    4. **Completion**: If you have created a ticket, set status to "completed" immediately unless the user explicitly asks to add more.
 
     OUTPUT JSON FORMAT:
     {{
         "status": "clarifying" OR "completed",
-        "response_text": "Message to user",
+        "response_text": "Brief confirmation message to user (e.g. 'Ticket created for the sink.')",
         "tickets": [
             {{ "property_name": "...", "unit_number": "...", "title": "...", "description": "...", "category": "...", "priority": "..." }}
         ]
     }}
-
-    RULES:
+    
+    DATA RULES:
     - Images attached count: {request.image_count}.
     - Priority Rules: {priority_rules}
     """
@@ -109,7 +109,7 @@ async def analyze_ticket_state(request: ChatRequest):
     content = json.loads(response.choices[0].message.content)
 
     return ChatResponse(
-        status=content.get("status", "clarifying"),
+        status=content.get("status", "completed"),
         response_text=content.get("response_text", ""),
         tickets=content.get("tickets", []),
         usage_cost=total_cost
