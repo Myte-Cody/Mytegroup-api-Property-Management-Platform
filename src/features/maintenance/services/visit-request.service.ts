@@ -50,17 +50,17 @@ export class VisitRequestService {
 
   async create(
     createDto: CreateVisitRequestDto,
-    currentUser: UserDocument,
+    currentUser?: UserDocument,
   ): Promise<VisitRequestDocument> {
-    // Only contractors can create visit requests
-    if (currentUser.user_type !== UserType.CONTRACTOR) {
-      throw new ForbiddenException('Only contractors can create visit requests');
+    // For marketplace requests, no authentication is required
+    // For other sources, only contractors can create visit requests
+    if (createDto.sourceType !== VisitRequestSourceType.MARKETPLACE) {
+      if (!currentUser || currentUser.user_type !== UserType.CONTRACTOR) {
+        throw new ForbiddenException('Only contractors can create visit requests');
+      }
     }
 
-    const contractorId = currentUser.organization_id;
-    if (!contractorId) {
-      throw new ForbiddenException('No contractor profile associated with this user');
-    }
+    const contractorId = currentUser?.organization_id;
 
     // Validate source type and get source data
     let property: any;
@@ -143,6 +143,38 @@ export class VisitRequestService {
         throw new NotFoundException('Property not found');
       }
       landlordId = propertyDoc.landlord as mongoose.Types.ObjectId;
+    } else if (createDto.sourceType === VisitRequestSourceType.MARKETPLACE) {
+      // Validate contact information for marketplace requests
+      if (!createDto.fullName || !createDto.email || !createDto.phoneNumber) {
+        throw new BadRequestException(
+          'Full name, email, and phone number are required for marketplace visit requests',
+        );
+      }
+
+      // Get property and unit from availability slot
+      const availabilitySlot = await this.availabilityModel
+        .findById(createDto.availabilitySlotId)
+        .populate('property')
+        .populate('unit')
+        .exec();
+
+      if (!availabilitySlot) {
+        throw new NotFoundException('Availability slot not found');
+      }
+
+      property = availabilitySlot.property;
+      unit = availabilitySlot.unit || undefined;
+
+      if (!property) {
+        throw new BadRequestException('Availability slot must have a property');
+      }
+
+      // Get landlord from property
+      const propertyDoc = await this.propertyModel.findById(property._id || property).exec();
+      if (!propertyDoc) {
+        throw new NotFoundException('Property not found');
+      }
+      landlordId = propertyDoc.landlord as mongoose.Types.ObjectId;
     } else {
       throw new BadRequestException('Invalid source type');
     }
@@ -174,25 +206,28 @@ export class VisitRequestService {
     }
 
     // Check for duplicate pending request for same slot and date
-    const existingRequest = await this.visitRequestModel
-      .findOne({
-        contractor: contractorId,
-        availabilitySlot: createDto.availabilitySlotId,
-        visitDate: createDto.visitDate,
-        status: VisitRequestStatus.PENDING,
-        deleted: false,
-      })
-      .exec();
+    // Skip for marketplace requests since they don't have a contractor
+    if (contractorId) {
+      const existingRequest = await this.visitRequestModel
+        .findOne({
+          contractor: contractorId,
+          availabilitySlot: createDto.availabilitySlotId,
+          visitDate: createDto.visitDate,
+          status: VisitRequestStatus.PENDING,
+          deleted: false,
+        })
+        .exec();
 
-    if (existingRequest) {
-      throw new BadRequestException('You already have a pending visit request for this time slot');
+      if (existingRequest) {
+        throw new BadRequestException('You already have a pending visit request for this time slot');
+      }
     }
 
     // Create the visit request
     const visitRequest = new this.visitRequestModel({
       landlord: landlordId,
       contractor: contractorId,
-      requestedBy: currentUser._id,
+      requestedBy: currentUser?._id,
       sourceType: createDto.sourceType,
       ticket: ticketId,
       scopeOfWork: sowId,
@@ -205,6 +240,9 @@ export class VisitRequestService {
       startTime: createDto.startTime,
       endTime: createDto.endTime,
       message: createDto.message,
+      fullName: createDto.fullName,
+      email: createDto.email,
+      phoneNumber: createDto.phoneNumber,
       status: VisitRequestStatus.PENDING,
     });
 
@@ -464,9 +502,11 @@ export class VisitRequestService {
 
   private async sendNewRequestNotification(
     visitRequest: VisitRequestDocument,
-    requester: UserDocument,
+    requester?: UserDocument,
   ): Promise<void> {
-    const requesterName = `${requester.firstName} ${requester.lastName}`;
+    const requesterName = requester
+      ? `${requester.firstName} ${requester.lastName}`
+      : visitRequest.fullName || 'A prospective tenant';
     const visitDateStr = visitRequest.visitDate.toLocaleDateString();
 
     // Determine recipient

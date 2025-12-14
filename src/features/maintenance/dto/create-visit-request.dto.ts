@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsMongoId, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsDate, IsEmail, IsEnum, IsMongoId, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 import { VisitRequestSourceType } from '../schemas/visit-request.schema';
 
 export class CreateVisitRequestDto {
@@ -75,4 +75,30 @@ export class CreateVisitRequestDto {
   @IsString()
   @MaxLength(1000)
   message?: string;
+
+  @ApiPropertyOptional({
+    description: 'Full name (required for MARKETPLACE source)',
+    example: 'John Doe',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  fullName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Email address (required for MARKETPLACE source)',
+    example: 'john.doe@example.com',
+  })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional({
+    description: 'Phone number (required for MARKETPLACE source)',
+    example: '+1234567890',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  phoneNumber?: string;
 }

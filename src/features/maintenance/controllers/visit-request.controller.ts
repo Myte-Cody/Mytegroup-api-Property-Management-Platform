@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { CheckPolicies } from '../../../common/casl/decorators/check-policies.decorator';
+import { Public } from '../../../common/decorators/public.decorator';
 import { CaslGuard } from '../../../common/casl/guards/casl.guard';
 import {
   CreateVisitRequestPolicyHandler,
@@ -36,6 +37,13 @@ export class VisitRequestController {
   @ApiOperation({ summary: 'Create a new visit request (contractors only)' })
   create(@CurrentUser() user: User, @Body() createDto: CreateVisitRequestDto) {
     return this.visitRequestService.create(createDto, user);
+  }
+
+  @Post('marketplace')
+  @Public()
+  @ApiOperation({ summary: 'Create a marketplace visit request (no authentication required)' })
+  createMarketplace(@Body() createDto: CreateVisitRequestDto) {
+    return this.visitRequestService.create(createDto);
   }
 
   @Get()

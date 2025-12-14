@@ -20,6 +20,7 @@ export enum VisitRequestStatus {
 export enum VisitRequestSourceType {
   TICKET = 'TICKET',
   SCOPE_OF_WORK = 'SCOPE_OF_WORK',
+  MARKETPLACE = 'MARKETPLACE',
 }
 
 export enum VisitRequestTargetType {
@@ -37,22 +38,30 @@ export class VisitRequest extends Document implements SoftDelete {
   })
   landlord: mongoose.Types.ObjectId;
 
-  // The contractor requesting the visit
+  // The contractor requesting the visit (only for TICKET/SCOPE_OF_WORK sources)
   @Prop({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Contractor',
-    required: true,
     index: true,
   })
-  contractor: Types.ObjectId;
+  contractor?: Types.ObjectId;
 
-  // The user who created the request (contractor user)
+  // The user who created the request (contractor user, only for TICKET/SCOPE_OF_WORK sources)
   @Prop({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true,
   })
-  requestedBy: Types.ObjectId;
+  requestedBy?: Types.ObjectId;
+
+  // Contact information for marketplace visit requests
+  @Prop()
+  fullName?: string;
+
+  @Prop()
+  email?: string;
+
+  @Prop()
+  phoneNumber?: string;
 
   // Source of the visit request (ticket or SOW)
   @Prop({
