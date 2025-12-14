@@ -1335,21 +1335,30 @@ export class ThreadsService {
         }
       }
 
-      // Send appropriate notification based on whether there are attachments
+      // Build the correct action URL based on thread's linked entity
       const landlordDashboard = landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
+      let actionUrl = `/dashboard/${landlordDashboard}/chat`;
+
+      if (thread.linkedEntityType === ThreadLinkedEntityType.TICKET && thread.linkedEntityId) {
+        actionUrl = `/dashboard/${landlordDashboard}/maintenance/tickets/${thread.linkedEntityId}`;
+      } else if (thread.linkedEntityType === ThreadLinkedEntityType.SCOPE_OF_WORK && thread.linkedEntityId) {
+        actionUrl = `/dashboard/${landlordDashboard}/maintenance/scope-of-work/${thread.linkedEntityId}`;
+      }
+
+      // Send appropriate notification based on whether there are attachments
       if (hasAttachments) {
         await this.notificationsService.createNotification(
           landlordUser._id.toString(),
           'New Attachment',
           `📎 ${senderName} attached a file in ${entityTitle}.`,
-          `/dashboard/${landlordDashboard}/chat`,
+          actionUrl,
         );
       } else {
         await this.notificationsService.createNotification(
           landlordUser._id.toString(),
           'New Message',
           `💬 ${senderName} sent a new message in ${entityTitle}.`,
-          `/dashboard/${landlordDashboard}/chat`,
+          actionUrl,
         );
       }
     } catch (error) {
@@ -1434,19 +1443,29 @@ export class ThreadsService {
             : user.user_type === 'Landlord'
               ? 'landlord'
               : 'tenant';
+
+        // Build the correct action URL based on thread's linked entity
+        let actionUrl = `/dashboard/${userDashboard}/chat`;
+
+        if (thread.linkedEntityType === ThreadLinkedEntityType.TICKET && thread.linkedEntityId) {
+          actionUrl = `/dashboard/${userDashboard}/maintenance/tickets/${thread.linkedEntityId}`;
+        } else if (thread.linkedEntityType === ThreadLinkedEntityType.SCOPE_OF_WORK && thread.linkedEntityId) {
+          actionUrl = `/dashboard/${userDashboard}/maintenance/scope-of-work/${thread.linkedEntityId}`;
+        }
+
         if (hasAttachments) {
           return this.notificationsService.createNotification(
             user._id.toString(),
             'New Attachment',
             `📎 A new file was shared in ${entityTitle}.`,
-            `/dashboard/${userDashboard}/chat`,
+            actionUrl,
           );
         } else {
           return this.notificationsService.createNotification(
             user._id.toString(),
             'New Message',
             `💬 ${senderName} sent you a message in ${entityTitle}.`,
-            `/dashboard/${userDashboard}/chat`,
+            actionUrl,
           );
         }
       });
