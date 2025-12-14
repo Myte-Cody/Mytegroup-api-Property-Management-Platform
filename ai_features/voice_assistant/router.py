@@ -52,7 +52,7 @@ async def analyze_ticket_state(request: ChatRequest):
 
     priority_rules = """
     PRIORITY RULES:
-    - CRITICAL (Level 1): Safety/Health threat (Gas, Fire, Major Leak, Flooding).
+    - URGENT (Level 1): Safety/Health threat (Gas, Fire, Major Leak, Flooding).
     - HIGH (Level 2): Function loss (No AC/Heat/Water/Electricity).
     - MEDIUM (Level 3): Inconvenience (Appliance broken, minor leak, noisy neighbors).
     - LOW (Level 4): Cosmetic (Paint, Trim, non-urgent request).
