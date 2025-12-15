@@ -15,7 +15,7 @@ import { TenancyContextService } from '../../../common/services/tenancy-context.
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { Contractor } from '../../contractors/schema/contractor.schema';
 import { MaintenanceEmailService } from '../../email/services/maintenance-email.service';
-import { Lease } from '../../leases';
+import { Lease } from '../../leases/schemas/lease.schema';
 import { MediaService } from '../../media/services/media.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { Property } from '../../properties/schemas/property.schema';
