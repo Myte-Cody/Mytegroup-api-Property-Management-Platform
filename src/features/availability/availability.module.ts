@@ -6,10 +6,7 @@ import {
   MaintenanceTicket,
   MaintenanceTicketSchema,
 } from '../maintenance/schemas/maintenance-ticket.schema';
-import {
-  VisitRequest,
-  VisitRequestSchema,
-} from '../maintenance/schemas/visit-request.schema';
+import { VisitRequest, VisitRequestSchema } from '../maintenance/schemas/visit-request.schema';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { Property, PropertySchema } from '../properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../properties/schemas/unit.schema';

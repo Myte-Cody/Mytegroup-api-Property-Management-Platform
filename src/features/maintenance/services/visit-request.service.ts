@@ -219,7 +219,9 @@ export class VisitRequestService {
         .exec();
 
       if (existingRequest) {
-        throw new BadRequestException('You already have a pending visit request for this time slot');
+        throw new BadRequestException(
+          'You already have a pending visit request for this time slot',
+        );
       }
     }
 

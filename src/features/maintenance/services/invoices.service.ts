@@ -122,7 +122,7 @@ export class InvoicesService {
         .exec();
 
       // Collect all SOW IDs (current + children)
-      const allSowIds = [new Types.ObjectId(sowId), ...subSows.map(s => s._id)];
+      const allSowIds = [new Types.ObjectId(sowId), ...subSows.map((s) => s._id)];
 
       // Find the first ticket associated with any of these SOWs
       const ticket = await this.ticketModel
@@ -131,7 +131,9 @@ export class InvoicesService {
         .exec();
 
       if (!ticket) {
-        throw new NotFoundException('No associated ticket found for this Scope of Work or its sub-scopes');
+        throw new NotFoundException(
+          'No associated ticket found for this Scope of Work or its sub-scopes',
+        );
       }
       const landlordId = ticket.landlord;
 

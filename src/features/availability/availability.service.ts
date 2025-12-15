@@ -14,10 +14,7 @@ import { UserType } from '../../common/enums/user-type.enum';
 import { AppModel } from '../../common/interfaces/app-model.interface';
 import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
 import { Lease } from '../leases';
-import {
-  VisitRequest,
-  VisitRequestStatus,
-} from '../maintenance/schemas/visit-request.schema';
+import { VisitRequest, VisitRequestStatus } from '../maintenance/schemas/visit-request.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Unit } from '../properties/schemas/unit.schema';
 import { UserDocument } from '../users/schemas/user.schema';

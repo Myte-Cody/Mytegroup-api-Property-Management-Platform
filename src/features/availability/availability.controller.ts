@@ -21,10 +21,11 @@ import {
   UpdateAvailabilityPolicyHandler,
 } from '../../common/casl/policies/availability.policies';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { MongoIdValidationPipe } from '../../common/pipes/mongo-id-validation.pipe';
 import { User } from '../users/schemas/user.schema';
-import { AvailabilityQueryDto, CreateAvailabilityDto, UpdateAvailabilityDto } from './dto';
 import { AvailabilityService } from './availability.service';
+import { AvailabilityQueryDto, CreateAvailabilityDto, UpdateAvailabilityDto } from './dto';
 
 @ApiTags('Availability')
 @ApiBearerAuth()
@@ -81,7 +82,8 @@ export class AvailabilityController {
   }
 
   @Get('visit-request/:date')
-  @CheckPolicies(new ReadAvailabilityPolicyHandler())
+  @Public()
+  // @CheckPolicies(new ReadAvailabilityPolicyHandler())
   @ApiOperation({
     summary: 'Get availability slots for visit request (contractors)',
     description:
@@ -109,10 +111,7 @@ export class AvailabilityController {
   @CheckPolicies(new ReadAvailabilityPolicyHandler())
   @ApiOperation({ summary: 'Get all availability for a specific unit (landlords only)' })
   @ApiParam({ name: 'unitId', description: 'Unit ID' })
-  getByUnit(
-    @Param('unitId', MongoIdValidationPipe) unitId: string,
-    @CurrentUser() user: User,
-  ) {
+  getByUnit(@Param('unitId', MongoIdValidationPipe) unitId: string, @CurrentUser() user: User) {
     return this.availabilityService.getByUnit(unitId, user);
   }
 

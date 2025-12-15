@@ -7,6 +7,7 @@ import {
   MongoQuery,
 } from '@casl/ability';
 import { Injectable } from '@nestjs/common';
+import { Availability } from '../../features/availability/schemas/availability.schema';
 import { Contractor } from '../../features/contractors/schema/contractor.schema';
 import { Expense } from '../../features/expenses/schemas/expense.schema';
 import { FeedPost } from '../../features/feed-posts/schemas/feed-post.schema';
@@ -24,7 +25,6 @@ import { VisitRequest } from '../../features/maintenance/schemas/visit-request.s
 import { Media } from '../../features/media/schemas/media.schema';
 import { Property } from '../../features/properties/schemas/property.schema';
 import { Unit } from '../../features/properties/schemas/unit.schema';
-import { Availability } from '../../features/availability/schemas/availability.schema';
 import { Tenant } from '../../features/tenants/schema/tenant.schema';
 import { User, UserDocument } from '../../features/users/schemas/user.schema';
 import { UserRole } from '../enums/user-role.enum';

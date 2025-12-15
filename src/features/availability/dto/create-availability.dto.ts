@@ -22,7 +22,8 @@ export class CreateAvailabilityDto {
   propertyId: string;
 
   @ApiPropertyOptional({
-    description: 'Unit ID this availability is for (optional - if not provided, applies to property level)',
+    description:
+      'Unit ID this availability is for (optional - if not provided, applies to property level)',
     example: '507f1f77bcf86cd799439012',
   })
   @IsOptional()
@@ -38,7 +39,8 @@ export class CreateAvailabilityDto {
   availabilityType: AvailabilityType;
 
   @ApiPropertyOptional({
-    description: 'Specific date for ONE_TIME availability (required when availabilityType is ONE_TIME)',
+    description:
+      'Specific date for ONE_TIME availability (required when availabilityType is ONE_TIME)',
     example: '2024-03-15',
   })
   @ValidateIf((o) => o.availabilityType === AvailabilityType.ONE_TIME)
@@ -48,7 +50,8 @@ export class CreateAvailabilityDto {
 
   @ApiPropertyOptional({
     enum: DayOfWeek,
-    description: 'Day of week for RECURRING availability (required when availabilityType is RECURRING)',
+    description:
+      'Day of week for RECURRING availability (required when availabilityType is RECURRING)',
     example: DayOfWeek.MONDAY,
   })
   @ValidateIf((o) => o.availabilityType === AvailabilityType.RECURRING)

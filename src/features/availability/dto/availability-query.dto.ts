@@ -1,6 +1,16 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsDate, IsEnum, IsMongoId, IsOptional, IsPositive, IsString, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsDate,
+  IsEnum,
+  IsMongoId,
+  IsOptional,
+  IsPositive,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 import { AvailabilityType, DayOfWeek } from '../../../common/enums/availability.enum';
 import { AvailabilityCreatedBy } from '../schemas/availability.schema';
 

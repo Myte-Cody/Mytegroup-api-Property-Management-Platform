@@ -490,8 +490,7 @@ export class UnitsService {
     }
 
     // Convert to ObjectId if it's a string
-    const tenantObjectId =
-      typeof tenantId === 'string' ? new Types.ObjectId(tenantId) : tenantId;
+    const tenantObjectId = typeof tenantId === 'string' ? new Types.ObjectId(tenantId) : tenantId;
 
     // Build lease match conditions
     const leaseMatchConditions: any = {

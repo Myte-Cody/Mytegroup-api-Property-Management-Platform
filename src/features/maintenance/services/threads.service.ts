@@ -1341,7 +1341,10 @@ export class ThreadsService {
 
       if (thread.linkedEntityType === ThreadLinkedEntityType.TICKET && thread.linkedEntityId) {
         actionUrl = `/dashboard/${landlordDashboard}/maintenance/tickets/${thread.linkedEntityId}`;
-      } else if (thread.linkedEntityType === ThreadLinkedEntityType.SCOPE_OF_WORK && thread.linkedEntityId) {
+      } else if (
+        thread.linkedEntityType === ThreadLinkedEntityType.SCOPE_OF_WORK &&
+        thread.linkedEntityId
+      ) {
         actionUrl = `/dashboard/${landlordDashboard}/maintenance/scope-of-work/${thread.linkedEntityId}`;
       }
 
@@ -1449,7 +1452,10 @@ export class ThreadsService {
 
         if (thread.linkedEntityType === ThreadLinkedEntityType.TICKET && thread.linkedEntityId) {
           actionUrl = `/dashboard/${userDashboard}/maintenance/tickets/${thread.linkedEntityId}`;
-        } else if (thread.linkedEntityType === ThreadLinkedEntityType.SCOPE_OF_WORK && thread.linkedEntityId) {
+        } else if (
+          thread.linkedEntityType === ThreadLinkedEntityType.SCOPE_OF_WORK &&
+          thread.linkedEntityId
+        ) {
           actionUrl = `/dashboard/${userDashboard}/maintenance/scope-of-work/${thread.linkedEntityId}`;
         }
 

@@ -118,15 +118,11 @@ AvailabilitySchema.index({ createdBy: 1, isActive: 1 });
 export interface AvailabilityQueryHelpers {
   byLandlord(
     landlordId: mongoose.Types.ObjectId | string,
-  ): Query<any, AvailabilityDocument, AvailabilityQueryHelpers> &
-    AvailabilityQueryHelpers;
+  ): Query<any, AvailabilityDocument, AvailabilityQueryHelpers> & AvailabilityQueryHelpers;
 }
 
 export type AvailabilityDocument = Availability & Document & SoftDelete;
-export type AvailabilityModel = Model<
-  AvailabilityDocument,
-  AvailabilityQueryHelpers
->;
+export type AvailabilityModel = Model<AvailabilityDocument, AvailabilityQueryHelpers>;
 
 AvailabilitySchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 AvailabilitySchema.plugin(accessibleRecordsPlugin);

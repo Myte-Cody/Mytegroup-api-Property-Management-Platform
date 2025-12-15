@@ -12,7 +12,6 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { CheckPolicies } from '../../../common/casl/decorators/check-policies.decorator';
-import { Public } from '../../../common/decorators/public.decorator';
 import { CaslGuard } from '../../../common/casl/guards/casl.guard';
 import {
   CreateVisitRequestPolicyHandler,
@@ -20,6 +19,7 @@ import {
   UpdateVisitRequestPolicyHandler,
 } from '../../../common/casl/policies/visit-request.policies';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { Public } from '../../../common/decorators/public.decorator';
 import { MongoIdValidationPipe } from '../../../common/pipes/mongo-id-validation.pipe';
 import { User } from '../../users/schemas/user.schema';
 import { CreateVisitRequestDto, RespondVisitRequestDto, VisitRequestQueryDto } from '../dto';
@@ -85,7 +85,9 @@ export class VisitRequestController {
 
   @Patch(':id/respond')
   @CheckPolicies(new UpdateVisitRequestPolicyHandler())
-  @ApiOperation({ summary: 'Respond to a visit request (accept/refuse) - tenants and landlords only' })
+  @ApiOperation({
+    summary: 'Respond to a visit request (accept/refuse) - tenants and landlords only',
+  })
   @ApiParam({ name: 'id', description: 'Visit Request ID' })
   respond(
     @Param('id', MongoIdValidationPipe) id: string,
