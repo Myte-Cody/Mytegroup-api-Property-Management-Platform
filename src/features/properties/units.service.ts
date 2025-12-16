@@ -187,7 +187,7 @@ export class UnitsService {
       matchConditions.landlord = new Types.ObjectId(queryDto.landlord);
     }
 
-    // Add type filter
+    // Add type filter (apartment type)
     if (queryDto?.type) {
       matchConditions.type = queryDto.type;
     }
@@ -202,6 +202,23 @@ export class UnitsService {
         rentQuery.$lte = queryDto.maxRent;
       }
       matchConditions.marketRent = rentQuery;
+    }
+
+    // Add country filter
+    if (queryDto?.country) {
+      matchConditions['address.country'] = { $regex: queryDto.country, $options: 'i' };
+    }
+
+    // Add city filter
+    if (queryDto?.city) {
+      matchConditions['address.city'] = { $regex: queryDto.city, $options: 'i' };
+    }
+
+    // Add recently added filter (within last 30 days)
+    if (queryDto?.recentlyAdded) {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      matchConditions.createdAt = { $gte: thirtyDaysAgo };
     }
 
     pipeline.push({ $match: matchConditions });
@@ -248,19 +265,52 @@ export class UnitsService {
       },
     });
 
-    // Step 5: Add search filter (after property lookup to search property name)
+    // Step 5: If availableForVisits filter is set, lookup availability and filter
+    if (queryDto?.availableForVisits) {
+      pipeline.push({
+        $lookup: {
+          from: 'availabilities',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$unit', '$$unitId'] },
+                    { $eq: ['$isActive', true] },
+                    { $ne: ['$deleted', true] },
+                  ],
+                },
+              },
+            },
+            { $limit: 1 },
+          ],
+          as: 'availabilitySlots',
+        },
+      });
+
+      // Only include units that have at least one availability slot
+      pipeline.push({
+        $match: {
+          availabilitySlots: { $ne: [] },
+        },
+      });
+    }
+
+    // Step 6: Add search filter (after property lookup to search property name, unit number, city)
     if (queryDto?.search) {
       pipeline.push({
         $match: {
           $or: [
             { unitNumber: { $regex: queryDto.search, $options: 'i' } },
             { 'property.name': { $regex: queryDto.search, $options: 'i' } },
+            { 'address.city': { $regex: queryDto.search, $options: 'i' } },
           ],
         },
       });
     }
 
-    // Step 6: Sort by createdAt descending
+    // Step 7: Sort by createdAt descending
     pipeline.push({ $sort: { createdAt: -1 } });
 
     // Execute query
