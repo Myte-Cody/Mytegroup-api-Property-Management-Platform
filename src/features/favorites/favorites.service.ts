@@ -5,8 +5,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Types } from 'mongoose';
-import { AppModel } from '../../common/interfaces/app-model.interface';
+import { Model, Types } from 'mongoose';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { Unit } from '../properties/schemas/unit.schema';
 import { CreateFavoriteDto } from './dto/create-favorite.dto';
@@ -17,9 +16,9 @@ import { Favorite } from './schemas/favorite.schema';
 export class FavoritesService {
   constructor(
     @InjectModel(Favorite.name)
-    private readonly favoriteModel: AppModel<Favorite>,
+    private readonly favoriteModel: Model<Favorite>,
     @InjectModel(Unit.name)
-    private readonly unitModel: AppModel<Unit>,
+    private readonly unitModel: Model<Unit>,
   ) {}
 
   async create(userId: string, createFavoriteDto: CreateFavoriteDto) {

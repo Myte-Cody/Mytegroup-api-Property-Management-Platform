@@ -1,4 +1,3 @@
-import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 
@@ -23,5 +22,3 @@ export const FavoriteSchema = SchemaFactory.createForClass(Favorite);
 
 // Compound unique index to prevent duplicate favorites
 FavoriteSchema.index({ user: 1, unit: 1 }, { unique: true });
-
-FavoriteSchema.plugin(accessibleRecordsPlugin);
