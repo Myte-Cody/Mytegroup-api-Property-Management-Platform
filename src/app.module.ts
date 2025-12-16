@@ -19,6 +19,7 @@ import { ContractorModule } from './features/contractors/contractor.module';
 import { DepositsModule } from './features/deposits/deposits.module';
 import { EmailModule } from './features/email/email.module';
 import { ExpensesModule } from './features/expenses/expenses.module';
+import { FavoritesModule } from './features/favorites/favorites.module';
 import { FeedPostsModule } from './features/feed-posts/feed-posts.module';
 import { FeedbackModule } from './features/feedback/feedback.module';
 import { InquiriesModule } from './features/inquiries/inquiries.module';
@@ -99,6 +100,7 @@ const queueModules = enableQueues
     DepositsModule,
     MaintenanceModule,
     ExpensesModule,
+    FavoritesModule,
     KPIModule,
     FeedPostsModule,
     FeedbackModule,

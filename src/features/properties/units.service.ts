@@ -17,6 +17,7 @@ import { GeocodingService } from '../../common/services/geocoding.service';
 import { SessionService } from '../../common/services/session.service';
 import { TenancyContextService } from '../../common/services/tenancy-context.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
+import { Favorite } from '../favorites/schemas/favorite.schema';
 import { Lease } from '../leases/schemas/lease.schema';
 import { MediaService } from '../media/services/media.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
@@ -42,6 +43,8 @@ export class UnitsService {
     private readonly leaseModel: AppModel<Lease>,
     @InjectModel(User.name)
     private readonly userModel: AppModel<UserDocument>,
+    @InjectModel(Favorite.name)
+    private readonly favoriteModel: AppModel<Favorite>,
     private readonly unitBusinessValidator: UnitBusinessValidator,
     private caslAuthorizationService: CaslAuthorizationService,
     private readonly mediaService: MediaService,
@@ -166,10 +169,11 @@ export class UnitsService {
   }
 
   /**
-   * Get all units published to marketplace (public endpoint)
-   * No authentication required, returns units with publishToMarketplace = true and no active lease
+   * Get all units published to marketplace
+   * Returns units with publishToMarketplace = true and no active lease
+   * If userId is provided, includes isFavorited field for each unit
    */
-  async findMarketplaceUnits(queryDto?: MarketplaceQueryDto) {
+  async findMarketplaceUnits(queryDto?: MarketplaceQueryDto, userId?: string) {
     const pipeline: any[] = [];
 
     // Step 1: Match only units published to marketplace
@@ -262,20 +266,33 @@ export class UnitsService {
     // Execute query
     const units = await this.unitModel.aggregate(pipeline).exec();
 
-    // Fetch media for each unit (without user context for public endpoint)
+    // Get user's favorites if userId is provided
+    let favoritedUnitIds = new Set<string>();
+    if (userId) {
+      const favorites = await this.favoriteModel
+        .find({
+          user: new Types.ObjectId(userId),
+          unit: { $in: units.map((u) => u._id) },
+        })
+        .select('unit')
+        .exec();
+      favoritedUnitIds = new Set(favorites.map((f) => f.unit.toString()));
+    }
+
+    // Fetch media for each unit and add favorite status
     const unitsWithMedia = await Promise.all(
       units.map(async (unit) => {
-        // For public endpoint, get media without user authorization
         const media = await this.mediaService.getMediaForEntity(
           'Unit',
           unit._id.toString(),
-          null, // No user context for public endpoint
-          undefined, // collection_name (get all collections)
-          {}, // filters (get all media)
+          null,
+          undefined,
+          {},
         );
         return {
           ...unit,
           media,
+          isFavorited: favoritedUnitIds.has(unit._id.toString()),
         };
       }),
     );

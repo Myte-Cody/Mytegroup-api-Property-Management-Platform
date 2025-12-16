@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { NestjsFormDataModule } from 'nestjs-form-data';
 import { CaslModule } from '../../common/casl/casl.module';
+import { Favorite, FavoriteSchema } from '../favorites/schemas/favorite.schema';
 import { Lease, LeaseSchema } from '../leases/schemas/lease.schema';
 import {
   MaintenanceTicket,
@@ -25,6 +26,7 @@ import { UnitBusinessValidator } from './validators/unit-business-validator';
       { schema: UserSchema, name: User.name },
       { schema: LeaseSchema, name: Lease.name },
       { schema: MaintenanceTicketSchema, name: MaintenanceTicket.name },
+      { schema: FavoriteSchema, name: Favorite.name },
     ]),
     NestjsFormDataModule.config({ isGlobal: true }),
     CaslModule,

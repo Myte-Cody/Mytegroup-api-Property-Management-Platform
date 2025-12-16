@@ -57,13 +57,13 @@ export class UnitsController {
 
   @Get('marketplace')
   @Public()
-  @ApiOperation({ summary: 'Get all marketplace units (public endpoint)' })
+  @ApiOperation({ summary: 'Get all marketplace units' })
   @ApiResponse({
     status: 200,
     description: 'Marketplace units retrieved successfully',
   })
-  findMarketplaceUnits(@Query() queryDto: MarketplaceQueryDto) {
-    return this.unitsService.findMarketplaceUnits(queryDto);
+  findMarketplaceUnits(@Query() queryDto: MarketplaceQueryDto, @CurrentUser() user?: User) {
+    return this.unitsService.findMarketplaceUnits(queryDto, user?._id?.toString());
   }
 
   @Get()
