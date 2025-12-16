@@ -2,3 +2,10 @@ export enum InquiryType {
   VISIT = 'VISIT',
   CONTACT = 'CONTACT',
 }
+
+export enum InquiryStatus {
+  PENDING_VERIFICATION = 'PENDING_VERIFICATION',
+  SUBMITTED = 'SUBMITTED',
+  RESPONDED = 'RESPONDED',
+  CLOSED = 'CLOSED',
+}
