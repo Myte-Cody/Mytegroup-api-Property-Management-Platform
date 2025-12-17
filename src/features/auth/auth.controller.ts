@@ -89,6 +89,7 @@ export class AuthController {
     return this.authService.refresh(res, rt, ip, ua);
   }
 
+  @Public()
   @Post('logout')
   logout(@Request() req: ExpressRequest, @Res({ passthrough: true }) res: Response) {
     const rt = req.cookies?.['refresh_token'];

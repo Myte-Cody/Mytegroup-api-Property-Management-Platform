@@ -189,10 +189,38 @@ export class AuthService {
   private clearAuthCookies(res: any) {
     const isProd = (this.configService.get<string>('NODE_ENV') || 'development') === 'production';
     const domain = this.getCookieDomain();
-    const base = { httpOnly: true, secure: isProd, domain, path: '/' } as any;
-    res.cookie('access_token', '', { ...base, maxAge: 0 });
-    res.cookie('refresh_token', '', { ...base, maxAge: 0 });
-    res.cookie('user-data', '', { ...base, httpOnly: false, maxAge: 0 });
+
+    // Clear access_token with sameSite: 'strict' to match how it was set
+    res.cookie('access_token', '', {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'strict',
+      domain,
+      path: '/',
+      maxAge: 0,
+    });
+
+    // Clear refresh_token with sameSite: 'lax' to match how it was set
+    res.cookie('refresh_token', '', {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      domain,
+      path: '/',
+      maxAge: 0,
+    });
+
+    // Clear user-data with sameSite: 'lax' to match how it was set
+    res.cookie('user-data', '', {
+      httpOnly: false,
+      secure: isProd,
+      sameSite: 'lax',
+      domain,
+      path: '/',
+      maxAge: 0,
+    });
+
+    // Clear csrf_token
     res.cookie('csrf_token', '', {
       secure: isProd,
       sameSite: 'strict',
