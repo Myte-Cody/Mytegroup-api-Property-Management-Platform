@@ -143,6 +143,44 @@ export class VisitRequest extends Document implements SoftDelete {
   @Prop({ maxlength: 1000 })
   message?: string;
 
+  // Track the suggestion chain
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'VisitRequest',
+    index: true,
+  })
+  previousSuggestion?: Types.ObjectId;
+
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'VisitRequest',
+    index: true,
+  })
+  nextSuggestion?: Types.ObjectId;
+
+  // The original root visit request in the chain
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'VisitRequest',
+    index: true,
+  })
+  originalRequest?: Types.ObjectId;
+
+  // Who suggested this time
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  })
+  suggestedBy?: Types.ObjectId;
+
+  // When the suggestion was made
+  @Prop({ type: Date })
+  suggestedAt?: Date;
+
+  // Reason for suggesting another time
+  @Prop({ maxlength: 1000 })
+  rescheduleReason?: string;
+
   // Status of the request
   @Prop({
     type: String,
@@ -170,6 +208,10 @@ export class VisitRequest extends Document implements SoftDelete {
   // Soft delete fields
   deleted: boolean;
   deletedAt?: Date;
+
+  // Timestamps (added by Mongoose)
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export const VisitRequestSchema = SchemaFactory.createForClass(VisitRequest);
@@ -181,6 +223,8 @@ VisitRequestSchema.index({ tenant: 1, status: 1 });
 VisitRequestSchema.index({ ticket: 1 });
 VisitRequestSchema.index({ scopeOfWork: 1 });
 VisitRequestSchema.index({ visitDate: 1, status: 1 });
+VisitRequestSchema.index({ originalRequest: 1, status: 1 });
+VisitRequestSchema.index({ previousSuggestion: 1 });
 
 // TypeScript types for query helpers
 export interface VisitRequestQueryHelpers {

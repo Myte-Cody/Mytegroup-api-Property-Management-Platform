@@ -22,7 +22,12 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Public } from '../../../common/decorators/public.decorator';
 import { MongoIdValidationPipe } from '../../../common/pipes/mongo-id-validation.pipe';
 import { User } from '../../users/schemas/user.schema';
-import { CreateVisitRequestDto, RespondVisitRequestDto, VisitRequestQueryDto } from '../dto';
+import {
+  CreateVisitRequestDto,
+  RespondVisitRequestDto,
+  SuggestTimeDto,
+  VisitRequestQueryDto,
+} from '../dto';
 import { VisitRequestService } from '../services/visit-request.service';
 
 @ApiTags('Visit Requests')
@@ -104,5 +109,25 @@ export class VisitRequestController {
   @ApiParam({ name: 'id', description: 'Visit Request ID' })
   cancel(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
     return this.visitRequestService.cancel(id, user);
+  }
+
+  @Patch(':id/suggest-time')
+  @CheckPolicies(new UpdateVisitRequestPolicyHandler())
+  @ApiOperation({ summary: 'Suggest alternative time for visit request - all parties can suggest' })
+  @ApiParam({ name: 'id', description: 'Visit Request ID' })
+  suggestTime(
+    @Param('id', MongoIdValidationPipe) id: string,
+    @CurrentUser() user: User,
+    @Body() suggestDto: SuggestTimeDto,
+  ) {
+    return this.visitRequestService.suggestTime(id, suggestDto, user);
+  }
+
+  @Get(':id/suggestion-chain')
+  @CheckPolicies(new ReadVisitRequestPolicyHandler())
+  @ApiOperation({ summary: 'Get the full suggestion chain for a visit request' })
+  @ApiParam({ name: 'id', description: 'Visit Request ID' })
+  getSuggestionChain(@Param('id', MongoIdValidationPipe) id: string, @CurrentUser() user: User) {
+    return this.visitRequestService.getSuggestionChain(id, user);
   }
 }

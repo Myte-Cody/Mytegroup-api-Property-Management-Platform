@@ -206,7 +206,9 @@ If you didn't request this, you can safely ignore this email.
 
       if (options?.queue) {
         await this.emailQueueService.queueEmail(emailOptions);
-        this.logger.log(`Inquiry verification email queued successfully for ${data.recipientEmail}`);
+        this.logger.log(
+          `Inquiry verification email queued successfully for ${data.recipientEmail}`,
+        );
       } else {
         await this.emailService.sendMail(emailOptions);
         this.logger.log(`Inquiry verification email sent successfully to ${data.recipientEmail}`);

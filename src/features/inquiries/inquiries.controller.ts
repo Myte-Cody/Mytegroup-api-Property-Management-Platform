@@ -81,10 +81,7 @@ export class InquiriesController {
   })
   @ApiParam({ name: 'id', description: 'Inquiry ID', type: String })
   @ApiBody({ type: ReplyToInquiryDto, description: 'Reply content' })
-  replyToInquiry(
-    @Param('id', MongoIdValidationPipe) id: string,
-    @Body() dto: ReplyToInquiryDto,
-  ) {
+  replyToInquiry(@Param('id', MongoIdValidationPipe) id: string, @Body() dto: ReplyToInquiryDto) {
     return this.inquiriesService.replyToInquiry(id, dto);
   }
 

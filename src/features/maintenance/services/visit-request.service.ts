@@ -16,7 +16,12 @@ import { NotificationsService } from '../../notifications/notifications.service'
 import { Property } from '../../properties/schemas/property.schema';
 import { Unit } from '../../properties/schemas/unit.schema';
 import { UserDocument } from '../../users/schemas/user.schema';
-import { CreateVisitRequestDto, RespondVisitRequestDto, VisitRequestQueryDto } from '../dto';
+import {
+  CreateVisitRequestDto,
+  RespondVisitRequestDto,
+  SuggestTimeDto,
+  VisitRequestQueryDto,
+} from '../dto';
 import { VisitRequestResponse } from '../dto/respond-visit-request.dto';
 import { MaintenanceTicket } from '../schemas/maintenance-ticket.schema';
 import { ScopeOfWork } from '../schemas/scope-of-work.schema';
@@ -225,6 +230,16 @@ export class VisitRequestService {
       }
     }
 
+    // Check for time conflicts with existing visits
+    await this.validateNoTimeConflicts(
+      createDto.visitDate,
+      createDto.startTime,
+      createDto.endTime,
+      landlordId,
+      tenantId,
+      contractorId,
+    );
+
     // Create the visit request
     const visitRequest = new this.visitRequestModel({
       landlord: landlordId,
@@ -386,15 +401,16 @@ export class VisitRequestService {
     }
 
     // Update status based on response
-    visitRequest.status =
-      respondDto.response === VisitRequestResponse.ACCEPT
-        ? VisitRequestStatus.APPROVED
-        : VisitRequestStatus.DECLINED;
+    const isAccepted = respondDto.response === VisitRequestResponse.ACCEPT;
+    visitRequest.status = isAccepted ? VisitRequestStatus.APPROVED : VisitRequestStatus.DECLINED;
     visitRequest.responseMessage = respondDto.responseMessage;
     visitRequest.respondedBy = currentUser._id as mongoose.Types.ObjectId;
     visitRequest.respondedAt = new Date();
 
     const updatedRequest = await visitRequest.save();
+
+    // Update all previous suggestions in the chain
+    await this.updatePreviousSuggestions(visitRequest, isAccepted);
 
     // Send notification to contractor
     await this.sendResponseNotification(updatedRequest, currentUser);
@@ -484,15 +500,56 @@ export class VisitRequestService {
       .exec();
   }
 
+  private async updatePreviousSuggestions(
+    visitRequest: VisitRequestDocument,
+    isAccepted: boolean,
+  ): Promise<void> {
+    // If this request has no original request, it's the first one (no previous suggestions)
+    if (!visitRequest.originalRequest && !visitRequest.previousSuggestion) {
+      return;
+    }
+
+    // Get the original request ID
+    const originalRequestId = visitRequest.originalRequest || visitRequest._id;
+
+    // Find all previous suggestions in the chain (created before this one)
+    const previousSuggestions = await this.visitRequestModel
+      .find({
+        $or: [{ _id: originalRequestId }, { originalRequest: originalRequestId }],
+        _id: { $ne: visitRequest._id }, // Exclude the current request
+        createdAt: { $lt: visitRequest.createdAt }, // Only earlier requests
+        deleted: false,
+      })
+      .exec();
+
+    // Update status of all previous suggestions
+    const newStatus = isAccepted ? VisitRequestStatus.RESCHEDULED : VisitRequestStatus.DECLINED;
+
+    await Promise.all(
+      previousSuggestions.map(async (suggestion) => {
+        suggestion.status = newStatus;
+        return suggestion.save();
+      }),
+    );
+  }
+
   private checkAccess(visitRequest: VisitRequestDocument, currentUser: UserDocument): void {
     const orgId = currentUser.organization_id?.toString();
 
     if (currentUser.user_type === UserType.CONTRACTOR) {
-      if (visitRequest.contractor?.toString() !== orgId) {
+      const contractorId =
+        typeof visitRequest.contractor === 'object' && visitRequest.contractor?._id
+          ? visitRequest.contractor._id.toString()
+          : visitRequest.contractor?.toString();
+      if (contractorId !== orgId) {
         throw new ForbiddenException('You do not have access to this visit request');
       }
     } else if (currentUser.user_type === UserType.TENANT) {
-      if (visitRequest.tenant?.toString() !== orgId) {
+      const tenantId =
+        typeof visitRequest.tenant === 'object' && visitRequest.tenant?._id
+          ? visitRequest.tenant._id.toString()
+          : visitRequest.tenant?.toString();
+      if (tenantId !== orgId) {
         throw new ForbiddenException('You do not have access to this visit request');
       }
     } else if (currentUser.user_type === UserType.LANDLORD) {
@@ -597,6 +654,334 @@ export class VisitRequestService {
         'Visit Request Cancelled',
         `${cancellerName} has cancelled their visit request for ${visitDateStr}`,
         `/dashboard/${visitRequest.tenant ? 'tenant' : 'landlord'}/visit-requests`,
+      );
+    }
+  }
+
+  async suggestTime(
+    id: string,
+    suggestDto: SuggestTimeDto,
+    currentUser: UserDocument,
+  ): Promise<VisitRequestDocument> {
+    // 1. Get the current visit request
+    const currentRequest = await this.visitRequestModel.findOne({ _id: id, deleted: false }).exec();
+
+    if (!currentRequest) {
+      throw new NotFoundException('Visit request not found');
+    }
+
+    // 2. Validate source type - only TICKET and SCOPE_OF_WORK
+    if (
+      currentRequest.sourceType !== VisitRequestSourceType.TICKET &&
+      currentRequest.sourceType !== VisitRequestSourceType.SCOPE_OF_WORK
+    ) {
+      throw new BadRequestException(
+        'Time suggestions are only available for ticket and scope of work visit requests',
+      );
+    }
+
+    // 3. Check permission - user must be involved in this visit request
+    const canSuggest = this.canUserSuggestTime(currentRequest, currentUser);
+    if (!canSuggest) {
+      throw new ForbiddenException(
+        'You do not have permission to suggest a time for this visit request',
+      );
+    }
+
+    // 4. Validate status - can only suggest on PENDING or RESCHEDULED requests
+    if (
+      currentRequest.status !== VisitRequestStatus.PENDING &&
+      currentRequest.status !== VisitRequestStatus.RESCHEDULED
+    ) {
+      throw new BadRequestException(
+        'Can only suggest alternative times for pending or rescheduled visit requests',
+      );
+    }
+
+    // 5. Check if there's already a pending suggestion from the current request
+    const existingSuggestion = await this.visitRequestModel
+      .findOne({
+        previousSuggestion: currentRequest._id,
+        status: VisitRequestStatus.PENDING,
+        deleted: false,
+      })
+      .exec();
+
+    if (existingSuggestion) {
+      throw new BadRequestException(
+        'There is already a pending suggestion for this visit request. Please wait for a response.',
+      );
+    }
+
+    // 6. Validate availability slot if provided
+    if (suggestDto.availabilitySlotId) {
+      const availabilitySlot = await this.availabilityModel
+        .findById(suggestDto.availabilitySlotId)
+        .exec();
+      if (!availabilitySlot) {
+        throw new NotFoundException('Availability slot not found');
+      }
+    }
+
+    // 6.5. Check for time conflicts with existing visits
+    await this.validateNoTimeConflicts(
+      suggestDto.visitDate,
+      suggestDto.startTime,
+      suggestDto.endTime,
+      currentRequest.landlord,
+      currentRequest.tenant,
+      currentRequest.contractor,
+      currentRequest._id as mongoose.Types.ObjectId, // Exclude current request from conflict check
+    );
+
+    // 7. Determine the original request (root of the chain)
+    const originalRequestId = currentRequest.originalRequest || currentRequest._id;
+
+    // 8. Create the new suggested visit request
+    const newRequest = new this.visitRequestModel({
+      // Copy core fields from current request
+      landlord: currentRequest.landlord,
+      contractor: currentRequest.contractor,
+      requestedBy: currentRequest.requestedBy,
+      sourceType: currentRequest.sourceType,
+      ticket: currentRequest.ticket,
+      scopeOfWork: currentRequest.scopeOfWork,
+      targetType: currentRequest.targetType,
+      property: currentRequest.property,
+      unit: currentRequest.unit,
+      tenant: currentRequest.tenant,
+
+      // New suggestion data
+      availabilitySlot: suggestDto.availabilitySlotId || currentRequest.availabilitySlot,
+      visitDate: suggestDto.visitDate,
+      startTime: suggestDto.startTime,
+      endTime: suggestDto.endTime,
+      rescheduleReason: suggestDto.rescheduleReason,
+
+      // Tracking fields
+      suggestedBy: currentUser._id,
+      suggestedAt: new Date(),
+      previousSuggestion: currentRequest._id,
+      originalRequest: originalRequestId,
+
+      // Status
+      status: VisitRequestStatus.PENDING,
+    });
+
+    // 9. Update the current request
+    currentRequest.status = VisitRequestStatus.AWAITING_RESCHEDULE;
+    currentRequest.nextSuggestion = newRequest._id as mongoose.Types.ObjectId;
+
+    // 10. Save both requests
+    const [savedNewRequest] = await Promise.all([newRequest.save(), currentRequest.save()]);
+
+    // 11. Send notifications
+    await this.sendTimeSuggestionNotification(savedNewRequest, currentUser);
+
+    return savedNewRequest;
+  }
+
+  async getSuggestionChain(id: string, currentUser: UserDocument): Promise<VisitRequest[]> {
+    const visitRequest = await this.visitRequestModel
+      .findOne({ _id: id, deleted: false })
+      .populate('contractor')
+      .populate('tenant')
+      .exec();
+
+    if (!visitRequest) {
+      throw new NotFoundException('Visit request not found');
+    }
+
+    // Check access
+    this.checkAccess(visitRequest, currentUser);
+
+    // Get the original request ID
+    const originalRequestId = visitRequest.originalRequest || visitRequest._id;
+
+    // Get all requests in the chain
+    const chain = await this.visitRequestModel
+      .find({
+        $or: [{ _id: originalRequestId }, { originalRequest: originalRequestId }],
+        deleted: false,
+      })
+      .populate('suggestedBy', 'firstName lastName')
+      .populate('respondedBy', 'firstName lastName')
+      .sort({ createdAt: 1 })
+      .exec();
+
+    return chain;
+  }
+
+  private canUserSuggestTime(
+    visitRequest: VisitRequestDocument,
+    currentUser: UserDocument,
+  ): boolean {
+    const orgId = currentUser.organization_id?.toString();
+
+    // Contractor can suggest
+    if (
+      currentUser.user_type === UserType.CONTRACTOR &&
+      visitRequest.contractor?.toString() === orgId
+    ) {
+      return true;
+    }
+
+    // Tenant can suggest (for unit visits)
+    if (currentUser.user_type === UserType.TENANT && visitRequest.tenant?.toString() === orgId) {
+      return true;
+    }
+
+    // Landlord can suggest
+    if (
+      currentUser.user_type === UserType.LANDLORD &&
+      visitRequest.landlord?.toString() === orgId
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private async sendTimeSuggestionNotification(
+    newRequest: VisitRequestDocument,
+    suggester: UserDocument,
+  ): Promise<void> {
+    const suggesterName = `${suggester.firstName} ${suggester.lastName}`;
+    const visitDateStr = newRequest.visitDate.toLocaleDateString();
+    const timeSlot = `${newRequest.startTime} - ${newRequest.endTime}`;
+
+    // Determine who to notify (the other party)
+    let recipientUserId: string | undefined;
+    let recipientRole: string;
+
+    if (suggester.user_type === UserType.CONTRACTOR) {
+      // Notify tenant or landlord
+      if (newRequest.targetType === VisitRequestTargetType.UNIT && newRequest.tenant) {
+        const User = this.visitRequestModel.db.model('User');
+        const tenantUser = await User.findOne({
+          organization_id: newRequest.tenant,
+        }).exec();
+        if (tenantUser) {
+          recipientUserId = tenantUser._id.toString();
+          recipientRole = 'tenant';
+        }
+      } else {
+        const User = this.visitRequestModel.db.model('User');
+        const landlordUser = await User.findOne({
+          organization_id: newRequest.landlord,
+        }).exec();
+        if (landlordUser) {
+          recipientUserId = landlordUser._id.toString();
+          recipientRole = 'landlord';
+        }
+      }
+    } else {
+      // Notify contractor
+      const User = this.visitRequestModel.db.model('User');
+      const contractorUser = await User.findOne({
+        organization_id: newRequest.contractor,
+      }).exec();
+      if (contractorUser) {
+        recipientUserId = contractorUser._id.toString();
+        recipientRole = 'contractor';
+      }
+    }
+
+    if (recipientUserId) {
+      const message = newRequest.rescheduleReason
+        ? `${suggesterName} suggested a new time for the visit: ${visitDateStr} (${timeSlot}). Reason: ${newRequest.rescheduleReason}`
+        : `${suggesterName} suggested a new time for the visit: ${visitDateStr} (${timeSlot})`;
+
+      await this.notificationsService.createNotification(
+        recipientUserId,
+        'New Time Suggested',
+        message,
+        `/dashboard/${recipientRole}/visit-requests/${newRequest._id}`,
+      );
+    }
+  }
+
+  /**
+   * Validates that there are no time conflicts for a visit request.
+   * Checks if landlord, tenant, or contractor already has a visit at the requested time.
+   * @throws BadRequestException if a time conflict is detected
+   */
+  private async validateNoTimeConflicts(
+    visitDate: Date,
+    startTime: string,
+    endTime: string,
+    landlordId: mongoose.Types.ObjectId,
+    tenantId?: mongoose.Types.ObjectId,
+    contractorId?: mongoose.Types.ObjectId,
+    excludeRequestId?: mongoose.Types.ObjectId,
+  ): Promise<void> {
+    // Build the query to find conflicting visits
+    const query: any = {
+      visitDate: visitDate,
+      status: {
+        $in: [
+          VisitRequestStatus.PENDING,
+          VisitRequestStatus.APPROVED,
+          VisitRequestStatus.BOOKED,
+          VisitRequestStatus.AWAITING_RESCHEDULE,
+        ],
+      },
+      deleted: false,
+      $or: [
+        { landlord: landlordId },
+        ...(tenantId ? [{ tenant: tenantId }] : []),
+        ...(contractorId ? [{ contractor: contractorId }] : []),
+      ],
+      $expr: {
+        $or: [
+          // New visit starts during existing visit
+          {
+            $and: [{ $lte: ['$startTime', startTime] }, { $gt: ['$endTime', startTime] }],
+          },
+          // New visit ends during existing visit
+          {
+            $and: [{ $lt: ['$startTime', endTime] }, { $gte: ['$endTime', endTime] }],
+          },
+          // New visit completely contains existing visit
+          {
+            $and: [{ $gte: ['$startTime', startTime] }, { $lte: ['$endTime', endTime] }],
+          },
+          // Existing visit completely contains new visit
+          {
+            $and: [{ $lte: ['$startTime', startTime] }, { $gte: ['$endTime', endTime] }],
+          },
+        ],
+      },
+    };
+
+    // Exclude current request if updating/rescheduling
+    if (excludeRequestId) {
+      query._id = { $ne: excludeRequestId };
+    }
+
+    const conflictingVisit = await this.visitRequestModel.findOne(query).exec();
+
+    if (conflictingVisit) {
+      // Determine who has the conflict
+      let conflictWith = 'landlord';
+      if (tenantId && conflictingVisit.tenant?.toString() === tenantId.toString()) {
+        conflictWith = 'tenant';
+      } else if (
+        contractorId &&
+        conflictingVisit.contractor?.toString() === contractorId.toString()
+      ) {
+        conflictWith = 'contractor';
+      }
+
+      // Format dates and times for error message
+      const formatDate = (date: Date) => date.toISOString().split('T')[0];
+      const existingTimeSlot = `${conflictingVisit.startTime} - ${conflictingVisit.endTime}`;
+      const requestedTimeSlot = `${startTime} - ${endTime}`;
+
+      throw new BadRequestException(
+        `Time conflict detected: The ${conflictWith} already has a ${conflictingVisit.status.toLowerCase()} visit on ` +
+          `${formatDate(conflictingVisit.visitDate)} (${existingTimeSlot}). ` +
+          `This overlaps with the requested time ${formatDate(visitDate)} (${requestedTimeSlot}).`,
       );
     }
   }

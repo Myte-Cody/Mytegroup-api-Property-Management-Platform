@@ -133,7 +133,8 @@ export class VerifyContactInquiryDto {
  */
 export class ReplyToInquiryDto {
   @ApiProperty({
-    example: 'Thank you for your interest! The unit is still available. Would you like to schedule a viewing?',
+    example:
+      'Thank you for your interest! The unit is still available. Would you like to schedule a viewing?',
     description: 'Reply message to send to the inquirer',
   })
   @IsString()

@@ -109,10 +109,7 @@ export class InquiriesService {
    * - For unauthenticated users with existing account: No verification needed
    * - For unauthenticated new users: Sends verification code to email
    */
-  async createContactInquiry(
-    dto: CreateContactInquiryDto,
-    authenticatedUserId?: string,
-  ) {
+  async createContactInquiry(dto: CreateContactInquiryDto, authenticatedUserId?: string) {
     return await this.sessionService.withSession(async (session: ClientSession | null) => {
       // Validate unit exists
       const unit = await this.unitModel
@@ -261,7 +258,9 @@ export class InquiriesService {
 
       // Check if code has expired
       if (new Date() > inquiry.verificationCodeExpiry) {
-        throw new BadRequestException('Verification code has expired. Please submit a new inquiry.');
+        throw new BadRequestException(
+          'Verification code has expired. Please submit a new inquiry.',
+        );
       }
 
       // Verify code
@@ -474,7 +473,9 @@ export class InquiriesService {
       if (tenant) {
         // Use tenant info if inquiry is linked to a tenant
         inquiryObj.name =
-          inquiryObj.name || `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim() || 'Tenant';
+          inquiryObj.name ||
+          `${tenant.firstName || ''} ${tenant.lastName || ''}`.trim() ||
+          'Tenant';
         inquiryObj.email = inquiryObj.email || tenant.email;
         inquiryObj.phone = inquiryObj.phone || tenant.phone;
       }

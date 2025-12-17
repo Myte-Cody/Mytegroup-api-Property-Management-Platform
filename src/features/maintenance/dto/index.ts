@@ -13,6 +13,7 @@ export * from './decline-thread.dto';
 export * from './refuse-sow.dto';
 export * from './refuse-ticket.dto';
 export * from './respond-visit-request.dto';
+export * from './suggest-time.dto';
 export * from './thread-query.dto';
 export * from './ticket-query.dto';
 export * from './update-invoice.dto';
