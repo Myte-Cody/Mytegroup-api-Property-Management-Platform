@@ -3,6 +3,12 @@ import { Transform, Type } from 'class-transformer';
 import { IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, Min } from 'class-validator';
 import { TicketStatus } from '../../../common/enums/maintenance.enum';
 
+export enum SowViewType {
+  PARENT = 'parent',
+  PROPERTY = 'property',
+  UNIT = 'unit',
+}
+
 export class ScopeOfWorkQueryDto {
   @ApiPropertyOptional({
     description: 'Page number for pagination',
@@ -105,4 +111,13 @@ export class ScopeOfWorkQueryDto {
   @IsOptional()
   @Transform(({ value }) => (value ? new Date(value) : undefined))
   endDate?: Date;
+
+  @ApiPropertyOptional({
+    description: 'Filter by view type (parent, property, or unit)',
+    enum: SowViewType,
+    example: SowViewType.PARENT,
+  })
+  @IsOptional()
+  @IsEnum(SowViewType)
+  viewType?: SowViewType;
 }

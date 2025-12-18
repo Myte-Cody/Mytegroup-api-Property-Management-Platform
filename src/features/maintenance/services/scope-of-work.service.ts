@@ -23,7 +23,7 @@ import { AssignContractorSowDto } from '../dto/assign-contractor-sow.dto';
 import { CreateScopeOfWorkDto } from '../dto/create-scope-of-work.dto';
 import { RefuseSowDto } from '../dto/refuse-sow.dto';
 import { RemoveTicketSowDto } from '../dto/remove-ticket-sow.dto';
-import { ScopeOfWorkQueryDto } from '../dto/scope-of-work-query.dto';
+import { ScopeOfWorkQueryDto, SowViewType } from '../dto/scope-of-work-query.dto';
 import { MaintenanceTicket, MaintenanceTicketDocument } from '../schemas/maintenance-ticket.schema';
 import { ScopeOfWork, ScopeOfWorkDocument } from '../schemas/scope-of-work.schema';
 import { TicketReferenceUtils } from '../utils/ticket-reference.utils';
@@ -72,6 +72,7 @@ export class ScopeOfWorkService {
       parentSowId,
       startDate,
       endDate,
+      viewType,
     } = queryDto;
 
     // Build base query
@@ -109,6 +110,29 @@ export class ScopeOfWorkService {
       if (startDate) dateFilter.$gte = startDate;
       if (endDate) dateFilter.$lte = endDate;
       baseQuery = baseQuery.where({ createdAt: dateFilter });
+    }
+
+    if (viewType) {
+      switch (viewType) {
+        case SowViewType.PARENT:
+          // Parent view: SOWs where parentSow is null/undefined
+          baseQuery = baseQuery.where({ parentSow: null });
+          break;
+        case SowViewType.PROPERTY:
+          // Property view: SOWs where property is set but unit is null
+          baseQuery = baseQuery.where({
+            property: { $ne: null },
+            unit: null,
+          });
+          break;
+        case SowViewType.UNIT:
+          // Unit view: SOWs where both property and unit are set
+          baseQuery = baseQuery.where({
+            property: { $ne: null },
+            unit: { $ne: null },
+          });
+          break;
+      }
     }
 
     // Calculate skip for pagination
