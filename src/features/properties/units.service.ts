@@ -101,6 +101,7 @@ export class UnitsService {
             city: property.address.city,
             state: property.address.state,
             country: property.address.country,
+            countryCode: property.address.countryCode,
             postalCode: property.address.postalCode,
           };
         } else {
@@ -108,23 +109,32 @@ export class UnitsService {
             `Property ${propertyId} does not have coordinates. Unit will be created without address.`,
           );
         }
-      } else if (createUnitDto.googleMapsLink) {
-        // Extract address from Google Maps link
-        try {
-          address = await this.geocodingService.extractLocationFromMapsLink(
-            createUnitDto.googleMapsLink,
-          );
-        } catch (error) {
-          // Log as warning but don't fail the unit creation
-          const message = (error as any)?.message || String(error);
-          this.logger.warn(
-            `Failed to extract location from Google Maps link during unit creation: ${message}`,
-          );
-        }
+      } else if (createUnitDto.latitude && createUnitDto.longitude) {
+        // Use provided address fields directly
+        address = {
+          latitude: createUnitDto.latitude,
+          longitude: createUnitDto.longitude,
+          city: createUnitDto.city,
+          state: createUnitDto.state,
+          country: createUnitDto.country,
+          countryCode: createUnitDto.countryCode,
+          postalCode: createUnitDto.postalCode,
+        };
       }
-
-      // Create unit data without googleMapsLink and usePropertyAddress but with address and landlord
-      const { googleMapsLink, usePropertyAddress, ...unitData } = createUnitDto;
+      // Create unit data without address fields and usePropertyAddress but with address and landlord
+      const {
+        googleMapsLink,
+        usePropertyAddress,
+        street,
+        city,
+        state,
+        postalCode,
+        country,
+        countryCode,
+        latitude,
+        longitude,
+        ...unitData
+      } = createUnitDto;
       const newUnit = new this.unitModel({
         ...unitData,
         property: propertyId,
@@ -204,14 +214,17 @@ export class UnitsService {
       matchConditions.marketRent = rentQuery;
     }
 
-    // Add country filter
-    if (queryDto?.country) {
+    // Add country filter - prefer countryCode over country name
+    if (queryDto?.countryCode) {
+      matchConditions['address.countryCode'] = queryDto.countryCode.toUpperCase();
+    } else if (queryDto?.country) {
+      // Fallback to country name for backward compatibility
       matchConditions['address.country'] = { $regex: queryDto.country, $options: 'i' };
     }
 
-    // Add city filter
+    // Add city filter - exact match for better filtering
     if (queryDto?.city) {
-      matchConditions['address.city'] = { $regex: queryDto.city, $options: 'i' };
+      matchConditions['address.city'] = queryDto.city;
     }
 
     // Add recently added filter (within last 30 days)
@@ -351,6 +364,33 @@ export class UnitsService {
       success: true,
       data: unitsWithMedia,
       total: unitsWithMedia.length,
+    };
+  }
+
+  /**
+   * Get distinct cities from marketplace units for a given country code
+   * @param countryCode - Optional ISO country code (e.g., 'US', 'GB')
+   * @returns Array of distinct city names
+   */
+  async getMarketplaceCities(countryCode?: string) {
+    const matchConditions: any = {
+      deleted: false,
+      publishToMarketplace: true,
+      'address.city': { $exists: true, $nin: [null, ''] },
+    };
+
+    if (countryCode) {
+      matchConditions['address.countryCode'] = countryCode.toUpperCase();
+    }
+
+    const cities = await this.unitModel.distinct('address.city', matchConditions).exec();
+
+    // Sort cities alphabetically
+    const sortedCities = cities.filter((city) => city).sort((a, b) => a.localeCompare(b));
+
+    return {
+      success: true,
+      data: sortedCities,
     };
   }
 
@@ -855,29 +895,40 @@ export class UnitsService {
           city: property.address.city,
           state: property.address.state,
           country: property.address.country,
+          countryCode: property.address.countryCode,
           postalCode: property.address.postalCode,
         };
       } else {
         // If property doesn't have coordinates, clear the unit's custom address
         address = undefined;
       }
-    } else if (updateUnitDto.googleMapsLink) {
-      // Extract address from Google Maps link
-      try {
-        address = await this.geocodingService.extractLocationFromMapsLink(
-          updateUnitDto.googleMapsLink,
-        );
-      } catch (error) {
-        // Log as warning but don't fail the unit update
-        const message = (error as any)?.message || String(error);
-        this.logger.warn(
-          `Failed to extract location from Google Maps link during unit update: ${message}`,
-        );
-      }
+    } else if (updateUnitDto.latitude && updateUnitDto.longitude) {
+      // Use provided address fields directly
+      address = {
+        latitude: updateUnitDto.latitude,
+        longitude: updateUnitDto.longitude,
+        city: updateUnitDto.city,
+        state: updateUnitDto.state,
+        country: updateUnitDto.country,
+        countryCode: updateUnitDto.countryCode,
+        postalCode: updateUnitDto.postalCode,
+      };
     }
-
-    // Create update data without googleMapsLink and usePropertyAddress but with address
-    const { googleMapsLink, usePropertyAddress, ...updateData } = updateUnitDto;
+    console.log(address);
+    // Create update data without address fields and usePropertyAddress but with address
+    const {
+      googleMapsLink,
+      usePropertyAddress,
+      street,
+      city,
+      state,
+      postalCode,
+      country,
+      countryCode,
+      latitude,
+      longitude,
+      ...updateData
+    } = updateUnitDto;
     const finalUpdateData = {
       ...updateData,
       ...(address !== undefined && { address }),

@@ -55,6 +55,17 @@ export class UnitsController {
     private readonly mediaService: MediaService,
   ) {}
 
+  @Get('marketplace/cities')
+  @Public()
+  @ApiOperation({ summary: 'Get available cities for marketplace filtering by country code' })
+  @ApiResponse({
+    status: 200,
+    description: 'Available cities retrieved successfully',
+  })
+  getMarketplaceCities(@Query('countryCode') countryCode?: string) {
+    return this.unitsService.getMarketplaceCities(countryCode);
+  }
+
   @Get('marketplace')
   @Public()
   @ApiOperation({ summary: 'Get all marketplace units' })

@@ -344,6 +344,7 @@ export class PropertiesService {
         state: extractedLocation.state || '',
         postalCode: extractedLocation.postalCode || '',
         country: extractedLocation.country || '',
+        countryCode: extractedLocation.countryCode,
         latitude: extractedLocation.latitude,
         longitude: extractedLocation.longitude,
       };
@@ -357,7 +358,7 @@ export class PropertiesService {
 
     // Filter allowed fields based on user role
     const filteredUpdateDto = this.filterUpdateFields(
-      { ...updatePropertyDto, ...addressUpdate },
+      { ...updatePropertyDto, ...addressUpdate } as UpdatePropertyDto,
       currentUser,
     );
 

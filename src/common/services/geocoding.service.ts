@@ -39,6 +39,7 @@ export class GeocodingService {
           city: addressDetails.city,
           state: addressDetails.state,
           country: addressDetails.country,
+          countryCode: addressDetails.countryCode,
           postalCode: addressDetails.postalCode,
         };
       }
@@ -245,6 +246,7 @@ export class GeocodingService {
                   address.county,
                 state: address.state || address.province || address.region,
                 country: address.country,
+                countryCode: address.country_code?.toUpperCase(),
                 postalCode: address.postcode || undefined,
               });
             } catch (error) {
@@ -269,7 +271,13 @@ export class GeocodingService {
   private async reverseGeocode(
     latitude: number,
     longitude: number,
-  ): Promise<{ city?: string; state?: string; country?: string; postalCode?: string }> {
+  ): Promise<{
+    city?: string;
+    state?: string;
+    country?: string;
+    countryCode?: string;
+    postalCode?: string;
+  }> {
     return new Promise((resolve) => {
       const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
 
@@ -297,6 +305,7 @@ export class GeocodingService {
                   city: undefined,
                   state: undefined,
                   country: undefined,
+                  countryCode: undefined,
                   postalCode: undefined,
                 });
                 return;
@@ -313,6 +322,7 @@ export class GeocodingService {
                   address.county,
                 state: address.state || address.province || address.region,
                 country: address.country,
+                countryCode: address.country_code?.toUpperCase(),
                 postalCode: address.postcode || undefined,
               });
             } catch (error) {
@@ -321,6 +331,7 @@ export class GeocodingService {
                 city: undefined,
                 state: undefined,
                 country: undefined,
+                countryCode: undefined,
                 postalCode: undefined,
               });
             }
@@ -329,7 +340,13 @@ export class GeocodingService {
         .on('error', (error) => {
           this.logger.error(`Reverse geocoding request failed: ${error.message}`);
           // Return partial data instead of rejecting
-          resolve({ city: undefined, state: undefined, country: undefined, postalCode: undefined });
+          resolve({
+            city: undefined,
+            state: undefined,
+            country: undefined,
+            countryCode: undefined,
+            postalCode: undefined,
+          });
         });
     });
   }

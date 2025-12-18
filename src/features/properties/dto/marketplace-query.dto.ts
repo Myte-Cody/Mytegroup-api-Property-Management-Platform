@@ -44,12 +44,20 @@ export class MarketplaceQueryDto {
   maxRent?: number;
 
   @ApiPropertyOptional({
-    description: 'Filter by country',
+    description: 'Filter by country (deprecated - use countryCode instead)',
     example: 'United States',
   })
   @IsOptional()
   @IsString()
   country?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by country code (ISO 3166-1 alpha-2)',
+    example: 'US',
+  })
+  @IsOptional()
+  @IsString()
+  countryCode?: string;
 
   @ApiPropertyOptional({
     description: 'Filter by city',

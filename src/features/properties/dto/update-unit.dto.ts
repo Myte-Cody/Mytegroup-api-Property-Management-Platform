@@ -8,7 +8,6 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  IsUrl,
   MaxLength,
   Min,
   ValidateIf,
@@ -64,15 +63,64 @@ export class UpdateUnitDto {
   @Type(() => Boolean)
   usePropertyAddress?: boolean;
 
+  @ApiProperty({ example: '123 Main St', description: 'Street address', required: false })
+  @IsString()
+  @IsOptional()
+  street?: string;
+
+  @ApiProperty({ example: 'New York', description: 'City name', required: false })
+  @IsString()
+  @IsOptional()
+  city?: string;
+
+  @ApiProperty({ example: 'NY', description: 'State or province', required: false })
+  @IsString()
+  @IsOptional()
+  state?: string;
+
+  @ApiProperty({ example: '10001', description: 'Postal or ZIP code', required: false })
+  @IsString()
+  @IsOptional()
+  postalCode?: string;
+
+  @ApiProperty({ example: 'USA', description: 'Country name', required: false })
+  @IsString()
+  @IsOptional()
+  country?: string;
+
+  @ApiProperty({ example: 'US', description: 'ISO 3166-1 alpha-2 country code', required: false })
+  @IsString()
+  @IsOptional()
+  countryCode?: string;
+
   @ApiProperty({
     example: 'https://maps.google.com/?q=40.7128,-74.0060',
-    description: 'Google Maps link for the unit location (required if usePropertyAddress is false)',
+    description: 'Google Maps link for the unit location',
     required: false,
   })
-  @ValidateIf((o) => o.usePropertyAddress === false)
-  @IsNotEmpty({ message: 'googleMapsLink is required when not using property address' })
-  @IsUrl()
+  @IsString()
+  @IsOptional()
   googleMapsLink?: string;
+
+  @ApiProperty({
+    example: 40.7128,
+    description: 'Latitude coordinate of the unit',
+    required: false,
+  })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  latitude?: number;
+
+  @ApiProperty({
+    example: -74.006,
+    description: 'Longitude coordinate of the unit',
+    required: false,
+  })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  longitude?: number;
 
   @ApiProperty({
     example: false,

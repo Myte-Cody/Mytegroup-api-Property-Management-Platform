@@ -5,9 +5,9 @@ import * as mongoose from 'mongoose';
 import { Document, Model, Schema as MongooseSchema, Query, Types } from 'mongoose';
 import * as mongooseDelete from 'mongoose-delete';
 import { UnitAvailabilityStatus, UnitType } from '../../../common/enums/unit.enum';
-import { Address } from '../../../common/interfaces/address.interface';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
 import { multiTenancyPlugin } from '../../../common/plugins/multi-tenancy.plugin';
+import { Address } from './property.schema';
 
 @Schema({ timestamps: true })
 export class Unit extends Document implements SoftDelete {
@@ -59,13 +59,7 @@ export class Unit extends Document implements SoftDelete {
     },
   })
   @Prop({
-    type: {
-      latitude: { type: Number, required: true },
-      longitude: { type: Number, required: true },
-      city: { type: String, trim: true },
-      state: { type: String, trim: true },
-      country: { type: String, trim: true },
-    },
+    type: Address,
     required: false,
     _id: false,
   })

@@ -39,6 +39,11 @@ export class CreatePropertyDto {
   @IsNotEmpty()
   country: string;
 
+  @ApiProperty({ example: 'US', description: 'ISO 3166-1 alpha-2 country code', required: false })
+  @IsString()
+  @IsOptional()
+  countryCode?: string;
+
   @ApiProperty({
     example: 'https://maps.google.com/?q=40.7128,-74.0060',
     description: 'Google Maps link for the property location',
@@ -101,6 +106,7 @@ export class CreatePropertyDto {
       state: this.state,
       postalCode: this.postalCode,
       country: this.country,
+      countryCode: this.countryCode,
       latitude: this.latitude,
       longitude: this.longitude,
     };

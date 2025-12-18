@@ -23,6 +23,9 @@ export class Address {
   @Prop({ required: true, trim: true })
   country: string;
 
+  @Prop({ required: false, trim: true })
+  countryCode?: string;
+
   @Prop({ required: false, type: Number })
   latitude?: number;
 
@@ -43,7 +46,7 @@ export class Property extends Document implements SoftDelete {
   @Prop({ required: true, trim: true, maxlength: 128 })
   name: string;
 
-  @Prop({ type: Address, required: true })
+  @Prop({ type: Address, required: true, _id: false })
   address: Address;
 
   @Prop({ maxlength: 1024, default: '' })

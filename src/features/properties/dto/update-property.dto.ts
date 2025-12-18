@@ -1,4 +1,100 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { CreatePropertyDto } from './create-property.dto';
+import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
 
-export class UpdatePropertyDto extends PartialType(CreatePropertyDto) {}
+export class UpdatePropertyDto {
+  @ApiProperty({
+    example: 'Sunset Apartments',
+    description: 'Name of the property',
+    maxLength: 128,
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(128)
+  name?: string;
+
+  @ApiProperty({ example: '123 Main St', description: 'Street address', required: false })
+  @IsString()
+  @IsOptional()
+  street?: string;
+
+  @ApiProperty({ example: 'New York', description: 'City name', required: false })
+  @IsString()
+  @IsOptional()
+  city?: string;
+
+  @ApiProperty({ example: 'NY', description: 'State or province', required: false })
+  @IsString()
+  @IsOptional()
+  state?: string;
+
+  @ApiProperty({ example: '10001', description: 'Postal or ZIP code', required: false })
+  @IsString()
+  @IsOptional()
+  postalCode?: string;
+
+  @ApiProperty({ example: 'USA', description: 'Country name', required: false })
+  @IsString()
+  @IsOptional()
+  country?: string;
+
+  @ApiProperty({ example: 'US', description: 'ISO 3166-1 alpha-2 country code', required: false })
+  @IsString()
+  @IsOptional()
+  countryCode?: string;
+
+  @ApiProperty({
+    example: 'https://maps.google.com/?q=40.7128,-74.0060',
+    description: 'Google Maps link for the property location',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  googleMapsLink?: string;
+
+  @ApiProperty({
+    example: 40.7128,
+    description: 'Latitude coordinate of the property',
+    required: false,
+  })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  latitude?: number;
+
+  @ApiProperty({
+    example: -74.006,
+    description: 'Longitude coordinate of the property',
+    required: false,
+  })
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  longitude?: number;
+
+  @ApiProperty({
+    example: 'A beautiful property with mountain views',
+    description: 'Description of the property',
+    maxLength: 1024,
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(1024)
+  description?: string;
+
+  // Getter for backward compatibility with existing code that expects nested address
+  get address() {
+    return {
+      street: this.street,
+      city: this.city,
+      state: this.state,
+      postalCode: this.postalCode,
+      country: this.country,
+      countryCode: this.countryCode,
+      latitude: this.latitude,
+      longitude: this.longitude,
+    };
+  }
+}
