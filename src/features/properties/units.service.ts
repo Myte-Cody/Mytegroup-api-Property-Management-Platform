@@ -96,6 +96,7 @@ export class UnitsService {
         // Use property's address coordinates
         if (property.address?.latitude && property.address?.longitude) {
           address = {
+            street: property.address.street,
             latitude: property.address.latitude,
             longitude: property.address.longitude,
             city: property.address.city,
@@ -112,6 +113,7 @@ export class UnitsService {
       } else if (createUnitDto.latitude && createUnitDto.longitude) {
         // Use provided address fields directly
         address = {
+          street: createUnitDto.street,
           latitude: createUnitDto.latitude,
           longitude: createUnitDto.longitude,
           city: createUnitDto.city,
@@ -890,6 +892,7 @@ export class UnitsService {
       const property = existingUnit.property as any;
       if (property.address?.latitude && property.address?.longitude) {
         address = {
+          street: property.address.street,
           latitude: property.address.latitude,
           longitude: property.address.longitude,
           city: property.address.city,
@@ -905,6 +908,7 @@ export class UnitsService {
     } else if (updateUnitDto.latitude && updateUnitDto.longitude) {
       // Use provided address fields directly
       address = {
+        street: updateUnitDto.street,
         latitude: updateUnitDto.latitude,
         longitude: updateUnitDto.longitude,
         city: updateUnitDto.city,
@@ -914,7 +918,7 @@ export class UnitsService {
         postalCode: updateUnitDto.postalCode,
       };
     }
-    console.log(address);
+
     // Create update data without address fields and usePropertyAddress but with address
     const {
       googleMapsLink,
