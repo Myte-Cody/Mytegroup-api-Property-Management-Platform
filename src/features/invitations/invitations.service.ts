@@ -15,6 +15,7 @@ import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
 import { AuthService } from '../auth/auth.service';
 import { InvitationEmailService } from '../email/services/invitation-email.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
@@ -34,6 +35,7 @@ export class InvitationsService {
     private readonly invitationEmailService: InvitationEmailService,
     private readonly sessionService: SessionService,
     private readonly authService: AuthService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async create(
@@ -130,6 +132,34 @@ export class InvitationsService {
     } catch (error) {
       // Log error but don't fail the invitation creation if email sending fails
       console.error('Failed to send invitation email:', error);
+    }
+
+    // Send in-app notification to existing users (if they already have an account)
+    if (
+      createInvitationDto.entityType === EntityType.TENANT ||
+      createInvitationDto.entityType === EntityType.CONTRACTOR
+    ) {
+      try {
+        const existingUser = await this.userModel
+          .findOne({ email: normalizedEmail })
+          .exec();
+
+        if (existingUser) {
+          const entityTypeLabel =
+            createInvitationDto.entityType === EntityType.TENANT ? 'tenant' : 'contractor';
+          const landlordName = currentUser.username || 'A landlord';
+
+          await this.notificationsService.createNotification(
+            existingUser._id.toString(),
+            `New ${entityTypeLabel.charAt(0).toUpperCase() + entityTypeLabel.slice(1)} Invitation`,
+            `${landlordName} has invited you to join their property as a ${entityTypeLabel}. Check your email to accept the invitation.`,
+            `/invitations/accept?token=${savedInvitation.invitationToken}`,
+          );
+        }
+      } catch (error) {
+        // Log error but don't fail the invitation creation
+        console.error('Failed to send invitation notification:', error);
+      }
     }
 
     return savedInvitation;
@@ -263,6 +293,30 @@ export class InvitationsService {
         }
         if (res) {
           authPayload = await this.authService.issueAuthCookiesForUser(user, res);
+        }
+      }
+
+      // Send in-app notification to the landlord who sent the invitation
+      if (
+        invitation.invitedBy &&
+        (invitation.entityType === EntityType.TENANT ||
+          invitation.entityType === EntityType.CONTRACTOR)
+      ) {
+        try {
+          const inviteeName =
+            invitation.entityData?.name || invitation.email.split('@')[0] || 'Someone';
+          const entityTypeLabel =
+            invitation.entityType === EntityType.TENANT ? 'tenant' : 'contractor';
+
+          await this.notificationsService.createNotification(
+            invitation.invitedBy.toString(),
+            `${entityTypeLabel.charAt(0).toUpperCase() + entityTypeLabel.slice(1)} Invitation Accepted`,
+            `${inviteeName} has accepted your invitation to join as a ${entityTypeLabel}.`,
+            `/dashboard/landlord/users-management`,
+          );
+        } catch (error) {
+          // Log error but don't fail the invitation acceptance
+          console.error('Failed to send acceptance notification:', error);
         }
       }
 

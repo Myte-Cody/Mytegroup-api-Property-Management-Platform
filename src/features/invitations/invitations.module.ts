@@ -7,6 +7,7 @@ import {
   MaintenanceTicket,
   MaintenanceTicketSchema,
 } from '../maintenance/schemas/maintenance-ticket.schema';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { Property, PropertySchema } from '../properties/schemas/property.schema';
 import { Unit, UnitSchema } from '../properties/schemas/unit.schema';
 import { TenantsModule } from '../tenants/tenant.module';
@@ -34,6 +35,7 @@ import { TenantInvitationStrategy } from './strategies/tenant-invitation.strateg
     UsersModule,
     TenantsModule,
     ContractorModule,
+    NotificationsModule,
   ],
   controllers: [InvitationsController],
   providers: [
