@@ -140,9 +140,7 @@ export class InvitationsService {
       createInvitationDto.entityType === EntityType.CONTRACTOR
     ) {
       try {
-        const existingUser = await this.userModel
-          .findOne({ email: normalizedEmail })
-          .exec();
+        const existingUser = await this.userModel.findOne({ email: normalizedEmail }).exec();
 
         if (existingUser) {
           const entityTypeLabel =

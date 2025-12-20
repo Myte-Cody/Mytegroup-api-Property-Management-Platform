@@ -26,6 +26,7 @@ import {
   ThreadLinkedEntityType,
   ThreadType,
 } from '../../maintenance/schemas/thread.schema';
+import { Media } from '../../media/schemas/media.schema';
 import { MediaService } from '../../media/services/media.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { Property } from '../../properties/schemas/property.schema';
@@ -50,10 +51,44 @@ export class ChatService {
     private leaseModel: Model<Lease>,
     @InjectModel(Property.name)
     private propertyModel: Model<Property>,
+    @InjectModel(Media.name)
+    private mediaModel: Model<Media>,
     private notificationsService: NotificationsService,
     private chatGateway: ChatGateway,
     private mediaService: MediaService,
   ) {}
+
+  /**
+   * Get fresh profile picture URLs for a list of user IDs
+   * This is needed because presigned S3 URLs expire after 1 hour
+   */
+  private async refreshProfilePictureUrls(userIds: string[]): Promise<Map<string, string>> {
+    const urlMap = new Map<string, string>();
+
+    if (userIds.length === 0) return urlMap;
+
+    // Query Media collection for profile pictures of these users
+    const profilePictures = await this.mediaModel
+      .find({
+        model_type: 'User',
+        model_id: { $in: userIds.map((id) => new Types.ObjectId(id)) },
+        collection_name: 'profile-pictures',
+      })
+      .lean();
+
+    // Generate fresh presigned URLs for each profile picture
+    for (const media of profilePictures) {
+      const userId = media.model_id.toString();
+      try {
+        const freshUrl = await this.mediaService.getMediaUrl(media as any);
+        urlMap.set(userId, freshUrl);
+      } catch {
+        // If URL generation fails, skip this user's profile picture
+      }
+    }
+
+    return urlMap;
+  }
 
   /**
    * Create or get existing chat session between two users
@@ -227,8 +262,23 @@ export class ChatService {
       )
       .lean();
 
-    // Create a map of userId to user data
-    const usersMap = new Map(users.map((user) => [user._id.toString(), user]));
+    // Get fresh profile picture URLs (stored URLs may have expired)
+    const freshProfilePictureUrls = await this.refreshProfilePictureUrls(allUserIds);
+
+    // Create a map of userId to user data with fresh profile picture URLs
+    const usersMap = new Map(
+      users.map((user) => {
+        const id = user._id.toString();
+        const freshUrl = freshProfilePictureUrls.get(id);
+        return [
+          id,
+          {
+            ...user,
+            profilePicture: freshUrl || user.profilePicture,
+          },
+        ];
+      }),
+    );
 
     // Create a map of threadId to participants and clearedAt for current user
     const participantsMap = new Map<string, any[]>();
@@ -437,8 +487,23 @@ export class ChatService {
       .select('_id firstName lastName profilePicture')
       .lean();
 
-    // Create a map of user ID to user info
-    const userMap = new Map(users.map((user) => [user._id.toString(), user]));
+    // Get fresh profile picture URLs (stored URLs may have expired)
+    const freshProfilePictureUrls = await this.refreshProfilePictureUrls(allUserIds);
+
+    // Create a map of user ID to user info with fresh profile picture URLs
+    const userMap = new Map(
+      users.map((user) => {
+        const userId = user._id.toString();
+        const freshUrl = freshProfilePictureUrls.get(userId);
+        return [
+          userId,
+          {
+            ...user,
+            profilePicture: freshUrl || user.profilePicture,
+          },
+        ];
+      }),
+    );
 
     // Process messages with media URLs
     const reversedMessages = messages.reverse();
@@ -626,10 +691,19 @@ export class ChatService {
       .exec();
 
     // Manually fetch sender info (since senderId is polymorphic)
-    const senderInfo = await this.userModel
+    const senderInfoRaw = await this.userModel
       .findById(userId)
       .select('_id firstName lastName profilePicture')
       .lean();
+
+    // Get fresh profile picture URL for sender
+    const freshSenderUrls = await this.refreshProfilePictureUrls([userId]);
+    const senderInfo = senderInfoRaw
+      ? {
+          ...senderInfoRaw,
+          profilePicture: freshSenderUrls.get(userId) || senderInfoRaw.profilePicture,
+        }
+      : null;
 
     // Enrich media with URLs
     const hasAttachments =
