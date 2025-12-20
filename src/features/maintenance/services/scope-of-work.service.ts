@@ -978,6 +978,8 @@ export class ScopeOfWorkService {
       .find({ parentSow: sowId }, null, { session })
       .populate('assignedContractor')
       .populate('assignedUser')
+      .populate('property')
+      .populate('unit')
       .exec();
 
     if (childSows.length === 0) {
