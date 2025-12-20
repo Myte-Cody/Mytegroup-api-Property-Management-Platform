@@ -521,7 +521,6 @@ export class AvailabilityService {
   ): Promise<{ slots: Availability[] }> {
     const query: any = {
       availabilityType: AvailabilityType.RECURRING,
-      isActive: true,
       deleted: false,
     };
 
