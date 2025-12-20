@@ -63,6 +63,15 @@ export class TemplateService {
     handlebars.registerHelper('lte', (a: any, b: any) => {
       return a <= b;
     });
+
+    // String helpers
+    handlebars.registerHelper('toLowerCase', (str: string) => {
+      return str?.toLowerCase() || '';
+    });
+
+    handlebars.registerHelper('toUpperCase', (str: string) => {
+      return str?.toUpperCase() || '';
+    });
   }
 
   async compileTemplate(
