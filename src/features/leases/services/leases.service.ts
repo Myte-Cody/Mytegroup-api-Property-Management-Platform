@@ -23,7 +23,9 @@ import { SessionService } from '../../../common/services/session.service';
 import { TenancyContextService } from '../../../common/services/tenancy-context.service';
 import { addDaysToDate, getToday } from '../../../common/utils/date.utils';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
+import { Availability, AvailabilityCreatedBy } from '../../availability/schemas/availability.schema';
 import { LeaseEmailService } from '../../email/services/lease-email.service';
+import { VisitRequest, VisitRequestStatus } from '../../maintenance/schemas/visit-request.schema';
 import { ThreadsService } from '../../maintenance/services/threads.service';
 import { MediaService } from '../../media/services/media.service';
 import { NotificationsService } from '../../notifications/notifications.service';
@@ -69,6 +71,10 @@ export class LeasesService {
     private readonly tenantModel: AppModel<Tenant>,
     @InjectModel(User.name)
     private readonly userModel: AppModel<User>,
+    @InjectModel(Availability.name)
+    private readonly availabilityModel: AppModel<Availability>,
+    @InjectModel(VisitRequest.name)
+    private readonly visitRequestModel: AppModel<VisitRequest>,
     private readonly transactionsService: TransactionsService,
     private readonly caslAuthorizationService: CaslAuthorizationService,
     private readonly leaseEmailService: LeaseEmailService,
@@ -1260,6 +1266,137 @@ export class LeasesService {
     }
   }
 
+  /**
+   * Soft-delete all landlord-created availability records for a specific unit.
+   * This is called when a unit is leased to prevent landlords from accepting
+   * new visit requests for an occupied unit.
+   *
+   * @param unitId - The unit being leased
+   * @param session - MongoDB transaction session
+   * @returns Array of invalidated availability IDs
+   */
+  private async invalidateUnitAvailability(
+    unitId: Types.ObjectId,
+    session?: ClientSession,
+  ): Promise<Types.ObjectId[]> {
+    const availabilityRecords = await this.availabilityModel
+      .find({
+        unit: unitId,
+        createdBy: AvailabilityCreatedBy.LANDLORD,
+        deleted: false,
+      })
+      .session(session ?? null)
+      .exec();
+
+    if (availabilityRecords.length === 0) return [];
+
+    const availabilityIds = availabilityRecords.map((r) => r._id as Types.ObjectId);
+
+    await this.availabilityModel.updateMany(
+      { _id: { $in: availabilityIds } },
+      { $set: { deleted: true, deletedAt: new Date() } },
+      { session: session ?? null },
+    );
+
+    return availabilityIds;
+  }
+
+  /**
+   * Cancel all pending visit requests for a unit when it's leased.
+   * Updates the status to CANCELLED and records the reason.
+   *
+   * @param unitId - The unit being leased
+   * @param availabilityIds - IDs of invalidated availability slots (optional filter)
+   * @param session - MongoDB transaction session
+   * @returns Array of cancelled visit request documents
+   */
+  private async cancelPendingVisitRequests(
+    unitId: Types.ObjectId,
+    availabilityIds: Types.ObjectId[],
+    session?: ClientSession,
+  ): Promise<VisitRequest[]> {
+    const query: any = {
+      unit: unitId,
+      status: {
+        $in: [VisitRequestStatus.PENDING, VisitRequestStatus.AWAITING_RESCHEDULE],
+      },
+      deleted: false,
+    };
+
+    if (availabilityIds.length > 0) {
+      query.availabilitySlot = { $in: availabilityIds };
+    }
+
+    const pendingRequests = await this.visitRequestModel
+      .find(query)
+      .session(session ?? null)
+      .exec();
+
+    if (pendingRequests.length === 0) return [];
+
+    await this.visitRequestModel.updateMany(
+      { _id: { $in: pendingRequests.map((r) => r._id) } },
+      {
+        $set: {
+          status: VisitRequestStatus.CANCELLED,
+          responseMessage: 'The unit has been leased and is no longer available for visits',
+          respondedAt: new Date(),
+        },
+      },
+      { session: session ?? null },
+    );
+
+    return await this.visitRequestModel
+      .find({ _id: { $in: pendingRequests.map((r) => r._id) } })
+      .populate('property', 'name address')
+      .populate('unit', 'unitNumber')
+      .session(session ?? null)
+      .exec();
+  }
+
+  /**
+   * Notify users whose visit requests were cancelled due to lease activation.
+   * Sends notifications to contractors and prospective tenants (marketplace requests).
+   *
+   * @param cancelledRequests - Array of cancelled visit request documents
+   * @param property - Property information for notification context
+   * @param unitNumber - Unit number for notification context
+   */
+  private async notifyVisitRequestCancellations(
+    cancelledRequests: VisitRequest[],
+    property: any,
+    unitNumber: string,
+  ): Promise<void> {
+    if (cancelledRequests.length === 0) return;
+
+    const contractorRequests = cancelledRequests.filter((req) => req.contractor);
+
+    for (const request of contractorRequests) {
+      try {
+        const contractorUser = await this.userModel
+          .findOne({ organization_id: request.contractor })
+          .exec();
+
+        if (contractorUser) {
+          const visitDateStr = request.visitDate.toLocaleDateString();
+          const timeSlot = `${request.startTime} - ${request.endTime}`;
+
+          await this.notificationsService.createNotification(
+            contractorUser._id.toString(),
+            'Visit Request Cancelled - Unit Leased',
+            `Your visit request for ${property.name} - Unit ${unitNumber} on ${visitDateStr} (${timeSlot}) has been cancelled because the unit has been leased.`,
+            '/dashboard/contractor/visit-requests',
+          );
+        }
+      } catch (error) {
+        console.error(
+          `Failed to notify contractor for visit request ${request._id}:`,
+          error,
+        );
+      }
+    }
+  }
+
   private async activateLease(lease: Lease, session?: ClientSession) {
     try {
       if (!lease.activatedAt) {
@@ -1322,6 +1459,37 @@ export class LeasesService {
         },
         { session: session ?? null },
       );
+
+      // Invalidate availability and cancel visit requests
+      const invalidatedAvailabilityIds = await this.invalidateUnitAvailability(
+        lease.unit as Types.ObjectId,
+        session,
+      );
+
+      const cancelledVisitRequests = await this.cancelPendingVisitRequests(
+        lease.unit as Types.ObjectId,
+        invalidatedAvailabilityIds,
+        session,
+      );
+
+      if (cancelledVisitRequests.length > 0) {
+        const populatedUnit = await this.unitModel
+          .findById(lease.unit)
+          .populate('property')
+          .session(session ?? null)
+          .exec();
+
+        if (populatedUnit) {
+          const property = populatedUnit.property as any;
+          const unitNumber = populatedUnit.unitNumber || 'N/A';
+
+          await this.notifyVisitRequestCancellations(
+            cancelledVisitRequests,
+            property,
+            unitNumber,
+          );
+        }
+      }
 
       // Send lease activation email notifications
       await this.sendLeaseActivationEmails(lease);

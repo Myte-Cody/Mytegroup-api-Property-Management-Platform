@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { NestjsFormDataModule } from 'nestjs-form-data';
+import { Availability, AvailabilitySchema } from '../availability/schemas/availability.schema';
 import { CaslModule } from '../../common/casl/casl.module';
 import { CommonModule } from '../../common/common.module';
 import { MaintenanceModule } from '../maintenance/maintenance.module';
@@ -8,6 +9,7 @@ import {
   MaintenanceTicket,
   MaintenanceTicketSchema,
 } from '../maintenance/schemas/maintenance-ticket.schema';
+import { VisitRequest, VisitRequestSchema } from '../maintenance/schemas/visit-request.schema';
 import { MediaModule } from '../media/media.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PropertiesModule } from '../properties/properties.module';
@@ -39,6 +41,8 @@ import { TransactionsController } from './transactions.controller';
       { name: User.name, schema: UserSchema },
       { name: Property.name, schema: PropertySchema },
       { name: MaintenanceTicket.name, schema: MaintenanceTicketSchema },
+      { name: Availability.name, schema: AvailabilitySchema },
+      { name: VisitRequest.name, schema: VisitRequestSchema },
     ]),
     NestjsFormDataModule,
     CaslModule,
