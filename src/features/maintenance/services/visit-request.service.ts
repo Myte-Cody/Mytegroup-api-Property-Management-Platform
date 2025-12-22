@@ -299,7 +299,11 @@ export class VisitRequestService {
     if (currentUser.user_type === UserType.CONTRACTOR) {
       query.contractor = currentUser.organization_id;
     } else if (currentUser.user_type === UserType.TENANT) {
-      query.tenant = currentUser.organization_id;
+      // For tenants, include visits where they are the tenant OR they requested the visit
+      query.$or = [
+        { tenant: currentUser.organization_id }, // They are the tenant of the unit
+        { requestedBy: currentUser._id }, // They requested the visit (marketplace)
+      ];
     } else if (currentUser.user_type === UserType.LANDLORD) {
       query.landlord = currentUser.organization_id;
     }
