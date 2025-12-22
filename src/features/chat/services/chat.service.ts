@@ -1140,14 +1140,14 @@ export class ChatService {
       throw new BadRequestException('This operation is only allowed for group chats');
     }
 
-    // Property groups bypass admin check, otherwise require admin
+    // Property groups bypass owner check, otherwise require owner
     const isPropertyWideGroup = thread.linkedEntityType === ThreadLinkedEntityType.PROPERTY;
 
     if (!isPropertyWideGroup) {
-      // For private groups, check if user is admin
-      const isAdmin = await this.isGroupAdmin(threadId, currentUserId);
-      if (!isAdmin) {
-        throw new ForbiddenException('Only group admins can add members to private groups');
+      // For private groups, check if user is the owner
+      const isOwner = thread.createdBy?.toString() === currentUserId;
+      if (!isOwner) {
+        throw new ForbiddenException('Only the group owner can add members to private groups');
       }
     } else {
       // For property groups, verify current user is a participant
@@ -1250,10 +1250,10 @@ export class ChatService {
     const isSelfRemoval = currentUserId === userIdToRemove;
 
     if (!isSelfRemoval) {
-      // For removing others, must be admin
-      const isAdmin = await this.isGroupAdmin(threadId, currentUserId);
-      if (!isAdmin) {
-        throw new ForbiddenException('Only group admins can remove members');
+      // For removing others, must be the owner
+      const isOwner = thread.createdBy?.toString() === currentUserId;
+      if (!isOwner) {
+        throw new ForbiddenException('Only the group owner can remove members');
       }
 
       // Cannot remove the group creator/owner
@@ -1408,6 +1408,13 @@ export class ChatService {
       throw new BadRequestException('This operation is only allowed for group chats');
     }
 
+    // Prevent group owner from leaving without transferring ownership
+    if (thread.createdBy?.toString() === userId) {
+      throw new ForbiddenException(
+        'Group owners cannot leave the group. Please transfer ownership to another member first.',
+      );
+    }
+
     // Check if this is a property group
     if (thread.linkedEntityType === ThreadLinkedEntityType.PROPERTY) {
       // For property groups, check if user has active leases in the property
@@ -1492,10 +1499,10 @@ export class ChatService {
       throw new BadRequestException('This operation is only allowed for group chats');
     }
 
-    // Check if user is admin
-    const isAdmin = await this.isGroupAdmin(threadId, currentUserId);
-    if (!isAdmin) {
-      throw new ForbiddenException('Only group admins can change the group name');
+    // Check if user is the owner
+    const isOwner = thread.createdBy?.toString() === currentUserId;
+    if (!isOwner) {
+      throw new ForbiddenException('Only the group owner can change the group name');
     }
 
     const oldName = thread.title;
@@ -1538,10 +1545,10 @@ export class ChatService {
       throw new BadRequestException('This operation is only allowed for group chats');
     }
 
-    // Check if user is admin
-    const isAdmin = await this.isGroupAdmin(threadId, currentUserId);
-    if (!isAdmin) {
-      throw new ForbiddenException('Only group admins can change the group avatar');
+    // Check if user is the owner
+    const isOwner = thread.createdBy?.toString() === currentUserId;
+    if (!isOwner) {
+      throw new ForbiddenException('Only the group owner can change the group avatar');
     }
 
     // If no file provided, throw error
@@ -1629,10 +1636,16 @@ export class ChatService {
       throw new NotFoundException('New owner not found');
     }
 
-    // Update ownership
+    // Update ownership and transfer admin privileges
+    // First, remove previous owner from admins
+    await this.threadModel.findByIdAndUpdate(threadId, {
+      $pull: { admins: new Types.ObjectId(currentUserId) },
+    });
+
+    // Then, update ownership and ensure new owner is admin
     await this.threadModel.findByIdAndUpdate(threadId, {
       createdBy: new Types.ObjectId(newOwnerId),
-      $addToSet: { admins: new Types.ObjectId(newOwnerId) }, // Ensure new owner is admin
+      $addToSet: { admins: new Types.ObjectId(newOwnerId) },
       updatedAt: new Date(),
     });
 
