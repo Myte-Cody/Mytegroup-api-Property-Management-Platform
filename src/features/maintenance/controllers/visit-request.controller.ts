@@ -20,6 +20,7 @@ import {
 } from '../../../common/casl/policies/visit-request.policies';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Public } from '../../../common/decorators/public.decorator';
+import { OptionalJwtGuard } from '../../../common/guards/optional-jwt.guard';
 import { MongoIdValidationPipe } from '../../../common/pipes/mongo-id-validation.pipe';
 import { User } from '../../users/schemas/user.schema';
 import {
@@ -45,10 +46,14 @@ export class VisitRequestController {
   }
 
   @Post('marketplace')
+  @UseGuards(OptionalJwtGuard)
   @Public()
-  @ApiOperation({ summary: 'Create a marketplace visit request (no authentication required)' })
-  createMarketplace(@Body() createDto: CreateVisitRequestDto) {
-    return this.visitRequestService.create(createDto);
+  @ApiOperation({ summary: 'Create a marketplace visit request (authentication optional)' })
+  createMarketplace(
+    @CurrentUser() user: User | undefined,
+    @Body() createDto: CreateVisitRequestDto,
+  ) {
+    return this.visitRequestService.create(createDto, user);
   }
 
   @Get()

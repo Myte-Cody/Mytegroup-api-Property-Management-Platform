@@ -149,8 +149,8 @@ export class VisitRequestService {
       }
       landlordId = propertyDoc.landlord as mongoose.Types.ObjectId;
     } else if (createDto.sourceType === VisitRequestSourceType.MARKETPLACE) {
-      // Validate contact information for marketplace requests
-      if (!createDto.fullName || !createDto.email || !createDto.phoneNumber) {
+      // Validate contact information only for unauthenticated marketplace requests
+      if (!currentUser && (!createDto.fullName || !createDto.email || !createDto.phoneNumber)) {
         throw new BadRequestException(
           'Full name, email, and phone number are required for marketplace visit requests',
         );
