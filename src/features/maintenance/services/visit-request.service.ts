@@ -570,9 +570,18 @@ export class VisitRequestService {
 
     // Determine recipient
     let recipientUserId: string | undefined;
+    let recipientRole: string;
 
-    if (visitRequest.targetType === VisitRequestTargetType.UNIT && visitRequest.tenant) {
-      // Notify tenant
+    // For marketplace requests, always notify the landlord
+    if (visitRequest.sourceType === VisitRequestSourceType.MARKETPLACE) {
+      const User = this.visitRequestModel.db.model('User');
+      const landlordUser = await User.findOne({ organization_id: visitRequest.landlord }).exec();
+      if (landlordUser) {
+        recipientUserId = landlordUser._id.toString();
+        recipientRole = 'landlord';
+      }
+    } else if (visitRequest.targetType === VisitRequestTargetType.UNIT && visitRequest.tenant) {
+      // For contractor requests to a unit, notify the tenant living there
       const Tenant = this.visitRequestModel.db.model('Tenant');
       const tenant = await Tenant.findById(visitRequest.tenant).exec();
       if (tenant) {
@@ -580,14 +589,16 @@ export class VisitRequestService {
         const tenantUser = await User.findOne({ organization_id: tenant._id }).exec();
         if (tenantUser) {
           recipientUserId = tenantUser._id.toString();
+          recipientRole = 'tenant';
         }
       }
     } else {
-      // Notify landlord
+      // For contractor requests to a property, notify the landlord
       const User = this.visitRequestModel.db.model('User');
       const landlordUser = await User.findOne({ organization_id: visitRequest.landlord }).exec();
       if (landlordUser) {
         recipientUserId = landlordUser._id.toString();
+        recipientRole = 'landlord';
       }
     }
 
@@ -596,7 +607,7 @@ export class VisitRequestService {
         recipientUserId,
         'New Visit Request',
         `${requesterName} has requested a visit on ${visitDateStr} (${visitRequest.startTime} - ${visitRequest.endTime})`,
-        `/dashboard/${visitRequest.tenant ? 'tenant' : 'landlord'}/visit-requests`,
+        `/dashboard/${recipientRole}/visit-requests`,
       );
     }
   }
@@ -610,17 +621,32 @@ export class VisitRequestService {
       visitRequest.status === VisitRequestStatus.APPROVED ? 'accepted' : 'declined';
     const visitDateStr = visitRequest.visitDate.toLocaleDateString();
 
-    // Find contractor user
     const User = this.visitRequestModel.db.model('User');
-    const contractorUser = await User.findOne({ organization_id: visitRequest.contractor }).exec();
 
-    if (contractorUser) {
-      await this.notificationsService.createNotification(
-        contractorUser._id.toString(),
-        `Visit Request ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}`,
-        `${responderName} has ${statusText} your visit request for ${visitDateStr}`,
-        `/dashboard/contractor/visit-requests`,
-      );
+    // For marketplace requests, notify the tenant who made the request
+    if (visitRequest.sourceType === VisitRequestSourceType.MARKETPLACE) {
+      if (visitRequest.requestedBy) {
+        await this.notificationsService.createNotification(
+          visitRequest.requestedBy.toString(),
+          `Visit Request ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}`,
+          `${responderName} has ${statusText} your visit request for ${visitDateStr}`,
+          `/dashboard/tenant/visit-requests/${visitRequest._id}`,
+        );
+      }
+    } else {
+      // For contractor requests, notify the contractor
+      const contractorUser = await User.findOne({
+        organization_id: visitRequest.contractor,
+      }).exec();
+
+      if (contractorUser) {
+        await this.notificationsService.createNotification(
+          contractorUser._id.toString(),
+          `Visit Request ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}`,
+          `${responderName} has ${statusText} your visit request for ${visitDateStr}`,
+          `/dashboard/contractor/visit-requests`,
+        );
+      }
     }
   }
 
@@ -670,17 +696,7 @@ export class VisitRequestService {
       throw new NotFoundException('Visit request not found');
     }
 
-    // 2. Validate source type - only TICKET and SCOPE_OF_WORK
-    if (
-      currentRequest.sourceType !== VisitRequestSourceType.TICKET &&
-      currentRequest.sourceType !== VisitRequestSourceType.SCOPE_OF_WORK
-    ) {
-      throw new BadRequestException(
-        'Time suggestions are only available for ticket and scope of work visit requests',
-      );
-    }
-
-    // 3. Check permission - user must be involved in this visit request
+    // 2. Check permission - user must be involved in this visit request
     const canSuggest = this.canUserSuggestTime(currentRequest, currentUser);
     if (!canSuggest) {
       throw new ForbiddenException(
@@ -688,7 +704,7 @@ export class VisitRequestService {
       );
     }
 
-    // 4. Validate status - can only suggest on PENDING or RESCHEDULED requests
+    // 3. Validate status - can only suggest on PENDING or RESCHEDULED requests
     if (
       currentRequest.status !== VisitRequestStatus.PENDING &&
       currentRequest.status !== VisitRequestStatus.RESCHEDULED
@@ -698,7 +714,7 @@ export class VisitRequestService {
       );
     }
 
-    // 5. Check if there's already a pending suggestion from the current request
+    // 4. Check if there's already a pending suggestion from the current request
     const existingSuggestion = await this.visitRequestModel
       .findOne({
         previousSuggestion: currentRequest._id,
@@ -713,7 +729,7 @@ export class VisitRequestService {
       );
     }
 
-    // 6. Validate availability slot if provided
+    // 5. Validate availability slot if provided
     if (suggestDto.availabilitySlotId) {
       const availabilitySlot = await this.availabilityModel
         .findById(suggestDto.availabilitySlotId)
@@ -723,7 +739,7 @@ export class VisitRequestService {
       }
     }
 
-    // 6.5. Check for time conflicts with existing visits
+    // 6. Check for time conflicts with existing visits
     await this.validateNoTimeConflicts(
       suggestDto.visitDate,
       suggestDto.startTime,
@@ -750,6 +766,11 @@ export class VisitRequestService {
       property: currentRequest.property,
       unit: currentRequest.unit,
       tenant: currentRequest.tenant,
+
+      // Copy contact information for marketplace requests
+      fullName: currentRequest.fullName,
+      email: currentRequest.email,
+      phoneNumber: currentRequest.phoneNumber,
 
       // New suggestion data
       availabilitySlot: suggestDto.availabilitySlotId || currentRequest.availabilitySlot,
@@ -875,15 +896,45 @@ export class VisitRequestService {
           recipientRole = 'landlord';
         }
       }
-    } else {
-      // Notify contractor
+    } else if (suggester.user_type === UserType.TENANT) {
+      // Tenant suggested - notify landlord
       const User = this.visitRequestModel.db.model('User');
-      const contractorUser = await User.findOne({
-        organization_id: newRequest.contractor,
+      const landlordUser = await User.findOne({
+        organization_id: newRequest.landlord,
       }).exec();
-      if (contractorUser) {
-        recipientUserId = contractorUser._id.toString();
-        recipientRole = 'contractor';
+      if (landlordUser) {
+        recipientUserId = landlordUser._id.toString();
+        recipientRole = 'landlord';
+      }
+    } else if (suggester.user_type === UserType.LANDLORD) {
+      // Landlord suggested - notify tenant if exists, or the requester
+      if (newRequest.targetType === VisitRequestTargetType.UNIT && newRequest.tenant) {
+        const User = this.visitRequestModel.db.model('User');
+        const tenantUser = await User.findOne({
+          organization_id: newRequest.tenant,
+        }).exec();
+        if (tenantUser) {
+          recipientUserId = tenantUser._id.toString();
+          recipientRole = 'tenant';
+        }
+      } else if (newRequest.requestedBy) {
+        // For authenticated marketplace requests, notify the requester
+        recipientUserId = newRequest.requestedBy.toString();
+        recipientRole = 'tenant'; // They might not be a tenant yet, but use tenant dashboard
+      }
+      // For unauthenticated marketplace requests with only contact info,
+      // we can't send in-app notifications (no user account)
+    } else {
+      // Fallback: notify contractor if exists
+      if (newRequest.contractor) {
+        const User = this.visitRequestModel.db.model('User');
+        const contractorUser = await User.findOne({
+          organization_id: newRequest.contractor,
+        }).exec();
+        if (contractorUser) {
+          recipientUserId = contractorUser._id.toString();
+          recipientRole = 'contractor';
+        }
       }
     }
 
