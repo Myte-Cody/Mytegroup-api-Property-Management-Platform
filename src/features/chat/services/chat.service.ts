@@ -7,6 +7,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { MemoryStoredFile } from 'nestjs-form-data';
+import { UserType } from '../../../common/enums/user-type.enum';
 import { Lease } from '../../leases/schemas/lease.schema';
 import {
   MessageSenderType,
@@ -824,6 +825,221 @@ export class ChatService {
     // Emit read event to all participants
     if (participantUserIds.length > 0) {
       this.chatGateway.emitMessageRead(participantUserIds, threadId, user, new Date());
+    }
+  }
+
+  /**
+   * Edit a message
+   * - Verify message ownership
+   * - Check if user can edit (considering chat type restrictions)
+   * - Update content and metadata
+   * - Emit WebSocket event
+   */
+  async editMessage(
+    threadId: string,
+    messageId: string,
+    userId: string,
+    newContent: string,
+    currentUser: User,
+  ): Promise<ThreadMessageDocument> {
+    // 1. Find the message
+    const message = await this.threadMessageModel.findOne({
+      _id: new Types.ObjectId(messageId),
+      thread: new Types.ObjectId(threadId),
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+
+    // 2. Verify user is a participant in the thread
+    const participant = await this.threadParticipantModel.findOne({
+      thread: new Types.ObjectId(threadId),
+      participantId: new Types.ObjectId(userId),
+    });
+
+    if (!participant) {
+      throw new ForbiddenException('You are not a participant in this thread');
+    }
+
+    // 3. Check ownership
+    if (message.senderId?.toString() !== userId) {
+      throw new ForbiddenException('You can only edit your own messages');
+    }
+
+    // 4. Check if message is a system message (cannot edit)
+    if (message.isSystemMessage) {
+      throw new ForbiddenException('Cannot edit system messages');
+    }
+
+    // 5. Get thread details to check linkedEntityType
+    const thread = await this.threadModel.findById(threadId);
+    if (!thread) {
+      throw new NotFoundException('Thread not found');
+    }
+
+    // 6. CRITICAL: Property group chat restriction for tenants
+    if (
+      thread.linkedEntityType === ThreadLinkedEntityType.PROPERTY &&
+      currentUser.user_type === UserType.TENANT
+    ) {
+      throw new ForbiddenException(
+        'Tenants cannot edit their messages in property group chats',
+      );
+    }
+
+    // 7. Store original content if not already stored (first edit)
+    if (!message.originalContent) {
+      message.originalContent = message.content;
+    }
+
+    // 8. Update the message
+    message.content = newContent;
+    message.isEdited = true;
+    message.editedAt = new Date();
+    const updatedMessage = await message.save();
+
+    // 9. Populate media if exists
+    await updatedMessage.populate('media');
+
+    // 10. Emit WebSocket event to all participants
+    const allParticipants = await this.threadParticipantModel
+      .find({ thread: new Types.ObjectId(threadId) })
+      .populate('participantId');
+
+    const participantUserIds = allParticipants
+      .map((p) => p.participantId?.toString())
+      .filter(Boolean);
+
+    if (participantUserIds.length > 0) {
+      // Get sender info with fresh profile picture
+      const senderInfoRaw = await this.userModel
+        .findById(userId)
+        .select('_id firstName lastName profilePicture')
+        .lean();
+      const freshSenderUrls = await this.refreshProfilePictureUrls([userId]);
+      const senderInfo = senderInfoRaw
+        ? {
+            ...senderInfoRaw,
+            profilePicture: freshSenderUrls.get(userId) || senderInfoRaw.profilePicture,
+          }
+        : null;
+
+      // Enrich media with URLs
+      let enrichedMedia = [];
+      if ((updatedMessage as any).media && (updatedMessage as any).media.length > 0) {
+        enrichedMedia = await Promise.all(
+          (updatedMessage as any).media.map((media: any) =>
+            this.mediaService.enrichMediaWithUrl(media),
+          ),
+        );
+      }
+
+      const messageToEmit = {
+        _id: updatedMessage._id,
+        message: updatedMessage.content,
+        content: updatedMessage.content,
+        sender: senderInfo,
+        senderId: updatedMessage.senderId,
+        senderType: updatedMessage.senderType,
+        isSystemMessage: updatedMessage.isSystemMessage || false,
+        systemMessageType: updatedMessage.systemMessageType,
+        metadata: updatedMessage.metadata,
+        media: enrichedMedia,
+        readBy: updatedMessage.readBy || [],
+        isEdited: updatedMessage.isEdited,
+        editedAt: updatedMessage.editedAt,
+        createdAt: updatedMessage.createdAt,
+        updatedAt: updatedMessage.updatedAt,
+      };
+
+      this.chatGateway.emitMessageEdited(participantUserIds, threadId, messageToEmit);
+    }
+
+    return updatedMessage;
+  }
+
+  /**
+   * Delete a message (hard delete)
+   * - Verify message ownership
+   * - Check if user can delete (considering chat type restrictions)
+   * - Delete the message permanently
+   * - Emit WebSocket event
+   */
+  async deleteMessage(
+    threadId: string,
+    messageId: string,
+    userId: string,
+    currentUser: User,
+  ): Promise<void> {
+    // 1. Find the message
+    const message = await this.threadMessageModel.findOne({
+      _id: new Types.ObjectId(messageId),
+      thread: new Types.ObjectId(threadId),
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+
+    // 2. Verify user is a participant in the thread
+    const participant = await this.threadParticipantModel.findOne({
+      thread: new Types.ObjectId(threadId),
+      participantId: new Types.ObjectId(userId),
+    });
+
+    if (!participant) {
+      throw new ForbiddenException('You are not a participant in this thread');
+    }
+
+    // 3. Check ownership
+    if (message.senderId?.toString() !== userId) {
+      throw new ForbiddenException('You can only delete your own messages');
+    }
+
+    // 4. Check if message is a system message (cannot delete)
+    if (message.isSystemMessage) {
+      throw new ForbiddenException('Cannot delete system messages');
+    }
+
+    // 5. Get thread details to check linkedEntityType
+    const thread = await this.threadModel.findById(threadId);
+    if (!thread) {
+      throw new NotFoundException('Thread not found');
+    }
+
+    // 6. CRITICAL: Property group chat restriction for tenants
+    if (
+      thread.linkedEntityType === ThreadLinkedEntityType.PROPERTY &&
+      currentUser.user_type === UserType.TENANT
+    ) {
+      throw new ForbiddenException(
+        'Tenants cannot delete their messages in property group chats',
+      );
+    }
+
+    // 7. Delete associated media files if any
+    if ((message as any).media && (message as any).media.length > 0) {
+      await this.mediaModel.deleteMany({
+        model_type: 'ThreadMessage',
+        model_id: new Types.ObjectId(messageId),
+      });
+    }
+
+    // 8. Hard delete the message
+    await this.threadMessageModel.deleteOne({ _id: new Types.ObjectId(messageId) });
+
+    // 9. Emit WebSocket event to all participants
+    const allParticipants = await this.threadParticipantModel
+      .find({ thread: new Types.ObjectId(threadId) })
+      .populate('participantId');
+
+    const participantUserIds = allParticipants
+      .map((p) => p.participantId?.toString())
+      .filter(Boolean);
+
+    if (participantUserIds.length > 0) {
+      this.chatGateway.emitMessageDeleted(participantUserIds, threadId, messageId);
     }
   }
 

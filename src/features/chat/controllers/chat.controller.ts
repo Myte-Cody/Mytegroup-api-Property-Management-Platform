@@ -7,6 +7,7 @@ import { User } from '../../users/schemas/user.schema';
 import { AddGroupMembersDto } from '../dto/add-group-members.dto';
 import { CreateChatSessionDto } from '../dto/create-chat-session.dto';
 import { CreateGroupChatDto } from '../dto/create-group-chat.dto';
+import { EditMessageDto } from '../dto/edit-message.dto';
 import { MuteThreadDto } from '../dto/mute-thread.dto';
 import { SendMessageDto } from '../dto/send-message.dto';
 import { TransferOwnershipDto } from '../dto/transfer-ownership.dto';
@@ -89,6 +90,33 @@ export class ChatController {
 
     await this.chatService.markAsRead(threadId, userId);
     return { success: true };
+  }
+
+  /**
+   * Edit a message in a chat thread
+   */
+  @Put('sessions/:threadId/messages/:messageId')
+  async editMessage(
+    @CurrentUser() user: User,
+    @Param('threadId') threadId: string,
+    @Param('messageId') messageId: string,
+    @Body() editMessageDto: EditMessageDto,
+  ) {
+    const userId = user._id.toString();
+    return this.chatService.editMessage(threadId, messageId, userId, editMessageDto.content, user);
+  }
+
+  /**
+   * Delete a message in a chat thread (soft delete)
+   */
+  @Delete('sessions/:threadId/messages/:messageId')
+  async deleteMessage(
+    @CurrentUser() user: User,
+    @Param('threadId') threadId: string,
+    @Param('messageId') messageId: string,
+  ) {
+    const userId = user._id.toString();
+    return this.chatService.deleteMessage(threadId, messageId, userId, user);
   }
 
   /**

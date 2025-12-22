@@ -146,6 +146,28 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     });
   }
 
+  // Emit message edited event
+  emitMessageEdited(userIds: string[], threadId: string, message: any) {
+    userIds.forEach((userId) => {
+      this.server.to(`user:${userId}`).emit('chat:message:edited', {
+        threadId,
+        message,
+      });
+    });
+    this.logger.debug(`Emitted message edited event for thread ${threadId}`);
+  }
+
+  // Emit message deleted event
+  emitMessageDeleted(userIds: string[], threadId: string, messageId: string) {
+    userIds.forEach((userId) => {
+      this.server.to(`user:${userId}`).emit('chat:message:deleted', {
+        threadId,
+        messageId,
+      });
+    });
+    this.logger.debug(`Emitted message deleted event for thread ${threadId}`);
+  }
+
   // Check if user is connected
   isUserConnected(userId: string): boolean {
     return this.userSocketMap.has(userId) && this.userSocketMap.get(userId)!.size > 0;

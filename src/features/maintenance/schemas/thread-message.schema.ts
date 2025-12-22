@@ -59,6 +59,22 @@ export class ThreadMessage {
   @Prop({ type: Object, required: false })
   metadata?: Record<string, any>; // Additional data for system messages (e.g., old/new names, user IDs)
 
+  // Edit/Delete tracking fields
+  @Prop({ type: Boolean, default: false })
+  isEdited: boolean;
+
+  @Prop({ type: Date, required: false })
+  editedAt?: Date;
+
+  @Prop({ type: Boolean, default: false })
+  isDeleted: boolean;
+
+  @Prop({ type: Date, required: false })
+  deletedAt?: Date;
+
+  @Prop({ type: String, required: false })
+  originalContent?: string; // Store original content for audit trail (not displayed to users)
+
   createdAt?: Date;
   updatedAt?: Date;
 }
