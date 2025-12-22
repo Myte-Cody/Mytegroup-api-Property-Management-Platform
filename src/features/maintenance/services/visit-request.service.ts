@@ -390,7 +390,31 @@ export class VisitRequestService {
 
     // Check access
     if (currentUser.user_type === UserType.TENANT) {
-      if (visitRequest.tenant?.toString() !== currentUser.organization_id?.toString()) {
+      const tenantId = visitRequest.tenant?._id
+        ? visitRequest.tenant._id.toString()
+        : visitRequest.tenant?.toString();
+      const isTenant = tenantId === currentUser.organization_id?.toString();
+
+      // Check if this is a marketplace request they created that was rescheduled by landlord
+      let isMarketplaceRequesterRespondingToReschedule = false;
+      if (
+        visitRequest.sourceType === VisitRequestSourceType.MARKETPLACE &&
+        visitRequest.suggestedBy
+      ) {
+        // Check if they are the original requester
+        if (visitRequest.requestedBy) {
+          const requestedByStr = visitRequest.requestedBy._id
+            ? visitRequest.requestedBy._id.toString()
+            : visitRequest.requestedBy.toString();
+          const currentUserStr = currentUser._id.toString();
+          isMarketplaceRequesterRespondingToReschedule = requestedByStr === currentUserStr;
+        }
+      }
+
+      // Tenants can respond to:
+      // 1. Visits for units they are renting
+      // 2. Marketplace requests that were rescheduled by the landlord
+      if (!isTenant && !isMarketplaceRequesterRespondingToReschedule) {
         throw new ForbiddenException('You do not have permission to respond to this visit request');
       }
     } else if (currentUser.user_type === UserType.LANDLORD) {
@@ -423,20 +447,38 @@ export class VisitRequestService {
   }
 
   async cancel(id: string, currentUser: UserDocument): Promise<VisitRequestDocument> {
-    // Only contractors can cancel their own visit requests
-    if (currentUser.user_type !== UserType.CONTRACTOR) {
-      throw new ForbiddenException('Only contractors can cancel visit requests');
-    }
-
     const visitRequest = await this.visitRequestModel.findOne({ _id: id, deleted: false }).exec();
 
     if (!visitRequest) {
       throw new NotFoundException('Visit request not found');
     }
 
-    // Verify ownership
-    if (visitRequest.contractor?.toString() !== currentUser.organization_id?.toString()) {
-      throw new ForbiddenException('You can only cancel your own visit requests');
+    // Check permission based on user type
+    if (currentUser.user_type === UserType.CONTRACTOR) {
+      // Contractors can cancel their own visit requests
+      if (visitRequest.contractor?.toString() !== currentUser.organization_id?.toString()) {
+        throw new ForbiddenException('You can only cancel your own visit requests');
+      }
+    } else if (currentUser.user_type === UserType.TENANT) {
+      // Tenants can cancel marketplace visit requests they created
+      if (visitRequest.sourceType !== VisitRequestSourceType.MARKETPLACE) {
+        throw new ForbiddenException('You can only cancel marketplace visit requests you created');
+      }
+
+      if (!visitRequest.requestedBy) {
+        throw new ForbiddenException('You can only cancel marketplace visit requests you created');
+      }
+
+      const requestedByStr = visitRequest.requestedBy._id
+        ? visitRequest.requestedBy._id.toString()
+        : visitRequest.requestedBy.toString();
+      const currentUserStr = currentUser._id.toString();
+
+      if (requestedByStr !== currentUserStr) {
+        throw new ForbiddenException('You can only cancel marketplace visit requests you created');
+      }
+    } else {
+      throw new ForbiddenException('Only contractors and tenants can cancel visit requests');
     }
 
     // Can only cancel pending requests
@@ -464,7 +506,11 @@ export class VisitRequestService {
     if (currentUser.user_type === UserType.CONTRACTOR) {
       query.contractor = currentUser.organization_id;
     } else if (currentUser.user_type === UserType.TENANT) {
-      query.tenant = currentUser.organization_id;
+      // For tenants, include visits where they are the tenant OR they requested the visit
+      query.$or = [
+        { tenant: currentUser.organization_id }, // They are the tenant of the unit
+        { requestedBy: currentUser._id }, // They requested the visit (marketplace)
+      ];
     } else if (currentUser.user_type === UserType.LANDLORD) {
       query.landlord = currentUser.organization_id;
     }
@@ -489,7 +535,11 @@ export class VisitRequestService {
     if (currentUser.user_type === UserType.CONTRACTOR) {
       query.contractor = currentUser.organization_id;
     } else if (currentUser.user_type === UserType.TENANT) {
-      query.tenant = currentUser.organization_id;
+      // For tenants, include visits where they are the tenant OR they requested the visit
+      query.$or = [
+        { tenant: currentUser.organization_id }, // They are the tenant of the unit
+        { requestedBy: currentUser._id }, // They requested the visit (marketplace)
+      ];
     } else if (currentUser.user_type === UserType.LANDLORD) {
       query.landlord = currentUser.organization_id;
     }
@@ -549,11 +599,23 @@ export class VisitRequestService {
         throw new ForbiddenException('You do not have access to this visit request');
       }
     } else if (currentUser.user_type === UserType.TENANT) {
-      const tenantId =
-        typeof visitRequest.tenant === 'object' && visitRequest.tenant?._id
-          ? visitRequest.tenant._id.toString()
-          : visitRequest.tenant?.toString();
-      if (tenantId !== orgId) {
+      const tenantId = visitRequest.tenant?._id
+        ? visitRequest.tenant._id.toString()
+        : visitRequest.tenant?.toString();
+
+      const isTenant = tenantId === orgId;
+
+      // Check if they requested the visit (for marketplace requests)
+      let isRequester = false;
+      if (visitRequest.requestedBy) {
+        const requestedByStr = visitRequest.requestedBy._id
+          ? visitRequest.requestedBy._id.toString()
+          : visitRequest.requestedBy.toString();
+        const currentUserStr = currentUser._id.toString();
+        isRequester = requestedByStr === currentUserStr;
+      }
+
+      if (!isTenant && !isRequester) {
         throw new ForbiddenException('You do not have access to this visit request');
       }
     } else if (currentUser.user_type === UserType.LANDLORD) {
@@ -708,13 +770,10 @@ export class VisitRequestService {
       );
     }
 
-    // 3. Validate status - can only suggest on PENDING or RESCHEDULED requests
-    if (
-      currentRequest.status !== VisitRequestStatus.PENDING &&
-      currentRequest.status !== VisitRequestStatus.RESCHEDULED
-    ) {
+    // 3. Validate status - can only suggest on PENDING requests
+    if (currentRequest.status !== VisitRequestStatus.PENDING) {
       throw new BadRequestException(
-        'Can only suggest alternative times for pending or rescheduled visit requests',
+        'Can only suggest alternative times for pending visit requests',
       );
     }
 
@@ -851,9 +910,24 @@ export class VisitRequestService {
       return true;
     }
 
-    // Tenant can suggest (for unit visits)
-    if (currentUser.user_type === UserType.TENANT && visitRequest.tenant?.toString() === orgId) {
-      return true;
+    // Tenant can suggest (for unit visits OR if they requested the visit)
+    if (currentUser.user_type === UserType.TENANT) {
+      const isTenant = visitRequest.tenant?.toString() === orgId;
+
+      // Check if they requested the visit (for marketplace requests)
+      if (visitRequest.requestedBy) {
+        const requestedByStr = visitRequest.requestedBy._id
+          ? visitRequest.requestedBy._id.toString()
+          : visitRequest.requestedBy.toString();
+        const currentUserStr = currentUser._id.toString();
+        const isRequester = requestedByStr === currentUserStr;
+
+        if (isTenant || isRequester) {
+          return true;
+        }
+      } else if (isTenant) {
+        return true;
+      }
     }
 
     // Landlord can suggest
