@@ -883,9 +883,7 @@ export class ChatService {
       thread.linkedEntityType === ThreadLinkedEntityType.PROPERTY &&
       currentUser.user_type === UserType.TENANT
     ) {
-      throw new ForbiddenException(
-        'Tenants cannot edit their messages in property group chats',
-      );
+      throw new ForbiddenException('Tenants cannot edit their messages in property group chats');
     }
 
     // 7. Store original content if not already stored (first edit)
@@ -1013,9 +1011,7 @@ export class ChatService {
       thread.linkedEntityType === ThreadLinkedEntityType.PROPERTY &&
       currentUser.user_type === UserType.TENANT
     ) {
-      throw new ForbiddenException(
-        'Tenants cannot delete their messages in property group chats',
-      );
+      throw new ForbiddenException('Tenants cannot delete their messages in property group chats');
     }
 
     // 7. Delete associated media files if any

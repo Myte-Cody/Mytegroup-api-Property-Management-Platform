@@ -1,9 +1,9 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { NestjsFormDataModule } from 'nestjs-form-data';
-import { Availability, AvailabilitySchema } from '../availability/schemas/availability.schema';
 import { CaslModule } from '../../common/casl/casl.module';
 import { CommonModule } from '../../common/common.module';
+import { Availability, AvailabilitySchema } from '../availability/schemas/availability.schema';
 import { MaintenanceModule } from '../maintenance/maintenance.module';
 import {
   MaintenanceTicket,

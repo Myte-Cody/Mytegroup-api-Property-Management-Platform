@@ -23,7 +23,10 @@ import { SessionService } from '../../../common/services/session.service';
 import { TenancyContextService } from '../../../common/services/tenancy-context.service';
 import { addDaysToDate, getToday } from '../../../common/utils/date.utils';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
-import { Availability, AvailabilityCreatedBy } from '../../availability/schemas/availability.schema';
+import {
+  Availability,
+  AvailabilityCreatedBy,
+} from '../../availability/schemas/availability.schema';
 import { LeaseEmailService } from '../../email/services/lease-email.service';
 import { VisitRequest, VisitRequestStatus } from '../../maintenance/schemas/visit-request.schema';
 import { ThreadsService } from '../../maintenance/services/threads.service';
@@ -1389,10 +1392,7 @@ export class LeasesService {
           );
         }
       } catch (error) {
-        console.error(
-          `Failed to notify contractor for visit request ${request._id}:`,
-          error,
-        );
+        console.error(`Failed to notify contractor for visit request ${request._id}:`, error);
       }
     }
   }
@@ -1483,11 +1483,7 @@ export class LeasesService {
           const property = populatedUnit.property as any;
           const unitNumber = populatedUnit.unitNumber || 'N/A';
 
-          await this.notifyVisitRequestCancellations(
-            cancelledVisitRequests,
-            property,
-            unitNumber,
-          );
+          await this.notifyVisitRequestCancellations(cancelledVisitRequests, property, unitNumber);
         }
       }
 
