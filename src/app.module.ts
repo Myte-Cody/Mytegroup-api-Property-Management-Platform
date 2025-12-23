@@ -19,6 +19,7 @@ import { ContractorModule } from './features/contractors/contractor.module';
 import { DepositsModule } from './features/deposits/deposits.module';
 import { EmailModule } from './features/email/email.module';
 import { ExpensesModule } from './features/expenses/expenses.module';
+import { SmsModule } from './features/sms/sms.module';
 import { FavoritesModule } from './features/favorites/favorites.module';
 import { FeedPostsModule } from './features/feed-posts/feed-posts.module';
 import { FeedbackModule } from './features/feedback/feedback.module';
@@ -58,6 +59,10 @@ const queueModules = enableQueues
         adapter: BullMQAdapter,
       }),
       BullBoardModule.forFeature({
+        name: 'sms',
+        adapter: BullMQAdapter,
+      }),
+      BullBoardModule.forFeature({
         name: 'feedback-analysis',
         adapter: BullMQAdapter,
       }),
@@ -89,6 +94,7 @@ const queueModules = enableQueues
     AuthModule,
     ChatModule,
     EmailModule,
+    SmsModule,
     UsersModule,
     LandlordModule,
     TenantsModule,

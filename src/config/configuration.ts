@@ -38,6 +38,12 @@ export default () => {
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
       useEthereal: process.env.EMAIL_USE_ETHEREAL === 'true',
     },
+    sms: {
+      accountSid: process.env.TWILIO_ACCOUNT_SID,
+      authToken: process.env.TWILIO_AUTH_TOKEN,
+      fromNumber: process.env.TWILIO_PHONE_NUMBER,
+      enabled: process.env.TWILIO_ENABLED === 'true',
+    },
     redis: {
       host: process.env.REDIS_HOST || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6379', 10),
