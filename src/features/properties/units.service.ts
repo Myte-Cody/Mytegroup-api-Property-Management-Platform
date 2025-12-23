@@ -344,7 +344,7 @@ export class UnitsService {
       favoritedUnitIds = new Set(favorites.map((f) => f.unit.toString()));
     }
 
-    // Fetch media for each unit and add favorite status
+    // Fetch media for each unit and property, add favorite status
     const unitsWithMedia = await Promise.all(
       units.map(async (unit) => {
         const media = await this.mediaService.getMediaForEntity(
@@ -354,8 +354,26 @@ export class UnitsService {
           undefined,
           {},
         );
+
+        // Fetch property media if property is populated
+        let propertyWithMedia = unit.property;
+        if (unit.property && unit.property._id) {
+          const propertyMedia = await this.mediaService.getMediaForEntity(
+            'Property',
+            unit.property._id.toString(),
+            null,
+            undefined,
+            {},
+          );
+          propertyWithMedia = {
+            ...unit.property,
+            media: propertyMedia,
+          };
+        }
+
         return {
           ...unit,
+          property: propertyWithMedia,
           media,
           isFavorited: favoritedUnitIds.has(unit._id.toString()),
         };
