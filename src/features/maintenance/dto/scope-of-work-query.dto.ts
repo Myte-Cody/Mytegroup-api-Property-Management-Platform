@@ -6,6 +6,7 @@ import { TicketStatus } from '../../../common/enums/maintenance.enum';
 export enum SowViewType {
   PARENT = 'parent',
   PROPERTY = 'property',
+  PROPERTY_WIDE = 'property_wide',
   UNIT = 'unit',
 }
 
@@ -113,7 +114,7 @@ export class ScopeOfWorkQueryDto {
   endDate?: Date;
 
   @ApiPropertyOptional({
-    description: 'Filter by view type (parent, property, or unit)',
+    description: 'Filter by view type (parent, property, property_wide, or unit)',
     enum: SowViewType,
     example: SowViewType.PARENT,
   })

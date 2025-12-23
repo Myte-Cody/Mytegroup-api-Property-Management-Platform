@@ -119,7 +119,13 @@ export class ScopeOfWorkService {
           baseQuery = baseQuery.where({ parentSow: null });
           break;
         case SowViewType.PROPERTY:
-          // Property view: SOWs where property is set but unit is null
+          // Property view: All SOWs for a property (both unit-specific and property-wide)
+          baseQuery = baseQuery.where({
+            property: { $ne: null },
+          });
+          break;
+        case SowViewType.PROPERTY_WIDE:
+          // Property-wide view: SOWs where property is set but unit is null
           baseQuery = baseQuery.where({
             property: { $ne: null },
             unit: null,
@@ -254,13 +260,18 @@ export class ScopeOfWorkService {
       const hasMultipleProperties = ticketsByProperty.size > 1;
 
       // If tickets are from a single property, check if they're from different units
+      // OR if there's a mix of property-level and unit-level tickets
       let hasMultipleUnits = false;
       if (!hasMultipleProperties) {
         const singlePropertyTickets = Array.from(ticketsByProperty.values())[0];
-        const unitIds = new Set(
-          singlePropertyTickets.filter((t) => t.unit).map((t) => t.unit!.toString()),
-        );
-        hasMultipleUnits = unitIds.size > 1;
+        const unitTickets = singlePropertyTickets.filter((t) => t.unit);
+        const propertyLevelTickets = singlePropertyTickets.filter((t) => !t.unit);
+        const unitIds = new Set(unitTickets.map((t) => t.unit!.toString()));
+
+        // Need sub-scopes if:
+        // 1. There are multiple different units, OR
+        // 2. There's a mix of property-level tickets AND unit-level tickets
+        hasMultipleUnits = unitIds.size > 1 || (unitTickets.length > 0 && propertyLevelTickets.length > 0);
       }
 
       // Create the parent SOW
@@ -334,17 +345,15 @@ export class ScopeOfWorkService {
           );
         }
 
-        // If there are property-level tickets, assign them to the parent SOW
+        // If there are property-level tickets, create a "Property Wide" sub-SOW
         if (propertyLevelTickets.length > 0) {
-          await this.ticketModel.updateMany(
-            { _id: { $in: propertyLevelTickets.map((t) => t._id) } },
-            { $set: { scopeOfWork: scopeOfWork._id } },
-            { session },
+          await this.createPropertyWideSubScope(
+            scopeOfWork,
+            firstTicket.property,
+            propertyLevelTickets,
+            currentUser,
+            session,
           );
-
-          for (const ticket of propertyLevelTickets) {
-            await this.notifyTenantOfTicketGroupedToSow(ticket, scopeOfWork, session);
-          }
         }
       } else {
         // All tickets are from the same property and unit, no sub-scopes needed
@@ -421,8 +430,12 @@ export class ScopeOfWorkService {
       { session },
     );
 
-    // If tickets are from multiple units, create unit sub-scopes
-    if (ticketsByUnit.size > 1) {
+    // If tickets are from multiple units OR there's a mix of property-level and unit-level tickets,
+    // create unit sub-scopes
+    const needsSubScopes = ticketsByUnit.size > 1 || (ticketsByUnit.size > 0 && propertyLevelTickets.length > 0);
+
+    if (needsSubScopes) {
+      // Create unit sub-scopes for each unit
       for (const [unitId, unitTickets] of ticketsByUnit.entries()) {
         await this.createUnitSubScope(
           propertySubScope,
@@ -434,17 +447,15 @@ export class ScopeOfWorkService {
         );
       }
 
-      // If there are property-level tickets, assign them to the property sub-scope
+      // If there are property-level tickets, create a "Property Wide" sub-SOW
       if (propertyLevelTickets.length > 0) {
-        await this.ticketModel.updateMany(
-          { _id: { $in: propertyLevelTickets.map((t) => t._id) } },
-          { $set: { scopeOfWork: propertySubScope._id } },
-          { session },
+        await this.createPropertyWideSubScope(
+          propertySubScope,
+          propertyId,
+          propertyLevelTickets,
+          currentUser,
+          session,
         );
-
-        for (const ticket of propertyLevelTickets) {
-          await this.notifyTenantOfTicketGroupedToSow(ticket, propertySubScope, session);
-        }
       }
     } else {
       // All tickets are from the same unit or are property-level, assign to property sub-scope
@@ -512,6 +523,53 @@ export class ScopeOfWorkService {
     }
 
     return unitSubScope;
+  }
+
+  /**
+   * Creates a sub-scope of work for property-wide tickets (tickets assigned to property only)
+   */
+  private async createPropertyWideSubScope(
+    parentSow: ScopeOfWorkDocument,
+    propertyId: string | Types.ObjectId,
+    tickets: MaintenanceTicketDocument[],
+    _currentUser: UserDocument,
+    session: ClientSession,
+  ): Promise<ScopeOfWorkDocument> {
+    // Generate sub-SOW number for property wide
+    const propertyWideSowNumber = await TicketReferenceUtils.generateUniqueSowNumber(
+      this.scopeOfWorkModel,
+      true,
+      5,
+      session,
+    );
+
+    // Create property wide sub-scope
+    const [propertyWideSubScope] = await this.scopeOfWorkModel.create(
+      [
+        {
+          sowNumber: `Property Wide Scope: ${propertyWideSowNumber}`,
+          title: `${parentSow.title} - Property Wide`,
+          description: parentSow.description,
+          parentSow: parentSow._id,
+          property: propertyId,
+          unit: null,
+        },
+      ],
+      { session },
+    );
+
+    // Assign all tickets to this property wide sub-scope
+    await this.ticketModel.updateMany(
+      { _id: { $in: tickets.map((t) => t._id) } },
+      { $set: { scopeOfWork: propertyWideSubScope._id } },
+      { session },
+    );
+
+    for (const ticket of tickets) {
+      await this.notifyTenantOfTicketGroupedToSow(ticket, propertyWideSubScope, session);
+    }
+
+    return propertyWideSubScope;
   }
 
   async remove(id: string, _currentUser: UserDocument) {
