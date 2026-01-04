@@ -10,7 +10,15 @@ import { AppGuard } from './common/guards/app.guard';
 import { CsrfGuard } from './common/guards/csrf.guard';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: true,
+  });
+
+  // Configure query parser to handle array parameters with brackets
+  app.set('query parser', (str: string) => {
+    const qs = require('qs');
+    return qs.parse(str, { arrayLimit: 100 });
+  });
 
   app.useStaticAssets(join(__dirname, '..', 'uploads'), {
     prefix: '/uploads/',
