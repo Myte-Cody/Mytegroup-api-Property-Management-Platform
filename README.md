@@ -16,7 +16,7 @@ Enterprise-grade property management platform built with modern technologies:
 
 ### Prerequisites
 
-- Node.js >= 18
+- Node.js 22.x (see .nvmrc)
 - MongoDB >= 5.0 (must be configured as replica set for transactions)
 - Redis >= 6.0 (for job queues and caching)
 - npm or yarn

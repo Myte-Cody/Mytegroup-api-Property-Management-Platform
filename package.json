@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "license": "ISC",
+  "packageManager": "npm@10.9.4",
+  "engines": {
+    "node": "22.21.1",
+    "npm": "10.9.4"
+  },
   "scripts": {
     "build": "nest build",
     "start": "node dist/main.js",

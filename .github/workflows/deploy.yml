@@ -68,6 +68,19 @@ jobs:
         run: |
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -t $REGISTRY/$REPOSITORY:latest .
           docker push -a $REGISTRY/$REPOSITORY
+      
+      - name: Resolve image digest for task definition
+        id: image-digest
+        env:
+          REPOSITORY: ${{ steps.get_repo_name.outputs.repo_name }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          IMAGE_DIGEST=$(aws ecr describe-images \
+            --repository-name $REPOSITORY \
+            --image-ids imageTag=$IMAGE_TAG \
+            --query 'imageDetails[0].imageDigest' \
+            --output text)
+          echo "image_digest=$IMAGE_DIGEST" >> $GITHUB_OUTPUT
 
       - name: Get VPC information for target group
         id: vpc-info
@@ -175,6 +188,7 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ steps.get_repo_name.outputs.repo_name }}
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          IMAGE_DIGEST: ${{ steps.image-digest.outputs.image_digest }}
           CONTAINER_NAME: ${{ steps.get_repo_name.outputs.container_name }}
           TASK_FAMILY: ${{ steps.get_repo_name.outputs.task_family }}
           DNS_SAFE_REPO: ${{ steps.get_repo_name.outputs.repo_name }}
@@ -193,7 +207,7 @@ jobs:
             "containerDefinitions": [
               {
                 "name": "${CONTAINER_NAME}",
-                "image": "${REGISTRY}/${REPOSITORY}:${IMAGE_TAG}",
+                "image": "${REGISTRY}/${REPOSITORY}@${IMAGE_DIGEST}",
                 "memory": 1024,
                 "cpu": 256,
                 "essential": true,
@@ -424,6 +438,7 @@ jobs:
         env:
           REPOSITORY: ${{ steps.get_repo_name.outputs.repo_name }}
           TASK_FAMILY: ${{ steps.get_repo_name.outputs.task_family }}
+          IMAGE_DIGEST: ${{ steps.image-digest.outputs.image_digest }}
         run: |
           # Keep only the latest 5 task definition revisions
           TASK_REVISIONS=$(aws ecs list-task-definitions \
@@ -456,33 +471,56 @@ jobs:
           if [ "$REPO_CHECK" == "" ]; then
             echo "Repository does not exist or is empty"
           else
-            # Get all image digests first
-            ALL_DIGESTS=$(aws ecr list-images \
-              --repository-name $REPOSITORY \
-              --query 'imageIds[*].imageDigest' \
+            # Collect digests referenced by active task definitions in this family.
+            TASK_DEF_ARNS=$(aws ecs list-task-definitions \
+              --family-prefix $TASK_FAMILY \
+              --status ACTIVE \
+              --sort DESC \
+              --query 'taskDefinitionArns' \
               --output json)
 
-            # Get digests of images with the "latest" tag
-            LATEST_DIGESTS=$(aws ecr list-images \
+            TASK_DEF_DIGESTS=""
+            for ARN in $(echo $TASK_DEF_ARNS | jq -r '.[]'); do
+              TD_IMAGE=$(aws ecs describe-task-definition \
+                --task-definition $ARN \
+                --query 'taskDefinition.containerDefinitions[0].image' \
+                --output text)
+              if echo "$TD_IMAGE" | grep -q '@'; then
+                TASK_DEF_DIGESTS="$TASK_DEF_DIGESTS $(echo $TD_IMAGE | awk -F@ '{print $2}')"
+              fi
+            done
+
+            # Capture the digest for the "latest" tag, if it exists.
+            LATEST_DIGEST=$(aws ecr describe-images \
               --repository-name $REPOSITORY \
-              --query 'imageIds[?imageTag==`latest`].imageDigest' \
+              --image-ids imageTag=latest \
+              --query 'imageDetails[0].imageDigest' \
+              --output text 2>/dev/null || echo "")
+
+            PROTECTED_DIGEST_MAP=$(printf '%s\n' $IMAGE_DIGEST $LATEST_DIGEST $TASK_DEF_DIGESTS | sort -u | jq -R -s 'split("\n") | map(select(length>0 and .!="None")) | reduce .[] as $d ({}; .[$d]=true)')
+
+            # Sort images by push time, keep the most recent 10 plus protected digests.
+            ALL_IMAGES=$(aws ecr describe-images \
+              --repository-name $REPOSITORY \
+              --query 'imageDetails' \
               --output json)
 
-            # Find digests to delete (all except latest and 10 most recent)
-            # Use jq to do the filtering
-            if [ "$(echo $ALL_DIGESTS | jq 'length')" -gt 10 ]; then
+            NUM_IMAGES=$(echo $ALL_IMAGES | jq 'length')
+            if [ "$NUM_IMAGES" -gt 10 ]; then
               echo "More than 10 images found, cleaning up older ones..."
+              DELETE_JSON=$(echo $ALL_IMAGES | jq --argjson protected "$PROTECTED_DIGEST_MAP" '
+                sort_by(.imagePushedAt) |
+                .[0:-(10)] |
+                map(
+                  .imageDigest as $d |
+                  select($d != null and $d != "") |
+                  select((($protected | has($d)) | not) and ((.imageTags // []) | index("latest") | not)) |
+                  {imageDigest: $d}
+                ) |
+                {imageIds: .}
+              ')
 
-              # Use jq to create image ID objects for deletion, excluding "latest"
-              DELETE_JSON=$(aws ecr list-images \
-                --repository-name $REPOSITORY \
-                --output json | \
-                jq --argjson latest "$LATEST_DIGESTS" \
-                   '{imageIds: .imageIds | sort_by(.imageDigest) | .[0:-(10+($latest|length))] | map(select(.imageTag != "latest"))}')
-
-              # Check if we have any images to delete
               NUM_TO_DELETE=$(echo $DELETE_JSON | jq '.imageIds | length')
-
               if [ "$NUM_TO_DELETE" -gt 0 ]; then
                 echo "Deleting $NUM_TO_DELETE old images..."
                 aws ecr batch-delete-image \
