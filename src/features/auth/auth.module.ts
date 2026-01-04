@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
+import type { StringValue } from 'ms';
 import { Contractor, ContractorSchema } from '../contractors/schema/contractor.schema';
 import { AuthEmailService } from '../email/services/auth-email.service';
 import { Landlord, LandlordSchema } from '../landlords/schema/landlord.schema';
@@ -29,7 +30,9 @@ import { VerificationToken, VerificationTokenSchema } from './schemas/verificati
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET') || 'super-secret-key',
-        signOptions: { expiresIn: configService.get<string>('auth.jwtExpiration') || '15m' },
+        signOptions: {
+          expiresIn: (configService.get<string>('auth.jwtExpiration') || '15m') as StringValue,
+        },
       }),
     }),
   ],
