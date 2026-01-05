@@ -15,8 +15,9 @@ import { Contractor } from '../../../features/contractors/schema/contractor.sche
 import { Lease } from '../../../features/leases/schemas/lease.schema';
 import { Property } from '../../../features/properties/schemas/property.schema';
 import { Unit } from '../../../features/properties/schemas/unit.schema';
-import { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationDispatcherService } from '../../notifications/notification-dispatcher.service';
 import { User, UserDocument } from '../../users/schemas/user.schema';
+import { NotificationType } from '@shared/notification-types';
 import { AcceptSowDto } from '../dto/accept-sow.dto';
 import { AddTicketSowDto } from '../dto/add-ticket-sow.dto';
 import { AssignContractorSowDto } from '../dto/assign-contractor-sow.dto';
@@ -49,7 +50,7 @@ export class ScopeOfWorkService {
     @InjectModel(Unit.name)
     private readonly unitModel: AppModel<Unit>,
     private readonly sessionService: SessionService,
-    private readonly notificationsService: NotificationsService,
+    private readonly notificationDispatcher: NotificationDispatcherService,
     @Inject(forwardRef(() => InvoicesService))
     private readonly invoicesService: InvoicesService,
     @Inject(forwardRef(() => ThreadsService))
@@ -1247,8 +1248,9 @@ export class ScopeOfWorkService {
         return;
       }
 
-      await this.notificationsService.createNotification(
+      await this.notificationDispatcher.sendInAppNotification(
         requestedByUser._id.toString(),
+        NotificationType.MAINTENANCE_STATUS_CHANGED_IN_PROGRESS,
         'Ticket Grouped',
         `📦 Your maintenance request "${ticket.title}" has been grouped into a maintenance job (${scopeOfWork.sowNumber}). The work will still be processed as part of that job.`,
         `/dashboard/tenant/maintenance/tickets/${ticket._id}`,

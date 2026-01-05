@@ -10,8 +10,9 @@ import { Contractor } from '../../contractors/schema/contractor.schema';
 import { Lease } from '../../leases/schemas/lease.schema';
 import { Media } from '../../media/schemas/media.schema';
 import { MediaService } from '../../media/services/media.service';
-import { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationDispatcherService } from '../../notifications/notification-dispatcher.service';
 import { Tenant } from '../../tenants/schema/tenant.schema';
+import { NotificationType } from '@shared/notification-types';
 import { User, UserDocument } from '../../users/schemas/user.schema';
 import { AcceptThreadDto } from '../dto/accept-thread.dto';
 import { CreateThreadMessageDto } from '../dto/create-thread-message.dto';
@@ -58,7 +59,7 @@ export class ThreadsService {
     @InjectModel(Tenant.name)
     private tenantModel: Model<Tenant>,
     private mediaService: MediaService,
-    private notificationsService: NotificationsService,
+    private notificationDispatcher: NotificationDispatcherService,
   ) {}
 
   async create(createThreadDto: CreateThreadDto): Promise<ThreadDocument> {
@@ -900,8 +901,9 @@ export class ThreadsService {
 
       for (const user of allUsers) {
         const dashboardPath = user.user_type === 'Landlord' ? 'landlord' : 'tenant';
-        await this.notificationsService.createNotification(
+        await this.notificationDispatcher.sendInAppNotification(
           user._id.toString(),
+          NotificationType.MESSAGE_NEW_GROUP,
           'New Communication Channel',
           `A new communication thread has been created for your lease: ${thread.title}`,
           `/dashboard/${dashboardPath}/chat`,
@@ -1350,15 +1352,17 @@ export class ThreadsService {
 
       // Send appropriate notification based on whether there are attachments
       if (hasAttachments) {
-        await this.notificationsService.createNotification(
+        await this.notificationDispatcher.sendInAppNotification(
           landlordUser._id.toString(),
+          NotificationType.MESSAGE_NEW_DIRECT,
           'New Attachment',
           `📎 ${senderName} attached a file in ${entityTitle}.`,
           actionUrl,
         );
       } else {
-        await this.notificationsService.createNotification(
+        await this.notificationDispatcher.sendInAppNotification(
           landlordUser._id.toString(),
+          NotificationType.MESSAGE_NEW_DIRECT,
           'New Message',
           `💬 ${senderName} sent a new message in ${entityTitle}.`,
           actionUrl,
@@ -1460,15 +1464,17 @@ export class ThreadsService {
         }
 
         if (hasAttachments) {
-          return this.notificationsService.createNotification(
+          return this.notificationDispatcher.sendInAppNotification(
             user._id.toString(),
+            NotificationType.MESSAGE_NEW_GROUP,
             'New Attachment',
             `📎 A new file was shared in ${entityTitle}.`,
             actionUrl,
           );
         } else {
-          return this.notificationsService.createNotification(
+          return this.notificationDispatcher.sendInAppNotification(
             user._id.toString(),
+            NotificationType.MESSAGE_NEW_GROUP,
             'New Message',
             `💬 ${senderName} sent you a message in ${entityTitle}.`,
             actionUrl,
@@ -1515,8 +1521,9 @@ export class ThreadsService {
             : user.user_type === 'Landlord'
               ? 'landlord'
               : 'tenant';
-        return this.notificationsService.createNotification(
+        return this.notificationDispatcher.sendInAppNotification(
           user._id.toString(),
+          NotificationType.MESSAGE_GROUP_INVITE,
           'Thread Invitation',
           `📨 You've been invited to join the discussion in ${sowTitle}.`,
           `/dashboard/${userDashboard}/chat`,
@@ -1591,8 +1598,9 @@ export class ThreadsService {
             : user.user_type === 'Landlord'
               ? 'landlord'
               : 'tenant';
-        return this.notificationsService.createNotification(
+        return this.notificationDispatcher.sendInAppNotification(
           user._id.toString(),
+          NotificationType.MESSAGE_NEW_GROUP,
           'Discussion Closed',
           `✅ The discussion for ${sowTitle} has been closed.`,
           `/dashboard/${userDashboard}/chat`,
@@ -1664,8 +1672,9 @@ export class ThreadsService {
             : user.user_type === 'Landlord'
               ? 'landlord'
               : 'tenant';
-        return this.notificationsService.createNotification(
+        return this.notificationDispatcher.sendInAppNotification(
           user._id.toString(),
+          NotificationType.MESSAGE_NEW_GROUP,
           'Discussion Reopened',
           `🔁 The discussion for ${sowTitle} has been reopened.`,
           `/dashboard/${userDashboard}/chat`,

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { NotificationType } from '@shared/notification-types';
 import mongoose from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../common/casl/services/casl-authorization.service';
@@ -15,7 +16,7 @@ import { AppModel } from '../../common/interfaces/app-model.interface';
 import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
 import { Lease } from '../leases';
 import { VisitRequest, VisitRequestStatus } from '../maintenance/schemas/visit-request.schema';
-import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationDispatcherService } from '../notifications/notification-dispatcher.service';
 import { Unit } from '../properties/schemas/unit.schema';
 import { UserDocument } from '../users/schemas/user.schema';
 import { AvailabilityQueryDto, CreateAvailabilityDto, UpdateAvailabilityDto } from './dto';
@@ -37,7 +38,7 @@ export class AvailabilityService {
     @InjectModel(VisitRequest.name)
     private readonly visitRequestModel: AppModel<VisitRequest>,
     private readonly caslAuthorizationService: CaslAuthorizationService,
-    private readonly notificationsService: NotificationsService,
+    private readonly notificationDispatcher: NotificationDispatcherService,
   ) {}
 
   async create(
@@ -433,8 +434,9 @@ export class AvailabilityService {
 
       if (contractorUser) {
         const visitDateStr = request.visitDate.toLocaleDateString();
-        await this.notificationsService.createNotification(
+        await this.notificationDispatcher.sendInAppNotification(
           contractorUser._id.toString(),
+          NotificationType.MESSAGE_NEW_DIRECT,
           'Visit Request Cancelled',
           `${deletedByName} has deleted the availability slot. Your visit request for ${visitDateStr} (${request.startTime} - ${request.endTime}) has been cancelled.`,
           '/dashboard/contractor/visit-requests',

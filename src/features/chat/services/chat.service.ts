@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { NotificationType } from '@shared/notification-types';
 import { Model, Types } from 'mongoose';
 import { MemoryStoredFile } from 'nestjs-form-data';
 import { UserType } from '../../../common/enums/user-type.enum';
@@ -29,7 +30,7 @@ import {
 } from '../../maintenance/schemas/thread.schema';
 import { Media } from '../../media/schemas/media.schema';
 import { MediaService } from '../../media/services/media.service';
-import { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationDispatcherService } from '../../notifications/notification-dispatcher.service';
 import { Property } from '../../properties/schemas/property.schema';
 import { Tenant } from '../../tenants/schema/tenant.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';
@@ -54,7 +55,7 @@ export class ChatService {
     private propertyModel: Model<Property>,
     @InjectModel(Media.name)
     private mediaModel: Model<Media>,
-    private notificationsService: NotificationsService,
+    private readonly notificationDispatcher: NotificationDispatcherService,
     private chatGateway: ChatGateway,
     private mediaService: MediaService,
   ) {}
@@ -773,8 +774,9 @@ export class ChatService {
             : recipient?.user_type === 'Contractor'
               ? 'contractor'
               : 'tenant';
-        await this.notificationsService.createNotification(
+        await this.notificationDispatcher.sendInAppNotification(
           otherUserId._id,
+          NotificationType.MESSAGE_NEW_DIRECT,
           'New message',
           `${sender.firstName} ${sender.lastName} sent you a message`,
           `/dashboard/${dashboardPath}/chat`,

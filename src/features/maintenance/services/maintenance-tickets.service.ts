@@ -17,8 +17,9 @@ import { Contractor } from '../../contractors/schema/contractor.schema';
 import { MaintenanceEmailService } from '../../email/services/maintenance-email.service';
 import { Lease } from '../../leases/schemas/lease.schema';
 import { MediaService } from '../../media/services/media.service';
-import { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationDispatcherService } from '../../notifications/notification-dispatcher.service';
 import { Property } from '../../properties/schemas/property.schema';
+import { NotificationType } from '@shared/notification-types';
 import { Unit } from '../../properties/schemas/unit.schema';
 import { Tenant } from '../../tenants/schema/tenant.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';
@@ -60,7 +61,7 @@ export class MaintenanceTicketsService {
     private readonly scopeOfWorkModel: AppModel<ScopeOfWork>,
     private readonly sessionService: SessionService,
     private readonly mediaService: MediaService,
-    private readonly notificationsService: NotificationsService,
+    private readonly notificationDispatcher: NotificationDispatcherService,
     private readonly maintenanceEmailService: MaintenanceEmailService,
     @Inject(forwardRef(() => ScopeOfWorkService))
     private readonly scopeOfWorkService: ScopeOfWorkService,
@@ -1009,8 +1010,9 @@ export class MaintenanceTicketsService {
 
       // Send in-app notification
       const landlordDashboard = landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
-      await this.notificationsService.createNotification(
+      await this.notificationDispatcher.sendInAppNotification(
         landlordUser._id.toString(),
+        NotificationType.MAINTENANCE_NEW_REQUEST,
         'New Maintenance Request',
         `🔧 New maintenance request ${ticket.title} from ${tenantName}.`,
         `/dashboard/${landlordDashboard}/maintenance/tickets/${ticket._id}`,
@@ -1076,8 +1078,9 @@ export class MaintenanceTicketsService {
           : currentUser.username;
 
       const landlordDashboard = landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
-      await this.notificationsService.createNotification(
+      await this.notificationDispatcher.sendInAppNotification(
         landlordUser._id.toString(),
+        NotificationType.MAINTENANCE_STATUS_CHANGED_PENDING,
         'Ticket Updated',
         `Ticket ${ticket.title} was updated by ${tenantName}.`,
         `/dashboard/${landlordDashboard}/maintenance/tickets/${ticket._id}`,
@@ -1106,8 +1109,9 @@ export class MaintenanceTicketsService {
 
       // Send in-app notification
       const landlordDashboard = landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
-      await this.notificationsService.createNotification(
+      await this.notificationDispatcher.sendInAppNotification(
         landlordUser._id.toString(),
+        NotificationType.MAINTENANCE_STATUS_CHANGED_COMPLETED,
         'Ticket Completed',
         `Ticket ${ticket.title} was marked done by ${contractorName}.`,
         `/dashboard/${landlordDashboard}/maintenance/tickets/${ticket._id}`,
@@ -1166,8 +1170,9 @@ export class MaintenanceTicketsService {
       const contractorName = contractor?.name || 'Contractor';
 
       const landlordDashboard = landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
-      await this.notificationsService.createNotification(
+      await this.notificationDispatcher.sendInAppNotification(
         landlordUser._id.toString(),
+        NotificationType.MAINTENANCE_STATUS_CHANGED_PENDING,
         'Work Rejected',
         `Contractor ${contractorName} rejected work for ${ticket.title}.`,
         `/dashboard/${landlordDashboard}/maintenance/tickets/${ticket._id}`,
@@ -1193,8 +1198,9 @@ export class MaintenanceTicketsService {
         return;
       }
 
-      await this.notificationsService.createNotification(
+      await this.notificationDispatcher.sendInAppNotification(
         requestedByUser._id.toString(),
+        NotificationType.MAINTENANCE_STATUS_CHANGED_IN_PROGRESS,
         'Ticket Under Review',
         `👀 Your maintenance request "${ticket.title}" is now under review.`,
         `/dashboard/tenant/maintenance/tickets/${ticket._id}`,
@@ -1226,8 +1232,9 @@ export class MaintenanceTicketsService {
 
       const contractorName = contractor?.name || 'a contractor';
 
-      await this.notificationsService.createNotification(
+      await this.notificationDispatcher.sendInAppNotification(
         requestedByUser._id.toString(),
+        NotificationType.MAINTENANCE_ASSIGNED_TO_CONTRACTOR,
         'Contractor Assigned',
         `👷 Your maintenance request "${ticket.title}" has been assigned to ${contractorName}.`,
         `/dashboard/tenant/maintenance/tickets/${ticket._id}`,
@@ -1253,8 +1260,9 @@ export class MaintenanceTicketsService {
         return;
       }
 
-      await this.notificationsService.createNotification(
+      await this.notificationDispatcher.sendInAppNotification(
         requestedByUser._id.toString(),
+        NotificationType.MAINTENANCE_STATUS_CHANGED_IN_PROGRESS,
         'Work Started',
         `🔧 Work on "${ticket.title}" has started.`,
         `/dashboard/tenant/maintenance/tickets/${ticket._id}`,
@@ -1280,8 +1288,9 @@ export class MaintenanceTicketsService {
         return;
       }
 
-      await this.notificationsService.createNotification(
+      await this.notificationDispatcher.sendInAppNotification(
         requestedByUser._id.toString(),
+        NotificationType.MAINTENANCE_STATUS_CHANGED_COMPLETED,
         'Work Complete',
         `✅ Work on "${ticket.title}" is complete and pending landlord approval.`,
         `/dashboard/tenant/maintenance/tickets/${ticket._id}`,
@@ -1307,8 +1316,9 @@ export class MaintenanceTicketsService {
         return;
       }
 
-      await this.notificationsService.createNotification(
+      await this.notificationDispatcher.sendInAppNotification(
         requestedByUser._id.toString(),
+        NotificationType.MAINTENANCE_STATUS_CHANGED_CLOSED,
         'Ticket Completed',
         `🎉 Your maintenance request "${ticket.title}" has been completed.`,
         `/dashboard/tenant/maintenance/tickets/${ticket._id}`,
@@ -1334,8 +1344,9 @@ export class MaintenanceTicketsService {
         return;
       }
 
-      await this.notificationsService.createNotification(
+      await this.notificationDispatcher.sendInAppNotification(
         requestedByUser._id.toString(),
+        NotificationType.MAINTENANCE_STATUS_CHANGED_IN_PROGRESS,
         'Ticket Reopened',
         `🔁 Your maintenance request "${ticket.title}" has been reopened for additional work.`,
         `/dashboard/tenant/maintenance/tickets/${ticket._id}`,

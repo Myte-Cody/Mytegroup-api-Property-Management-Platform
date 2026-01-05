@@ -5,6 +5,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { NotificationType } from '@shared/notification-types';
 import * as crypto from 'crypto';
 import { ClientSession, Types } from 'mongoose';
 import { InquiryStatus, InquiryType } from '../../common/enums/inquiry.enum';
@@ -12,7 +13,7 @@ import { AppModel } from '../../common/interfaces/app-model.interface';
 import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { InquiryEmailService } from '../email/services/inquiry-email.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationDispatcherService } from '../notifications/notification-dispatcher.service';
 import { Property } from '../properties/schemas/property.schema';
 import { Unit } from '../properties/schemas/unit.schema';
 import { User } from '../users/schemas/user.schema';
@@ -40,7 +41,7 @@ export class InquiriesService {
     @InjectModel(User.name)
     private readonly userModel: AppModel<User>,
     private readonly sessionService: SessionService,
-    private readonly notificationsService: NotificationsService,
+    private readonly notificationDispatcher: NotificationDispatcherService,
     private readonly inquiryEmailService: InquiryEmailService,
   ) {}
 
@@ -642,8 +643,9 @@ export class InquiriesService {
         // Send in-app notification
         const landlordDashboard =
           landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
-        await this.notificationsService.createNotification(
+        await this.notificationDispatcher.sendInAppNotification(
           landlordUser._id.toString(),
+          NotificationType.MESSAGE_NEW_DIRECT,
           'New Contact Request',
           `New contact request for ${entityName} from ${leadName}. Check details.`,
           `/dashboard/${landlordDashboard}`,
@@ -681,8 +683,9 @@ export class InquiriesService {
         // Send in-app notification
         const landlordDashboard =
           landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
-        await this.notificationsService.createNotification(
+        await this.notificationDispatcher.sendInAppNotification(
           landlordUser._id.toString(),
+          NotificationType.MESSAGE_NEW_DIRECT,
           'New Visit Booking',
           `New visit booking request for ${entityName} on ${dateTimeStr}.`,
           `/dashboard/${landlordDashboard}`,

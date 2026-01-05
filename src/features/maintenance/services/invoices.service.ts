@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { NotificationType } from '@shared/notification-types';
 import { ClientSession, Types } from 'mongoose';
 import {
   InvoiceIssuer,
@@ -8,10 +9,9 @@ import {
 } from '../../../common/enums/maintenance.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { SessionService } from '../../../common/services/session.service';
-import { TenancyContextService } from '../../../common/services/tenancy-context.service';
 import { Contractor } from '../../contractors/schema/contractor.schema';
 import { MaintenanceEmailService } from '../../email/services/maintenance-email.service';
-import { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationDispatcherService } from '../../notifications/notification-dispatcher.service';
 import { User, UserDocument } from '../../users/schemas/user.schema';
 import { CreateInvoiceDto, UpdateInvoiceDto } from '../dto';
 import { Invoice } from '../schemas/invoice.schema';
@@ -34,9 +34,8 @@ export class InvoicesService {
     private readonly contractorModel: AppModel<Contractor>,
     private readonly mediaService: MediaService,
     private readonly sessionService: SessionService,
-    private readonly notificationsService: NotificationsService,
+    private readonly notificationDispatcher: NotificationDispatcherService,
     private readonly maintenanceEmailService: MaintenanceEmailService,
-    private readonly tenancyContextService: TenancyContextService,
   ) {}
 
   async createInvoiceForTicket(
@@ -415,8 +414,9 @@ export class InvoicesService {
 
       // Send in-app notification
       const landlordDashboard = landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
-      await this.notificationsService.createNotification(
+      await this.notificationDispatcher.sendInAppNotification(
         landlordUser._id.toString(),
+        NotificationType.MAINTENANCE_INVOICE_UPLOADED,
         'Invoice Uploaded',
         `Contractor ${contractorName} uploaded invoice for ${entityReference}.`,
         `/dashboard/${landlordDashboard}/maintenance/invoices`,

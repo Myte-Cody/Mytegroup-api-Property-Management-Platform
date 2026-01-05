@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { NotificationType } from '@shared/notification-types';
 import { Types } from 'mongoose';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { SessionService } from '../../../common/services/session.service';
@@ -7,7 +8,7 @@ import { createPaginatedResponse, PaginatedResponse } from '../../../common/util
 import { Landlord } from '../../landlords/schema/landlord.schema';
 import { Lease } from '../../leases/schemas/lease.schema';
 import { MediaService } from '../../media/services/media.service';
-import { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationDispatcherService } from '../../notifications/notification-dispatcher.service';
 import { Property } from '../../properties/schemas/property.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';
 import { CreateFeedPostDto } from '../dto/create-feed-post.dto';
@@ -32,7 +33,7 @@ export class FeedPostsService {
     private readonly leaseModel: AppModel<Lease>,
     private readonly sessionService: SessionService,
     private readonly mediaService: MediaService,
-    private readonly notificationsService: NotificationsService,
+    private readonly notificationDispatcher: NotificationDispatcherService,
   ) {}
 
   /**
@@ -446,8 +447,9 @@ export class FeedPostsService {
             : user.user_type === 'Landlord'
               ? 'landlord'
               : 'tenant';
-        return this.notificationsService.createNotification(
+        return this.notificationDispatcher.sendInAppNotification(
           user._id.toString(),
+          NotificationType.MESSAGE_NEW_DIRECT,
           'New Announcement',
           `📢 New announcement posted for ${property.name}: "${feedPost.title}"`,
           `/dashboard/${userDashboard}/neighbors`,
@@ -477,8 +479,9 @@ export class FeedPostsService {
             : user.user_type === 'Landlord'
               ? 'landlord'
               : 'tenant';
-        return this.notificationsService.createNotification(
+        return this.notificationDispatcher.sendInAppNotification(
           user._id.toString(),
+          NotificationType.MESSAGE_NEW_DIRECT,
           'Announcement Updated',
           `📝 An announcement for ${property.name} has been updated: "${feedPost.title}"`,
           `/dashboard/${userDashboard}/neighbors`,

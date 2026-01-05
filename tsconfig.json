@@ -10,8 +10,11 @@
     "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
-    "strict": false
+    "strict": false,
+    "paths": {
+      "@shared/*": ["../shared/*"]
+    }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "../shared/**/*"],
   "exclude": ["node_modules", "dist"]
 }

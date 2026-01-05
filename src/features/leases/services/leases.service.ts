@@ -6,6 +6,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { NotificationType } from '@shared/notification-types';
 import { ClientSession, Types } from 'mongoose';
 import { Action } from '../../../common/casl/casl-ability.factory';
 import { CaslAuthorizationService } from '../../../common/casl/services/casl-authorization.service';
@@ -31,7 +32,7 @@ import { LeaseEmailService } from '../../email/services/lease-email.service';
 import { VisitRequest, VisitRequestStatus } from '../../maintenance/schemas/visit-request.schema';
 import { ThreadsService } from '../../maintenance/services/threads.service';
 import { MediaService } from '../../media/services/media.service';
-import { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationDispatcherService } from '../../notifications/notification-dispatcher.service';
 import { Unit } from '../../properties/schemas/unit.schema';
 import { Tenant } from '../../tenants/schema/tenant.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';
@@ -84,7 +85,7 @@ export class LeasesService {
     private readonly threadsService: ThreadsService,
     private readonly mediaService: MediaService,
     private readonly sessionService: SessionService,
-    private readonly notificationsService: NotificationsService,
+    private readonly notificationDispatcher: NotificationDispatcherService,
     private readonly tenancyContextService: TenancyContextService,
   ) {}
 
@@ -1384,8 +1385,9 @@ export class LeasesService {
           const visitDateStr = request.visitDate.toLocaleDateString();
           const timeSlot = `${request.startTime} - ${request.endTime}`;
 
-          await this.notificationsService.createNotification(
+          await this.notificationDispatcher.sendInAppNotification(
             contractorUser._id.toString(),
+            NotificationType.MESSAGE_NEW_DIRECT,
             'Visit Request Cancelled - Unit Leased',
             `Your visit request for ${property.name} - Unit ${unitNumber} on ${visitDateStr} (${timeSlot}) has been cancelled because the unit has been leased.`,
             '/dashboard/contractor/visit-requests',
@@ -1826,8 +1828,9 @@ export class LeasesService {
             : user.user_type === 'Landlord'
               ? 'landlord'
               : 'tenant';
-        return this.notificationsService.createNotification(
+        return this.notificationDispatcher.sendInAppNotification(
           user._id.toString(),
+          NotificationType.MESSAGE_NEW_DIRECT,
           'Lease Activated',
           `🏠 Your lease for ${property.name} - Unit ${unit.unitNumber} has been activated. Welcome to your new home!`,
           `/dashboard/${userDashboard}/leases`,
@@ -1837,8 +1840,9 @@ export class LeasesService {
       // Send in-app notifications to landlords
       const landlordNotificationPromises = landlordUsers.map((user) => {
         const userDashboard = user.user_type === 'Contractor' ? 'contractor' : 'landlord';
-        return this.notificationsService.createNotification(
+        return this.notificationDispatcher.sendInAppNotification(
           user._id.toString(),
+          NotificationType.MESSAGE_NEW_DIRECT,
           'Lease Activated',
           `🏠 Lease for ${property.name} - Unit ${unit.unitNumber} has been activated.`,
           `/dashboard/${userDashboard}/leases/${lease._id}`,
@@ -1960,8 +1964,9 @@ export class LeasesService {
             : user.user_type === 'Landlord'
               ? 'landlord'
               : 'tenant';
-        return this.notificationsService.createNotification(
+        return this.notificationDispatcher.sendInAppNotification(
           user._id.toString(),
+          NotificationType.MESSAGE_NEW_DIRECT,
           'Lease Terminated',
           `🚪 Your lease for ${property.name} - Unit ${unit.unitNumber} has been terminated. Please check your email for move-out details.`,
           `/dashboard/${userDashboard}/leases`,
@@ -1971,8 +1976,9 @@ export class LeasesService {
       // Send in-app notifications to landlords
       const landlordNotificationPromises = landlordUsers.map((user) => {
         const userDashboard = user.user_type === 'Contractor' ? 'contractor' : 'landlord';
-        return this.notificationsService.createNotification(
+        return this.notificationDispatcher.sendInAppNotification(
           user._id.toString(),
+          NotificationType.MESSAGE_NEW_DIRECT,
           'Lease Terminated',
           `🚪 Lease for ${property.name} - Unit ${unit.unitNumber} has been terminated.`,
           `/dashboard/${userDashboard}/leases/${lease._id}`,
@@ -2072,8 +2078,9 @@ export class LeasesService {
             : user.user_type === 'Landlord'
               ? 'landlord'
               : 'tenant';
-        return this.notificationsService.createNotification(
+        return this.notificationDispatcher.sendInAppNotification(
           user._id.toString(),
+          NotificationType.MESSAGE_NEW_DIRECT,
           'Lease Renewal',
           `${tenantEmoji} Your lease for ${property.name} - Unit ${unit.unitNumber} has been ${renewalType}. Check your email for updated terms.`,
           `/dashboard/${userDashboard}/leases`,
@@ -2083,8 +2090,9 @@ export class LeasesService {
       // Send in-app notifications to landlords
       const landlordNotificationPromises = landlordUsers.map((user) => {
         const userDashboard = user.user_type === 'Contractor' ? 'contractor' : 'landlord';
-        return this.notificationsService.createNotification(
+        return this.notificationDispatcher.sendInAppNotification(
           user._id.toString(),
+          NotificationType.MESSAGE_NEW_DIRECT,
           'Lease Renewal',
           `${tenantEmoji} Lease for ${property.name} - Unit ${unit.unitNumber} has been ${renewalType}.`,
           `/dashboard/${userDashboard}/leases/${lease._id}`,
@@ -2203,8 +2211,9 @@ export class LeasesService {
               : user.user_type === 'Landlord'
                 ? 'landlord'
                 : 'tenant';
-          return this.notificationsService.createNotification(
+          return this.notificationDispatcher.sendInAppNotification(
             user._id.toString(),
+            NotificationType.MESSAGE_NEW_DIRECT,
             'Lease Expiring Soon',
             expiringMessage,
             `/dashboard/${userDashboard}/leases`,
@@ -2218,8 +2227,9 @@ export class LeasesService {
             : `⏰ Lease for ${property.name} - Unit ${unit.unitNumber} has expired.`;
         const landlordNotificationPromises = landlordUsers.map((user) => {
           const userDashboard = user.user_type === 'Contractor' ? 'contractor' : 'landlord';
-          return this.notificationsService.createNotification(
+          return this.notificationDispatcher.sendInAppNotification(
             user._id.toString(),
+            NotificationType.MESSAGE_NEW_DIRECT,
             'Lease Expiring Soon',
             landlordMessage,
             `/dashboard/${userDashboard}/leases/${lease._id}`,

@@ -6,6 +6,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { NotificationType } from '@shared/notification-types';
 import * as crypto from 'crypto';
 import { ClientSession } from 'mongoose';
 import { Action } from '../../common/casl/casl-ability.factory';
@@ -15,7 +16,7 @@ import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
 import { AuthService } from '../auth/auth.service';
 import { InvitationEmailService } from '../email/services/invitation-email.service';
-import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationDispatcherService } from '../notifications/notification-dispatcher.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { AcceptInvitationDto } from './dto/accept-invitation.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
@@ -35,7 +36,7 @@ export class InvitationsService {
     private readonly invitationEmailService: InvitationEmailService,
     private readonly sessionService: SessionService,
     private readonly authService: AuthService,
-    private readonly notificationsService: NotificationsService,
+    private readonly notificationDispatcher: NotificationDispatcherService,
   ) {}
 
   async create(
@@ -147,8 +148,9 @@ export class InvitationsService {
             createInvitationDto.entityType === EntityType.TENANT ? 'tenant' : 'contractor';
           const landlordName = currentUser.username || 'A landlord';
 
-          await this.notificationsService.createNotification(
+          await this.notificationDispatcher.sendInAppNotification(
             existingUser._id.toString(),
+            NotificationType.MESSAGE_NEW_DIRECT,
             `New ${entityTypeLabel.charAt(0).toUpperCase() + entityTypeLabel.slice(1)} Invitation`,
             `${landlordName} has invited you to join their property as a ${entityTypeLabel}. Check your email to accept the invitation.`,
             `/invitations/accept?token=${savedInvitation.invitationToken}`,
@@ -306,8 +308,9 @@ export class InvitationsService {
           const entityTypeLabel =
             invitation.entityType === EntityType.TENANT ? 'tenant' : 'contractor';
 
-          await this.notificationsService.createNotification(
+          await this.notificationDispatcher.sendInAppNotification(
             invitation.invitedBy.toString(),
+            NotificationType.MESSAGE_NEW_DIRECT,
             `${entityTypeLabel.charAt(0).toUpperCase() + entityTypeLabel.slice(1)} Invitation Accepted`,
             `${inviteeName} has accepted your invitation to join as a ${entityTypeLabel}.`,
             `/dashboard/landlord/users-management`,

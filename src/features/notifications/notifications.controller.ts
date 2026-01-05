@@ -6,12 +6,15 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { UpdatePreferencesDto } from './dto';
+import { NotificationPreferencesService } from './notification-preferences.service';
 import { NotificationsService } from './notifications.service';
 
 @ApiTags('Notifications')
@@ -19,7 +22,10 @@ import { NotificationsService } from './notifications.service';
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly preferencesService: NotificationPreferencesService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Get user notifications with pagination' })
@@ -88,5 +94,35 @@ export class NotificationsController {
       body.content,
       body.actionUrl,
     );
+  }
+
+  @Get('preferences')
+  @ApiOperation({ summary: 'Get user notification preferences' })
+  async getPreferences(@Request() req) {
+    const userId = req.user._id;
+    return this.preferencesService.getUserPreferences(userId);
+  }
+
+  @Put('preferences')
+  @ApiOperation({ summary: 'Update user notification preferences' })
+  async updatePreferences(
+    @Request() req,
+    @Body() updateDto: UpdatePreferencesDto,
+  ) {
+    const userId = req.user._id;
+    await this.preferencesService.bulkUpdatePreferences(
+      userId,
+      updateDto.preferences,
+    );
+    return { message: 'Preferences updated successfully' };
+  }
+
+  @Post('preferences/initialize')
+  @ApiOperation({ summary: 'Initialize default notification preferences' })
+  async initializePreferences(@Request() req) {
+    const userId = req.user._id;
+    const userType = req.user.user_type;
+    await this.preferencesService.initializeDefaults(userId, userType);
+    return { message: 'Default preferences initialized successfully' };
   }
 }

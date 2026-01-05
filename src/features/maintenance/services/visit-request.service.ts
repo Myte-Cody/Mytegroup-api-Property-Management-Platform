@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { NotificationType } from '@shared/notification-types';
 import mongoose from 'mongoose';
 import { LeaseStatus } from '../../../common/enums/lease.enum';
 import { UserType } from '../../../common/enums/user-type.enum';
@@ -12,7 +13,7 @@ import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { createPaginatedResponse, PaginatedResponse } from '../../../common/utils/pagination.utils';
 import { Availability } from '../../availability/schemas/availability.schema';
 import { Lease } from '../../leases/schemas/lease.schema';
-import { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationDispatcherService } from '../../notifications/notification-dispatcher.service';
 import { Property } from '../../properties/schemas/property.schema';
 import { Unit } from '../../properties/schemas/unit.schema';
 import { UserDocument } from '../../users/schemas/user.schema';
@@ -50,7 +51,7 @@ export class VisitRequestService {
     private readonly unitModel: AppModel<Unit>,
     @InjectModel(Lease.name)
     private readonly leaseModel: AppModel<Lease>,
-    private readonly notificationsService: NotificationsService,
+    private readonly notificationDispatcher: NotificationDispatcherService,
   ) {}
 
   async create(
@@ -669,8 +670,9 @@ export class VisitRequestService {
     }
 
     if (recipientUserId) {
-      await this.notificationsService.createNotification(
+      await this.notificationDispatcher.sendInAppNotification(
         recipientUserId,
+        NotificationType.VISIT_NEW_REQUEST,
         'New Visit Request',
         `${requesterName} has requested a visit on ${visitDateStr} (${visitRequest.startTime} - ${visitRequest.endTime})`,
         `/dashboard/${recipientRole}/visit-requests`,
@@ -692,8 +694,13 @@ export class VisitRequestService {
     // For marketplace requests, notify the tenant who made the request
     if (visitRequest.sourceType === VisitRequestSourceType.MARKETPLACE) {
       if (visitRequest.requestedBy) {
-        await this.notificationsService.createNotification(
+        const notifType =
+          visitRequest.status === VisitRequestStatus.APPROVED
+            ? NotificationType.VISIT_APPROVED
+            : NotificationType.VISIT_DECLINED;
+        await this.notificationDispatcher.sendInAppNotification(
           visitRequest.requestedBy.toString(),
+          notifType,
           `Visit Request ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}`,
           `${responderName} has ${statusText} your visit request for ${visitDateStr}`,
           `/dashboard/tenant/visit-requests/${visitRequest._id}`,
@@ -706,8 +713,13 @@ export class VisitRequestService {
       }).exec();
 
       if (contractorUser) {
-        await this.notificationsService.createNotification(
+        const notifType =
+          visitRequest.status === VisitRequestStatus.APPROVED
+            ? NotificationType.VISIT_APPROVED
+            : NotificationType.VISIT_DECLINED;
+        await this.notificationDispatcher.sendInAppNotification(
           contractorUser._id.toString(),
+          notifType,
           `Visit Request ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}`,
           `${responderName} has ${statusText} your visit request for ${visitDateStr}`,
           `/dashboard/contractor/visit-requests`,
@@ -741,8 +753,9 @@ export class VisitRequestService {
     }
 
     if (recipientUserId) {
-      await this.notificationsService.createNotification(
+      await this.notificationDispatcher.sendInAppNotification(
         recipientUserId,
+        NotificationType.VISIT_DECLINED,
         'Visit Request Cancelled',
         `${cancellerName} has cancelled their visit request for ${visitDateStr}`,
         `/dashboard/${visitRequest.tenant ? 'tenant' : 'landlord'}/visit-requests`,
@@ -1021,8 +1034,9 @@ export class VisitRequestService {
         ? `${suggesterName} suggested a new time for the visit: ${visitDateStr} (${timeSlot}). Reason: ${newRequest.rescheduleReason}`
         : `${suggesterName} suggested a new time for the visit: ${visitDateStr} (${timeSlot})`;
 
-      await this.notificationsService.createNotification(
+      await this.notificationDispatcher.sendInAppNotification(
         recipientUserId,
+        NotificationType.VISIT_RESCHEDULED,
         'New Time Suggested',
         message,
         `/dashboard/${recipientRole}/visit-requests/${newRequest._id}`,
