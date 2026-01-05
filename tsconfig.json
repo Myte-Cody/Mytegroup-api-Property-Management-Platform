@@ -12,9 +12,9 @@
     "skipLibCheck": true,
     "strict": false,
     "paths": {
-      "@shared/*": ["../shared/*"]
+      "@shared/*": ["src/shared/*"]
     }
   },
-  "include": ["src/**/*", "../shared/**/*"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
