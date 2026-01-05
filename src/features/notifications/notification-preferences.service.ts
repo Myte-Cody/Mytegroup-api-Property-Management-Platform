@@ -1,14 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
 import {
   getCategoriesByRole,
   getNotificationTypesByCategory,
-  NotificationChannel,
   NOTIFICATION_TYPE_METADATA,
+  NotificationChannel,
   NotificationType,
   UserType,
 } from '@shared/notification-types';
+import { Model, Types } from 'mongoose';
 import {
   NotificationPreference,
   NotificationPreferenceDocument,
@@ -26,12 +26,8 @@ export class NotificationPreferencesService {
   /**
    * Get all notification preferences for a user
    */
-  async getUserPreferences(
-    userId: string,
-  ): Promise<NotificationPreferenceDocument[]> {
-    return this.preferenceModel
-      .find({ userId: new Types.ObjectId(userId) })
-      .exec();
+  async getUserPreferences(userId: string): Promise<NotificationPreferenceDocument[]> {
+    return this.preferenceModel.find({ userId: new Types.ObjectId(userId) }).exec();
   }
 
   /**
@@ -133,9 +129,7 @@ export class NotificationPreferencesService {
       }
 
       // Default to sending if metadata doesn't exist (shouldn't happen)
-      this.logger.warn(
-        `No metadata found for notification type: ${notificationType}`,
-      );
+      this.logger.warn(`No metadata found for notification type: ${notificationType}`);
       return true;
     } catch (error) {
       this.logger.error(
@@ -150,10 +144,7 @@ export class NotificationPreferencesService {
   /**
    * Initialize default preferences for a user based on their role
    */
-  async initializeDefaults(
-    userId: string,
-    userType: UserType,
-  ): Promise<void> {
+  async initializeDefaults(userId: string, userType: UserType): Promise<void> {
     const categories = getCategoriesByRole(userType);
     const notificationTypes: NotificationType[] = [];
 

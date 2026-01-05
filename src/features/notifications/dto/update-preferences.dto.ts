@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { NotificationType } from '@shared/notification-types';
 import { Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
@@ -8,7 +9,6 @@ import {
   IsOptional,
   ValidateNested,
 } from 'class-validator';
-import { NotificationType } from '@shared/notification-types';
 
 export class PreferenceChannelsDto {
   @ApiProperty({

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SmsQueueService } from './sms-queue.service';
 import { SmsService } from '../sms.service';
+import { SmsQueueService } from './sms-queue.service';
 
 export interface SecurityAlertSmsData {
   recipientPhone: string;
@@ -46,8 +46,7 @@ export class AlertSmsService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
-      const brandName =
-        this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
 
       let alertMessage = '';
       switch (data.alertType) {
@@ -80,20 +79,13 @@ export class AlertSmsService {
           priority: 1, // High priority
           attempts: 5, // More retry attempts for security alerts
         });
-        this.logger.log(
-          `Security alert SMS queued (high priority) for ${data.recipientPhone}`,
-        );
+        this.logger.log(`Security alert SMS queued (high priority) for ${data.recipientPhone}`);
       } else {
         await this.smsService.sendSms(smsOptions);
-        this.logger.log(
-          `Security alert SMS sent immediately to ${data.recipientPhone}`,
-        );
+        this.logger.log(`Security alert SMS sent immediately to ${data.recipientPhone}`);
       }
     } catch (error) {
-      this.logger.error(
-        `Failed to send security alert SMS to ${data.recipientPhone}`,
-        error,
-      );
+      this.logger.error(`Failed to send security alert SMS to ${data.recipientPhone}`, error);
       throw error;
     }
   }
@@ -101,13 +93,9 @@ export class AlertSmsService {
   /**
    * Send payment alert SMS
    */
-  async sendPaymentAlert(
-    data: PaymentAlertSmsData,
-    options?: { queue?: boolean },
-  ): Promise<void> {
+  async sendPaymentAlert(data: PaymentAlertSmsData, options?: { queue?: boolean }): Promise<void> {
     try {
-      const brandName =
-        this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
 
       let message = `Hi ${data.recipientName}, `;
       const amount = `$${data.amount}`;
@@ -121,9 +109,7 @@ export class AlertSmsService {
           message += `payment of ${amount}${propertyInfo} failed. Please update your payment method.`;
           break;
         case 'payment_overdue':
-          const dueDate = data.dueDate
-            ? new Date(data.dueDate).toLocaleDateString()
-            : '';
+          const dueDate = data.dueDate ? new Date(data.dueDate).toLocaleDateString() : '';
           message += `payment of ${amount}${propertyInfo} is overdue${dueDate ? ` (due ${dueDate})` : ''}. Please submit payment.`;
           break;
       }
@@ -139,20 +125,13 @@ export class AlertSmsService {
         await this.smsQueueService.queueSms(smsOptions, {
           priority: data.alertType === 'payment_received' ? 3 : 2,
         });
-        this.logger.log(
-          `Payment alert SMS queued for ${data.recipientPhone}`,
-        );
+        this.logger.log(`Payment alert SMS queued for ${data.recipientPhone}`);
       } else {
         await this.smsService.sendSms(smsOptions);
-        this.logger.log(
-          `Payment alert SMS sent immediately to ${data.recipientPhone}`,
-        );
+        this.logger.log(`Payment alert SMS sent immediately to ${data.recipientPhone}`);
       }
     } catch (error) {
-      this.logger.error(
-        `Failed to send payment alert SMS to ${data.recipientPhone}`,
-        error,
-      );
+      this.logger.error(`Failed to send payment alert SMS to ${data.recipientPhone}`, error);
       throw error;
     }
   }
@@ -165,15 +144,10 @@ export class AlertSmsService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
-      const brandName =
-        this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
 
-      const propertyInfo = data.propertyName
-        ? ` at ${data.propertyName}`
-        : '';
-      const actionInfo = data.actionRequired
-        ? ` Action required: ${data.actionRequired}`
-        : '';
+      const propertyInfo = data.propertyName ? ` at ${data.propertyName}` : '';
+      const actionInfo = data.actionRequired ? ` Action required: ${data.actionRequired}` : '';
 
       const message = data.recipientName
         ? `EMERGENCY ALERT ${data.recipientName}: ${data.message}${propertyInfo}.${actionInfo} - ${brandName}`
@@ -191,21 +165,14 @@ export class AlertSmsService {
           attempts: 5,
           backoff: { type: 'fixed', delay: 1000 }, // Quick retries
         });
-        this.logger.log(
-          `Emergency alert SMS queued (highest priority) for ${data.recipientPhone}`,
-        );
+        this.logger.log(`Emergency alert SMS queued (highest priority) for ${data.recipientPhone}`);
       } else {
         // Default to immediate send for emergencies
         await this.smsService.sendSms(smsOptions);
-        this.logger.log(
-          `Emergency alert SMS sent immediately to ${data.recipientPhone}`,
-        );
+        this.logger.log(`Emergency alert SMS sent immediately to ${data.recipientPhone}`);
       }
     } catch (error) {
-      this.logger.error(
-        `Failed to send emergency alert SMS to ${data.recipientPhone}`,
-        error,
-      );
+      this.logger.error(`Failed to send emergency alert SMS to ${data.recipientPhone}`, error);
       throw error;
     }
   }
@@ -219,8 +186,7 @@ export class AlertSmsService {
     expiryMinutes: number = 10,
   ): Promise<void> {
     try {
-      const brandName =
-        this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
 
       const message = `Your ${brandName} verification code is: ${code}. This code expires in ${expiryMinutes} minutes. Do not share this code with anyone.`;
 
@@ -231,14 +197,9 @@ export class AlertSmsService {
 
       // Verification codes should be sent immediately
       await this.smsService.sendSms(smsOptions);
-      this.logger.log(
-        `Verification code SMS sent immediately to ${recipientPhone}`,
-      );
+      this.logger.log(`Verification code SMS sent immediately to ${recipientPhone}`);
     } catch (error) {
-      this.logger.error(
-        `Failed to send verification code SMS to ${recipientPhone}`,
-        error,
-      );
+      this.logger.error(`Failed to send verification code SMS to ${recipientPhone}`, error);
       throw error;
     }
   }

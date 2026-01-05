@@ -15,9 +15,7 @@ const enableQueues = process.env.REDIS_DISABLE !== 'true';
 @Module({
   imports: [
     ConfigModule,
-    MongooseModule.forFeature([
-      { name: SmsMessage.name, schema: SmsMessageSchema },
-    ]),
+    MongooseModule.forFeature([{ name: SmsMessage.name, schema: SmsMessageSchema }]),
     ...(enableQueues
       ? [
           BullModule.registerQueue({
@@ -42,11 +40,6 @@ const enableQueues = process.env.REDIS_DISABLE !== 'true';
     AlertSmsService,
     ...(enableQueues ? [SmsQueueProcessor] : []),
   ],
-  exports: [
-    SmsService,
-    SmsQueueService,
-    NotificationSmsService,
-    AlertSmsService,
-  ],
+  exports: [SmsService, SmsQueueService, NotificationSmsService, AlertSmsService],
 })
 export class SmsModule {}

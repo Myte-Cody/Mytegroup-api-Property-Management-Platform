@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { NotificationType } from '@shared/notification-types';
 import { ClientSession, Types } from 'mongoose';
 import { LeaseStatus } from '../../../common/enums/lease.enum';
 import { InvoiceLinkedEntityType, TicketStatus } from '../../../common/enums/maintenance.enum';
@@ -17,7 +18,6 @@ import { Property } from '../../../features/properties/schemas/property.schema';
 import { Unit } from '../../../features/properties/schemas/unit.schema';
 import { NotificationDispatcherService } from '../../notifications/notification-dispatcher.service';
 import { User, UserDocument } from '../../users/schemas/user.schema';
-import { NotificationType } from '@shared/notification-types';
 import { AcceptSowDto } from '../dto/accept-sow.dto';
 import { AddTicketSowDto } from '../dto/add-ticket-sow.dto';
 import { AssignContractorSowDto } from '../dto/assign-contractor-sow.dto';
@@ -272,7 +272,8 @@ export class ScopeOfWorkService {
         // Need sub-scopes if:
         // 1. There are multiple different units, OR
         // 2. There's a mix of property-level tickets AND unit-level tickets
-        hasMultipleUnits = unitIds.size > 1 || (unitTickets.length > 0 && propertyLevelTickets.length > 0);
+        hasMultipleUnits =
+          unitIds.size > 1 || (unitTickets.length > 0 && propertyLevelTickets.length > 0);
       }
 
       // Create the parent SOW
@@ -433,7 +434,8 @@ export class ScopeOfWorkService {
 
     // If tickets are from multiple units OR there's a mix of property-level and unit-level tickets,
     // create unit sub-scopes
-    const needsSubScopes = ticketsByUnit.size > 1 || (ticketsByUnit.size > 0 && propertyLevelTickets.length > 0);
+    const needsSubScopes =
+      ticketsByUnit.size > 1 || (ticketsByUnit.size > 0 && propertyLevelTickets.length > 0);
 
     if (needsSubScopes) {
       // Create unit sub-scopes for each unit

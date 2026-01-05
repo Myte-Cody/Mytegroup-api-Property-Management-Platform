@@ -105,15 +105,9 @@ export class NotificationsController {
 
   @Put('preferences')
   @ApiOperation({ summary: 'Update user notification preferences' })
-  async updatePreferences(
-    @Request() req,
-    @Body() updateDto: UpdatePreferencesDto,
-  ) {
+  async updatePreferences(@Request() req, @Body() updateDto: UpdatePreferencesDto) {
     const userId = req.user._id;
-    await this.preferencesService.bulkUpdatePreferences(
-      userId,
-      updateDto.preferences,
-    );
+    await this.preferencesService.bulkUpdatePreferences(userId, updateDto.preferences);
     return { message: 'Preferences updated successfully' };
   }
 

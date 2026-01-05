@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SmsQueueService } from './sms-queue.service';
 import { SmsService } from '../sms.service';
+import { SmsQueueService } from './sms-queue.service';
 
 export interface NotificationSmsData {
   recipientPhone: string;
@@ -47,8 +47,7 @@ export class NotificationSmsService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
-      const brandName =
-        this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
 
       const message = data.recipientName
         ? `Hi ${data.recipientName}, ${data.message} - ${brandName}`
@@ -61,20 +60,13 @@ export class NotificationSmsService {
 
       if (options?.queue !== false) {
         await this.smsQueueService.queueSms(smsOptions);
-        this.logger.log(
-          `Notification SMS queued for ${data.recipientPhone}`,
-        );
+        this.logger.log(`Notification SMS queued for ${data.recipientPhone}`);
       } else {
         await this.smsService.sendSms(smsOptions);
-        this.logger.log(
-          `Notification SMS sent immediately to ${data.recipientPhone}`,
-        );
+        this.logger.log(`Notification SMS sent immediately to ${data.recipientPhone}`);
       }
     } catch (error) {
-      this.logger.error(
-        `Failed to send notification SMS to ${data.recipientPhone}`,
-        error,
-      );
+      this.logger.error(`Failed to send notification SMS to ${data.recipientPhone}`, error);
       throw error;
     }
   }
@@ -87,12 +79,9 @@ export class NotificationSmsService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
-      const brandName =
-        this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
 
-      const unitInfo = data.unitIdentifier
-        ? ` for unit ${data.unitIdentifier}`
-        : '';
+      const unitInfo = data.unitIdentifier ? ` for unit ${data.unitIdentifier}` : '';
 
       const message = `Hi ${data.recipientName}, maintenance ticket #${data.ticketNumber}${unitInfo} at ${data.propertyName} is now ${data.status}. - ${brandName}`;
 
@@ -103,20 +92,13 @@ export class NotificationSmsService {
 
       if (options?.queue !== false) {
         await this.smsQueueService.queueSms(smsOptions);
-        this.logger.log(
-          `Maintenance update SMS queued for ${data.recipientPhone}`,
-        );
+        this.logger.log(`Maintenance update SMS queued for ${data.recipientPhone}`);
       } else {
         await this.smsService.sendSms(smsOptions);
-        this.logger.log(
-          `Maintenance update SMS sent immediately to ${data.recipientPhone}`,
-        );
+        this.logger.log(`Maintenance update SMS sent immediately to ${data.recipientPhone}`);
       }
     } catch (error) {
-      this.logger.error(
-        `Failed to send maintenance update SMS to ${data.recipientPhone}`,
-        error,
-      );
+      this.logger.error(`Failed to send maintenance update SMS to ${data.recipientPhone}`, error);
       throw error;
     }
   }
@@ -129,16 +111,13 @@ export class NotificationSmsService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
-      const brandName =
-        this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
 
       let message = `Hi ${data.recipientName}, `;
 
       switch (data.reminderType) {
         case 'rent_due':
-          const dueDate = data.dueDate
-            ? new Date(data.dueDate).toLocaleDateString()
-            : 'soon';
+          const dueDate = data.dueDate ? new Date(data.dueDate).toLocaleDateString() : 'soon';
           const amount = data.amount ? `$${data.amount}` : 'your rent';
           message += `reminder: ${amount} is due ${dueDate} for ${data.propertyName}.`;
           break;
@@ -164,20 +143,13 @@ export class NotificationSmsService {
 
       if (options?.queue !== false) {
         await this.smsQueueService.queueSms(smsOptions);
-        this.logger.log(
-          `Lease reminder SMS queued for ${data.recipientPhone}`,
-        );
+        this.logger.log(`Lease reminder SMS queued for ${data.recipientPhone}`);
       } else {
         await this.smsService.sendSms(smsOptions);
-        this.logger.log(
-          `Lease reminder SMS sent immediately to ${data.recipientPhone}`,
-        );
+        this.logger.log(`Lease reminder SMS sent immediately to ${data.recipientPhone}`);
       }
     } catch (error) {
-      this.logger.error(
-        `Failed to send lease reminder SMS to ${data.recipientPhone}`,
-        error,
-      );
+      this.logger.error(`Failed to send lease reminder SMS to ${data.recipientPhone}`, error);
       throw error;
     }
   }
@@ -190,8 +162,7 @@ export class NotificationSmsService {
     options?: { queue?: boolean },
   ): Promise<void> {
     try {
-      const brandName =
-        this.configService.get<string>('BRAND_NAME') || 'MYTE';
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
 
       const smsMessages = recipients.map((recipient) => ({
         to: recipient.phone,
@@ -202,9 +173,7 @@ export class NotificationSmsService {
 
       if (options?.queue !== false) {
         await this.smsQueueService.queueBulkSms(smsMessages);
-        this.logger.log(
-          `Bulk notification SMS queued for ${recipients.length} recipients`,
-        );
+        this.logger.log(`Bulk notification SMS queued for ${recipients.length} recipients`);
       } else {
         for (const smsOptions of smsMessages) {
           await this.smsService.sendSms(smsOptions);

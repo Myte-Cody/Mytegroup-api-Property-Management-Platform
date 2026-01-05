@@ -1,10 +1,7 @@
 import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Queue } from 'bullmq';
-import {
-  SendSmsOptions,
-  SmsQueueOptions,
-} from '../interfaces/sms.interface';
+import { SendSmsOptions, SmsQueueOptions } from '../interfaces/sms.interface';
 import { SmsService } from '../sms.service';
 
 export interface QueueSmsData {
@@ -27,10 +24,7 @@ export class SmsQueueService {
   /**
    * Queue a compiled SMS for sending
    */
-  async queueSms(
-    smsOptions: SendSmsOptions,
-    options?: SmsQueueOptions,
-  ): Promise<void> {
+  async queueSms(smsOptions: SendSmsOptions, options?: SmsQueueOptions): Promise<void> {
     try {
       if (!this.queuesEnabled) {
         this.logger.log(
@@ -53,10 +47,7 @@ export class SmsQueueService {
 
       this.logger.log(`Added SMS job ${job.id} to queue for ${smsOptions.to}`);
     } catch (error) {
-      this.logger.error(
-        `Failed to add SMS to queue for ${smsOptions.to}`,
-        error,
-      );
+      this.logger.error(`Failed to add SMS to queue for ${smsOptions.to}`, error);
       throw error;
     }
   }
@@ -64,10 +55,7 @@ export class SmsQueueService {
   /**
    * Queue multiple compiled SMS messages efficiently
    */
-  async queueBulkSms(
-    messages: SendSmsOptions[],
-    options?: SmsQueueOptions,
-  ): Promise<void> {
+  async queueBulkSms(messages: SendSmsOptions[], options?: SmsQueueOptions): Promise<void> {
     try {
       if (!this.queuesEnabled) {
         this.logger.log(

@@ -22,18 +22,13 @@ export class SmsQueueProcessor extends WorkerHost {
   }
 
   async handleSms(job: Job<QueueSmsData>): Promise<void> {
-    this.logger.log(
-      `Processing SMS job ${job.id} to ${job.data.smsOptions.to}`,
-    );
+    this.logger.log(`Processing SMS job ${job.id} to ${job.data.smsOptions.to}`);
 
     try {
       await this.smsService.sendSms(job.data.smsOptions);
       this.logger.log(`SMS sent successfully to ${job.data.smsOptions.to}`);
     } catch (error) {
-      this.logger.error(
-        `Failed to send SMS (job ${job.id}) to ${job.data.smsOptions.to}`,
-        error,
-      );
+      this.logger.error(`Failed to send SMS (job ${job.id}) to ${job.data.smsOptions.to}`, error);
       throw error;
     }
   }

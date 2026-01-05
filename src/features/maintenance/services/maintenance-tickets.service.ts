@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { NotificationType } from '@shared/notification-types';
 import { ClientSession, Types } from 'mongoose';
 import { LeaseStatus } from '../../../common/enums/lease.enum';
 import { InvoiceLinkedEntityType, TicketStatus } from '../../../common/enums/maintenance.enum';
@@ -19,7 +20,6 @@ import { Lease } from '../../leases/schemas/lease.schema';
 import { MediaService } from '../../media/services/media.service';
 import { NotificationDispatcherService } from '../../notifications/notification-dispatcher.service';
 import { Property } from '../../properties/schemas/property.schema';
-import { NotificationType } from '@shared/notification-types';
 import { Unit } from '../../properties/schemas/unit.schema';
 import { Tenant } from '../../tenants/schema/tenant.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';

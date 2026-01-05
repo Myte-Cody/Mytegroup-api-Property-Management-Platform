@@ -68,7 +68,7 @@ jobs:
         run: |
           docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -t $REGISTRY/$REPOSITORY:latest .
           docker push -a $REGISTRY/$REPOSITORY
-      
+
       - name: Resolve image digest for task definition
         id: image-digest
         env:

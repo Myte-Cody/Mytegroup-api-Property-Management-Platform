@@ -2,11 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import {
-  SendSmsOptions,
-  SendSmsResult,
-  SmsConfig,
-} from './interfaces/sms.interface';
+import { SendSmsOptions, SendSmsResult, SmsConfig } from './interfaces/sms.interface';
 import { SmsMessage, SmsMessageDocument } from './schemas/sms-message.schema';
 
 const Twilio = require('twilio');
@@ -39,17 +35,12 @@ export class SmsService implements OnModuleInit {
       }
 
       if (!this.smsConfig.accountSid || !this.smsConfig.authToken) {
-        this.logger.warn(
-          'Twilio credentials not configured. SMS functionality will be disabled.',
-        );
+        this.logger.warn('Twilio credentials not configured. SMS functionality will be disabled.');
         this.clientInitialized = false;
         return;
       }
 
-      this.twilioClient = Twilio(
-        this.smsConfig.accountSid,
-        this.smsConfig.authToken,
-      );
+      this.twilioClient = Twilio(this.smsConfig.accountSid, this.smsConfig.authToken);
 
       // Verify credentials by fetching account details
       await this.verifyCredentials();
@@ -65,17 +56,11 @@ export class SmsService implements OnModuleInit {
   private async verifyCredentials(): Promise<boolean> {
     try {
       if (this.twilioClient) {
-        const account = await this.twilioClient.api.accounts(
-          this.smsConfig.accountSid,
-        ).fetch();
-        this.logger.log(
-          `Twilio account verified - SID: ${account.sid}, Status: ${account.status}`,
-        );
+        const account = await this.twilioClient.api.accounts(this.smsConfig.accountSid).fetch();
+        this.logger.log(`Twilio account verified - SID: ${account.sid}, Status: ${account.status}`);
         return true;
       } else {
-        this.logger.error(
-          'Cannot verify credentials: Twilio client is not initialized',
-        );
+        this.logger.error('Cannot verify credentials: Twilio client is not initialized');
         return false;
       }
     } catch (error) {
@@ -141,9 +126,7 @@ export class SmsService implements OnModuleInit {
             sentAt: new Date(),
           });
 
-          this.logger.log(
-            `SMS sent successfully to ${toNumber}. Message SID: ${message.sid}`,
-          );
+          this.logger.log(`SMS sent successfully to ${toNumber}. Message SID: ${message.sid}`);
 
           results.push({
             success: true,
@@ -213,18 +196,11 @@ export class SmsService implements OnModuleInit {
         updateData.errorMessage = errorMessage;
       }
 
-      await this.smsMessageModel.findOneAndUpdate(
-        { messageSid },
-        updateData,
-        { new: true },
-      );
+      await this.smsMessageModel.findOneAndUpdate({ messageSid }, updateData, { new: true });
 
       this.logger.log(`Updated message ${messageSid} status to ${status}`);
     } catch (error) {
-      this.logger.error(
-        `Failed to update message status for ${messageSid}`,
-        error,
-      );
+      this.logger.error(`Failed to update message status for ${messageSid}`, error);
     }
   }
 

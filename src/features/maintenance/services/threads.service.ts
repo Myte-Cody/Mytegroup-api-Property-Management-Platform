@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { NotificationType } from '@shared/notification-types';
 import { Model, Types } from 'mongoose';
 import { Contractor } from '../../contractors/schema/contractor.schema';
 import { Lease } from '../../leases/schemas/lease.schema';
@@ -12,7 +13,6 @@ import { Media } from '../../media/schemas/media.schema';
 import { MediaService } from '../../media/services/media.service';
 import { NotificationDispatcherService } from '../../notifications/notification-dispatcher.service';
 import { Tenant } from '../../tenants/schema/tenant.schema';
-import { NotificationType } from '@shared/notification-types';
 import { User, UserDocument } from '../../users/schemas/user.schema';
 import { AcceptThreadDto } from '../dto/accept-thread.dto';
 import { CreateThreadMessageDto } from '../dto/create-thread-message.dto';

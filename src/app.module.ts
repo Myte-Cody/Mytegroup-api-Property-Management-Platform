@@ -19,7 +19,6 @@ import { ContractorModule } from './features/contractors/contractor.module';
 import { DepositsModule } from './features/deposits/deposits.module';
 import { EmailModule } from './features/email/email.module';
 import { ExpensesModule } from './features/expenses/expenses.module';
-import { SmsModule } from './features/sms/sms.module';
 import { FavoritesModule } from './features/favorites/favorites.module';
 import { FeedPostsModule } from './features/feed-posts/feed-posts.module';
 import { FeedbackModule } from './features/feedback/feedback.module';
@@ -35,6 +34,7 @@ import { NotificationsModule } from './features/notifications/notifications.modu
 import { OnboardingModule } from './features/onboarding/onboarding.module';
 import { PropertiesModule } from './features/properties/properties.module';
 import { RevenuesModule } from './features/revenues/revenues.module';
+import { SmsModule } from './features/sms/sms.module';
 import { SubscribersModule } from './features/subscribers/subscribers.module';
 import { TenantsModule } from './features/tenants/tenant.module';
 import { UsersModule } from './features/users/users.module';

@@ -1,7 +1,7 @@
 import { accessibleRecordsPlugin } from '@casl/mongoose';
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { NotificationType } from '@shared/notification-types';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 
 export type NotificationPreferenceDocument = NotificationPreference & Document;
 
@@ -32,14 +32,9 @@ export class NotificationPreference extends Document {
   sms: boolean;
 }
 
-export const NotificationPreferenceSchema = SchemaFactory.createForClass(
-  NotificationPreference,
-);
+export const NotificationPreferenceSchema = SchemaFactory.createForClass(NotificationPreference);
 
 // Add compound index for fast lookups and enforce uniqueness
-NotificationPreferenceSchema.index(
-  { userId: 1, notificationType: 1 },
-  { unique: true },
-);
+NotificationPreferenceSchema.index({ userId: 1, notificationType: 1 }, { unique: true });
 
 NotificationPreferenceSchema.plugin(accessibleRecordsPlugin);
