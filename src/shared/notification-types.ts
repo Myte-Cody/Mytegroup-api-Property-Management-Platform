@@ -14,6 +14,7 @@ export enum NotificationCategory {
   INVITATIONS = 'invitations',
   PAYMENTS = 'payments',
   TASKS = 'tasks',
+  SCHEDULES = 'schedules',
 }
 
 export enum UserType {
@@ -80,6 +81,12 @@ export enum NotificationType {
   TASK_ESCALATED = 'task_escalated',
   TASK_COMPLETED = 'task_completed',
   TASK_CANCELED = 'task_canceled',
+
+  // Schedules (Garbage/Recycling)
+  SCHEDULE_REMINDER = 'schedule_reminder',
+  SCHEDULE_CREATED = 'schedule_created',
+  SCHEDULE_UPDATED = 'schedule_updated',
+  SCHEDULE_DELETED = 'schedule_deleted',
 }
 
 export interface NotificationTypeMetadata {
@@ -581,6 +588,56 @@ export const NOTIFICATION_TYPE_METADATA: Record<NotificationType, NotificationTy
     },
     applicableRoles: [UserType.LANDLORD, UserType.TENANT],
   },
+
+  // Schedules (Garbage/Recycling)
+  [NotificationType.SCHEDULE_REMINDER]: {
+    type: NotificationType.SCHEDULE_REMINDER,
+    category: NotificationCategory.SCHEDULES,
+    label: 'Collection Reminder',
+    description: 'Reminder for upcoming garbage or recycling collection',
+    defaultChannels: {
+      [NotificationChannel.IN_APP]: true,
+      [NotificationChannel.EMAIL]: true,
+      [NotificationChannel.SMS]: true,
+    },
+    applicableRoles: [UserType.TENANT],
+  },
+  [NotificationType.SCHEDULE_CREATED]: {
+    type: NotificationType.SCHEDULE_CREATED,
+    category: NotificationCategory.SCHEDULES,
+    label: 'New Schedule Created',
+    description: 'When a new collection schedule is created',
+    defaultChannels: {
+      [NotificationChannel.IN_APP]: true,
+      [NotificationChannel.EMAIL]: true,
+      [NotificationChannel.SMS]: false,
+    },
+    applicableRoles: [UserType.TENANT],
+  },
+  [NotificationType.SCHEDULE_UPDATED]: {
+    type: NotificationType.SCHEDULE_UPDATED,
+    category: NotificationCategory.SCHEDULES,
+    label: 'Schedule Updated',
+    description: 'When a collection schedule is updated',
+    defaultChannels: {
+      [NotificationChannel.IN_APP]: true,
+      [NotificationChannel.EMAIL]: true,
+      [NotificationChannel.SMS]: false,
+    },
+    applicableRoles: [UserType.TENANT],
+  },
+  [NotificationType.SCHEDULE_DELETED]: {
+    type: NotificationType.SCHEDULE_DELETED,
+    category: NotificationCategory.SCHEDULES,
+    label: 'Schedule Deleted',
+    description: 'When a collection schedule is removed',
+    defaultChannels: {
+      [NotificationChannel.IN_APP]: true,
+      [NotificationChannel.EMAIL]: false,
+      [NotificationChannel.SMS]: false,
+    },
+    applicableRoles: [UserType.TENANT],
+  },
 };
 
 // Helper function to get notification types by category
@@ -608,6 +665,7 @@ export const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   [NotificationCategory.INVITATIONS]: 'Invitations',
   [NotificationCategory.PAYMENTS]: 'Payments & Transactions',
   [NotificationCategory.TASKS]: 'Tasks',
+  [NotificationCategory.SCHEDULES]: 'Collection Schedules',
 };
 
 // Helper function to get categories by role
@@ -621,6 +679,7 @@ export function getCategoriesByRole(role: UserType): NotificationCategory[] {
       NotificationCategory.MARKETPLACE,
       NotificationCategory.COMMUNITY_FEED,
       NotificationCategory.TASKS,
+      NotificationCategory.SCHEDULES,
     ],
     [UserType.LANDLORD]: [
       NotificationCategory.MAINTENANCE,

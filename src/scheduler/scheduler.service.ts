@@ -6,6 +6,7 @@ import { AuditLogService } from '../common/services/audit-log.service';
 import { PaymentEmailService } from '../features/email/services/payment-email.service';
 import { LeasesService } from '../features/leases/services/leases.service';
 import { TransactionsService } from '../features/leases/services/transactions.service';
+import { ScheduleReminderService } from '../features/schedules/services/schedule-reminder.service';
 import { StatusUpdaterService } from '../scripts/status-updater';
 import { LeaseEmailService } from './../features/email/services/lease-email.service';
 
@@ -20,6 +21,7 @@ export class SchedulerService {
     private readonly leaseEmailService: LeaseEmailService,
     private readonly paymentEmailService: PaymentEmailService,
     private readonly auditLogService: AuditLogService,
+    private readonly scheduleReminderService: ScheduleReminderService,
   ) {}
 
   /**
@@ -323,6 +325,46 @@ export class SchedulerService {
         .createLog({
           userId: 'system',
           action: 'SchedulerService.sendPaymentOverdueNotices.failed',
+          details: {
+            error: {
+              message: error.message,
+              stack: error.stack,
+            },
+            executionTime: `${Date.now() - startTime}ms`,
+          },
+        })
+        .catch((logError) => {
+          this.logger.error(`Failed to create audit log: ${logError.message}`);
+        });
+    }
+  }
+
+  /**
+   * Send garbage/recycling schedule reminders at 6:00 AM
+   * This runs daily and sends reminders based on each schedule's reminderDaysBefore setting
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_6AM)
+  async sendScheduleReminders() {
+    this.logger.log('🗑️ Processing garbage/recycling schedule reminders...');
+    const startTime = Date.now();
+
+    try {
+      const result = await this.scheduleReminderService.processScheduleReminders();
+      this.logger.log(
+        `✅ Schedule reminders processed: ${result.processed} schedules, ${result.reminderseSent} reminders sent`,
+      );
+
+      if (result.errors.length > 0) {
+        this.logger.warn(`⚠️ ${result.errors.length} errors during reminder processing`);
+      }
+    } catch (error) {
+      this.logger.error(`❌ Failed to process schedule reminders: ${error.message}`, error.stack);
+
+      // Log the error
+      await this.auditLogService
+        .createLog({
+          userId: 'system',
+          action: 'SchedulerService.sendScheduleReminders.failed',
           details: {
             error: {
               message: error.message,

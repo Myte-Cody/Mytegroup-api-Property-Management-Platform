@@ -25,6 +25,7 @@ import { VisitRequest } from '../../features/maintenance/schemas/visit-request.s
 import { Media } from '../../features/media/schemas/media.schema';
 import { Property } from '../../features/properties/schemas/property.schema';
 import { Unit } from '../../features/properties/schemas/unit.schema';
+import { Schedule } from '../../features/schedules/schemas/schedule.schema';
 import { Task } from '../../features/tasks/schemas/task.schema';
 import { Tenant } from '../../features/tenants/schema/tenant.schema';
 import { User, UserDocument } from '../../features/users/schemas/user.schema';
@@ -54,6 +55,7 @@ export const SUBJECTS = {
   AVAILABILITY: Availability,
   VISIT_REQUEST: VisitRequest,
   TASK: Task,
+  SCHEDULE: Schedule,
 } as const;
 
 // Subject model name mapping for detectSubjectType
@@ -79,6 +81,7 @@ const SUBJECT_MODEL_MAPPING = {
   Availability: Availability,
   VisitRequest: VisitRequest,
   Task: Task,
+  Schedule: Schedule,
 } as const;
 
 // Define actions that can be performed
@@ -165,6 +168,7 @@ export class CaslAbilityFactory {
     can(Action.Manage, Invoice, { landlord: landlordId });
     can(Action.Manage, Expense, { landlord: landlordId });
     can(Action.Manage, Task, { landlord: landlordId });
+    can(Action.Manage, Schedule, { landlord: landlordId });
 
     // Shared resources - landlords can only see tenants/contractors that have their ID in landlords array
     // They can also invite (create invitations for) new tenants/contractors
@@ -222,6 +226,7 @@ export class CaslAbilityFactory {
     can(Action.Manage, Lease, { landlord: landlordId });
     can(Action.Manage, RentalPeriod, { landlord: landlordId });
     can(Action.Manage, Task, { landlord: landlordId });
+    can(Action.Manage, Schedule, { landlord: landlordId });
 
     // Staff can read financial data but limited update permissions
     can(Action.Read, Transaction, { landlord: landlordId });
@@ -309,6 +314,9 @@ export class CaslAbilityFactory {
     // Tenants can read tasks linked to them or their units (filtering done in service layer)
     can(Action.Read, Task);
 
+    // Tenants can read schedules for their properties/units (filtering done in service layer)
+    can(Action.Read, Schedule);
+
     // Tenants can read threads and create messages in threads
     can(Action.Read, Thread);
     can(Action.Create, ThreadMessage);
@@ -363,6 +371,9 @@ export class CaslAbilityFactory {
     cannot(Action.Create, Task);
     cannot(Action.Update, Task);
     cannot(Action.Delete, Task);
+    cannot(Action.Create, Schedule);
+    cannot(Action.Update, Schedule);
+    cannot(Action.Delete, Schedule);
 
     // Tenants cannot manage non-tenant users
     cannot(Action.Manage, User, { user_type: UserType.LANDLORD });
@@ -460,6 +471,10 @@ export class CaslAbilityFactory {
     cannot(Action.Create, Task);
     cannot(Action.Update, Task);
     cannot(Action.Delete, Task);
+    cannot(Action.Read, Schedule); // Contractors do not have access to schedules
+    cannot(Action.Create, Schedule);
+    cannot(Action.Update, Schedule);
+    cannot(Action.Delete, Schedule);
 
     // Contractors cannot manage non-contractor users
     cannot(Action.Manage, User, { user_type: UserType.LANDLORD });
