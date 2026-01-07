@@ -1,8 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { getModelToken } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { UserType } from '../../../common/enums/user-type.enum';
 import { AppModule } from '../../../app.module';
+import { UserType } from '../../../common/enums/user-type.enum';
 import { User } from '../../users/schemas/user.schema';
 import { NotificationPreferencesService } from '../notification-preferences.service';
 
@@ -36,7 +36,10 @@ async function bootstrap() {
         console.log(
           `Initializing preferences for user ${user._id} (${user.email}) - ${user.user_type}`,
         );
-        await preferencesService.initializeDefaults(user._id.toString(), user.user_type as UserType);
+        await preferencesService.initializeDefaults(
+          user._id.toString(),
+          user.user_type as UserType,
+        );
         successCount++;
       } catch (error) {
         console.error(`Failed to initialize preferences for user ${user._id}:`, error);

@@ -36,6 +36,7 @@ import { PropertiesModule } from './features/properties/properties.module';
 import { RevenuesModule } from './features/revenues/revenues.module';
 import { SmsModule } from './features/sms/sms.module';
 import { SubscribersModule } from './features/subscribers/subscribers.module';
+import { TasksModule } from './features/tasks/tasks.module';
 import { TenantsModule } from './features/tenants/tenant.module';
 import { UsersModule } from './features/users/users.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
@@ -118,6 +119,7 @@ const queueModules = enableQueues
     NotificationsModule,
     OnboardingModule,
     AvailabilityModule,
+    TasksModule,
     SchedulerModule,
     MongooseModule.forRoot(process.env.DB_URL, {
       dbName: process.env.MONGO_DB_NAME,

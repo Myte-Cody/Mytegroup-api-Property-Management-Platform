@@ -13,6 +13,7 @@ export enum NotificationCategory {
   COMMUNITY_FEED = 'community_feed',
   INVITATIONS = 'invitations',
   PAYMENTS = 'payments',
+  TASKS = 'tasks',
 }
 
 export enum UserType {
@@ -72,6 +73,13 @@ export enum NotificationType {
   PAYMENT_RECEIVED = 'payment_received',
   PAYMENT_OVERDUE = 'payment_overdue',
   PAYMENT_DEPOSIT_REFUNDED = 'payment_deposit_refunded',
+
+  // Tasks
+  TASK_CREATED = 'task_created',
+  TASK_STATUS_CHANGED = 'task_status_changed',
+  TASK_ESCALATED = 'task_escalated',
+  TASK_COMPLETED = 'task_completed',
+  TASK_CANCELED = 'task_canceled',
 }
 
 export interface NotificationTypeMetadata {
@@ -87,10 +95,7 @@ export interface NotificationTypeMetadata {
   applicableRoles: UserType[];
 }
 
-export const NOTIFICATION_TYPE_METADATA: Record<
-  NotificationType,
-  NotificationTypeMetadata
-> = {
+export const NOTIFICATION_TYPE_METADATA: Record<NotificationType, NotificationTypeMetadata> = {
   // Maintenance
   [NotificationType.MAINTENANCE_NEW_REQUEST]: {
     type: NotificationType.MAINTENANCE_NEW_REQUEST,
@@ -514,21 +519,79 @@ export const NOTIFICATION_TYPE_METADATA: Record<
     },
     applicableRoles: [UserType.TENANT, UserType.LANDLORD],
   },
+
+  // Tasks
+  [NotificationType.TASK_CREATED]: {
+    type: NotificationType.TASK_CREATED,
+    category: NotificationCategory.TASKS,
+    label: 'New Task Created',
+    description: 'When a new task is created',
+    defaultChannels: {
+      [NotificationChannel.IN_APP]: true,
+      [NotificationChannel.EMAIL]: true,
+      [NotificationChannel.SMS]: false,
+    },
+    applicableRoles: [UserType.LANDLORD, UserType.TENANT],
+  },
+  [NotificationType.TASK_STATUS_CHANGED]: {
+    type: NotificationType.TASK_STATUS_CHANGED,
+    category: NotificationCategory.TASKS,
+    label: 'Task Status Changed',
+    description: 'When a task status is updated',
+    defaultChannels: {
+      [NotificationChannel.IN_APP]: true,
+      [NotificationChannel.EMAIL]: true,
+      [NotificationChannel.SMS]: false,
+    },
+    applicableRoles: [UserType.LANDLORD, UserType.TENANT],
+  },
+  [NotificationType.TASK_ESCALATED]: {
+    type: NotificationType.TASK_ESCALATED,
+    category: NotificationCategory.TASKS,
+    label: 'Task Escalated',
+    description: 'When a task is marked as escalated',
+    defaultChannels: {
+      [NotificationChannel.IN_APP]: true,
+      [NotificationChannel.EMAIL]: true,
+      [NotificationChannel.SMS]: true,
+    },
+    applicableRoles: [UserType.LANDLORD, UserType.TENANT],
+  },
+  [NotificationType.TASK_COMPLETED]: {
+    type: NotificationType.TASK_COMPLETED,
+    category: NotificationCategory.TASKS,
+    label: 'Task Completed',
+    description: 'When a task is marked as completed',
+    defaultChannels: {
+      [NotificationChannel.IN_APP]: true,
+      [NotificationChannel.EMAIL]: true,
+      [NotificationChannel.SMS]: false,
+    },
+    applicableRoles: [UserType.LANDLORD, UserType.TENANT],
+  },
+  [NotificationType.TASK_CANCELED]: {
+    type: NotificationType.TASK_CANCELED,
+    category: NotificationCategory.TASKS,
+    label: 'Task Canceled',
+    description: 'When a task is canceled',
+    defaultChannels: {
+      [NotificationChannel.IN_APP]: true,
+      [NotificationChannel.EMAIL]: false,
+      [NotificationChannel.SMS]: false,
+    },
+    applicableRoles: [UserType.LANDLORD, UserType.TENANT],
+  },
 };
 
 // Helper function to get notification types by category
-export function getNotificationTypesByCategory(
-  category: NotificationCategory,
-): NotificationType[] {
+export function getNotificationTypesByCategory(category: NotificationCategory): NotificationType[] {
   return Object.values(NOTIFICATION_TYPE_METADATA)
     .filter((metadata) => metadata.category === category)
     .map((metadata) => metadata.type);
 }
 
 // Helper function to get notification types by role
-export function getNotificationTypesByRole(
-  role: UserType,
-): NotificationType[] {
+export function getNotificationTypesByRole(role: UserType): NotificationType[] {
   return Object.values(NOTIFICATION_TYPE_METADATA)
     .filter((metadata) => metadata.applicableRoles.includes(role))
     .map((metadata) => metadata.type);
@@ -544,6 +607,7 @@ export const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   [NotificationCategory.COMMUNITY_FEED]: 'Community Feed',
   [NotificationCategory.INVITATIONS]: 'Invitations',
   [NotificationCategory.PAYMENTS]: 'Payments & Transactions',
+  [NotificationCategory.TASKS]: 'Tasks',
 };
 
 // Helper function to get categories by role
@@ -556,6 +620,7 @@ export function getCategoriesByRole(role: UserType): NotificationCategory[] {
       NotificationCategory.VISIT_REQUESTS,
       NotificationCategory.MARKETPLACE,
       NotificationCategory.COMMUNITY_FEED,
+      NotificationCategory.TASKS,
     ],
     [UserType.LANDLORD]: [
       NotificationCategory.MAINTENANCE,
@@ -565,6 +630,7 @@ export function getCategoriesByRole(role: UserType): NotificationCategory[] {
       NotificationCategory.MARKETPLACE,
       NotificationCategory.INVITATIONS,
       NotificationCategory.PAYMENTS,
+      NotificationCategory.TASKS,
     ],
     [UserType.CONTRACTOR]: [
       NotificationCategory.MAINTENANCE,

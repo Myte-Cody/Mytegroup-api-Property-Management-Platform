@@ -65,6 +65,8 @@ export class TenantsService {
       sortOrder = 'desc',
       includeStats = false,
       hasActiveLeases,
+      propertyId,
+      unitId,
     } = queryDto;
 
     const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
@@ -81,6 +83,31 @@ export class TenantsService {
     let baseQuery = this.tenantModel.find();
 
     baseQuery = (baseQuery as any).accessibleBy(ability, Action.Read);
+
+    // Filter by property and/or unit - find tenants with active leases
+    if (propertyId || unitId) {
+      const leaseQuery: any = {
+        status: LeaseStatus.ACTIVE,
+      };
+
+      if (unitId) {
+        // If unit is specified, filter directly by unit
+        leaseQuery.unit = new mongoose.Types.ObjectId(unitId);
+      } else if (propertyId) {
+        // If only property is specified, find all units of that property first
+        const propertyUnits = await this.unitModel
+          .find({ property: new mongoose.Types.ObjectId(propertyId) })
+          .select('_id')
+          .lean();
+        const unitIds = propertyUnits.map((unit) => unit._id);
+        leaseQuery.unit = { $in: unitIds };
+      }
+
+      const activeLeases = await this.leaseModel.find(leaseQuery).select('tenant').lean();
+      const tenantIds = activeLeases.map((lease) => lease.tenant).filter(Boolean);
+
+      baseQuery = baseQuery.where({ _id: { $in: tenantIds } });
+    }
 
     // Add search functionality
     if (search) {
