@@ -42,6 +42,7 @@ export class SeedAdminCommand extends CommandRunner {
         user_type: UserType.ADMIN,
         role: UserRole.SUPER_ADMIN,
         isPrimary: true,
+        emailVerifiedAt: new Date(),
       });
 
       await adminUser.save();
