@@ -11,6 +11,7 @@ import { CommonModule } from './common/common.module';
 import { CsrfGuard } from './common/guards/csrf.guard';
 import configuration from './config/configuration';
 import renewalConfig from './config/renewal.config';
+import { AdminModule } from './features/admin/admin.module';
 import { AiChatModule } from './features/ai-chat/ai-chat.module';
 import { AuthModule } from './features/auth/auth.module';
 import { AvailabilityModule } from './features/availability/availability.module';
@@ -123,6 +124,7 @@ const queueModules = enableQueues
     TasksModule,
     SchedulesModule,
     SchedulerModule,
+    AdminModule,
     MongooseModule.forRoot(process.env.DB_URL, {
       dbName: process.env.MONGO_DB_NAME,
     }),

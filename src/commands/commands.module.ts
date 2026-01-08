@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { UsersModule } from '../features/users/users.module';
 import { BackfillEmailTemplatesCommand } from './backfill-email-templates.command';
 import { BackfillUserRolesCommand } from './backfill-user-roles.command';
+import { SeedAdminCommand } from './seed-admin.command';
 import { SeedAllCommand } from './seed-all.command';
 import { SeedDevDataCommand } from './seed-dev-data.command';
 import { SeedersService } from './seeders.service';
@@ -49,6 +50,7 @@ import { User, UserSchema } from '../features/users/schemas/user.schema';
     ]),
   ],
   providers: [
+    SeedAdminCommand,
     SeedAllCommand,
     SeedDevDataCommand,
     SeedersService,
