@@ -6,6 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { NextFunction, Request, Response } from 'express';
 import { join } from 'path';
 import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AppGuard } from './common/guards/app.guard';
 import { CsrfGuard } from './common/guards/csrf.guard';
 
@@ -53,6 +54,7 @@ async function bootstrap() {
   const reflector = app.get(Reflector);
   const csrfGuard = app.get(CsrfGuard);
   app.useGlobalGuards(new AppGuard(reflector), csrfGuard);
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   // Set up Swagger documentation
   const config = new DocumentBuilder()
