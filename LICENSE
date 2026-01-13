@@ -1,0 +1,36 @@
+MYTE INTERNAL USE ONLY LICENSE
+
+Copyright (c) 2026 Myte Group
+
+This license allows you to use, copy, modify, and distribute this software
+and associated documentation (the "Software") for internal, non-commercial
+purposes only, subject to the terms below.
+
+PERMITTED USES
+- Internal use within your organization.
+- Forking and modifying for your internal operations.
+
+PROHIBITED USES
+- Commercial use of the Software or any derivative works.
+- Providing the Software or derivatives as a hosted service, SaaS, or managed
+  service to third parties.
+- Selling, sublicensing, licensing, renting, leasing, or otherwise distributing
+  the Software for commercial advantage.
+
+TRADEMARKS
+No right, title, or interest in any Myte name, logo, or trademark is granted.
+You must not use Myte trademarks or brand assets in a way that suggests
+endorsement, affiliation, or sponsorship without written permission.
+
+NOTICE
+Any permitted redistribution must retain this license and all copyright and
+trademark notices.
+
+DISCLAIMER
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
