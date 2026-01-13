@@ -89,5 +89,16 @@ npm run format
 
 ## License
 
-Internal use only. Commercial use and hosting as a service are prohibited.  
+Source-available for internal use only. Commercial use and hosting as a service are prohibited.  
+We will enforce these restrictions and pursue remedies to the fullest extent of the law.  
 See `LICENSE`.
+
+## Trademarks
+
+See `TRADEMARKS.md`.
+
+## Not Open Source
+
+This repository is source-available and intended for internal use only. You must not sell,
+license, or repackage this software or derivatives for commercial use. You must retain a
+reference to Myte in your internal repository documentation.
