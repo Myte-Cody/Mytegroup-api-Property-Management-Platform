@@ -7,6 +7,39 @@ import { TaskPriority, TaskStatus } from '../../../common/enums/task.enum';
 import { SoftDelete } from '../../../common/interfaces/soft-delete.interface';
 import { multiTenancyPlugin } from '../../../common/plugins/multi-tenancy.plugin';
 
+// Status change log subdocument
+@Schema({ _id: false })
+export class TaskStatusLog {
+  @Prop({
+    type: String,
+    enum: TaskStatus,
+    required: true,
+  })
+  fromStatus: TaskStatus;
+
+  @Prop({
+    type: String,
+    enum: TaskStatus,
+    required: true,
+  })
+  toStatus: TaskStatus;
+
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+  })
+  changedBy: Types.ObjectId;
+
+  @Prop({ type: Date, default: Date.now })
+  changedAt: Date;
+
+  @Prop({ maxlength: 500, required: false })
+  note?: string;
+}
+
+export const TaskStatusLogSchema = SchemaFactory.createForClass(TaskStatusLog);
+
 @Schema({ timestamps: true })
 export class Task extends Document implements SoftDelete {
   @Prop({
@@ -82,6 +115,12 @@ export class Task extends Document implements SoftDelete {
 
   @Prop({ maxlength: 1000, required: false })
   notes?: string;
+
+  @Prop({
+    type: [TaskStatusLogSchema],
+    default: [],
+  })
+  statusLogs: TaskStatusLog[];
 
   deleted: boolean;
   deletedAt?: Date;

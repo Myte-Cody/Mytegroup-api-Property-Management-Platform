@@ -166,6 +166,7 @@ export class TasksService {
       .populate('tenant', 'name')
       .populate('createdBy', 'username email firstName lastName')
       .populate('assignedParty', 'username email firstName lastName')
+      .populate('statusLogs.changedBy', 'username email firstName lastName')
       .exec();
 
     if (!task) {
@@ -263,9 +264,14 @@ export class TasksService {
       const oldStatus = existingTask.status;
       const oldEscalation = existingTask.isEscalated;
 
-      // Validate status transition if status is being changed
+      // Log status change if status is being updated
       if (updateTaskDto.status && updateTaskDto.status !== existingTask.status) {
-        this.validateStatusTransition(existingTask.status, updateTaskDto.status);
+        existingTask.statusLogs.push({
+          fromStatus: existingTask.status,
+          toStatus: updateTaskDto.status,
+          changedBy: currentUser._id,
+          changedAt: new Date(),
+        });
       }
 
       Object.assign(existingTask, updateTaskDto);
@@ -330,21 +336,6 @@ export class TasksService {
   }
 
   // Private helper methods
-
-  private validateStatusTransition(currentStatus: TaskStatus, newStatus: TaskStatus): void {
-    const validTransitions: Record<TaskStatus, TaskStatus[]> = {
-      [TaskStatus.OPEN]: [TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED, TaskStatus.CANCELED],
-      [TaskStatus.IN_PROGRESS]: [TaskStatus.COMPLETED, TaskStatus.CANCELED],
-      [TaskStatus.COMPLETED]: [TaskStatus.OPEN], // Can reopen
-      [TaskStatus.CANCELED]: [], // Terminal state
-    };
-
-    if (!validTransitions[currentStatus].includes(newStatus)) {
-      throw new BadRequestException(
-        `Invalid status transition from ${currentStatus} to ${newStatus}`,
-      );
-    }
-  }
 
   private async tenantHasAccessToTask(
     task: TaskDocument,
@@ -421,7 +412,7 @@ export class TasksService {
 
   private async notifyOnStatusChange(
     task: TaskDocument,
-    oldStatus: TaskStatus,
+    _oldStatus: TaskStatus,
     currentUser: UserDocument,
   ): Promise<void> {
     try {
