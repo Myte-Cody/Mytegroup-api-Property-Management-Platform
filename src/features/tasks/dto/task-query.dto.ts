@@ -110,14 +110,6 @@ export class TaskQueryDto {
   unitId?: string;
 
   @ApiPropertyOptional({
-    description: 'Filter by linked tenant ID',
-    example: '673d8b8f123456789abcdef2',
-  })
-  @IsOptional()
-  @IsMongoId()
-  tenantId?: string;
-
-  @ApiPropertyOptional({
     description: 'Filter tasks created from this date',
     example: '2024-01-01',
   })

@@ -311,8 +311,8 @@ export class CaslAbilityFactory {
     // Tenants can only read scope of work (cannot create)
     can(Action.Read, ScopeOfWork);
 
-    // Tenants can read tasks linked to them or their units (filtering done in service layer)
-    can(Action.Read, Task);
+    // Tenants can manage their own tasks (filtering done in service layer by createdBy)
+    can(Action.Manage, Task);
 
     // Tenants can read schedules for their properties/units (filtering done in service layer)
     can(Action.Read, Schedule);
@@ -368,9 +368,6 @@ export class CaslAbilityFactory {
     cannot(Action.Create, Invoice);
     cannot(Action.Update, Invoice);
     cannot(Action.Delete, Invoice);
-    cannot(Action.Create, Task);
-    cannot(Action.Update, Task);
-    cannot(Action.Delete, Task);
     cannot(Action.Create, Schedule);
     cannot(Action.Update, Schedule);
     cannot(Action.Delete, Schedule);
@@ -444,6 +441,9 @@ export class CaslAbilityFactory {
     can(Action.Read, Invoice);
     can(Action.Delete, Invoice);
 
+    // Contractors can manage their own tasks (filtering done in service layer by createdBy)
+    can(Action.Manage, Task);
+
     // Cannot create or delete
     cannot(Action.Create, Property);
     cannot(Action.Delete, Property);
@@ -467,10 +467,6 @@ export class CaslAbilityFactory {
     cannot(Action.Delete, MaintenanceTicket);
     cannot(Action.Create, ScopeOfWork); // Only landlords can create scope of work
     cannot(Action.Delete, ScopeOfWork);
-    cannot(Action.Read, Task); // Contractors do not have access to tasks
-    cannot(Action.Create, Task);
-    cannot(Action.Update, Task);
-    cannot(Action.Delete, Task);
     cannot(Action.Read, Schedule); // Contractors do not have access to schedules
     cannot(Action.Create, Schedule);
     cannot(Action.Update, Schedule);

@@ -7,16 +7,13 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { NotificationType } from '@shared/notification-types';
 import { ClientSession } from 'mongoose';
-import { LeaseStatus } from '../../../common/enums/lease.enum';
 import { TaskPriority, TaskStatus } from '../../../common/enums/task.enum';
 import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { TenancyContextService } from '../../../common/services/tenancy-context.service';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
-import { Lease } from '../../leases/schemas/lease.schema';
 import { NotificationDispatcherService } from '../../notifications/notification-dispatcher.service';
 import { Property } from '../../properties/schemas/property.schema';
 import { Unit } from '../../properties/schemas/unit.schema';
-import { Tenant } from '../../tenants/schema/tenant.schema';
 import { User, UserDocument } from '../../users/schemas/user.schema';
 import { CreateTaskDto, TaskQueryDto, UpdateTaskDto } from '../dto';
 import { Task, TaskDocument } from '../schemas/task.schema';
@@ -31,10 +28,6 @@ export class TasksService {
     private readonly propertyModel: AppModel<Property>,
     @InjectModel(Unit.name)
     private readonly unitModel: AppModel<Unit>,
-    @InjectModel(Tenant.name)
-    private readonly tenantModel: AppModel<Tenant>,
-    @InjectModel(Lease.name)
-    private readonly leaseModel: AppModel<Lease>,
     @InjectModel(User.name)
     private readonly userModel: AppModel<User>,
     private readonly sessionService: SessionService,
@@ -54,45 +47,14 @@ export class TasksService {
       isEscalated,
       propertyId,
       unitId,
-      tenantId,
       startDate,
       endDate,
     } = queryDto;
 
     let baseQuery = this.taskModel.find();
 
-    // Apply landlord scope for landlord users
-    if (this.tenancyContextService.isLandlord(currentUser)) {
-      const landlordId = this.tenancyContextService.getLandlordContext(currentUser);
-      baseQuery = baseQuery.where({ landlord: landlordId });
-    }
-
-    // Handle tenant filtering - tenants can only see tasks linked to them or their units
-    if (currentUser.user_type === 'Tenant') {
-      const activeLeases = await this.leaseModel
-        .find({
-          tenant: currentUser.organization_id,
-          status: LeaseStatus.ACTIVE,
-        })
-        .exec();
-
-      const unitIds = activeLeases.map((lease) => lease.unit);
-      const filterConditions: any[] = [];
-
-      // Tasks linked directly to tenant
-      filterConditions.push({ tenant: currentUser.organization_id });
-
-      // Tasks linked to their active lease units
-      if (unitIds.length > 0) {
-        filterConditions.push({ unit: { $in: unitIds } });
-      }
-
-      if (filterConditions.length > 0) {
-        baseQuery = baseQuery.where({ $or: filterConditions });
-      } else {
-        baseQuery = baseQuery.where({ _id: null });
-      }
-    }
+    // Each user sees only tasks they created
+    baseQuery = baseQuery.where({ createdBy: currentUser._id });
 
     // Apply filters
     if (search) {
@@ -124,10 +86,6 @@ export class TasksService {
       baseQuery = baseQuery.where({ unit: unitId });
     }
 
-    if (tenantId) {
-      baseQuery = baseQuery.where({ tenant: tenantId });
-    }
-
     if (startDate || endDate) {
       const dateFilter: any = {};
       if (startDate) dateFilter.$gte = startDate;
@@ -148,7 +106,6 @@ export class TasksService {
         .limit(limit)
         .populate('property', 'name address')
         .populate('unit', 'unitNumber type')
-        .populate('tenant', 'name')
         .populate('createdBy', 'username email firstName lastName')
         .populate('assignedParty', 'username email firstName lastName')
         .exec(),
@@ -163,7 +120,6 @@ export class TasksService {
       .findById(id)
       .populate('property', 'name address')
       .populate('unit', 'unitNumber type')
-      .populate('tenant', 'name')
       .populate('createdBy', 'username email firstName lastName')
       .populate('assignedParty', 'username email firstName lastName')
       .populate('statusLogs.changedBy', 'username email firstName lastName')
@@ -173,10 +129,10 @@ export class TasksService {
       throw new NotFoundException(`Task with ID ${id} not found`);
     }
 
-    // Verify access for tenants
-    if (currentUser.user_type === 'Tenant') {
-      const hasAccess = await this.tenantHasAccessToTask(task, currentUser);
-      if (!hasAccess) {
+    // Verify access - users can only view their own tasks
+    if (task.createdBy.toString() !== currentUser._id.toString()) {
+      const createdByUser = task.createdBy as any;
+      if (createdByUser?._id?.toString() !== currentUser._id.toString()) {
         throw new ForbiddenException('You do not have access to this task');
       }
     }
@@ -186,11 +142,6 @@ export class TasksService {
 
   async create(createTaskDto: CreateTaskDto, currentUser: UserDocument): Promise<TaskDocument> {
     return this.sessionService.withSession(async (session: ClientSession | null) => {
-      // Only landlords can create tasks
-      if (currentUser.user_type !== 'Landlord') {
-        throw new ForbiddenException('Only landlords can create tasks');
-      }
-
       // Validate property exists
       const property = await this.propertyModel
         .findById(createTaskDto.property, null, { session })
@@ -210,17 +161,14 @@ export class TasksService {
         }
       }
 
-      // Validate tenant if provided
-      if (createTaskDto.tenant) {
-        const tenant = await this.tenantModel
-          .findById(createTaskDto.tenant, null, { session })
-          .exec();
-        if (!tenant) {
-          throw new NotFoundException('Tenant not found');
-        }
+      // Get landlord context based on user type
+      let landlordId;
+      if (this.tenancyContextService.isLandlord(currentUser)) {
+        landlordId = this.tenancyContextService.getLandlordContext(currentUser);
+      } else {
+        // For tenants and contractors, use the property's landlord
+        landlordId = property.landlord;
       }
-
-      const landlordId = this.tenancyContextService.getLandlordContext(currentUser);
 
       const newTask = new this.taskModel({
         ...createTaskDto,
@@ -233,7 +181,7 @@ export class TasksService {
 
       const task = await newTask.save({ session });
 
-      // Send notifications
+      // Send notification to the user who created the task
       await this.notifyOnTaskCreate(task, currentUser);
 
       return task;
@@ -246,11 +194,6 @@ export class TasksService {
     currentUser: UserDocument,
   ): Promise<TaskDocument> {
     return this.sessionService.withSession(async (session: ClientSession) => {
-      // Only landlords can update tasks
-      if (currentUser.user_type !== 'Landlord') {
-        throw new ForbiddenException('Only landlords can update tasks');
-      }
-
       if (!updateTaskDto || Object.keys(updateTaskDto).length === 0) {
         throw new BadRequestException('Update data cannot be empty');
       }
@@ -259,6 +202,11 @@ export class TasksService {
 
       if (!existingTask) {
         throw new NotFoundException(`Task with ID ${id} not found`);
+      }
+
+      // Users can only update their own tasks
+      if (existingTask.createdBy.toString() !== currentUser._id.toString()) {
+        throw new ForbiddenException('You can only update your own tasks');
       }
 
       const oldStatus = existingTask.status;
@@ -292,15 +240,15 @@ export class TasksService {
   }
 
   async remove(id: string, currentUser: UserDocument): Promise<{ message: string }> {
-    // Only landlords can delete tasks
-    if (currentUser.user_type !== 'Landlord') {
-      throw new ForbiddenException('Only landlords can delete tasks');
-    }
-
     const task = await this.taskModel.findById(id).exec();
 
     if (!task) {
       throw new NotFoundException(`Task with ID ${id} not found`);
+    }
+
+    // Users can only delete their own tasks
+    if (task.createdBy.toString() !== currentUser._id.toString()) {
+      throw new ForbiddenException('You can only delete your own tasks');
     }
 
     await this.taskModel.findByIdAndDelete(id);
@@ -308,15 +256,15 @@ export class TasksService {
   }
 
   async toggleEscalation(id: string, currentUser: UserDocument): Promise<TaskDocument> {
-    // Only landlords can toggle escalation
-    if (currentUser.user_type !== 'Landlord') {
-      throw new ForbiddenException('Only landlords can toggle escalation');
-    }
-
     const task = await this.taskModel.findById(id).exec();
 
     if (!task) {
       throw new NotFoundException(`Task with ID ${id} not found`);
+    }
+
+    // Users can only toggle escalation on their own tasks
+    if (task.createdBy.toString() !== currentUser._id.toString()) {
+      throw new ForbiddenException('You can only modify your own tasks');
     }
 
     task.isEscalated = !task.isEscalated;
@@ -337,74 +285,19 @@ export class TasksService {
 
   // Private helper methods
 
-  private async tenantHasAccessToTask(
-    task: TaskDocument,
-    currentUser: UserDocument,
-  ): Promise<boolean> {
-    // Tenant linked directly
-    if (task.tenant && task.tenant.toString() === currentUser.organization_id.toString()) {
-      return true;
-    }
-
-    // Check if tenant has active lease for the unit
-    if (task.unit) {
-      const activeLease = await this.leaseModel
-        .findOne({
-          tenant: currentUser.organization_id,
-          unit: task.unit,
-          status: LeaseStatus.ACTIVE,
-        })
-        .exec();
-
-      if (activeLease) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
   private async notifyOnTaskCreate(task: TaskDocument, currentUser: UserDocument): Promise<void> {
     try {
-      // Notify landlord users (in case there are multiple)
-      const landlordUsers = await this.userModel
-        .find({
-          organization_id: task.landlord,
-          user_type: 'Landlord',
-        })
-        .exec();
+      // Determine the dashboard path based on user type
+      const dashboardPath = this.getDashboardPath(currentUser);
 
-      for (const landlordUser of landlordUsers) {
-        if (landlordUser._id.toString() !== currentUser._id.toString()) {
-          await this.notificationDispatcher.sendInAppNotification(
-            landlordUser._id.toString(),
-            NotificationType.TASK_CREATED,
-            'New Task Created',
-            `New task "${task.title}" has been created.`,
-            `/dashboard/landlord/tasks/${task._id}`,
-          );
-        }
-      }
-
-      // Notify linked tenant if exists
-      if (task.tenant) {
-        const tenantUsers = await this.userModel
-          .find({
-            organization_id: task.tenant,
-            user_type: 'Tenant',
-          })
-          .exec();
-
-        for (const tenantUser of tenantUsers) {
-          await this.notificationDispatcher.sendInAppNotification(
-            tenantUser._id.toString(),
-            NotificationType.TASK_CREATED,
-            'New Task',
-            `A new task "${task.title}" has been created for your attention.`,
-            `/dashboard/tenant/tasks/${task._id}`,
-          );
-        }
-      }
+      // Notify the user who created the task (confirmation)
+      await this.notificationDispatcher.sendInAppNotification(
+        currentUser._id.toString(),
+        NotificationType.TASK_CREATED,
+        'Task Created',
+        `Your task "${task.title}" has been created.`,
+        `${dashboardPath}/tasks/${task._id}`,
+      );
     } catch (error) {
       console.error('Failed to send task create notification:', error);
     }
@@ -432,45 +325,15 @@ export class TasksService {
               ? 'In Progress'
               : 'Open';
 
-      // Notify landlord users
-      const landlordUsers = await this.userModel
-        .find({
-          organization_id: task.landlord,
-          user_type: 'Landlord',
-        })
-        .exec();
+      const dashboardPath = this.getDashboardPath(currentUser);
 
-      for (const landlordUser of landlordUsers) {
-        if (landlordUser._id.toString() !== currentUser._id.toString()) {
-          await this.notificationDispatcher.sendInAppNotification(
-            landlordUser._id.toString(),
-            notificationType,
-            `Task ${statusLabel}`,
-            `Task "${task.title}" status changed to ${statusLabel}.`,
-            `/dashboard/landlord/tasks/${task._id}`,
-          );
-        }
-      }
-
-      // Notify linked tenant if exists
-      if (task.tenant) {
-        const tenantUsers = await this.userModel
-          .find({
-            organization_id: task.tenant,
-            user_type: 'Tenant',
-          })
-          .exec();
-
-        for (const tenantUser of tenantUsers) {
-          await this.notificationDispatcher.sendInAppNotification(
-            tenantUser._id.toString(),
-            notificationType,
-            `Task ${statusLabel}`,
-            `Task "${task.title}" status changed to ${statusLabel}.`,
-            `/dashboard/tenant/tasks/${task._id}`,
-          );
-        }
-      }
+      await this.notificationDispatcher.sendInAppNotification(
+        currentUser._id.toString(),
+        notificationType,
+        `Task ${statusLabel}`,
+        `Task "${task.title}" status changed to ${statusLabel}.`,
+        `${dashboardPath}/tasks/${task._id}`,
+      );
     } catch (error) {
       console.error('Failed to send task status change notification:', error);
     }
@@ -486,47 +349,30 @@ export class TasksService {
         ? `Task "${task.title}" has been escalated and requires urgent attention.`
         : `Task "${task.title}" escalation has been removed.`;
 
-      // Notify landlord users
-      const landlordUsers = await this.userModel
-        .find({
-          organization_id: task.landlord,
-          user_type: 'Landlord',
-        })
-        .exec();
+      const dashboardPath = this.getDashboardPath(currentUser);
 
-      for (const landlordUser of landlordUsers) {
-        if (landlordUser._id.toString() !== currentUser._id.toString()) {
-          await this.notificationDispatcher.sendInAppNotification(
-            landlordUser._id.toString(),
-            NotificationType.TASK_ESCALATED,
-            title,
-            message,
-            `/dashboard/landlord/tasks/${task._id}`,
-          );
-        }
-      }
-
-      // Notify linked tenant if task is escalated
-      if (task.isEscalated && task.tenant) {
-        const tenantUsers = await this.userModel
-          .find({
-            organization_id: task.tenant,
-            user_type: 'Tenant',
-          })
-          .exec();
-
-        for (const tenantUser of tenantUsers) {
-          await this.notificationDispatcher.sendInAppNotification(
-            tenantUser._id.toString(),
-            NotificationType.TASK_ESCALATED,
-            title,
-            `Task "${task.title}" has been marked as urgent.`,
-            `/dashboard/tenant/tasks/${task._id}`,
-          );
-        }
-      }
+      await this.notificationDispatcher.sendInAppNotification(
+        currentUser._id.toString(),
+        NotificationType.TASK_ESCALATED,
+        title,
+        message,
+        `${dashboardPath}/tasks/${task._id}`,
+      );
     } catch (error) {
       console.error('Failed to send task escalation notification:', error);
+    }
+  }
+
+  private getDashboardPath(user: UserDocument): string {
+    switch (user.user_type) {
+      case 'Landlord':
+        return '/dashboard/landlord';
+      case 'Tenant':
+        return '/dashboard/tenant';
+      case 'Contractor':
+        return '/dashboard/contractor';
+      default:
+        return '/dashboard';
     }
   }
 }

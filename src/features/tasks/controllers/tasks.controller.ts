@@ -35,7 +35,6 @@ export class TasksController {
   @ApiOperation({ summary: 'Create a new task' })
   @ApiResponse({ status: 201, description: 'Task created successfully' })
   @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Only landlords can create tasks' })
   async create(@Body() createTaskDto: CreateTaskDto, @CurrentUser() user: User) {
     return this.tasksService.create(createTaskDto, user);
   }
@@ -63,7 +62,7 @@ export class TasksController {
   @ApiOperation({ summary: 'Update a task' })
   @ApiResponse({ status: 200, description: 'Task updated successfully' })
   @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Only landlords can update tasks' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Can only update own tasks' })
   @ApiResponse({ status: 404, description: 'Task not found' })
   async update(
     @Param('id') id: string,
@@ -77,7 +76,7 @@ export class TasksController {
   @CheckPolicies(new DeleteTaskPolicyHandler())
   @ApiOperation({ summary: 'Delete a task' })
   @ApiResponse({ status: 200, description: 'Task deleted successfully' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Only landlords can delete tasks' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Can only delete own tasks' })
   @ApiResponse({ status: 404, description: 'Task not found' })
   async remove(@Param('id') id: string, @CurrentUser() user: User) {
     return this.tasksService.remove(id, user);
@@ -87,7 +86,7 @@ export class TasksController {
   @CheckPolicies(new UpdateTaskPolicyHandler())
   @ApiOperation({ summary: 'Toggle task escalation flag' })
   @ApiResponse({ status: 200, description: 'Escalation toggled successfully' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Only landlords can toggle escalation' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Can only modify own tasks' })
   @ApiResponse({ status: 404, description: 'Task not found' })
   async toggleEscalation(@Param('id') id: string, @CurrentUser() user: User) {
     return this.tasksService.toggleEscalation(id, user);
@@ -98,7 +97,7 @@ export class TasksController {
   @ApiOperation({ summary: 'Mark a task as completed' })
   @ApiResponse({ status: 200, description: 'Task marked as completed' })
   @ApiResponse({ status: 400, description: 'Invalid status transition' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Only landlords can complete tasks' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Can only complete own tasks' })
   @ApiResponse({ status: 404, description: 'Task not found' })
   async complete(@Param('id') id: string, @CurrentUser() user: User) {
     return this.tasksService.completeTask(id, user);
@@ -109,7 +108,7 @@ export class TasksController {
   @ApiOperation({ summary: 'Cancel a task' })
   @ApiResponse({ status: 200, description: 'Task canceled successfully' })
   @ApiResponse({ status: 400, description: 'Invalid status transition' })
-  @ApiResponse({ status: 403, description: 'Forbidden - Only landlords can cancel tasks' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Can only cancel own tasks' })
   @ApiResponse({ status: 404, description: 'Task not found' })
   async cancel(@Param('id') id: string, @CurrentUser() user: User) {
     return this.tasksService.cancelTask(id, user);

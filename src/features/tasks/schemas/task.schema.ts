@@ -64,13 +64,6 @@ export class Task extends Document implements SoftDelete {
   })
   unit?: Types.ObjectId;
 
-  @Prop({
-    type: MongooseSchema.Types.ObjectId,
-    ref: 'Tenant',
-    required: false,
-  })
-  tenant?: Types.ObjectId;
-
   @Prop({ required: true, trim: true, maxlength: 200 })
   title: string;
 
@@ -133,7 +126,7 @@ TaskSchema.index({ landlord: 1, status: 1, priority: 1 });
 TaskSchema.index({ landlord: 1, property: 1 });
 TaskSchema.index({ landlord: 1, isEscalated: 1 });
 TaskSchema.index({ property: 1, unit: 1 });
-TaskSchema.index({ tenant: 1 });
+TaskSchema.index({ createdBy: 1 });
 
 // TypeScript types
 export interface TaskQueryHelpers {

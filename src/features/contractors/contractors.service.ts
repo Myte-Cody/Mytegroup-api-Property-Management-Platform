@@ -15,6 +15,8 @@ import { AppModel } from '../../common/interfaces/app-model.interface';
 import { SessionService } from '../../common/services/session.service';
 import { createPaginatedResponse, PaginatedResponse } from '../../common/utils/pagination.utils';
 import { MaintenanceTicket } from '../maintenance/schemas/maintenance-ticket.schema';
+import { Property } from '../properties/schemas/property.schema';
+import { Unit } from '../properties/schemas/unit.schema';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { UpdateUserDto } from '../users/dto/update-user.dto';
 import { UserQueryDto } from '../users/dto/user-query.dto';
@@ -36,6 +38,10 @@ export class ContractorsService {
     private readonly userModel: AppModel<User>,
     @InjectModel(MaintenanceTicket.name)
     private readonly maintenanceTicketModel: AppModel<MaintenanceTicket>,
+    @InjectModel(Property.name)
+    private readonly propertyModel: AppModel<Property>,
+    @InjectModel(Unit.name)
+    private readonly unitModel: AppModel<Unit>,
     private caslAuthorizationService: CaslAuthorizationService,
     private readonly usersService: UsersService,
     private readonly sessionService: SessionService,
@@ -216,6 +222,85 @@ export class ContractorsService {
     }
 
     return this.transformContractorToResponse(contractor);
+  }
+
+  async findMyProperties(currentUser: UserDocument) {
+    // Only contractor users can access their properties
+    if (currentUser.user_type !== 'Contractor') {
+      throw new ForbiddenException('Only contractor users can access this endpoint');
+    }
+
+    const contractorId = currentUser.organization_id;
+    if (!contractorId) {
+      throw new ForbiddenException('No contractor profile associated with this user');
+    }
+
+    // Find all maintenance tickets where this contractor is assigned
+    const tickets = await this.maintenanceTicketModel
+      .find({
+        assignedContractor: contractorId,
+        deleted: false,
+      })
+      .populate({
+        path: 'unit',
+        populate: {
+          path: 'property',
+        },
+      })
+      .exec();
+
+    if (!tickets || tickets.length === 0) {
+      return [];
+    }
+
+    // Group units by property
+    const propertiesMap = new Map<
+      string,
+      {
+        _id: string;
+        name: string;
+        address: any;
+        description?: string;
+        units: Array<{
+          _id: string;
+          unitNumber: string;
+          size: number;
+          type: string;
+        }>;
+      }
+    >();
+
+    for (const ticket of tickets) {
+      const unit = ticket.unit as any;
+      if (!unit || !unit.property) continue;
+
+      const property = unit.property;
+      const propertyId = property._id.toString();
+
+      if (!propertiesMap.has(propertyId)) {
+        propertiesMap.set(propertyId, {
+          _id: propertyId,
+          name: property.name,
+          address: property.address,
+          description: property.description,
+          units: [],
+        });
+      }
+
+      const propertyData = propertiesMap.get(propertyId)!;
+      // Add unit if not already added
+      const unitExists = propertyData.units.some((u) => u._id === unit._id.toString());
+      if (!unitExists) {
+        propertyData.units.push({
+          _id: unit._id.toString(),
+          unitNumber: unit.unitNumber,
+          size: unit.size,
+          type: unit.type,
+        });
+      }
+    }
+
+    return Array.from(propertiesMap.values());
   }
 
   async create(createContractorDto: CreateContractorDto, currentUser: UserDocument) {

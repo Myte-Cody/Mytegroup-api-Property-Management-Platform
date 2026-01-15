@@ -19,14 +19,6 @@ export class CreateTaskDto {
   @IsMongoId()
   unit?: string;
 
-  @ApiPropertyOptional({
-    description: 'Tenant ID to link this task to',
-    example: '673d8b8f123456789abcdef2',
-  })
-  @IsOptional()
-  @IsMongoId()
-  tenant?: string;
-
   @ApiProperty({
     description: 'Brief title/summary of the task',
     example: 'Schedule annual inspection',

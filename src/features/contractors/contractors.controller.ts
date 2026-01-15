@@ -77,6 +77,18 @@ export class ContractorsController {
     return this.contractorsService.findMyProfile(user);
   }
 
+  @Get('me/properties')
+  @CheckPolicies(new ReadContractorPolicyHandler())
+  @ApiOperation({
+    summary: 'Get properties where contractor has been assigned to tickets (contractors only)',
+  })
+  @ApiOkResponse({
+    description: 'List of properties with their units that the contractor has worked on',
+  })
+  findMyProperties(@CurrentUser() user: User) {
+    return this.contractorsService.findMyProperties(user);
+  }
+
   @Get(':id')
   @CheckPolicies(new ReadContractorPolicyHandler())
   @ApiOperation({ summary: 'Get contractor by ID' })

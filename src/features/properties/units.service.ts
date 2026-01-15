@@ -19,6 +19,7 @@ import { TenancyContextService } from '../../common/services/tenancy-context.ser
 import { createPaginatedResponse } from '../../common/utils/pagination.utils';
 import { Favorite } from '../favorites/schemas/favorite.schema';
 import { Lease } from '../leases/schemas/lease.schema';
+import { MaintenanceTicket } from '../maintenance/schemas/maintenance-ticket.schema';
 import { MediaService } from '../media/services/media.service';
 import { User, UserDocument } from '../users/schemas/user.schema';
 import { CreateUnitDto } from './dto/create-unit.dto';
@@ -45,6 +46,8 @@ export class UnitsService {
     private readonly userModel: AppModel<UserDocument>,
     @InjectModel(Favorite.name)
     private readonly favoriteModel: AppModel<Favorite>,
+    @InjectModel(MaintenanceTicket.name)
+    private readonly maintenanceTicketModel: AppModel<MaintenanceTicket>,
     private readonly unitBusinessValidator: UnitBusinessValidator,
     private caslAuthorizationService: CaslAuthorizationService,
     private readonly mediaService: MediaService,
@@ -423,6 +426,11 @@ export class UnitsService {
       return this.getTenantUnits(currentUser, queryDto);
     }
 
+    // If user is a contractor, use contractor-specific logic
+    if (currentUser.user_type === UserType.CONTRACTOR) {
+      return this.getContractorUnits(currentUser, queryDto);
+    }
+
     const {
       page = 1,
       limit = 10,
@@ -728,6 +736,136 @@ export class UnitsService {
     ];
 
     const units = await this.leaseModel.aggregate(pipeline).exec();
+
+    // Fetch media for each unit
+    const unitsWithMedia = await Promise.all(
+      units.map(async (unit) => {
+        const media = await this.mediaService.getMediaForEntity(
+          'Unit',
+          unit._id.toString(),
+          currentUser,
+          undefined,
+          {},
+        );
+        return {
+          ...unit,
+          media,
+        };
+      }),
+    );
+
+    return {
+      data: unitsWithMedia,
+      total: unitsWithMedia.length,
+      page: 1,
+      limit: unitsWithMedia.length,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPrevPage: false,
+    };
+  }
+
+  /**
+   * Get units that a contractor has access to through their assigned maintenance tickets
+   */
+  private async getContractorUnits(
+    currentUser: UserDocument,
+    queryDto: UnitQueryDto,
+  ): Promise<PaginatedUnitsResponse<Unit>> {
+    // Get contractor organization ID
+    let contractorId: string | Types.ObjectId;
+    if (currentUser.organization_id) {
+      if (
+        typeof currentUser.organization_id === 'object' &&
+        (currentUser.organization_id as any)._id
+      ) {
+        contractorId = (currentUser.organization_id as any)._id;
+      } else {
+        contractorId = currentUser.organization_id;
+      }
+    }
+
+    if (!contractorId) {
+      throw new ForbiddenException('No contractor profile associated with this user');
+    }
+
+    // Convert to ObjectId if it's a string
+    const contractorObjectId =
+      typeof contractorId === 'string' ? new Types.ObjectId(contractorId) : contractorId;
+
+    // Build maintenance ticket match conditions
+    const ticketMatchConditions: any = {
+      assignedContractor: contractorObjectId,
+      unit: { $exists: true, $ne: null },
+    };
+
+    // Filter by property if provided
+    if (queryDto.propertyId) {
+      ticketMatchConditions.property = new Types.ObjectId(queryDto.propertyId);
+    }
+
+    // Get all unique units from assigned maintenance tickets
+    const pipeline = [
+      // Match tickets for this contractor
+      {
+        $match: ticketMatchConditions,
+      },
+      // Group by unit to get unique units
+      {
+        $group: {
+          _id: '$unit',
+        },
+      },
+      // Lookup unit details
+      {
+        $lookup: {
+          from: 'units',
+          let: { unitId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', '$$unitId'] },
+                deleted: false,
+              },
+            },
+          ],
+          as: 'unit',
+        },
+      },
+      {
+        $unwind: '$unit',
+      },
+      // Lookup property details
+      {
+        $lookup: {
+          from: 'properties',
+          let: { propertyId: '$unit.property' },
+          pipeline: [
+            {
+              $match: {
+                $expr: { $eq: ['$_id', '$$propertyId'] },
+                deleted: false,
+              },
+            },
+          ],
+          as: 'unit.property',
+        },
+      },
+      {
+        $unwind: {
+          path: '$unit.property',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      // Replace root with unit
+      {
+        $replaceRoot: {
+          newRoot: '$unit',
+        },
+      },
+    ];
+
+    const units = await this.maintenanceTicketModel.aggregate(pipeline).exec();
 
     // Fetch media for each unit
     const unitsWithMedia = await Promise.all(
