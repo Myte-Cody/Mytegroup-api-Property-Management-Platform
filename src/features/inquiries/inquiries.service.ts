@@ -648,7 +648,7 @@ export class InquiriesService {
           NotificationType.MESSAGE_NEW_DIRECT,
           'New Contact Request',
           `New contact request for ${entityName} from ${leadName}. Check details.`,
-          `/dashboard/${landlordDashboard}`,
+          `/dashboard/${landlordDashboard}/marketplace/inquiries`,
         );
 
         // Send email notification
@@ -688,7 +688,7 @@ export class InquiriesService {
           NotificationType.MESSAGE_NEW_DIRECT,
           'New Visit Booking',
           `New visit booking request for ${entityName} on ${dateTimeStr}.`,
-          `/dashboard/${landlordDashboard}`,
+          `/dashboard/${landlordDashboard}/marketplace/inquiries`,
         );
 
         // Send email notification
