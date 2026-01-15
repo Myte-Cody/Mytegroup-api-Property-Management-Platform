@@ -60,7 +60,7 @@ MongoDB Atlas already provides a replica set. For self-hosted:
 
 ```yaml
 replication:
-  replSetName: "rs0"
+  replSetName: 'rs0'
 ```
 
 Then initialize:

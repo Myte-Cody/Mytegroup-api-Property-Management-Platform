@@ -50,14 +50,17 @@ export class MediaService implements MediaServiceInterface {
     disk?: StorageDisk,
     entityType?: string,
     session?: ClientSession,
+    options?: { skipPermissionCheck?: boolean },
   ): Promise<Media> {
     // Validate file
     this.validateFile(file);
 
-    // Check permissions
-    const ability = this.caslAbilityFactory.createForUser(currentUser);
-    if (!ability.can(Action.Create, Media)) {
-      throw new ForbiddenException('You do not have permission to upload media');
+    // Check permissions (skip for internal system operations)
+    if (!options?.skipPermissionCheck) {
+      const ability = this.caslAbilityFactory.createForUser(currentUser);
+      if (!ability.can(Action.Create, Media)) {
+        throw new ForbiddenException('You do not have permission to upload media');
+      }
     }
 
     // Generate unique filename and path - handle different file object structures

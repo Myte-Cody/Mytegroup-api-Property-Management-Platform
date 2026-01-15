@@ -1,0 +1,4 @@
+{
+  "subject": "Action Required: Sign Your Lease Agreement - {{propertyName}}",
+  "text": "Hello {{tenantName}},\n\n{{landlordName}} has prepared a lease agreement for you to review and sign electronically.\n\nLease Details:\n- Property: {{propertyName}}\n- Unit: {{unitIdentifier}}\n- Address: {{propertyAddress}}\n- Lease Period: {{leaseStartDate}} - {{leaseEndDate}}\n- Monthly Rent: ${{monthlyRent}}\n\nPlease visit the following link to review and sign your lease:\n{{signatureUrl}}\n\nIMPORTANT: This link will expire on {{expiresAt}}. Please review and sign the lease before then.\n\nBy signing electronically, you agree that your electronic signature is the legal equivalent of your manual signature.\n\nBest regards,\nThe {{brandName}} Team"
+}

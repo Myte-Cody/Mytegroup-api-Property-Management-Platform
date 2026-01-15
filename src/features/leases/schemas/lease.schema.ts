@@ -149,6 +149,34 @@ export class Lease extends Document implements SoftDelete {
   @Prop()
   activatedAt?: Date;
 
+  // Signature-related fields
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Media',
+  })
+  signedPdfId?: mongoose.Types.ObjectId;
+
+  @Prop()
+  pdfGeneratedAt?: Date;
+
+  @Prop()
+  signatureRequestedAt?: Date;
+
+  @Prop()
+  signedAt?: Date;
+
+  @Prop({ type: String, maxlength: 200 })
+  tenantSignatureName?: string;
+
+  @Prop({ type: String })
+  tenantSignatureData?: string;
+
+  @Prop({ type: String, maxlength: 45 })
+  tenantSignatureIp?: string;
+
+  @Prop({ type: String, maxlength: 500 })
+  tenantSignatureUserAgent?: string;
+
   // Soft delete
   deleted: boolean;
   deletedAt?: Date;

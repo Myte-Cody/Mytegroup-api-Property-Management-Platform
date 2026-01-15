@@ -3,12 +3,14 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -20,6 +22,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 import { FormDataRequest } from 'nestjs-form-data';
 import { CheckPolicies } from '../../common/casl/decorators/check-policies.decorator';
 import { CaslGuard } from '../../common/casl/guards/casl.guard';
@@ -52,6 +55,8 @@ import {
 } from './dto';
 import { RentRollQueryDto } from './dto/rent-roll-query.dto';
 import { RentRollResponseDto } from './dto/rent-roll-response.dto';
+import { LeasePdfService } from './services/lease-pdf.service';
+import { LeaseSignatureService } from './services/lease-signature.service';
 import { LeasesService } from './services/leases.service';
 import { RentalPeriodsService } from './services/rental-periods.service';
 import { TransactionsService } from './services/transactions.service';
@@ -66,6 +71,8 @@ export class LeasesController {
     private readonly transactionsService: TransactionsService,
     private readonly mediaService: MediaService,
     private readonly rentalPeriodsService: RentalPeriodsService,
+    private readonly leaseSignatureService: LeaseSignatureService,
+    private readonly leasePdfService: LeasePdfService,
   ) {}
 
   @Get()
@@ -478,5 +485,124 @@ export class LeasesController {
       success: true,
       data: { url },
     };
+  }
+
+  // ==================== Signature Flow Endpoints ====================
+
+  @Post(':id/send-for-signature')
+  @CheckPolicies(new UpdateLeasePolicyHandler())
+  @ApiOperation({ summary: 'Send lease for tenant signature' })
+  @ApiParam({ name: 'id', description: 'Lease ID', type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Signature request sent successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Lease cannot be sent for signature (wrong status)',
+  })
+  async sendForSignature(
+    @Param('id', MongoIdValidationPipe) leaseId: string,
+    @CurrentUser() user: User,
+  ) {
+    // Verify access to the lease
+    await this.leasesService.findOne(leaseId, user);
+
+    const result = await this.leaseSignatureService.sendForSignature(leaseId, user);
+
+    return {
+      success: true,
+      data: {
+        expiresAt: result.expiresAt,
+        signatureUrl: result.signatureUrl,
+      },
+      message: 'Signature request sent to tenant',
+    };
+  }
+
+  @Get(':id/preview-pdf')
+  @CheckPolicies(new ReadLeasePolicyHandler())
+  @ApiOperation({ summary: 'Generate and download lease preview PDF (unsigned)' })
+  @ApiParam({ name: 'id', description: 'Lease ID', type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'PDF file',
+  })
+  @Header('Content-Type', 'application/pdf')
+  async getPreviewPdf(
+    @Param('id', MongoIdValidationPipe) leaseId: string,
+    @CurrentUser() user: User,
+    @Res() res: Response,
+  ) {
+    // Verify access to the lease
+    await this.leasesService.findOne(leaseId, user);
+
+    const pdfBuffer = await this.leasePdfService.generatePreviewPdf(leaseId);
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="lease-${leaseId}-preview.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+
+    res.send(pdfBuffer);
+  }
+
+  @Get(':id/signature-status')
+  @CheckPolicies(new ReadLeasePolicyHandler())
+  @ApiOperation({ summary: 'Get signature status for a lease' })
+  @ApiParam({ name: 'id', description: 'Lease ID', type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Signature status retrieved',
+  })
+  async getSignatureStatus(
+    @Param('id', MongoIdValidationPipe) leaseId: string,
+    @CurrentUser() user: User,
+  ) {
+    // Verify access to the lease
+    await this.leasesService.findOne(leaseId, user);
+
+    const status = await this.leaseSignatureService.getSignatureStatus(leaseId);
+
+    return {
+      success: true,
+      data: status,
+    };
+  }
+
+  @Get(':id/signed-pdf')
+  @CheckPolicies(new ReadLeasePolicyHandler())
+  @ApiOperation({ summary: 'Download signed lease PDF' })
+  @ApiParam({ name: 'id', description: 'Lease ID', type: String })
+  @ApiResponse({
+    status: 200,
+    description: 'Signed PDF file',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Lease has not been signed yet',
+  })
+  async getSignedPdf(
+    @Param('id', MongoIdValidationPipe) leaseId: string,
+    @CurrentUser() user: User,
+    @Res() res: Response,
+  ) {
+    const lease = await this.leasesService.findOne(leaseId, user);
+
+    if (!lease.signedPdfId) {
+      return res.status(400).json({
+        success: false,
+        message: 'This lease has not been signed yet',
+      });
+    }
+
+    const media = await this.mediaService.findOne(lease.signedPdfId.toString(), user);
+    const url = await this.mediaService.getMediaUrl(media);
+
+    return res.json({
+      success: true,
+      data: { url },
+    });
   }
 }

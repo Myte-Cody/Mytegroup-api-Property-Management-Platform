@@ -12,6 +12,7 @@ import { EmailTemplateSeeder } from './services/email-template-seeder.service';
 import { InquiryEmailService } from './services/inquiry-email.service';
 import { InvitationEmailService } from './services/invitation-email.service';
 import { LeaseEmailService } from './services/lease-email.service';
+import { LeaseSignatureEmailService } from './services/lease-signature-email.service';
 import { MaintenanceEmailService } from './services/maintenance-email.service';
 import { PaymentEmailService } from './services/payment-email.service';
 import { TemplateService } from './services/template.service';
@@ -51,6 +52,7 @@ const enableQueues = process.env.REDIS_DISABLE !== 'true';
     AuthEmailService,
     InvitationEmailService,
     LeaseEmailService,
+    LeaseSignatureEmailService,
     PaymentEmailService,
     MaintenanceEmailService,
     InquiryEmailService,
@@ -64,6 +66,7 @@ const enableQueues = process.env.REDIS_DISABLE !== 'true';
     AuthEmailService,
     InvitationEmailService,
     LeaseEmailService,
+    LeaseSignatureEmailService,
     PaymentEmailService,
     MaintenanceEmailService,
     InquiryEmailService,

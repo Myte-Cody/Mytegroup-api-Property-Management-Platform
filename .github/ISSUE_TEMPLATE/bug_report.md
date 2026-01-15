@@ -1,9 +1,9 @@
 ---
 name: Bug report
 about: Report a reproducible issue
-title: ""
+title: ''
 labels: bug
-assignees: ""
+assignees: ''
 ---
 
 ## Summary

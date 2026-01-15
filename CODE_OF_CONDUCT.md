@@ -7,12 +7,14 @@ We pledge to make participation in our community a harassment-free experience fo
 ## Our Standards
 
 Examples of behavior that contributes to a positive environment:
+
 - Demonstrating empathy and kindness
 - Respecting differing opinions and experiences
 - Giving and gracefully accepting constructive feedback
 - Taking responsibility and apologizing to those affected by mistakes
 
 Examples of unacceptable behavior:
+
 - Trolling, insulting, or derogatory comments
 - Public or private harassment
 - Publishing others' private information without consent

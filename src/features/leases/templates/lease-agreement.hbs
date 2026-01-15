@@ -1,0 +1,274 @@
+<html lang='en'>
+  <head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>Residential Lease Agreement</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: 'Times New Roman', Times, serif;
+        font-size: 11pt;
+        line-height: 1.6;
+        color: #333;
+        padding: 40px;
+      }
+      .header {
+        text-align: center;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #333;
+      }
+      .header h1 {
+        font-size: 18pt;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        margin-bottom: 10px;
+      }
+      .header .subtitle {
+        font-size: 10pt;
+        color: #666;
+      }
+      .section {
+        margin-bottom: 25px;
+      }
+      .section-title {
+        font-size: 12pt;
+        font-weight: bold;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+        padding-bottom: 5px;
+        border-bottom: 1px solid #ccc;
+      }
+      .parties-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 15px;
+      }
+      .parties-table td {
+        padding: 8px;
+        vertical-align: top;
+        width: 50%;
+      }
+      .parties-table .label {
+        font-weight: bold;
+        color: #555;
+      }
+      .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 15px;
+      }
+      .info-item {
+        margin-bottom: 8px;
+      }
+      .info-item .label {
+        font-weight: bold;
+        color: #555;
+        display: inline-block;
+        min-width: 150px;
+      }
+      .terms-content {
+        white-space: pre-wrap;
+        background-color: #f9f9f9;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-top: 10px;
+      }
+      .signature-section {
+        margin-top: 50px;
+        page-break-inside: avoid;
+      }
+      .signature-box {
+        margin-top: 30px;
+        padding: 20px;
+        border: 1px solid #ddd;
+        background-color: #f9f9f9;
+      }
+      .signature-line {
+        border-bottom: 1px solid #333;
+        width: 300px;
+        display: inline-block;
+        margin-bottom: 5px;
+      }
+      .signature-label {
+        font-size: 10pt;
+        color: #666;
+      }
+      .signed-info {
+        background-color: #e8f5e9;
+        border: 1px solid #4caf50;
+        padding: 15px;
+        margin-top: 20px;
+        border-radius: 4px;
+      }
+      .signed-info h4 {
+        color: #2e7d32;
+        margin-bottom: 10px;
+      }
+      .signature-image {
+        max-width: 300px;
+        max-height: 100px;
+        border: 1px solid #ddd;
+        background: #fff;
+        margin: 10px 0;
+      }
+      .footer {
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid #ccc;
+        font-size: 9pt;
+        color: #666;
+        text-align: center;
+      }
+      .watermark {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-45deg);
+        font-size: 80pt;
+        color: rgba(200, 200, 200, 0.3);
+        pointer-events: none;
+        z-index: -1;
+      }{{#unless signedAt}}
+        .watermark-preview { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%)
+        rotate(-45deg); font-size: 60pt; color: rgba(255, 0, 0, 0.15); pointer-events: none;
+        z-index: -1; }
+      {{/unless}}
+    </style>
+  </head>
+  <body>
+    {{#unless signedAt}}
+      <div class='watermark-preview'>PREVIEW</div>
+    {{/unless}}
+
+    <div class='header'>
+      <h1>Residential Lease Agreement</h1>
+      <p class='subtitle'>This agreement is entered into on {{formatDate generatedAt}}</p>
+    </div>
+
+    <div class='section'>
+      <div class='section-title'>1. Parties to this Agreement</div>
+      <table class='parties-table'>
+        <tr>
+          <td>
+            <p class='label'>LANDLORD:</p>
+            <p>{{landlordName}}</p>
+            {{#if landlordAddress}}
+              <p>{{landlordAddress}}</p>
+            {{/if}}
+          </td>
+          <td>
+            <p class='label'>TENANT:</p>
+            <p>{{tenantName}}</p>
+            <p>{{tenantEmail}}</p>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div class='section'>
+      <div class='section-title'>2. Property</div>
+      <div class='info-item'>
+        <span class='label'>Property Name:</span>
+        <span>{{propertyName}}</span>
+      </div>
+      <div class='info-item'>
+        <span class='label'>Address:</span>
+        <span>{{propertyAddress}}</span>
+      </div>
+      <div class='info-item'>
+        <span class='label'>Unit:</span>
+        <span>{{unitNumber}}</span>
+      </div>
+    </div>
+
+    <div class='section'>
+      <div class='section-title'>3. Lease Term</div>
+      <div class='info-item'>
+        <span class='label'>Start Date:</span>
+        <span>{{formatDate startDate}}</span>
+      </div>
+      <div class='info-item'>
+        <span class='label'>End Date:</span>
+        <span>{{formatDate endDate}}</span>
+      </div>
+    </div>
+
+    <div class='section'>
+      <div class='section-title'>4. Rent and Payments</div>
+      <div class='info-item'>
+        <span class='label'>Rent Amount:</span>
+        <span>{{formatCurrency rentAmount}}</span>
+      </div>
+      <div class='info-item'>
+        <span class='label'>Payment Frequency:</span>
+        <span>{{paymentCycle}}</span>
+      </div>
+      {{#if securityDeposit}}
+        <div class='info-item'>
+          <span class='label'>Security Deposit:</span>
+          <span>{{formatCurrency securityDeposit}}</span>
+        </div>
+      {{/if}}
+    </div>
+
+    {{#if terms}}
+      <div class='section'>
+        <div class='section-title'>5. Additional Terms and Conditions</div>
+        <div class='terms-content'>{{{terms}}}</div>
+      </div>
+    {{/if}}
+
+    <div class='signature-section'>
+      <div class='section-title'>{{#if terms}}6{{else}}5{{/if}}. Signatures</div>
+
+      {{#if signedAt}}
+        <div class='signed-info'>
+          <h4>Tenant Electronic Signature</h4>
+          {{#if signatureData}}
+            <img src='{{signatureData}}' alt='Tenant Signature' class='signature-image' />
+          {{/if}}
+          <div class='info-item'>
+            <span class='label'>Signed By:</span>
+            <span>{{signatureName}}</span>
+          </div>
+          <div class='info-item'>
+            <span class='label'>Date Signed:</span>
+            <span>{{formatDateTime signedAt}}</span>
+          </div>
+        </div>
+      {{else}}
+        <div class='signature-box'>
+          <p><strong>Tenant Signature</strong></p>
+          <p style='margin-top: 30px;'>
+            <span class='signature-line'></span>
+          </p>
+          <p class='signature-label'>Signature</p>
+          <p style='margin-top: 15px;'>
+            <span class='signature-line'></span>
+          </p>
+          <p class='signature-label'>Printed Name</p>
+          <p style='margin-top: 15px;'>
+            <span class='signature-line'></span>
+          </p>
+          <p class='signature-label'>Date</p>
+        </div>
+      {{/if}}
+    </div>
+
+    <div class='footer'>
+      <p>This document was generated on {{formatDateTime generatedAt}}</p>
+      {{#if signedAt}}
+        <p>Document ID: {{leaseId}} | Signed: {{formatDateTime signedAt}}</p>
+      {{else}}
+        <p>PREVIEW COPY - NOT LEGALLY BINDING UNTIL SIGNED</p>
+      {{/if}}
+    </div>
+  </body>
+</html>

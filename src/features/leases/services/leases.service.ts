@@ -232,6 +232,13 @@ export class LeasesService {
 
       await this.validateLeaseCreation(createLeaseDto);
 
+      // Block direct activation - must go through signature flow
+      if (createLeaseDto.status === LeaseStatus.ACTIVE) {
+        throw new UnprocessableEntityException(
+          'Cannot create a lease with ACTIVE status. Create a DRAFT lease and use "Send for Signature" to have the tenant sign it.',
+        );
+      }
+
       // Apply full cycle completion to ensure duration is a multiple of payment cycles
       const completedEndDate = completeFullCycle(
         createLeaseDto.startDate,
@@ -246,10 +253,6 @@ export class LeasesService {
       });
 
       const savedLease = await newLease.save({ session });
-
-      if (createLeaseDto.status === LeaseStatus.ACTIVE) {
-        await this.activateLease(savedLease, session);
-      }
 
       // If document files are provided, upload them
       if (createLeaseDto.documents && createLeaseDto.documents.length > 0) {
@@ -1205,7 +1208,12 @@ export class LeasesService {
 
   private validateStatusTransition(currentStatus: LeaseStatus, newStatus: LeaseStatus) {
     const validTransitions: Record<LeaseStatus, LeaseStatus[]> = {
-      [LeaseStatus.DRAFT]: [LeaseStatus.ACTIVE, LeaseStatus.TERMINATED],
+      // DRAFT can only go to PENDING_SIGNATURE (via send-for-signature) or TERMINATED
+      // Direct DRAFT -> ACTIVE is blocked - must go through signature flow
+      [LeaseStatus.DRAFT]: [LeaseStatus.PENDING_SIGNATURE, LeaseStatus.TERMINATED],
+      // PENDING_SIGNATURE can go back to DRAFT (if edited) or to TERMINATED
+      // ACTIVE transition happens via signature service, not direct status change
+      [LeaseStatus.PENDING_SIGNATURE]: [LeaseStatus.DRAFT, LeaseStatus.TERMINATED],
       [LeaseStatus.ACTIVE]: [LeaseStatus.EXPIRED, LeaseStatus.TERMINATED],
       [LeaseStatus.EXPIRED]: [],
       [LeaseStatus.TERMINATED]: [],
@@ -1213,6 +1221,12 @@ export class LeasesService {
 
     const allowedStatuses = validTransitions[currentStatus] || [];
     if (!allowedStatuses.includes(newStatus)) {
+      // Provide helpful message for blocked DRAFT -> ACTIVE transition
+      if (currentStatus === LeaseStatus.DRAFT && newStatus === LeaseStatus.ACTIVE) {
+        throw new UnprocessableEntityException(
+          'Cannot directly activate a draft lease. Please use "Send for Signature" to have the tenant sign the lease first.',
+        );
+      }
       throw new UnprocessableEntityException(
         `Invalid status transition from ${currentStatus} to ${newStatus}. ` +
           `Allowed transitions: ${allowedStatuses.join(', ') || 'none'}`,
@@ -1399,7 +1413,11 @@ export class LeasesService {
     }
   }
 
-  private async activateLease(lease: Lease, session?: ClientSession) {
+  /**
+   * Activates a lease - creates rental periods, transactions, updates unit status.
+   * This is called by the signature service when tenant signs the lease.
+   */
+  async activateLease(lease: Lease, session?: ClientSession) {
     try {
       if (!lease.activatedAt) {
         lease.activatedAt = new Date();
@@ -1622,9 +1640,9 @@ export class LeasesService {
   }
 
   private async handleStatusChange(lease: Lease, newStatus: LeaseStatus, session?: ClientSession) {
-    if (newStatus === LeaseStatus.ACTIVE && lease.status === LeaseStatus.DRAFT) {
-      await this.activateLease(lease, session);
-    }
+    // DRAFT -> ACTIVE is blocked by validateStatusTransition
+    // Activation happens only via the signature service when tenant signs
+    // This method now handles other valid transitions if needed
   }
 
   private async handlePaymentCycleChange(

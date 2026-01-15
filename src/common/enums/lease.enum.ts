@@ -1,8 +1,16 @@
 export enum LeaseStatus {
   DRAFT = 'DRAFT',
+  PENDING_SIGNATURE = 'PENDING_SIGNATURE',
   ACTIVE = 'ACTIVE',
   EXPIRED = 'EXPIRED',
   TERMINATED = 'TERMINATED',
+}
+
+export enum SignatureTokenStatus {
+  PENDING = 'PENDING',
+  USED = 'USED',
+  EXPIRED = 'EXPIRED',
+  INVALIDATED = 'INVALIDATED',
 }
 
 export enum PaymentCycle {

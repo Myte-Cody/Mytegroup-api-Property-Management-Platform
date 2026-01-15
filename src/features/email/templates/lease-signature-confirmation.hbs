@@ -1,0 +1,132 @@
+<html lang='en'>
+  <head>
+    <meta charset='UTF-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+    <title>Lease Signed - {{brandName}}</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        margin: 0;
+        padding: 0;
+        background-color: #f9f9f9;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+        border-radius: 5px;
+        overflow: hidden;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      }
+      .header {
+        background-color: #4caf50;
+        color: white;
+        padding: 20px;
+        text-align: center;
+      }
+      .content {
+        padding: 20px;
+      }
+      .footer {
+        background-color: #f5f5f5;
+        padding: 15px;
+        text-align: center;
+        font-size: 12px;
+        color: #666;
+      }
+      .button {
+        display: inline-block;
+        background-color:{{brandColor}};
+                    color: white !important;
+                    padding: 14px 28px;
+                    text-decoration: none;
+                    border-radius: 4px;
+                    margin: 15px 0;
+                    font-weight: bold;
+                  }
+                  .success-icon {
+                    font-size: 48px;
+                    margin-bottom: 10px;
+                  }
+                  .info-box {
+                    background-color: #e8f5e9;
+                    border: 1px solid #4caf50;
+                    border-radius: 5px;
+                    padding: 15px;
+                    margin: 20px 0;
+                  }
+                  .detail-row {
+                    display: flex;
+                    justify-content: space-between;
+                    margin-bottom: 8px;
+                    border-bottom: 1px solid #c8e6c9;
+                    padding-bottom: 8px;
+                  }
+                  .detail-label {
+                    font-weight: bold;
+                    color: #2e7d32;
+                  }
+    </style>
+  </head>
+  <body>
+    <div class='container'>
+      <div class='header'>
+        {{#if brandLogoUrl}}
+          <div style='text-align:center;margin-bottom:12px;'>
+            <img src='{{brandLogoUrl}}' alt='{{brandName}}' style='max-height:150px;' />
+          </div>
+        {{/if}}
+        <div class='success-icon'>&#10003;</div>
+        <h1>Lease Successfully Signed</h1>
+      </div>
+      <div class='content'>
+        <h2>Hello {{capitalize recipientName}}!</h2>
+
+        {{#if isTenant}}
+          <p>Great news! Your lease agreement has been successfully signed and is now active.</p>
+        {{else}}
+          <p>Great news! The lease agreement for your property has been signed by the tenant and is
+            now active.</p>
+        {{/if}}
+
+        <div class='info-box'>
+          <h3>Lease Details</h3>
+          <div class='detail-row'>
+            <span class='detail-label'>Property:</span>
+            <span>{{propertyName}}</span>
+          </div>
+          <div class='detail-row'>
+            <span class='detail-label'>Unit:</span>
+            <span>{{unitIdentifier}}</span>
+          </div>
+          <div class='detail-row'>
+            <span class='detail-label'>Signed On:</span>
+            <span>{{formatDateTime signedAt}}</span>
+          </div>
+          {{#if signedBy}}
+            <div class='detail-row'>
+              <span class='detail-label'>Signed By:</span>
+              <span>{{signedBy}}</span>
+            </div>
+          {{/if}}
+        </div>
+
+        <p style='text-align: center;'>
+          <a href='{{downloadUrl}}' class='button'>Download Signed Lease</a>
+        </p>
+
+        {{#if isTenant}}
+          <p>Welcome to your new home! You can now access all tenant features on our platform.</p>
+        {{else}}
+          <p>The signed lease document is now available for download in your dashboard.</p>
+        {{/if}}
+      </div>
+      <div class='footer'>
+        <p>Best regards,<br />The {{brandName}} Team</p>
+        <p>{{currentYear}} {{brandName}}. All rights reserved.</p>
+      </div>
+    </div>
+  </body>
+</html>

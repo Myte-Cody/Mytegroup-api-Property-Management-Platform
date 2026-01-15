@@ -1,0 +1,4 @@
+{
+  "subject": "Lease Signed Successfully - {{propertyName}}",
+  "text": "Hello {{recipientName}},\n\n{{#if isTenant}}Your lease agreement has been successfully signed and is now active.{{else}}The lease agreement for your property has been signed by the tenant and is now active.{{/if}}\n\nLease Details:\n- Property: {{propertyName}}\n- Unit: {{unitIdentifier}}\n- Signed On: {{signedAt}}\n\nYou can download the signed lease from your dashboard or by visiting:\n{{downloadUrl}}\n\nBest regards,\nThe {{brandName}} Team"
+}

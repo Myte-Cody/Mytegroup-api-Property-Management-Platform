@@ -4,6 +4,7 @@ import { NestjsFormDataModule } from 'nestjs-form-data';
 import { CaslModule } from '../../common/casl/casl.module';
 import { CommonModule } from '../../common/common.module';
 import { Availability, AvailabilitySchema } from '../availability/schemas/availability.schema';
+import { EmailModule } from '../email/email.module';
 import { MaintenanceModule } from '../maintenance/maintenance.module';
 import {
   MaintenanceTicket,
@@ -19,12 +20,19 @@ import { Tenant, TenantSchema } from '../tenants/schema/tenant.schema';
 import { TenantsModule } from '../tenants/tenant.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
+import { LeaseSignatureController } from './lease-signature.controller';
 import { LeasesController } from './leases.controller';
 import { RentalPeriodsController } from './rental-periods.controller';
+import {
+  LeaseSignatureToken,
+  LeaseSignatureTokenSchema,
+} from './schemas/lease-signature-token.schema';
 import { Lease, LeaseSchema } from './schemas/lease.schema';
 import { RentalPeriod, RentalPeriodSchema } from './schemas/rental-period.schema';
 import { Transaction, TransactionSchema } from './schemas/transaction.schema';
 import { AutoRenewalService } from './services/auto-renewal.service';
+import { LeasePdfService } from './services/lease-pdf.service';
+import { LeaseSignatureService } from './services/lease-signature.service';
 import { LeasesService } from './services/leases.service';
 import { RentalPeriodsService } from './services/rental-periods.service';
 import { TransactionsService } from './services/transactions.service';
@@ -34,6 +42,7 @@ import { TransactionsController } from './transactions.controller';
   imports: [
     MongooseModule.forFeature([
       { name: Lease.name, schema: LeaseSchema },
+      { name: LeaseSignatureToken.name, schema: LeaseSignatureTokenSchema },
       { name: RentalPeriod.name, schema: RentalPeriodSchema },
       { name: Transaction.name, schema: TransactionSchema },
       { name: Unit.name, schema: UnitSchema },
@@ -47,6 +56,7 @@ import { TransactionsController } from './transactions.controller';
     NestjsFormDataModule,
     CaslModule,
     CommonModule,
+    EmailModule,
     forwardRef(() => MaintenanceModule),
     MediaModule,
     NotificationsModule,
@@ -54,8 +64,27 @@ import { TransactionsController } from './transactions.controller';
     TenantsModule,
     UsersModule,
   ],
-  controllers: [LeasesController, RentalPeriodsController, TransactionsController],
-  providers: [LeasesService, RentalPeriodsService, TransactionsService, AutoRenewalService],
-  exports: [LeasesService, RentalPeriodsService, TransactionsService, AutoRenewalService],
+  controllers: [
+    LeasesController,
+    LeaseSignatureController,
+    RentalPeriodsController,
+    TransactionsController,
+  ],
+  providers: [
+    LeasesService,
+    LeasePdfService,
+    LeaseSignatureService,
+    RentalPeriodsService,
+    TransactionsService,
+    AutoRenewalService,
+  ],
+  exports: [
+    LeasesService,
+    LeasePdfService,
+    LeaseSignatureService,
+    RentalPeriodsService,
+    TransactionsService,
+    AutoRenewalService,
+  ],
 })
 export class LeasesModule {}
