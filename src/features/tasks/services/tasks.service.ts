@@ -296,7 +296,7 @@ export class TasksService {
         NotificationType.TASK_CREATED,
         'Task Created',
         `Your task "${task.title}" has been created.`,
-        `${dashboardPath}/tasks/${task._id}`,
+        `${dashboardPath}/tasks`,
       );
     } catch (error) {
       console.error('Failed to send task create notification:', error);
@@ -332,7 +332,7 @@ export class TasksService {
         notificationType,
         `Task ${statusLabel}`,
         `Task "${task.title}" status changed to ${statusLabel}.`,
-        `${dashboardPath}/tasks/${task._id}`,
+        `${dashboardPath}/tasks`,
       );
     } catch (error) {
       console.error('Failed to send task status change notification:', error);
@@ -356,7 +356,7 @@ export class TasksService {
         NotificationType.TASK_ESCALATED,
         title,
         message,
-        `${dashboardPath}/tasks/${task._id}`,
+        `${dashboardPath}/tasks`,
       );
     } catch (error) {
       console.error('Failed to send task escalation notification:', error);
