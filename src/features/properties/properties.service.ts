@@ -339,7 +339,7 @@ export class PropertiesService {
 
       // Use extracted location data to populate address fields including coordinates
       addressUpdate = {
-        street: extractedLocation.city || '',
+        street: extractedLocation.street || '',
         city: extractedLocation.city || '',
         state: extractedLocation.state || '',
         postalCode: extractedLocation.postalCode || '',
@@ -421,7 +421,18 @@ export class PropertiesService {
   private getAllowedUpdateFields(currentUser: UserDocument): string[] {
     switch (currentUser.user_type) {
       case 'Landlord':
-        return ['name', 'description', 'street', 'city', 'state', 'postalCode', 'country'];
+        return [
+          'name',
+          'description',
+          'street',
+          'city',
+          'state',
+          'postalCode',
+          'country',
+          'countryCode',
+          'latitude',
+          'longitude',
+        ];
       case 'Tenant':
         return []; // Tenants cannot update properties
       case 'Contractor':

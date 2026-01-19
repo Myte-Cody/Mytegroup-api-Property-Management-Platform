@@ -36,6 +36,7 @@ export class GeocodingService {
         return {
           latitude: coordinates.latitude,
           longitude: coordinates.longitude,
+          street: addressDetails.street,
           city: addressDetails.city,
           state: addressDetails.state,
           country: addressDetails.country,
@@ -238,6 +239,12 @@ export class GeocodingService {
               resolve({
                 latitude,
                 longitude,
+                street:
+                  address.road ||
+                  address.street ||
+                  address.pedestrian ||
+                  address.footway ||
+                  address.path,
                 city:
                   address.city ||
                   address.town ||
@@ -272,6 +279,7 @@ export class GeocodingService {
     latitude: number,
     longitude: number,
   ): Promise<{
+    street?: string;
     city?: string;
     state?: string;
     country?: string;
@@ -302,6 +310,7 @@ export class GeocodingService {
               if (result.error) {
                 this.logger.warn(`Reverse geocoding failed: ${result.error}`);
                 resolve({
+                  street: undefined,
                   city: undefined,
                   state: undefined,
                   country: undefined,
@@ -314,6 +323,12 @@ export class GeocodingService {
               const address = result.address || {};
 
               resolve({
+                street:
+                  address.road ||
+                  address.street ||
+                  address.pedestrian ||
+                  address.footway ||
+                  address.path,
                 city:
                   address.city ||
                   address.town ||
@@ -328,6 +343,7 @@ export class GeocodingService {
             } catch (error) {
               this.logger.error(`Error parsing reverse geocoding response: ${error.message}`);
               resolve({
+                street: undefined,
                 city: undefined,
                 state: undefined,
                 country: undefined,
@@ -341,6 +357,7 @@ export class GeocodingService {
           this.logger.error(`Reverse geocoding request failed: ${error.message}`);
           // Return partial data instead of rejecting
           resolve({
+            street: undefined,
             city: undefined,
             state: undefined,
             country: undefined,

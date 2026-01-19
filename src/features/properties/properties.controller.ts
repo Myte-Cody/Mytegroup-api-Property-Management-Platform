@@ -98,7 +98,7 @@ export class PropertiesController {
       await this.geocodingService.extractLocationFromMapsLink(googleMapsLink);
 
     return {
-      street: extractedLocation.city || '',
+      street: extractedLocation.street || '',
       city: extractedLocation.city || '',
       state: extractedLocation.state || '',
       postalCode: extractedLocation.postalCode || null,
