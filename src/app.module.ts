@@ -33,6 +33,7 @@ import { MarketingChatModule } from './features/marketing-chat/marketing-chat.mo
 import { MediaModule } from './features/media/media.module';
 import { NotificationsModule } from './features/notifications/notifications.module';
 import { OnboardingModule } from './features/onboarding/onboarding.module';
+import { PaymentsModule } from './features/payments/payments.module';
 import { PropertiesModule } from './features/properties/properties.module';
 import { RevenuesModule } from './features/revenues/revenues.module';
 import { SchedulesModule } from './features/schedules/schedules.module';
@@ -125,6 +126,7 @@ const queueModules = enableQueues
     SchedulesModule,
     SchedulerModule,
     AdminModule,
+    PaymentsModule,
     MongooseModule.forRoot(process.env.DB_URL, {
       dbName: process.env.MONGO_DB_NAME,
     }),

@@ -80,6 +80,32 @@ export class Transaction extends Document implements SoftDelete {
   @Prop({ maxlength: 500 })
   notes?: string;
 
+  // Stripe payment fields
+  @Prop({ index: true, sparse: true })
+  stripePaymentIntentId?: string; // pi_xxx
+
+  @Prop({ index: true, sparse: true })
+  stripeChargeId?: string; // ch_xxx
+
+  @Prop({ type: String, enum: ['card', 'manual'] })
+  stripePaymentMethodType?: 'card' | 'manual';
+
+  @Prop()
+  stripeReceiptUrl?: string;
+
+  @Prop({ type: Object })
+  stripeMetadata?: {
+    lastError?: string;
+    failedAt?: Date;
+    attemptCount?: number;
+    disputeId?: string;
+    disputeStatus?: string;
+    disputeReason?: string;
+    disputeClosedAt?: Date;
+    refundedAmount?: number;
+    refundedAt?: Date;
+  };
+
   // Soft delete
   deleted: boolean;
   deletedAt?: Date;
