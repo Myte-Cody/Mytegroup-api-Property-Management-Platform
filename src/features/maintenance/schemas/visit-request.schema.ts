@@ -220,11 +220,8 @@ export const VisitRequestSchema = SchemaFactory.createForClass(VisitRequest);
 VisitRequestSchema.index({ landlord: 1, status: 1 });
 VisitRequestSchema.index({ contractor: 1, status: 1 });
 VisitRequestSchema.index({ tenant: 1, status: 1 });
-VisitRequestSchema.index({ ticket: 1 });
-VisitRequestSchema.index({ scopeOfWork: 1 });
 VisitRequestSchema.index({ visitDate: 1, status: 1 });
 VisitRequestSchema.index({ originalRequest: 1, status: 1 });
-VisitRequestSchema.index({ previousSuggestion: 1 });
 
 // TypeScript types for query helpers
 export interface VisitRequestQueryHelpers {

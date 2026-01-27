@@ -76,7 +76,6 @@ SmsMessageSchema.index({ userId: 1, createdAt: -1 });
 SmsMessageSchema.index({ tenantId: 1, createdAt: -1 });
 SmsMessageSchema.index({ status: 1, createdAt: -1 });
 SmsMessageSchema.index({ to: 1, createdAt: -1 });
-SmsMessageSchema.index({ messageSid: 1 });
 
 SmsMessageSchema.plugin(mongooseDelete, {
   deletedAt: true,
