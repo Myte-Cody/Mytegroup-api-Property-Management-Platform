@@ -452,7 +452,7 @@ export class FeedPostsService {
           NotificationType.MESSAGE_NEW_DIRECT,
           'New Announcement',
           `📢 New announcement posted for ${property.name}: "${feedPost.title}"`,
-          `/dashboard/${userDashboard}/neighbors`,
+          `/dashboard/${userDashboard}/feed`,
         );
       });
 
@@ -484,7 +484,7 @@ export class FeedPostsService {
           NotificationType.MESSAGE_NEW_DIRECT,
           'Announcement Updated',
           `📝 An announcement for ${property.name} has been updated: "${feedPost.title}"`,
-          `/dashboard/${userDashboard}/neighbors`,
+          `/dashboard/${userDashboard}/feed`,
         );
       });
 
