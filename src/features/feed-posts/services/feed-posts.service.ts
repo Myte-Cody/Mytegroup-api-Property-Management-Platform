@@ -447,13 +447,25 @@ export class FeedPostsService {
             : user.user_type === 'Landlord'
               ? 'landlord'
               : 'tenant';
-        return this.notificationDispatcher.sendInAppNotification(
-          user._id.toString(),
-          NotificationType.MESSAGE_NEW_DIRECT,
-          'New Announcement',
-          `📢 New announcement posted for ${property.name}: "${feedPost.title}"`,
-          `/dashboard/${userDashboard}/feed`,
-        );
+
+        const recipientName =
+          user.firstName && user.lastName
+            ? `${user.firstName} ${user.lastName}`
+            : user.username || 'Resident';
+
+        return this.notificationDispatcher.notifyUser({
+          userId: user._id.toString(),
+          notificationType: NotificationType.FEED_NEW_ANNOUNCEMENT,
+          data: {
+            recipientName,
+            recipientEmail: user.email,
+            recipientPhone: user.phone,
+            propertyName: property.name,
+            announcementTitle: feedPost.title,
+            postId: feedPost._id.toString(),
+          },
+          actionUrl: `/dashboard/${userDashboard}/feed`,
+        });
       });
 
       await Promise.all(notificationPromises);
@@ -479,13 +491,25 @@ export class FeedPostsService {
             : user.user_type === 'Landlord'
               ? 'landlord'
               : 'tenant';
-        return this.notificationDispatcher.sendInAppNotification(
-          user._id.toString(),
-          NotificationType.MESSAGE_NEW_DIRECT,
-          'Announcement Updated',
-          `📝 An announcement for ${property.name} has been updated: "${feedPost.title}"`,
-          `/dashboard/${userDashboard}/feed`,
-        );
+
+        const recipientName =
+          user.firstName && user.lastName
+            ? `${user.firstName} ${user.lastName}`
+            : user.username || 'Resident';
+
+        return this.notificationDispatcher.notifyUser({
+          userId: user._id.toString(),
+          notificationType: NotificationType.FEED_NEW_ANNOUNCEMENT,
+          data: {
+            recipientName,
+            recipientEmail: user.email,
+            recipientPhone: user.phone,
+            propertyName: property.name,
+            announcementTitle: feedPost.title,
+            postId: feedPost._id.toString(),
+          },
+          actionUrl: `/dashboard/${userDashboard}/feed`,
+        });
       });
 
       await Promise.all(notificationPromises);

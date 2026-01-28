@@ -28,7 +28,6 @@ import {
   Availability,
   AvailabilityCreatedBy,
 } from '../../availability/schemas/availability.schema';
-import { LeaseEmailService } from '../../email/services/lease-email.service';
 import { VisitRequest, VisitRequestStatus } from '../../maintenance/schemas/visit-request.schema';
 import { ThreadsService } from '../../maintenance/services/threads.service';
 import { MediaService } from '../../media/services/media.service';
@@ -81,7 +80,6 @@ export class LeasesService {
     private readonly visitRequestModel: AppModel<VisitRequest>,
     private readonly transactionsService: TransactionsService,
     private readonly caslAuthorizationService: CaslAuthorizationService,
-    private readonly leaseEmailService: LeaseEmailService,
     private readonly threadsService: ThreadsService,
     private readonly mediaService: MediaService,
     private readonly sessionService: SessionService,
@@ -1507,8 +1505,8 @@ export class LeasesService {
         }
       }
 
-      // Send lease activation email notifications
-      await this.sendLeaseActivationEmails(lease);
+      // Send lease activation notifications
+      await this.sendLeaseActivationNotifications(lease);
 
       // Create communication thread between landlord and tenant
       await this.createLeaseThread(lease);
@@ -1775,7 +1773,7 @@ export class LeasesService {
   /**
    * Send lease activation email notifications to both landlord and tenant
    */
-  private async sendLeaseActivationEmails(lease: Lease): Promise<void> {
+  private async sendLeaseActivationNotifications(lease: Lease): Promise<void> {
     try {
       // Populate lease with unit and tenant information
       const populatedLease = await this.leaseModel
@@ -1797,12 +1795,26 @@ export class LeasesService {
       const tenant = populatedLease.tenant as any;
       const property = unit.property as any;
       const users = await this.findTenantUsers(tenant._id);
-      // Send email to tenants
-      const tenantEmailPromises = users.map((user) =>
-        this.leaseEmailService.sendLeaseActivatedEmail(
-          {
+
+      // Find landlord users to notify
+      const landlordUsers = await this.findLandlordUsers();
+
+      // Send notifications to tenants
+      const tenantNotificationPromises = users.map((user) => {
+        const userDashboard =
+          user.user_type === 'Contractor'
+            ? 'contractor'
+            : user.user_type === 'Landlord'
+              ? 'landlord'
+              : 'tenant';
+
+        return this.notificationDispatcher.notifyUser({
+          userId: user._id.toString(),
+          notificationType: NotificationType.LEASE_ACTIVATED,
+          data: {
             recipientName: tenant.name,
             recipientEmail: user.email,
+            recipientPhone: user.phone,
             isTenant: true,
             propertyName: property.name,
             unitIdentifier: unit.unitNumber,
@@ -1811,19 +1823,21 @@ export class LeasesService {
             leaseEndDate: populatedLease.endDate,
             monthlyRent: populatedLease.rentAmount,
           },
-          { queue: true },
-        ),
-      );
+          actionUrl: `/dashboard/${userDashboard}/leases`,
+        });
+      });
 
-      // Find landlord users to notify
-      const landlordUsers = await this.findLandlordUsers();
+      // Send notiunifiedfications to landlords
+      const landlordNotificationPromises = landlordUsers.map((user) => {
+        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : 'landlord';
 
-      // Send email to each landlord user
-      const landlordEmailPromises = landlordUsers.map((user) =>
-        this.leaseEmailService.sendLeaseActivatedEmail(
-          {
+        return this.notificationDispatcher.notifyUser({
+          userId: user._id.toString(),
+          notificationType: NotificationType.LEASE_ACTIVATED,
+          data: {
             recipientName: user.username,
             recipientEmail: user.email,
+            recipientPhone: user.phone,
             isTenant: false,
             propertyName: property.name,
             unitIdentifier: unit.unitNumber,
@@ -1832,39 +1846,8 @@ export class LeasesService {
             leaseEndDate: populatedLease.endDate,
             monthlyRent: populatedLease.rentAmount,
           },
-          { queue: true },
-        ),
-      );
-
-      await Promise.all([...tenantEmailPromises, ...landlordEmailPromises]);
-
-      // Send in-app notifications to tenants
-      const tenantNotificationPromises = users.map((user) => {
-        const userDashboard =
-          user.user_type === 'Contractor'
-            ? 'contractor'
-            : user.user_type === 'Landlord'
-              ? 'landlord'
-              : 'tenant';
-        return this.notificationDispatcher.sendInAppNotification(
-          user._id.toString(),
-          NotificationType.MESSAGE_NEW_DIRECT,
-          'Lease Activated',
-          `🏠 Your lease for ${property.name} - Unit ${unit.unitNumber} has been activated. Welcome to your new home!`,
-          `/dashboard/${userDashboard}/leases`,
-        );
-      });
-
-      // Send in-app notifications to landlords
-      const landlordNotificationPromises = landlordUsers.map((user) => {
-        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : 'landlord';
-        return this.notificationDispatcher.sendInAppNotification(
-          user._id.toString(),
-          NotificationType.MESSAGE_NEW_DIRECT,
-          'Lease Activated',
-          `🏠 Lease for ${property.name} - Unit ${unit.unitNumber} has been activated.`,
-          `/dashboard/${userDashboard}/leases/${lease._id}`,
-        );
+          actionUrl: `/dashboard/${userDashboard}/leases/${lease._id}`,
+        });
       });
 
       await Promise.all([...tenantNotificationPromises, ...landlordNotificationPromises]);
@@ -1899,7 +1882,7 @@ export class LeasesService {
   }
 
   /**
-   * Send lease termination email notifications to both landlord and tenant
+   * Send lease termination notifications to both landlord and tenant
    */
   private async sendLeaseTerminationEmails(
     lease: Lease,
@@ -1929,12 +1912,26 @@ export class LeasesService {
       const moveOutDate = new Date(lease.terminationDate);
 
       const users = await this.findTenantUsers(tenant._id);
-      // Send email to tenants
-      const tenantEmailPromises = users.map((user) =>
-        this.leaseEmailService.sendLeaseTerminationEmail(
-          {
+
+      // Find landlord users to notify
+      const landlordUsers = await this.findLandlordUsers();
+
+      // Send unified notifications to tenants
+      const tenantNotificationPromises = users.map((user) => {
+        const userDashboard =
+          user.user_type === 'Contractor'
+            ? 'contractor'
+            : user.user_type === 'Landlord'
+              ? 'landlord'
+              : 'tenant';
+
+        return this.notificationDispatcher.notifyUser({
+          userId: user._id.toString(),
+          notificationType: NotificationType.LEASE_TERMINATED,
+          data: {
             recipientName: tenant.name,
             recipientEmail: user.email,
+            recipientPhone: user.phone,
             isTenant: true,
             propertyName: property.name,
             unitIdentifier: unit.unitNumber,
@@ -1945,19 +1942,21 @@ export class LeasesService {
             moveOutDate: moveOutDate,
             additionalNotes: terminationData.terminationReason,
           },
-          { queue: true },
-        ),
-      );
+          actionUrl: `/dashboard/${userDashboard}/leases`,
+        });
+      });
 
-      // Find landlord users to notify
-      const landlordUsers = await this.findLandlordUsers();
+      // Send unified notifications to landlords
+      const landlordNotificationPromises = landlordUsers.map((user) => {
+        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : 'landlord';
 
-      // Send email to each landlord user
-      const landlordEmailPromises = landlordUsers.map((user) =>
-        this.leaseEmailService.sendLeaseTerminationEmail(
-          {
+        return this.notificationDispatcher.notifyUser({
+          userId: user._id.toString(),
+          notificationType: NotificationType.LEASE_TERMINATED,
+          data: {
             recipientName: user.username,
             recipientEmail: user.email,
+            recipientPhone: user.phone,
             isTenant: false,
             propertyName: property.name,
             unitIdentifier: unit.unitNumber,
@@ -1968,39 +1967,8 @@ export class LeasesService {
             moveOutDate: moveOutDate,
             additionalNotes: terminationData.terminationReason || lease.terminationReason,
           },
-          { queue: true },
-        ),
-      );
-
-      await Promise.all([...tenantEmailPromises, ...landlordEmailPromises]);
-
-      // Send in-app notifications to tenants
-      const tenantNotificationPromises = users.map((user) => {
-        const userDashboard =
-          user.user_type === 'Contractor'
-            ? 'contractor'
-            : user.user_type === 'Landlord'
-              ? 'landlord'
-              : 'tenant';
-        return this.notificationDispatcher.sendInAppNotification(
-          user._id.toString(),
-          NotificationType.MESSAGE_NEW_DIRECT,
-          'Lease Terminated',
-          `🚪 Your lease for ${property.name} - Unit ${unit.unitNumber} has been terminated. Please check your email for move-out details.`,
-          `/dashboard/${userDashboard}/leases`,
-        );
-      });
-
-      // Send in-app notifications to landlords
-      const landlordNotificationPromises = landlordUsers.map((user) => {
-        const userDashboard = user.user_type === 'Contractor' ? 'contractor' : 'landlord';
-        return this.notificationDispatcher.sendInAppNotification(
-          user._id.toString(),
-          NotificationType.MESSAGE_NEW_DIRECT,
-          'Lease Terminated',
-          `🚪 Lease for ${property.name} - Unit ${unit.unitNumber} has been terminated.`,
-          `/dashboard/${userDashboard}/leases/${lease._id}`,
-        );
+          actionUrl: `/dashboard/${userDashboard}/leases/${lease._id}`,
+        });
       });
 
       await Promise.all([...tenantNotificationPromises, ...landlordNotificationPromises]);
@@ -2010,7 +1978,7 @@ export class LeasesService {
   }
 
   /**
-   * Send lease renewal email notifications to both landlord and tenant
+   * Send lease renewal notifications to both landlord and tenant
    */
   private async sendLeaseRenewalEmails(
     lease: Lease,
@@ -2043,52 +2011,10 @@ export class LeasesService {
 
       // Send email to tenants
       const users = await this.findTenantUsers(tenant._id);
-      const tenantEmailPromises = users.map((user) =>
-        this.leaseEmailService.sendLeaseRenewalEmail(
-          {
-            recipientName: tenant.name,
-            recipientEmail: user.email,
-            isAutoRenewal: isAutoRenewal,
-            propertyName: property.name,
-            unitIdentifier: unit.unitNumber,
-            currentLeaseEndDate: currentRentalPeriod.endDate,
-            newLeaseStartDate: newRentalPeriod.startDate,
-            newLeaseEndDate: newRentalPeriod.endDate,
-            currentMonthlyRent: currentRentalPeriod.rentAmount,
-            newMonthlyRent: newRentalPeriod.rentAmount,
-            renewalDate: newRentalPeriod.startDate,
-          },
-          { queue: true },
-        ),
-      );
       // Find landlord users to notify
       const landlordUsers = await this.findLandlordUsers();
 
-      // Send email to each landlord user
-      const landlordEmailPromises = landlordUsers.map((user) =>
-        this.leaseEmailService.sendLeaseRenewalEmail(
-          {
-            recipientName: user.username,
-            recipientEmail: user.email,
-            isAutoRenewal: isAutoRenewal,
-            propertyName: property.name,
-            unitIdentifier: unit.unitNumber,
-            currentLeaseEndDate: currentRentalPeriod.endDate,
-            newLeaseStartDate: newRentalPeriod.startDate,
-            newLeaseEndDate: newRentalPeriod.endDate,
-            currentMonthlyRent: currentRentalPeriod.rentAmount,
-            newMonthlyRent: newRentalPeriod.rentAmount,
-            renewalDate: newRentalPeriod.startDate,
-          },
-          { queue: true },
-        ),
-      );
-
-      await Promise.all([...tenantEmailPromises, ...landlordEmailPromises]);
-
-      // Send in-app notifications to tenants
-      const renewalType = isAutoRenewal ? 'auto-renewed' : 'renewed';
-      const tenantEmoji = isAutoRenewal ? '🔄' : '📝';
+      // Send unified notifications to tenants
       const tenantNotificationPromises = users.map((user) => {
         const userDashboard =
           user.user_type === 'Contractor'
@@ -2096,25 +2022,51 @@ export class LeasesService {
             : user.user_type === 'Landlord'
               ? 'landlord'
               : 'tenant';
-        return this.notificationDispatcher.sendInAppNotification(
-          user._id.toString(),
-          NotificationType.MESSAGE_NEW_DIRECT,
-          'Lease Renewal',
-          `${tenantEmoji} Your lease for ${property.name} - Unit ${unit.unitNumber} has been ${renewalType}. Check your email for updated terms.`,
-          `/dashboard/${userDashboard}/leases`,
-        );
+
+        return this.notificationDispatcher.notifyUser({
+          userId: user._id.toString(),
+          notificationType: NotificationType.LEASE_RENEWAL_REMINDER,
+          data: {
+            recipientName: tenant.name,
+            recipientEmail: user.email,
+            recipientPhone: user.phone,
+            isAutoRenewal: isAutoRenewal,
+            propertyName: property.name,
+            unitIdentifier: unit.unitNumber,
+            currentLeaseEndDate: currentRentalPeriod.endDate,
+            newLeaseStartDate: newRentalPeriod.startDate,
+            newLeaseEndDate: newRentalPeriod.endDate,
+            currentMonthlyRent: currentRentalPeriod.rentAmount,
+            newMonthlyRent: newRentalPeriod.rentAmount,
+            renewalDate: newRentalPeriod.startDate,
+          },
+          actionUrl: `/dashboard/${userDashboard}/leases`,
+        });
       });
 
-      // Send in-app notifications to landlords
+      // Send unified notifications to landlords
       const landlordNotificationPromises = landlordUsers.map((user) => {
         const userDashboard = user.user_type === 'Contractor' ? 'contractor' : 'landlord';
-        return this.notificationDispatcher.sendInAppNotification(
-          user._id.toString(),
-          NotificationType.MESSAGE_NEW_DIRECT,
-          'Lease Renewal',
-          `${tenantEmoji} Lease for ${property.name} - Unit ${unit.unitNumber} has been ${renewalType}.`,
-          `/dashboard/${userDashboard}/leases/${lease._id}`,
-        );
+
+        return this.notificationDispatcher.notifyUser({
+          userId: user._id.toString(),
+          notificationType: NotificationType.LEASE_RENEWAL_REMINDER,
+          data: {
+            recipientName: user.username,
+            recipientEmail: user.email,
+            recipientPhone: user.phone,
+            isAutoRenewal: isAutoRenewal,
+            propertyName: property.name,
+            unitIdentifier: unit.unitNumber,
+            currentLeaseEndDate: currentRentalPeriod.endDate,
+            newLeaseStartDate: newRentalPeriod.startDate,
+            newLeaseEndDate: newRentalPeriod.endDate,
+            currentMonthlyRent: currentRentalPeriod.rentAmount,
+            newMonthlyRent: newRentalPeriod.rentAmount,
+            renewalDate: newRentalPeriod.startDate,
+          },
+          actionUrl: `/dashboard/${userDashboard}/leases/${lease._id}`,
+        });
       });
 
       await Promise.all([...tenantNotificationPromises, ...landlordNotificationPromises]);
@@ -2140,7 +2092,7 @@ export class LeasesService {
   }
 
   /**
-   * Send lease expiration warning emails to both landlord and tenant
+   * Send lease expiration warning notifications to both landlord and tenant
    * This method can be called by a scheduled job for different warning periods (30, 15, 7 days)
    * @param daysRemaining Number of days remaining before lease expiration
    * @param baseDate Optional date to use as the base for calculation (defaults to today)
@@ -2179,11 +2131,25 @@ export class LeasesService {
 
         // Send email to tenant
         const users = await this.findTenantUsers(tenant._id);
-        const tenantEmailPromises = users.map((user) =>
-          this.leaseEmailService.sendLeaseExpirationWarningEmail(
-            {
+        // Find landlord users to notify
+        const landlordUsers = await this.findLandlordUsers();
+
+        // Send unified notifications to tenants
+        const tenantNotificationPromises = users.map((user) => {
+          const userDashboard =
+            user.user_type === 'Contractor'
+              ? 'contractor'
+              : user.user_type === 'Landlord'
+                ? 'landlord'
+                : 'tenant';
+
+          return this.notificationDispatcher.notifyUser({
+            userId: user._id.toString(),
+            notificationType: NotificationType.LEASE_EXPIRING_SOON,
+            data: {
               recipientName: tenant.name,
               recipientEmail: user.email,
+              recipientPhone: user.phone,
               isTenant: true,
               propertyName: property.name,
               unitIdentifier: unit.unitNumber,
@@ -2192,18 +2158,21 @@ export class LeasesService {
               leaseEndDate: lease.endDate,
               daysRemaining: daysRemaining,
             },
-            { queue: true },
-          ),
-        );
-        // Find landlord users to notify
-        const landlordUsers = await this.findLandlordUsers();
+            actionUrl: `/dashboard/${userDashboard}/leases`,
+          });
+        });
 
-        // Send email to each landlord user
-        const landlordEmailPromises = landlordUsers.map((user) =>
-          this.leaseEmailService.sendLeaseExpirationWarningEmail(
-            {
+        // Send unified notifications to landlords
+        const landlordNotificationPromises = landlordUsers.map((user) => {
+          const userDashboard = user.user_type === 'Contractor' ? 'contractor' : 'landlord';
+
+          return this.notificationDispatcher.notifyUser({
+            userId: user._id.toString(),
+            notificationType: NotificationType.LEASE_EXPIRING_SOON,
+            data: {
               recipientName: user.username,
               recipientEmail: user.email,
+              recipientPhone: user.phone,
               isTenant: false,
               propertyName: property.name,
               unitIdentifier: unit.unitNumber,
@@ -2212,46 +2181,8 @@ export class LeasesService {
               leaseEndDate: lease.endDate,
               daysRemaining: daysRemaining,
             },
-            { queue: true },
-          ),
-        );
-        await Promise.all([...tenantEmailPromises, ...landlordEmailPromises]);
-
-        // Send in-app notifications to tenants
-        const expiringMessage =
-          daysRemaining > 0
-            ? `⏰ Your lease for ${property.name} - Unit ${unit.unitNumber} expires in ${daysRemaining} days. Please contact us to discuss renewal options.`
-            : `⏰ Your lease for ${property.name} - Unit ${unit.unitNumber} has expired. Please contact us immediately.`;
-        const tenantNotificationPromises = users.map((user) => {
-          const userDashboard =
-            user.user_type === 'Contractor'
-              ? 'contractor'
-              : user.user_type === 'Landlord'
-                ? 'landlord'
-                : 'tenant';
-          return this.notificationDispatcher.sendInAppNotification(
-            user._id.toString(),
-            NotificationType.MESSAGE_NEW_DIRECT,
-            'Lease Expiring Soon',
-            expiringMessage,
-            `/dashboard/${userDashboard}/leases`,
-          );
-        });
-
-        // Send in-app notifications to landlords
-        const landlordMessage =
-          daysRemaining > 0
-            ? `⏰ Lease for ${property.name} - Unit ${unit.unitNumber} expires in ${daysRemaining} days.`
-            : `⏰ Lease for ${property.name} - Unit ${unit.unitNumber} has expired.`;
-        const landlordNotificationPromises = landlordUsers.map((user) => {
-          const userDashboard = user.user_type === 'Contractor' ? 'contractor' : 'landlord';
-          return this.notificationDispatcher.sendInAppNotification(
-            user._id.toString(),
-            NotificationType.MESSAGE_NEW_DIRECT,
-            'Lease Expiring Soon',
-            landlordMessage,
-            `/dashboard/${userDashboard}/leases/${lease._id}`,
-          );
+            actionUrl: `/dashboard/${userDashboard}/leases/${lease._id}`,
+          });
         });
 
         await Promise.all([...tenantNotificationPromises, ...landlordNotificationPromises]);

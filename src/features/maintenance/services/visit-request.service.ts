@@ -633,7 +633,6 @@ export class VisitRequestService {
     const requesterName = requester
       ? `${requester.firstName} ${requester.lastName}`
       : visitRequest.fullName || 'A prospective tenant';
-    const visitDateStr = visitRequest.visitDate.toLocaleDateString();
 
     // Determine recipient
     let recipientUserId: string | undefined;
@@ -670,13 +669,32 @@ export class VisitRequestService {
     }
 
     if (recipientUserId) {
-      await this.notificationDispatcher.sendInAppNotification(
-        recipientUserId,
-        NotificationType.VISIT_NEW_REQUEST,
-        'New Visit Request',
-        `${requesterName} has requested a visit on ${visitDateStr} (${visitRequest.startTime} - ${visitRequest.endTime})`,
-        `/dashboard/${recipientRole}/visit-requests`,
-      );
+      // Get recipient user details
+      const User = this.visitRequestModel.db.model('User');
+      const recipientUser = await User.findById(recipientUserId).exec();
+
+      if (recipientUser) {
+        const recipientName =
+          recipientUser.firstName && recipientUser.lastName
+            ? `${recipientUser.firstName} ${recipientUser.lastName}`
+            : recipientUser.username || 'User';
+
+        await this.notificationDispatcher.notifyUser({
+          userId: recipientUserId,
+          notificationType: NotificationType.VISIT_NEW_REQUEST,
+          data: {
+            recipientName,
+            recipientEmail: recipientUser.email,
+            recipientPhone: recipientUser.phone,
+            requesterName,
+            visitDate: visitRequest.visitDate,
+            startTime: visitRequest.startTime,
+            endTime: visitRequest.endTime,
+            visitRequestId: visitRequest._id.toString(),
+          },
+          actionUrl: `/dashboard/${recipientRole}/visit-requests`,
+        });
+      }
     }
   }
 
@@ -694,17 +712,34 @@ export class VisitRequestService {
     // For marketplace requests, notify the tenant who made the request
     if (visitRequest.sourceType === VisitRequestSourceType.MARKETPLACE) {
       if (visitRequest.requestedBy) {
-        const notifType =
-          visitRequest.status === VisitRequestStatus.APPROVED
-            ? NotificationType.VISIT_APPROVED
-            : NotificationType.VISIT_DECLINED;
-        await this.notificationDispatcher.sendInAppNotification(
-          visitRequest.requestedBy.toString(),
-          notifType,
-          `Visit Request ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}`,
-          `${responderName} has ${statusText} your visit request for ${visitDateStr}`,
-          `/dashboard/tenant/visit-requests/${visitRequest._id}`,
-        );
+        const requesterUser = await User.findById(visitRequest.requestedBy).exec();
+        if (requesterUser) {
+          const notifType =
+            visitRequest.status === VisitRequestStatus.APPROVED
+              ? NotificationType.VISIT_APPROVED
+              : NotificationType.VISIT_DECLINED;
+
+          const recipientName =
+            requesterUser.firstName && requesterUser.lastName
+              ? `${requesterUser.firstName} ${requesterUser.lastName}`
+              : requesterUser.username || 'User';
+
+          await this.notificationDispatcher.notifyUser({
+            userId: visitRequest.requestedBy.toString(),
+            notificationType: notifType,
+            data: {
+              recipientName,
+              recipientEmail: requesterUser.email,
+              recipientPhone: requesterUser.phone,
+              responderName,
+              visitDate: visitRequest.visitDate,
+              isApproved: visitRequest.status === VisitRequestStatus.APPROVED,
+              responseMessage: `${responderName} has ${statusText} your visit request for ${visitDateStr}`,
+              visitRequestId: visitRequest._id.toString(),
+            },
+            actionUrl: `/dashboard/tenant/visit-requests/${visitRequest._id}`,
+          });
+        }
       }
     } else {
       // For contractor requests, notify the contractor
@@ -717,13 +752,27 @@ export class VisitRequestService {
           visitRequest.status === VisitRequestStatus.APPROVED
             ? NotificationType.VISIT_APPROVED
             : NotificationType.VISIT_DECLINED;
-        await this.notificationDispatcher.sendInAppNotification(
-          contractorUser._id.toString(),
-          notifType,
-          `Visit Request ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}`,
-          `${responderName} has ${statusText} your visit request for ${visitDateStr}`,
-          `/dashboard/contractor/visit-requests`,
-        );
+
+        const recipientName =
+          contractorUser.firstName && contractorUser.lastName
+            ? `${contractorUser.firstName} ${contractorUser.lastName}`
+            : contractorUser.username || 'Contractor';
+
+        await this.notificationDispatcher.notifyUser({
+          userId: contractorUser._id.toString(),
+          notificationType: notifType,
+          data: {
+            recipientName,
+            recipientEmail: contractorUser.email,
+            recipientPhone: contractorUser.phone,
+            responderName,
+            visitDate: visitRequest.visitDate,
+            isApproved: visitRequest.status === VisitRequestStatus.APPROVED,
+            responseMessage: `${responderName} has ${statusText} your visit request for ${visitDateStr}`,
+            visitRequestId: visitRequest._id.toString(),
+          },
+          actionUrl: `/dashboard/contractor/visit-requests`,
+        });
       }
     }
   }
@@ -753,13 +802,32 @@ export class VisitRequestService {
     }
 
     if (recipientUserId) {
-      await this.notificationDispatcher.sendInAppNotification(
-        recipientUserId,
-        NotificationType.VISIT_DECLINED,
-        'Visit Request Cancelled',
-        `${cancellerName} has cancelled their visit request for ${visitDateStr}`,
-        `/dashboard/${visitRequest.tenant ? 'tenant' : 'landlord'}/visit-requests`,
-      );
+      // Get recipient user details
+      const User = this.visitRequestModel.db.model('User');
+      const recipientUser = await User.findById(recipientUserId).exec();
+
+      if (recipientUser) {
+        const recipientName =
+          recipientUser.firstName && recipientUser.lastName
+            ? `${recipientUser.firstName} ${recipientUser.lastName}`
+            : recipientUser.username || 'User';
+
+        await this.notificationDispatcher.notifyUser({
+          userId: recipientUserId,
+          notificationType: NotificationType.VISIT_DECLINED,
+          data: {
+            recipientName,
+            recipientEmail: recipientUser.email,
+            recipientPhone: recipientUser.phone,
+            responderName: cancellerName,
+            visitDate: visitRequest.visitDate,
+            isApproved: false,
+            responseMessage: `${cancellerName} has cancelled their visit request for ${visitDateStr}`,
+            visitRequestId: visitRequest._id.toString(),
+          },
+          actionUrl: `/dashboard/${visitRequest.tenant ? 'tenant' : 'landlord'}/visit-requests`,
+        });
+      }
     }
   }
 
@@ -959,8 +1027,6 @@ export class VisitRequestService {
     suggester: UserDocument,
   ): Promise<void> {
     const suggesterName = `${suggester.firstName} ${suggester.lastName}`;
-    const visitDateStr = newRequest.visitDate.toLocaleDateString();
-    const timeSlot = `${newRequest.startTime} - ${newRequest.endTime}`;
 
     // Determine who to notify (the other party)
     let recipientUserId: string | undefined;
@@ -1030,17 +1096,33 @@ export class VisitRequestService {
     }
 
     if (recipientUserId) {
-      const message = newRequest.rescheduleReason
-        ? `${suggesterName} suggested a new time for the visit: ${visitDateStr} (${timeSlot}). Reason: ${newRequest.rescheduleReason}`
-        : `${suggesterName} suggested a new time for the visit: ${visitDateStr} (${timeSlot})`;
+      // Get recipient user details
+      const User = this.visitRequestModel.db.model('User');
+      const recipientUser = await User.findById(recipientUserId).exec();
 
-      await this.notificationDispatcher.sendInAppNotification(
-        recipientUserId,
-        NotificationType.VISIT_RESCHEDULED,
-        'New Time Suggested',
-        message,
-        `/dashboard/${recipientRole}/visit-requests/${newRequest._id}`,
-      );
+      if (recipientUser) {
+        const recipientName =
+          recipientUser.firstName && recipientUser.lastName
+            ? `${recipientUser.firstName} ${recipientUser.lastName}`
+            : recipientUser.username || 'User';
+
+        await this.notificationDispatcher.notifyUser({
+          userId: recipientUserId,
+          notificationType: NotificationType.VISIT_RESCHEDULED,
+          data: {
+            recipientName,
+            recipientEmail: recipientUser.email,
+            recipientPhone: recipientUser.phone,
+            suggesterName,
+            newVisitDate: newRequest.visitDate,
+            newStartTime: newRequest.startTime,
+            newEndTime: newRequest.endTime,
+            rescheduleReason: newRequest.rescheduleReason,
+            visitRequestId: newRequest._id.toString(),
+          },
+          actionUrl: `/dashboard/${recipientRole}/visit-requests/${newRequest._id}`,
+        });
+      }
     }
   }
 

@@ -29,6 +29,20 @@ export interface LeaseReminderSmsData {
   amount?: number;
 }
 
+export interface LeaseNotificationSmsData {
+  recipientPhone: string;
+  recipientName: string;
+  propertyName: string;
+  unitIdentifier: string;
+  leaseEventType: 'activated' | 'terminated' | 'renewed' | 'expiring' | 'terms_updated';
+  additionalInfo?: {
+    moveOutDate?: Date;
+    expirationDate?: Date;
+    newEndDate?: Date;
+    daysRemaining?: number;
+  };
+}
+
 @Injectable()
 export class NotificationSmsService {
   private readonly logger = new Logger(NotificationSmsService.name);
@@ -150,6 +164,178 @@ export class NotificationSmsService {
       }
     } catch (error) {
       this.logger.error(`Failed to send lease reminder SMS to ${data.recipientPhone}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send lease activated SMS
+   */
+  async sendLeaseActivatedSms(
+    data: LeaseNotificationSmsData,
+    options?: { queue?: boolean },
+  ): Promise<void> {
+    try {
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+
+      const message = `Hi ${data.recipientName}, your lease for ${data.propertyName} - Unit ${data.unitIdentifier} has been activated. Welcome to your new home! - ${brandName}`;
+
+      const smsOptions = {
+        to: data.recipientPhone,
+        body: message,
+      };
+
+      if (options?.queue !== false) {
+        await this.smsQueueService.queueSms(smsOptions);
+        this.logger.log(`Lease activated SMS queued for ${data.recipientPhone}`);
+      } else {
+        await this.smsService.sendSms(smsOptions);
+        this.logger.log(`Lease activated SMS sent immediately to ${data.recipientPhone}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send lease activated SMS to ${data.recipientPhone}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send lease terminated SMS
+   */
+  async sendLeaseTerminatedSms(
+    data: LeaseNotificationSmsData,
+    options?: { queue?: boolean },
+  ): Promise<void> {
+    try {
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+
+      let message = `Hi ${data.recipientName}, your lease for ${data.propertyName} - Unit ${data.unitIdentifier} has been terminated.`;
+
+      if (data.additionalInfo?.moveOutDate) {
+        const moveOutDateStr = new Date(data.additionalInfo.moveOutDate).toLocaleDateString();
+        message += ` Move-out date: ${moveOutDateStr}.`;
+      }
+
+      message += ` Please check your email for details. - ${brandName}`;
+
+      const smsOptions = {
+        to: data.recipientPhone,
+        body: message,
+      };
+
+      if (options?.queue !== false) {
+        await this.smsQueueService.queueSms(smsOptions);
+        this.logger.log(`Lease terminated SMS queued for ${data.recipientPhone}`);
+      } else {
+        await this.smsService.sendSms(smsOptions);
+        this.logger.log(`Lease terminated SMS sent immediately to ${data.recipientPhone}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send lease terminated SMS to ${data.recipientPhone}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send lease renewal SMS
+   */
+  async sendLeaseRenewalSms(
+    data: LeaseNotificationSmsData,
+    options?: { queue?: boolean },
+  ): Promise<void> {
+    try {
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+
+      let message = `Hi ${data.recipientName}, your lease for ${data.propertyName} - Unit ${data.unitIdentifier} has been renewed.`;
+
+      if (data.additionalInfo?.newEndDate) {
+        const newEndDateStr = new Date(data.additionalInfo.newEndDate).toLocaleDateString();
+        message += ` New end date: ${newEndDateStr}.`;
+      }
+
+      message += ` Check your email for updated terms. - ${brandName}`;
+
+      const smsOptions = {
+        to: data.recipientPhone,
+        body: message,
+      };
+
+      if (options?.queue !== false) {
+        await this.smsQueueService.queueSms(smsOptions);
+        this.logger.log(`Lease renewal SMS queued for ${data.recipientPhone}`);
+      } else {
+        await this.smsService.sendSms(smsOptions);
+        this.logger.log(`Lease renewal SMS sent immediately to ${data.recipientPhone}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send lease renewal SMS to ${data.recipientPhone}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send lease expiring soon SMS
+   */
+  async sendLeaseExpiringSoonSms(
+    data: LeaseNotificationSmsData,
+    options?: { queue?: boolean },
+  ): Promise<void> {
+    try {
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+
+      let message = `Hi ${data.recipientName}, your lease for ${data.propertyName} - Unit ${data.unitIdentifier}`;
+
+      if (data.additionalInfo?.daysRemaining && data.additionalInfo.daysRemaining > 0) {
+        message += ` expires in ${data.additionalInfo.daysRemaining} days.`;
+      } else {
+        message += ` has expired.`;
+      }
+
+      message += ` Please contact us to discuss renewal options. - ${brandName}`;
+
+      const smsOptions = {
+        to: data.recipientPhone,
+        body: message,
+      };
+
+      if (options?.queue !== false) {
+        await this.smsQueueService.queueSms(smsOptions);
+        this.logger.log(`Lease expiring soon SMS queued for ${data.recipientPhone}`);
+      } else {
+        await this.smsService.sendSms(smsOptions);
+        this.logger.log(`Lease expiring soon SMS sent immediately to ${data.recipientPhone}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send lease expiring soon SMS to ${data.recipientPhone}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send lease terms updated SMS
+   */
+  async sendLeaseTermsUpdatedSms(
+    data: LeaseNotificationSmsData,
+    options?: { queue?: boolean },
+  ): Promise<void> {
+    try {
+      const brandName = this.configService.get<string>('BRAND_NAME') || 'MYTE';
+
+      const message = `Hi ${data.recipientName}, the terms for your lease at ${data.propertyName} - Unit ${data.unitIdentifier} have been updated. Please check your email for details. - ${brandName}`;
+
+      const smsOptions = {
+        to: data.recipientPhone,
+        body: message,
+      };
+
+      if (options?.queue !== false) {
+        await this.smsQueueService.queueSms(smsOptions);
+        this.logger.log(`Lease terms updated SMS queued for ${data.recipientPhone}`);
+      } else {
+        await this.smsService.sendSms(smsOptions);
+        this.logger.log(`Lease terms updated SMS sent immediately to ${data.recipientPhone}`);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send lease terms updated SMS to ${data.recipientPhone}`, error);
       throw error;
     }
   }

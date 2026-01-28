@@ -15,7 +15,6 @@ import { AppModel } from '../../../common/interfaces/app-model.interface';
 import { TenancyContextService } from '../../../common/services/tenancy-context.service';
 import { createPaginatedResponse } from '../../../common/utils/pagination.utils';
 import { Contractor } from '../../contractors/schema/contractor.schema';
-import { MaintenanceEmailService } from '../../email/services/maintenance-email.service';
 import { Lease } from '../../leases/schemas/lease.schema';
 import { MediaService } from '../../media/services/media.service';
 import { NotificationDispatcherService } from '../../notifications/notification-dispatcher.service';
@@ -62,7 +61,6 @@ export class MaintenanceTicketsService {
     private readonly sessionService: SessionService,
     private readonly mediaService: MediaService,
     private readonly notificationDispatcher: NotificationDispatcherService,
-    private readonly maintenanceEmailService: MaintenanceEmailService,
     @Inject(forwardRef(() => ScopeOfWorkService))
     private readonly scopeOfWorkService: ScopeOfWorkService,
     @Inject(forwardRef(() => InvoicesService))
@@ -1008,16 +1006,6 @@ export class MaintenanceTicketsService {
           ? `${currentUser.firstName} ${currentUser.lastName}`
           : currentUser.username;
 
-      // Send in-app notification
-      const landlordDashboard = landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
-      await this.notificationDispatcher.sendInAppNotification(
-        landlordUser._id.toString(),
-        NotificationType.MAINTENANCE_NEW_REQUEST,
-        'New Maintenance Request',
-        `🔧 New maintenance request ${ticket.title} from ${tenantName}.`,
-        `/dashboard/${landlordDashboard}/maintenance/tickets/${ticket._id}`,
-      );
-
       // Get property and unit information
       const property = await this.propertyModel.findById(ticket.property, null, { session }).exec();
 
@@ -1032,14 +1020,20 @@ export class MaintenanceTicketsService {
           ? `${landlordUser.firstName} ${landlordUser.lastName}`
           : landlordUser.username;
 
-      // Send email notification
-      await this.maintenanceEmailService.sendTicketCreatedEmail(
-        {
+      const landlordDashboard = landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
+
+      // Send unified notification
+      await this.notificationDispatcher.notifyUser({
+        userId: landlordUser._id.toString(),
+        notificationType: NotificationType.MAINTENANCE_NEW_REQUEST,
+        data: {
           recipientName: landlordName,
           recipientEmail: landlordUser.email,
+          recipientPhone: landlordUser.phone,
           tenantName,
           ticketNumber: ticket.ticketNumber,
           ticketTitle: ticket.title,
+          ticketId: ticket._id.toString(),
           priority: ticket.priority,
           category: ticket.category,
           propertyName: property?.name || 'Unknown Property',
@@ -1047,8 +1041,8 @@ export class MaintenanceTicketsService {
           description: ticket.description,
           createdAt: (ticket as any).createdAt || new Date(),
         },
-        { queue: true },
-      );
+        actionUrl: `/dashboard/${landlordDashboard}/maintenance/tickets/${ticket._id}`,
+      });
     } catch (error) {
       console.error('Failed to notify landlord of new ticket:', error);
     }
@@ -1107,16 +1101,6 @@ export class MaintenanceTicketsService {
 
       const contractorName = contractor?.name || 'Contractor';
 
-      // Send in-app notification
-      const landlordDashboard = landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
-      await this.notificationDispatcher.sendInAppNotification(
-        landlordUser._id.toString(),
-        NotificationType.MAINTENANCE_STATUS_CHANGED_COMPLETED,
-        'Ticket Completed',
-        `Ticket ${ticket.title} was marked done by ${contractorName}.`,
-        `/dashboard/${landlordDashboard}/maintenance/tickets/${ticket._id}`,
-      );
-
       // Get property and unit information
       const property = await this.propertyModel.findById(ticket.property).exec();
 
@@ -1131,22 +1115,26 @@ export class MaintenanceTicketsService {
           ? `${landlordUser.firstName} ${landlordUser.lastName}`
           : landlordUser.username;
 
-      // Send email notification
-      await this.maintenanceEmailService.sendTicketCompletedEmail(
-        {
+      const landlordDashboard = landlordUser.user_type === 'Contractor' ? 'contractor' : 'landlord';
+
+      // Send unified notification
+      await this.notificationDispatcher.notifyUser({
+        userId: landlordUser._id.toString(),
+        notificationType: NotificationType.MAINTENANCE_STATUS_CHANGED_COMPLETED,
+        data: {
           recipientName: landlordName,
           recipientEmail: landlordUser.email,
-          contractorName,
+          recipientPhone: landlordUser.phone,
           ticketNumber: ticket.ticketNumber,
           ticketTitle: ticket.title,
-          category: ticket.category,
+          ticketId: ticket._id.toString(),
+          status: 'Completed',
+          changedBy: contractorName,
           propertyName: property?.name || 'Unknown Property',
           unitIdentifier,
-          completedAt: new Date(),
-          completionNotes: ticket.notes,
         },
-        { queue: true },
-      );
+        actionUrl: `/dashboard/${landlordDashboard}/maintenance/tickets/${ticket._id}`,
+      });
     } catch (error) {
       console.error('Failed to notify landlord of ticket completion:', error);
     }
