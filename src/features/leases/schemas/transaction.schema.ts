@@ -146,6 +146,8 @@ TransactionSchema.virtual('transactionProofs', {
 
 // Add indexes
 TransactionSchema.index({ landlord: 1, status: 1, dueDate: 1 });
+TransactionSchema.index({ lease: 1, status: 1, paidAt: -1 });
+TransactionSchema.index({ dueDate: 1, status: 1 });
 
 // TypeScript types
 export interface TransactionQueryHelpers {

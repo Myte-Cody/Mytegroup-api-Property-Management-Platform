@@ -81,6 +81,7 @@ export const ScopeOfWorkSchema = SchemaFactory.createForClass(ScopeOfWork);
 
 ScopeOfWorkSchema.index({ assignedContractor: 1, status: 1 });
 ScopeOfWorkSchema.index({ parentSow: 1 });
+ScopeOfWorkSchema.index({ parentSow: 1, status: 1 });
 ScopeOfWorkSchema.index({ property: 1 });
 ScopeOfWorkSchema.index({ unit: 1 });
 

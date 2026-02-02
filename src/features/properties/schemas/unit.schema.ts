@@ -110,6 +110,16 @@ UnitSchema.index(
   { unique: true, name: 'unit_landlord_property_unique' },
 );
 UnitSchema.index({ landlord: 1, availabilityStatus: 1 });
+UnitSchema.index({ landlord: 1, availabilityStatus: 1, createdAt: -1 });
+UnitSchema.index({
+  publishToMarketplace: 1,
+  deleted: 1,
+  'address.countryCode': 1,
+  'address.city': 1,
+  createdAt: -1,
+});
+UnitSchema.index({ unitNumber: 'text', 'property.name': 'text' });
+UnitSchema.index({ property: 1, deleted: 1 });
 
 // TypeScript types
 export interface UnitQueryHelpers {

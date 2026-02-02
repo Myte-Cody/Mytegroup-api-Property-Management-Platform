@@ -1,6 +1,7 @@
 # Myte Estates API - Backend Documentation
 
 ## Table of Contents
+
 1. [Overview](#overview)
 2. [Architecture](#architecture)
 3. [Tech Stack](#tech-stack)
@@ -22,6 +23,7 @@
 The **Myte Estates API** is a NestJS-based backend service providing RESTful APIs for a multi-tenant property management platform. It handles authentication, property management, lease tracking, maintenance tickets, payments, and more.
 
 ### Key Features
+
 - **Multi-tenant architecture** with organization-based data isolation
 - **Role-based access control** (RBAC) with CASL
 - **Real-time communications** via Socket.IO
@@ -64,6 +66,7 @@ The **Myte Estates API** is a NestJS-based backend service providing RESTful API
 ### Multi-Tenancy
 
 The API uses **organization-based multi-tenancy**:
+
 - Each request is scoped to an organization via JWT claims
 - Data isolation enforced at the database query level
 - Tenant context automatically injected using decorators
@@ -90,7 +93,7 @@ export class PropertiesController {
 ```typescript
 // JWT Payload Structure
 interface JwtPayload {
-  sub: string;           // User ID
+  sub: string; // User ID
   email: string;
   role: Role;
   organizationId: string;
@@ -126,26 +129,26 @@ async create(@Body() dto: CreatePropertyDto) { ... }
 
 ## Tech Stack
 
-| Category | Technology | Version |
-|----------|------------|---------|
-| Framework | NestJS | 11.x |
-| Runtime | Node.js | 22.21.1 |
-| Language | TypeScript | 5.9.2 |
-| Database | MongoDB | 7 |
-| ODM | Mongoose | Latest |
-| Multi-tenancy | mongo-tenant | Latest |
-| Cache/Queue | Redis + BullMQ | 7 |
-| Authentication | JWT, Passport.js, Argon2 | Latest |
-| Authorization | CASL | Latest |
-| API Docs | Swagger/OpenAPI | Latest |
-| Testing | Jest | Latest |
-| Email | Nodemailer + Handlebars | Latest |
-| SMS | Twilio | Latest |
-| Storage | AWS S3 | Latest |
-| PDF Generation | Puppeteer | Latest |
-| Real-time | Socket.IO | Latest |
-| Payments | Stripe | Latest |
-| AI | OpenAI API | Latest |
+| Category       | Technology               | Version |
+| -------------- | ------------------------ | ------- |
+| Framework      | NestJS                   | 11.x    |
+| Runtime        | Node.js                  | 22.21.1 |
+| Language       | TypeScript               | 5.9.2   |
+| Database       | MongoDB                  | 7       |
+| ODM            | Mongoose                 | Latest  |
+| Multi-tenancy  | mongo-tenant             | Latest  |
+| Cache/Queue    | Redis + BullMQ           | 7       |
+| Authentication | JWT, Passport.js, Argon2 | Latest  |
+| Authorization  | CASL                     | Latest  |
+| API Docs       | Swagger/OpenAPI          | Latest  |
+| Testing        | Jest                     | Latest  |
+| Email          | Nodemailer + Handlebars  | Latest  |
+| SMS            | Twilio                   | Latest  |
+| Storage        | AWS S3                   | Latest  |
+| PDF Generation | Puppeteer                | Latest  |
+| Real-time      | Socket.IO                | Latest  |
+| Payments       | Stripe                   | Latest  |
+| AI             | OpenAI API               | Latest  |
 
 ---
 
@@ -237,6 +240,7 @@ features/properties/
 ## Getting Started
 
 ### Prerequisites
+
 - **Node.js** 22.21.1+
 - **npm** 10.9.4+
 - **Docker** and **Docker Compose**
@@ -491,9 +495,11 @@ async findOne(id: string) {
 ### Authentication
 
 #### POST `/auth/register`
+
 Register a new user and organization
 
 **Request:**
+
 ```json
 {
   "email": "user@example.com",
@@ -505,6 +511,7 @@ Register a new user and organization
 ```
 
 **Response:**
+
 ```json
 {
   "accessToken": "eyJhbGc...",
@@ -518,32 +525,40 @@ Register a new user and organization
 ```
 
 #### POST `/auth/login`
+
 Login with email and password
 
 #### POST `/auth/refresh`
+
 Refresh access token
 
 #### POST `/auth/forgot-password`
+
 Request password reset
 
 #### POST `/auth/reset-password`
+
 Reset password with token
 
 ### Properties
 
 #### GET `/properties`
+
 List all properties (organization-scoped)
 
 **Query params:**
+
 - `page`: Page number (default: 1)
 - `limit`: Items per page (default: 10)
 - `search`: Search term
 - `status`: Filter by status
 
 #### POST `/properties`
+
 Create a new property
 
 **Request:**
+
 ```json
 {
   "name": "Sunset Apartments",
@@ -559,20 +574,25 @@ Create a new property
 ```
 
 #### GET `/properties/:id`
+
 Get property details
 
 #### PATCH `/properties/:id`
+
 Update property
 
 #### DELETE `/properties/:id`
+
 Delete property (soft delete)
 
 ### Maintenance Tickets
 
 #### POST `/maintenance`
+
 Create maintenance ticket
 
 **Request:**
+
 ```json
 {
   "propertyId": "prop_123",
@@ -585,23 +605,28 @@ Create maintenance ticket
 ```
 
 #### GET `/maintenance/:id`
+
 Get ticket with threads
 
 #### PATCH `/maintenance/:id/assign`
+
 Assign ticket to contractor
 
 #### POST `/maintenance/:id/threads`
+
 Add comment to ticket
 
 ### Payments
 
 #### POST `/payments/create-payment-intent`
+
 Create Stripe payment intent
 
 **Request:**
+
 ```json
 {
-  "amount": 150000,  // $1500.00 in cents
+  "amount": 150000, // $1500.00 in cents
   "leaseId": "lease_123"
 }
 ```
@@ -609,6 +634,7 @@ Create Stripe payment intent
 ### Full Documentation
 
 Access interactive API documentation:
+
 - **Swagger UI**: http://localhost:3000/api
 - **OpenAPI JSON**: http://localhost:3000/api-json
 
@@ -619,6 +645,7 @@ Access interactive API documentation:
 ### Collections Overview
 
 #### Users
+
 ```typescript
 {
   _id: ObjectId,
@@ -637,6 +664,7 @@ Access interactive API documentation:
 ```
 
 #### Properties
+
 ```typescript
 {
   _id: ObjectId,
@@ -660,6 +688,7 @@ Access interactive API documentation:
 ```
 
 #### Leases
+
 ```typescript
 {
   _id: ObjectId,
@@ -679,6 +708,7 @@ Access interactive API documentation:
 ```
 
 #### Maintenance Tickets
+
 ```typescript
 {
   _id: ObjectId,
@@ -736,6 +766,7 @@ maintenance.createIndex({ assignedContractorId: 1 });
 #### Email Queue
 
 **Producer:**
+
 ```typescript
 @Injectable()
 export class EmailService {
@@ -748,6 +779,7 @@ export class EmailService {
 ```
 
 **Consumer:**
+
 ```typescript
 @Processor('email')
 export class EmailProcessor {
@@ -765,6 +797,7 @@ export class EmailProcessor {
 ```
 
 #### Available Queues
+
 - **email**: Email notifications
 - **sms**: SMS notifications
 - **feedback-analysis**: AI-powered feedback analysis
@@ -807,10 +840,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('sendMessage')
-  async handleMessage(
-    @MessageBody() data: SendMessageDto,
-    @ConnectedSocket() client: Socket,
-  ) {
+  async handleMessage(@MessageBody() data: SendMessageDto, @ConnectedSocket() client: Socket) {
     // Save message to database
     const message = await this.chatService.createMessage(data);
 
@@ -933,6 +963,7 @@ npm run test:watch
 ### Production Environment
 
 #### Infrastructure
+
 - **Platform**: AWS ECS (EC2 Launch Type)
 - **Database**: MongoDB Atlas
 - **Cache**: AWS ElastiCache for Redis
@@ -970,6 +1001,7 @@ STRIPE_SECRET_KEY=sk_live_...
 #### Health Checks
 
 Endpoints for monitoring:
+
 - `GET /health` - Application health
 - `GET /health/db` - Database connectivity
 - `GET /health/redis` - Redis connectivity

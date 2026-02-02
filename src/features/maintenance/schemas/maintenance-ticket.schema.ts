@@ -153,8 +153,14 @@ MaintenanceTicketSchema.virtual('images', {
 
 // Add indexes
 MaintenanceTicketSchema.index({ landlord: 1, status: 1, priority: 1 });
+MaintenanceTicketSchema.index({ landlord: 1, status: 1, priority: 1, createdAt: -1 });
 MaintenanceTicketSchema.index({ landlord: 1, assignedContractor: 1 });
+MaintenanceTicketSchema.index({ assignedContractor: 1, status: 1 });
 MaintenanceTicketSchema.index({ property: 1, unit: 1 });
+MaintenanceTicketSchema.index({ property: 1, unit: 1, deleted: 1 });
+MaintenanceTicketSchema.index({ requestedBy: 1, createdAt: -1 });
+MaintenanceTicketSchema.index({ createdAt: -1, landlord: 1 });
+MaintenanceTicketSchema.index({ title: 'text', description: 'text', ticketNumber: 'text' });
 
 // TypeScript types
 export interface MaintenanceTicketQueryHelpers {

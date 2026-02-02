@@ -110,5 +110,9 @@ export const UserSchema = SchemaFactory.createForClass(User);
 UserSchema.index({ username: 1 }, { unique: true, name: 'username_unique' });
 UserSchema.index({ email: 1 }, { unique: true, name: 'email_unique' });
 
+// Add performance indexes
+UserSchema.index({ organization_id: 1, user_type: 1 });
+UserSchema.index({ blockedUsers: 1 });
+
 UserSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 UserSchema.plugin(accessibleRecordsPlugin);

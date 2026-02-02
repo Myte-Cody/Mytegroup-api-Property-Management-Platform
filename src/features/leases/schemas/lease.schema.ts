@@ -216,6 +216,9 @@ LeaseSchema.index(
 );
 LeaseSchema.index({ landlord: 1, status: 1 });
 LeaseSchema.index({ landlord: 1, tenant: 1 });
+LeaseSchema.index({ unit: 1, status: 1, deleted: 1 });
+LeaseSchema.index({ tenant: 1, status: 1, deleted: 1 });
+LeaseSchema.index({ status: 1, endDate: 1, startDate: 1 });
 
 // Add query scope for multi-tenancy
 // TypeScript types

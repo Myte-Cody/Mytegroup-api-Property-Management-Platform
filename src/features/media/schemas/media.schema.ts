@@ -91,5 +91,8 @@ export class Media extends Document implements SoftDelete {
 
 export const MediaSchema = SchemaFactory.createForClass(Media);
 
+// Add compound index for efficient entity-based media lookups
+MediaSchema.index({ model_type: 1, model_id: 1, collection_name: 1 });
+
 MediaSchema.plugin(mongooseDelete, { deletedAt: true, overrideMethods: 'all' });
 MediaSchema.plugin(accessibleRecordsPlugin);
