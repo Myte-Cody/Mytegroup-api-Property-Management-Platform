@@ -293,80 +293,83 @@ export class PropertiesService {
   }
 
   async update(id: string, updatePropertyDto: UpdatePropertyDto, currentUser: UserDocument) {
-    // CASL: Check update permission
-    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+    return this.sessionService.withSession(async (session) => {
+      // CASL: Check update permission
+      const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
 
-    const property = await this.propertyModel.findById(id).exec();
+      const property = await this.propertyModel.findById(id).session(session).exec();
 
-    if (!property) {
-      throw new NotFoundException(`Property with ID ${id} not found`);
-    }
-
-    // CASL: Check if user can update this specific property
-    if (!ability.can(Action.Update, property)) {
-      throw new ForbiddenException('You do not have permission to update this property');
-    }
-
-    // Prevent changing landlord field
-    const { landlord: _landlord, ...safeUpdate } = updatePropertyDto as any;
-    if (_landlord) {
-      throw new ForbiddenException('Cannot change property landlord');
-    }
-
-    // Check for name uniqueness if name is being updated (within the same landlord)
-    if (updatePropertyDto.name && updatePropertyDto.name !== property.name) {
-      const existingProperty = await this.propertyModel
-        .findOne({
-          name: updatePropertyDto.name,
-          landlord: property.landlord,
-          _id: { $ne: id }, // Exclude current property from the check
-        })
-        .exec();
-
-      if (existingProperty) {
-        throw new UnprocessableEntityException(
-          `Property name '${updatePropertyDto.name}' already exists in this organization`,
-        );
+      if (!property) {
+        throw new NotFoundException(`Property with ID ${id} not found`);
       }
-    }
 
-    // If googleMapsLink is provided, extract address from it
-    let addressUpdate = {};
-    if (updatePropertyDto.googleMapsLink) {
-      const extractedLocation = await this.geocodingService.extractLocationFromMapsLink(
-        updatePropertyDto.googleMapsLink,
+      // CASL: Check if user can update this specific property
+      if (!ability.can(Action.Update, property)) {
+        throw new ForbiddenException('You do not have permission to update this property');
+      }
+
+      // Prevent changing landlord field
+      const { landlord: _landlord, ...safeUpdate } = updatePropertyDto as any;
+      if (_landlord) {
+        throw new ForbiddenException('Cannot change property landlord');
+      }
+
+      // Check for name uniqueness if name is being updated (within the same landlord)
+      if (updatePropertyDto.name && updatePropertyDto.name !== property.name) {
+        const existingProperty = await this.propertyModel
+          .findOne({
+            name: updatePropertyDto.name,
+            landlord: property.landlord,
+            _id: { $ne: id }, // Exclude current property from the check
+          })
+          .session(session)
+          .exec();
+
+        if (existingProperty) {
+          throw new UnprocessableEntityException(
+            `Property name '${updatePropertyDto.name}' already exists in this organization`,
+          );
+        }
+      }
+
+      // If googleMapsLink is provided, extract address from it
+      let addressUpdate = {};
+      if (updatePropertyDto.googleMapsLink) {
+        const extractedLocation = await this.geocodingService.extractLocationFromMapsLink(
+          updatePropertyDto.googleMapsLink,
+        );
+
+        // Use extracted location data to populate address fields including coordinates
+        addressUpdate = {
+          street: extractedLocation.street || '',
+          city: extractedLocation.city || '',
+          state: extractedLocation.state || '',
+          postalCode: extractedLocation.postalCode || '',
+          country: extractedLocation.country || '',
+          countryCode: extractedLocation.countryCode,
+          latitude: extractedLocation.latitude,
+          longitude: extractedLocation.longitude,
+        };
+      } else if (updatePropertyDto.latitude && updatePropertyDto.longitude) {
+        // If coordinates are provided directly, update them
+        addressUpdate = {
+          latitude: updatePropertyDto.latitude,
+          longitude: updatePropertyDto.longitude,
+        };
+      }
+
+      // Filter allowed fields based on user role
+      const filteredUpdateDto = this.filterUpdateFields(
+        { ...updatePropertyDto, ...addressUpdate } as UpdatePropertyDto,
+        currentUser,
       );
 
-      // Use extracted location data to populate address fields including coordinates
-      addressUpdate = {
-        street: extractedLocation.street || '',
-        city: extractedLocation.city || '',
-        state: extractedLocation.state || '',
-        postalCode: extractedLocation.postalCode || '',
-        country: extractedLocation.country || '',
-        countryCode: extractedLocation.countryCode,
-        latitude: extractedLocation.latitude,
-        longitude: extractedLocation.longitude,
-      };
-    } else if (updatePropertyDto.latitude && updatePropertyDto.longitude) {
-      // If coordinates are provided directly, update them
-      addressUpdate = {
-        latitude: updatePropertyDto.latitude,
-        longitude: updatePropertyDto.longitude,
-      };
-    }
+      const updatedProperty = await this.propertyModel
+        .findByIdAndUpdate(id, filteredUpdateDto, { new: true, session })
+        .exec();
 
-    // Filter allowed fields based on user role
-    const filteredUpdateDto = this.filterUpdateFields(
-      { ...updatePropertyDto, ...addressUpdate } as UpdatePropertyDto,
-      currentUser,
-    );
-
-    const updatedProperty = await this.propertyModel
-      .findByIdAndUpdate(id, filteredUpdateDto, { new: true })
-      .exec();
-
-    return updatedProperty;
+      return updatedProperty;
+    });
   }
 
   async remove(id: string, currentUser: UserDocument) {
