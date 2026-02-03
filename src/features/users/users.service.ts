@@ -458,31 +458,51 @@ export class UsersService {
     }
   }
 
+  /**
+   * Upload profile picture for a user
+   * Uses transaction to prevent TOCTOU race conditions
+   * @param userId User ID to update
+   * @param file File to upload
+   * @param currentUser Current user performing the operation
+   * @returns Updated user with new profile picture
+   */
   async uploadProfilePicture(userId: string, file: any, currentUser: User): Promise<User> {
-    const user = await this.userModel.findById(userId).exec();
-    if (!user) {
-      throw new NotFoundException(`User with ID ${userId} not found`);
-    }
+    return await this.sessionService.withSession(async (session: ClientSession | null) => {
+      // 1. Fetch target user within transaction
+      const user = await this.userModel.findById(userId, null, { session }).exec();
+      if (!user) {
+        throw new NotFoundException(`User with ID ${userId} not found`);
+      }
 
-    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
-    if (!ability.can(Action.Update, user)) {
-      throw new ForbiddenException('You do not have permission to update this user');
-    }
+      // 2. Check permission with fresh data
+      const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+      if (!ability.can(Action.Update, user)) {
+        throw new ForbiddenException('You do not have permission to update this user');
+      }
 
-    const media = await this.mediaService.upload(
-      file,
-      user,
-      currentUser,
-      'profile-pictures',
-      undefined,
-      'User',
-    );
+      // 3. Upload media (external service - acceptable outside transaction)
+      const media = await this.mediaService.upload(
+        file,
+        user,
+        currentUser,
+        'profile-pictures',
+        undefined,
+        'User',
+      );
 
-    const mediaUrl = await this.mediaService.getMediaUrl(media);
-    user.profilePicture = mediaUrl;
-    await user.save();
+      const mediaUrl = await this.mediaService.getMediaUrl(media);
 
-    return user;
+      // 4. Update atomically within transaction
+      const updatedUser = await this.userModel
+        .findByIdAndUpdate(userId, { profilePicture: mediaUrl }, { new: true, session })
+        .exec();
+
+      if (!updatedUser) {
+        throw new NotFoundException(`User with ID ${userId} not found`);
+      }
+
+      return updatedUser;
+    });
   }
 
   async getProfilePicture(userId: string): Promise<string | null> {
@@ -493,32 +513,52 @@ export class UsersService {
     return user.profilePicture || null;
   }
 
+  /**
+   * Update privacy settings for a user
+   * Uses transaction to prevent TOCTOU race conditions
+   * @param userId User ID to update
+   * @param updatePrivacySettingsDto Privacy settings to update
+   * @param currentUser Current user performing the operation
+   * @returns Updated user with new privacy settings
+   */
   async updatePrivacySettings(
     userId: string,
     updatePrivacySettingsDto: UpdatePrivacySettingsDto,
     currentUser: User,
   ): Promise<User> {
-    const user = await this.userModel.findById(userId).exec();
-    if (!user) {
-      throw new NotFoundException(`User with ID ${userId} not found`);
-    }
+    return await this.sessionService.withSession(async (session: ClientSession | null) => {
+      // 1. Fetch target user within transaction
+      const user = await this.userModel.findById(userId, null, { session }).exec();
+      if (!user) {
+        throw new NotFoundException(`User with ID ${userId} not found`);
+      }
 
-    // Check if user has permission to update privacy settings
-    const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
-    if (!ability.can(Action.Update, user)) {
-      throw new ForbiddenException('You do not have permission to update this user');
-    }
+      // 2. Check permission with fresh data
+      const ability = this.caslAuthorizationService.createAbilityForUser(currentUser);
+      if (!ability.can(Action.Update, user)) {
+        throw new ForbiddenException('You do not have permission to update this user');
+      }
 
-    // Update only the privacy settings fields
-    if (updatePrivacySettingsDto.allowNeighborsToMessage !== undefined) {
-      user.allowNeighborsToMessage = updatePrivacySettingsDto.allowNeighborsToMessage;
-    }
-    if (updatePrivacySettingsDto.allowGroupChatInvites !== undefined) {
-      user.allowGroupChatInvites = updatePrivacySettingsDto.allowGroupChatInvites;
-    }
+      // 3. Build update object
+      const updateFields: Partial<User> = {};
+      if (updatePrivacySettingsDto.allowNeighborsToMessage !== undefined) {
+        updateFields.allowNeighborsToMessage = updatePrivacySettingsDto.allowNeighborsToMessage;
+      }
+      if (updatePrivacySettingsDto.allowGroupChatInvites !== undefined) {
+        updateFields.allowGroupChatInvites = updatePrivacySettingsDto.allowGroupChatInvites;
+      }
 
-    await user.save();
-    return user;
+      // 4. Update atomically within transaction
+      const updatedUser = await this.userModel
+        .findByIdAndUpdate(userId, { $set: updateFields }, { new: true, session })
+        .exec();
+
+      if (!updatedUser) {
+        throw new NotFoundException(`User with ID ${userId} not found`);
+      }
+
+      return updatedUser;
+    });
   }
 
   async getPrivacySettings(userId: string): Promise<{
