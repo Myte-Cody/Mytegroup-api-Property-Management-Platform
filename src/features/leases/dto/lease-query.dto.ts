@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, Min, MaxLength, IsIn } from 'class-validator';
 import { LeaseStatus } from '../../../common/enums/lease.enum';
 
 export class LeaseQueryDto {
@@ -33,18 +33,22 @@ export class LeaseQueryDto {
   @ApiPropertyOptional({
     description: 'Search term for lease terms, tenant name, or property address',
     example: 'apartment',
+    maxLength: 200,
   })
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   search?: string;
 
   @ApiPropertyOptional({
     description: 'Field to sort by',
     example: 'createdAt',
     default: 'createdAt',
+    enum: ['createdAt', 'updatedAt', 'startDate', 'endDate', 'rentAmount', 'status'],
   })
   @IsOptional()
   @IsString()
+  @IsIn(['createdAt', 'updatedAt', 'startDate', 'endDate', 'rentAmount', 'status'])
   sortBy?: string = 'createdAt';
 
   @ApiPropertyOptional({

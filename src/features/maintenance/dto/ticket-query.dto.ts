@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsEnum, IsInt, IsMongoId, IsOptional, IsString, Max, Min, MaxLength, IsIn } from 'class-validator';
 import {
   TicketCategory,
   TicketPriority,
@@ -37,18 +37,22 @@ export class TicketQueryDto {
   @ApiPropertyOptional({
     description: 'Search term for ticket title, description, or ticket number',
     example: 'plumbing',
+    maxLength: 200,
   })
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   search?: string;
 
   @ApiPropertyOptional({
     description: 'Field to sort by',
     example: 'createdAt',
     default: 'createdAt',
+    enum: ['createdAt', 'updatedAt', 'ticketNumber', 'title', 'status', 'priority', 'category', 'requestDate'],
   })
   @IsOptional()
   @IsString()
+  @IsIn(['createdAt', 'updatedAt', 'ticketNumber', 'title', 'status', 'priority', 'category', 'requestDate'])
   sortBy?: string = 'createdAt';
 
   @ApiPropertyOptional({

@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsArray, IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsIn, IsNumber, IsOptional, IsString, Min, MaxLength } from 'class-validator';
 
 export class PropertyQueryDto {
   @ApiPropertyOptional({
@@ -31,9 +31,11 @@ export class PropertyQueryDto {
   @ApiPropertyOptional({
     description: 'Search term to filter properties',
     example: 'sunset apartments',
+    maxLength: 200,
   })
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   search?: string;
 
   @ApiPropertyOptional({

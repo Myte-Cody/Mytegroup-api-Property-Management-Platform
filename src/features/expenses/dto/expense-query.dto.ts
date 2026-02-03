@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDateString, IsEnum, IsInt, IsMongoId, IsOptional, IsString, Min } from 'class-validator';
+import { IsDateString, IsEnum, IsInt, IsMongoId, IsOptional, IsString, Min, MaxLength } from 'class-validator';
 import { ExpenseCategory, ExpenseStatus } from '../schemas/expense.schema';
 import { ExpenseScope, ExpenseSource } from './expense-response.dto';
 
@@ -69,8 +69,9 @@ export class ExpenseQueryDto {
   @IsDateString()
   endDate?: string;
 
-  @ApiProperty({ description: 'Search query for description', required: false })
+  @ApiProperty({ description: 'Search query for description', required: false, maxLength: 200 })
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   search?: string;
 }

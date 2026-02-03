@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsMongoId, IsOptional, IsPositive, IsString, Max, Min } from 'class-validator';
+import { IsBoolean, IsMongoId, IsOptional, IsPositive, IsString, Max, Min, MaxLength, IsIn } from 'class-validator';
 
 export class TenantQueryDto {
   @ApiPropertyOptional({
@@ -28,9 +28,11 @@ export class TenantQueryDto {
   @ApiPropertyOptional({
     description: 'Search term to filter tenants by name',
     example: 'John',
+    maxLength: 200,
   })
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   search?: string;
 
   @ApiPropertyOptional({
@@ -40,6 +42,7 @@ export class TenantQueryDto {
   })
   @IsOptional()
   @IsString()
+  @IsIn(['name', 'createdAt', 'updatedAt'])
   sortBy?: string = 'createdAt';
 
   @ApiPropertyOptional({
